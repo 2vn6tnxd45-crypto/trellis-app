@@ -45,9 +45,10 @@
                 <div class="hidden md:flex space-x-8 items-center">
                     <a href="#features" class="text-gray-500 hover:text-indigo-600 font-medium">Features</a>
                     <a href="#value" class="text-gray-500 hover:text-indigo-600 font-medium">For Sellers</a>
-                    <a href="#" onclick="alert('In the real app, this opens the Login modal.')" class="text-indigo-600 font-semibold">Log In</a>
-                    <!-- Updated: Calls the demo function -->
-                    <button onclick="demoRedirect()" class="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Start My Log</button>
+                    <!-- LINK: Points to the app route for login -->
+                    <a href="/app" class="text-indigo-600 font-semibold">Log In</a>
+                    <!-- LINK: Points to the app route -->
+                    <a href="/app" class="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Start My Log</a>
                 </div>
             </div>
         </div>
@@ -60,7 +61,6 @@
             <div class="inline-flex items-center px-3 py-1 rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wide mb-6">
                 <span class="w-2 h-2 bg-indigo-600 rounded-full mr-2 animate-pulse"></span> The New Standard for Homeowners
             </div>
-            <!-- Updated Headline -->
             <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-tight">
                 The <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500">Property Pedigree</span> <br> for your home.
             </h1>
@@ -68,11 +68,11 @@
                 Stop digging through drawers for old receipts. Trellis creates a permanent, transferrable digital pedigree of your home's history, maintenance, and upgrades.
             </p>
             <div class="mt-10 flex justify-center gap-4">
-                <!-- Updated: Calls the demo function -->
-                <button onclick="demoRedirect()" class="px-8 py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 transition shadow-xl shadow-indigo-200 flex items-center">
+                <!-- LINK: Points to app -->
+                <a href="/app" class="px-8 py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 transition shadow-xl shadow-indigo-200 flex items-center">
                     <i data-lucide="home" class="mr-2 h-5 w-5"></i> Claim Your Address
-                </button>
-                <!-- Updated: Correctly links to the pedigree_report.html file -->
+                </a>
+                <!-- LINK: Points to the report HTML file -->
                 <a href="pedigree_report.html" class="px-8 py-4 rounded-xl bg-white text-gray-700 font-bold text-lg border border-gray-200 hover:bg-gray-50 transition flex items-center">
                     See Example Pedigree
                 </a>
@@ -187,8 +187,21 @@
         <div class="max-w-4xl mx-auto px-4 text-center">
             <h2 class="text-3xl md:text-4xl font-bold text-white mb-6">Ready to build your property pedigree?</h2>
             <p class="text-indigo-200 text-lg mb-10">Join thousands of smart homeowners securing their property's history today.</p>
-            <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto" onsubmit="demoRedirect(event)">
-                <input type="email" required placeholder="Enter your email" class="px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 flex-grow text-gray-900">
+            
+            <!-- 
+                FUNCTIONAL FORM: 
+                Method: GET 
+                Action: /app 
+                Result: Sends user to app.trellis.homes?email=user@email.com 
+            -->
+            <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto" action="/app" method="GET">
+                <input 
+                    type="email" 
+                    name="email" 
+                    required 
+                    placeholder="Enter your email" 
+                    class="px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 flex-grow text-gray-900"
+                >
                 <button type="submit" class="px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold transition shadow-lg">Get Started Free</button>
             </form>
             <p class="mt-4 text-xs text-indigo-300">No credit card required. Free for single-family homes.</p>
@@ -214,14 +227,6 @@
 
     <script>
         lucide.createIcons();
-
-        // Simulation Script
-        function demoRedirect(e) {
-            if(e) e.preventDefault(); // Stop the form from actually submitting to a dead link
-            
-            // In a real app, this would do: window.location.href = '/app';
-            alert("🎉 Signup Successful! \n\nIn a real deployment, you would now be redirected to the Trellis App dashboard. \n\nFor this preview, please click the 'Trellis Home Log' file in the sidebar to see the app!");
-        }
     </script>
 </body>
 </html>
