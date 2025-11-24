@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>123 Maple Ave | Property Pedigree</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .bg-pattern {
+            background-color: #f8fafc;
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        @media print {
+            .no-print { display: none; }
+            .print-break { page-break-inside: avoid; }
+            body { background: white; }
+            .shadow-xl { box-shadow: none; }
+            .border { border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body class="bg-pattern text-gray-800 min-h-screen p-4 md:p-8">
+
+    <!-- Navigation / Back Link -->
+    <div class="max-w-5xl mx-auto mb-6 flex justify-between items-center no-print">
+        <a href="index.html" class="flex items-center text-gray-500 hover:text-indigo-600 transition font-medium">
+            <i data-lucide="arrow-left" class="h-4 w-4 mr-2"></i> Back to Home
+        </a>
+        <div class="flex gap-3">
+            <button onclick="window.print()" class="flex items-center px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 transition">
+                <i data-lucide="printer" class="h-4 w-4 mr-2"></i> Print
+            </button>
+            <button class="flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-lg shadow-sm hover:bg-indigo-700 text-sm font-medium text-white transition">
+                <i data-lucide="share-2" class="h-4 w-4 mr-2"></i> Share
+            </button>
+        </div>
+    </div>
+
+    <!-- Report Container -->
+    <div class="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+        
+        <!-- Report Header -->
+        <div class="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
+            <div class="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10">
+                <!-- Huge Logo Watermark (Using the correct design geometry) -->
+                <svg width="300" height="300" viewBox="0 0 100 100" fill="white">
+                    <path d="M50 15L85 45V85H15V45L50 15Z"/>
+                    <path d="M15 85L85 15" stroke="indigo" stroke-width="2"/>
+                    <path d="M-5 85L65 15" stroke="indigo" stroke-width="2"/>
+                    <path d="M35 105L105 35" stroke="indigo" stroke-width="2"/>
+                    <path d="M85 85L15 15" stroke="indigo" stroke-width="2"/>
+                    <path d="M105 85L35 15" stroke="indigo" stroke-width="2"/>
+                    <path d="M65 105L-5 35" stroke="indigo" stroke-width="2"/>
+                </svg>
+            </div>
+            
+            <div class="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div>
+                    <div class="flex items-center mb-6">
+                        <!-- Embedded Logo for Display -->
+                        <svg class="h-12 w-12 mr-4 bg-white rounded-lg p-1 shadow-lg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M50 15L85 45V85H15V45L50 15Z" fill="#2A2A72"/>
+                            <mask id="m-head" maskUnits="userSpaceOnUse" x="15" y="15" width="70" height="70">
+                                <path d="M50 15L85 45V85H15V45L50 15Z" fill="white"/>
+                            </mask>
+                            <g mask="url(#m-head)">
+                                <path d="M15 85L85 15" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                                <path d="M-5 85L65 15" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                                <path d="M35 105L105 35" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                                <path d="M85 85L15 15" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                                <path d="M105 85L35 15" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                                <path d="M65 105L-5 35" stroke="white" stroke-width="4" stroke-linecap="round"/>
+                            </g>
+                        </svg>
+                        <span class="text-2xl font-bold tracking-widest uppercase text-indigo-100">Trellis Property Pedigree</span>
+                    </div>
+                    
+                    <h1 class="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">123 Maple Avenue</h1>
+                    <p class="text-indigo-200 text-lg flex items-center">
+                        <i data-lucide="map-pin" class="h-5 w-5 mr-2"></i> Springfield, IL 62704
+                    </p>
+                </div>
+                
+                <div class="mt-8 md:mt-0 text-left md:text-right bg-indigo-800/50 p-4 rounded-xl border border-indigo-700/50 backdrop-blur-sm">
+                    <p class="text-xs text-indigo-300 uppercase tracking-wide mb-1">Pedigree ID</p>
+                    <p class="font-mono text-lg font-bold text-white">TR-8829-XJ</p>
+                    <div class="my-2 border-t border-indigo-700"></div>
+                    <p class="text-xs text-indigo-300 uppercase tracking-wide mb-1">Last Verified</p>
+                    <p class="font-mono text-white">Oct 24, 2024</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Systems Dashboard -->
+        <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50">
+            <div class="p-6 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p>
+                <p class="text-3xl font-extrabold text-green-600">2 <span class="text-sm font-normal text-gray-500">Yrs</span></p>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div class="bg-green-500 h-1.5 rounded-full" style="width: 15%"></div>
+                </div>
+            </div>
+            <div class="p-6 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p>
+                <p class="text-3xl font-extrabold text-yellow-600">12 <span class="text-sm font-normal text-gray-500">Yrs</span></p>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div class="bg-yellow-500 h-1.5 rounded-full" style="width: 60%"></div>
+                </div>
+            </div>
+            <div class="p-6 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p>
+                <p class="text-3xl font-extrabold text-green-600">4 <span class="text-sm font-normal text-gray-500">Yrs</span></p>
+                <div class="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div class="bg-green-500 h-1.5 rounded-full" style="width: 30%"></div>
+                </div>
+            </div>
+            <div class="p-6 text-center">
+                <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p>
+                <p class="text-3xl font-extrabold text-indigo-600">24</p>
+                <p class="text-xs text-gray-400 mt-1 font-medium">Verified Updates</p>
+            </div>
+        </div>
+
+        <div class="flex flex-col md:flex-row">
+            <!-- Main Content: Maintenance History -->
+            <div class="w-full md:w-2/3 p-8 md:p-10">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 flex items-center">
+                        <i data-lucide="history" class="h-6 w-6 mr-3 text-indigo-600"></i> Maintenance Timeline
+                    </h2>
+                    <span class="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">Most Recent First</span>
+                </div>
+
+                <div class="space-y-10 border-l-2 border-indigo-100 ml-3 pl-8 relative">
+                    
+                    <!-- Record 1 -->
+                    <div class="print-break relative">
+                        <div class="absolute -left-[43px] top-1 h-7 w-7 rounded-full bg-indigo-600 border-4 border-white shadow-md flex items-center justify-center"></div>
+                        <div class="mb-2 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                            <span class="font-bold text-xl text-gray-900">HVAC System Replacement</span>
+                            <span class="text-sm font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">Oct 15, 2022</span>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Component Details</p>
+                                    <p class="font-semibold text-gray-800 text-lg">Trane XR14</p>
+                                    <p class="text-sm text-gray-500">5 Ton Unit • 16 SEER</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Service Provider</p>
+                                    <p class="font-medium text-gray-800 flex items-center">
+                                        <i data-lucide="hard-hat" class="h-3 w-3 mr-1.5 text-indigo-500"></i> Springfield Heating & Air
+                                    </p>
+                                    <p class="text-sm text-gray-500">License #99482</p>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 text-gray-600 text-sm leading-relaxed mb-4">
+                                "Replaced full unit including furnace. Added smart thermostat wiring to master bedroom and living room. Registered 10-year parts warranty."
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-green-50 text-green-700 border border-green-100">
+                                    <i data-lucide="check-circle" class="h-3 w-3 mr-1.5"></i> Warranty Active (Exp 2032)
+                                </span>
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                    <i data-lucide="file-text" class="h-3 w-3 mr-1.5"></i> Receipt Verified
+                                </span>
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
+                                    <i data-lucide="image" class="h-3 w-3 mr-1.5"></i> 3 Photos
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Record 2 -->
+                    <div class="print-break relative">
+                        <div class="absolute -left-[43px] top-1 h-7 w-7 rounded-full bg-gray-300 border-4 border-white shadow-sm"></div>
+                        <div class="mb-2 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                            <span class="font-bold text-xl text-gray-900">Kitchen Renovation (Phase 1)</span>
+                            <span class="text-sm font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">Feb 10, 2022</span>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Category</p>
+                                    <p class="font-medium text-gray-800">Remodel / Upgrade</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Material</p>
+                                    <p class="font-medium text-gray-800">Cambria Quartz (Brittanicca)</p>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 text-gray-600 text-sm leading-relaxed">
+                                "Installed new quartz countertops and subway tile backsplash. Sealed grout on Feb 12. Added under-cabinet lighting."
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Record 3 -->
+                    <div class="print-break relative">
+                        <div class="absolute -left-[43px] top-1 h-7 w-7 rounded-full bg-gray-300 border-4 border-white shadow-sm"></div>
+                        <div class="mb-2 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                            <span class="font-bold text-xl text-gray-900">Exterior Painting</span>
+                            <span class="text-sm font-mono text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">June 20, 2021</span>
+                        </div>
+                        <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow duration-200">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Paint Brand</p>
+                                    <p class="font-medium text-gray-800">Sherwin Williams</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-400 uppercase font-bold mb-1">Color Code</p>
+                                    <div class="flex items-center">
+                                        <div class="h-4 w-4 rounded bg-[#5d5852] mr-2 border border-gray-300 shadow-sm"></div>
+                                        <p class="font-medium text-gray-800">SW 7048 Urbane Bronze</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-100 text-gray-600 text-sm leading-relaxed">
+                                "Full exterior trim, siding, and shutters. Power washed prior to application. 2 coats applied by ProPaint Services."
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+                
+                <div class="mt-12 text-center">
+                    <button class="text-indigo-600 font-semibold hover:text-indigo-800 transition flex items-center justify-center mx-auto">
+                        Load More Records <i data-lucide="chevron-down" class="h-4 w-4 ml-1"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sidebar: Property Details -->
+            <div class="w-full md:w-1/3 bg-gray-50 p-8 border-l border-gray-200 print:hidden">
+                <div class="sticky top-8">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-6 border-b border-gray-200 pb-2">Property Specs</h3>
+                    
+                    <ul class="space-y-5 mb-10">
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-500 text-sm">Year Built</span>
+                            <span class="font-bold text-gray-900 bg-white px-2 py-1 rounded border border-gray-200 text-sm">1995</span>
+                        </li>
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-500 text-sm">Square Footage</span>
+                            <span class="font-bold text-gray-900 bg-white px-2 py-1 rounded border border-gray-200 text-sm">2,450 sqft</span>
+                        </li>
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-500 text-sm">Lot Size</span>
+                            <span class="font-bold text-gray-900 bg-white px-2 py-1 rounded border border-gray-200 text-sm">0.35 Acres</span>
+                        </li>
+                        <li class="flex justify-between items-center">
+                            <span class="text-gray-500 text-sm">Foundation</span>
+                            <span class="font-bold text-gray-900 bg-white px-2 py-1 rounded border border-gray-200 text-sm">Slab</span>
+                        </li>
+                    </ul>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 mb-8 no-print relative overflow-hidden">
+                        <div class="absolute top-0 right-0 p-2">
+                            <i data-lucide="home" class="text-indigo-100 h-12 w-12 -mt-2 -mr-2"></i>
+                        </div>
+                        <h4 class="font-bold text-indigo-900 mb-2 relative z-10">Is this your home?</h4>
+                        <p class="text-sm text-gray-500 mb-4 relative z-10">
+                            This is a verified Trellis Pedigree. Claim this address to add records and manage your digital twin.
+                        </p>
+                        <button class="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm transition shadow-md shadow-indigo-200 relative z-10">
+                            Claim This Property
+                        </button>
+                    </div>
+
+                    <div class="text-center bg-white p-4 rounded-xl border border-gray-200">
+                        <div class="inline-block p-2 bg-white rounded-lg mb-2">
+                            <!-- Fake QR Code -->
+                            <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H30V30H0V0ZM10 10H20V20H10V10Z" fill="#1F2937"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M70 0H100V30H70V0ZM80 10H90V20H80V10Z" fill="#1F2937"/>
+                                <path fill-rule="evenodd" clip-rule="evenodd" d="M0 70H30V100H0V70ZM10 80H20V90H10V80Z" fill="#1F2937"/>
+                                <rect x="40" y="10" width="10" height="10" fill="#1F2937"/>
+                                <rect x="60" y="40" width="10" height="10" fill="#1F2937"/>
+                                <rect x="40" y="70" width="30" height="10" fill="#1F2937"/>
+                                <rect x="80" y="50" width="10" height="30" fill="#1F2937"/>
+                                <rect x="40" y="40" width="10" height="10" fill="#1F2937"/>
+                                <rect x="20" y="50" width="10" height="10" fill="#1F2937"/>
+                            </svg>
+                        </div>
+                        <p class="text-xs text-gray-400 font-mono uppercase tracking-widest">Scan to Verify</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="bg-gray-50 p-8 text-center border-t border-gray-200">
+            <p class="text-sm text-gray-500 flex items-center justify-center font-medium">
+                <i data-lucide="lock" class="h-4 w-4 mr-2 text-indigo-600"></i> Authenticated by Trellis Property Data
+            </p>
+            <p class="text-xs text-gray-400 mt-2">
+                Generated on Oct 24, 2024 • Report #TR-8829-XJ
+            </p>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
