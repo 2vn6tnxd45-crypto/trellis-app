@@ -16,11 +16,10 @@ import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileTex
 
 // --- Global Firebase & Auth Setup ---
 
-// 1. APP ID: Set this to your unique project name
+// 1. APP ID: This organizes your data in the database
 const appId = 'trellis-home-log'; 
 
-// 2. FIREBASE CONFIG: Paste your keys from Firebase Console -> Project Settings -> General here
-// REPLACE the object below with your actual config.
+// 2. FIREBASE CONFIG: Your specific keys for 'trellis-6cd18'
 const firebaseConfig = {
   apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
   authDomain: "trellis-6cd18.firebaseapp.com",
@@ -31,9 +30,7 @@ const firebaseConfig = {
   measurementId: "G-JBP9F27RN1"
 };
 
-/* NOTE: The lines below handle the fallback for the preview environment. 
-   When deploying to Vercel, the code will use the 'firebaseConfig' object defined above.
-*/
+// Logic to switch between Preview Environment (here) and Production (Vercel)
 const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
     ? JSON.parse(__firebase_config) 
     : firebaseConfig;
