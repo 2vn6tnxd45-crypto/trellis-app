@@ -16,12 +16,27 @@ import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileTex
 
 // --- Global Firebase & Auth Setup ---
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// 1. APP ID: Set this to your unique project name
+const appId = 'trellis-home-log'; 
 
-// FIX: Safely parse the __firebase_config string.
-const firebaseConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
+// 2. FIREBASE CONFIG: Paste your keys from Firebase Console -> Project Settings -> General here
+// REPLACE the object below with your actual config.
+const firebaseConfig = {
+  apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
+  authDomain: "trellis-6cd18.firebaseapp.com",
+  projectId: "trellis-6cd18",
+  storageBucket: "trellis-6cd18.firebasestorage.app",
+  messagingSenderId: "669423260428",
+  appId: "1:669423260428:web:64a5452413682c257cef29",
+  measurementId: "G-JBP9F27RN1"
+};
+
+/* NOTE: The lines below handle the fallback for the preview environment. 
+   When deploying to Vercel, the code will use the 'firebaseConfig' object defined above.
+*/
+const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
     ? JSON.parse(__firebase_config) 
-    : null;
+    : firebaseConfig;
 
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
@@ -717,7 +732,7 @@ const App = () => {
     useEffect(() => {
         if (firebaseConfig) {
             try {
-                const app = initializeApp(firebaseConfig);
+                const app = initializeApp(finalConfig);
                 const firestore = getFirestore(app);
                 const firebaseAuth = getAuth(app);
                 const firebaseStorage = getStorage(app); 
