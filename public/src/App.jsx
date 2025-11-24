@@ -19,7 +19,7 @@ import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileTex
 // 1. APP ID: This organizes your data in the database
 const appId = 'trellis-home-log'; 
 
-// 2. FIREBASE CONFIG: Your specific keys for 'trellis-6cd18'
+// 2. FIREBASE CONFIG: Hardcoded for Production
 const firebaseConfig = {
   apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
   authDomain: "trellis-6cd18.firebaseapp.com",
@@ -30,12 +30,8 @@ const firebaseConfig = {
   measurementId: "G-JBP9F27RN1"
 };
 
-// Logic to switch between Preview Environment (here) and Production (Vercel)
-const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
-    ? JSON.parse(__firebase_config) 
-    : firebaseConfig;
-
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+// No complex logic needed here for production - we just use the keys above.
+const initialAuthToken = null;
 
 // The collection path for public, shared app data
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
@@ -729,7 +725,7 @@ const App = () => {
     useEffect(() => {
         if (firebaseConfig) {
             try {
-                const app = initializeApp(finalConfig);
+                const app = initializeApp(firebaseConfig);
                 const firestore = getFirestore(app);
                 const firebaseAuth = getAuth(app);
                 const firebaseStorage = getStorage(app); 
