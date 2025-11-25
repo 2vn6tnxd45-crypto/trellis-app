@@ -95,24 +95,10 @@ const initialRecordState = {
 };
 
 // --- Embedded Logo Assets ---
-const logoSvgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="white"/>
-  <path d="M50 15L85 45V85H15V45L50 15Z" fill="#2A2A72"/>
-  <mask id="m" maskUnits="userSpaceOnUse" x="15" y="15" width="70" height="70">
-    <path d="M50 15L85 45V85H15V45L50 15Z" fill="white"/>
-  </mask>
-  <g mask="url(#m)">
-    <path d="M15 85L85 15" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <path d="M-5 85L65 15" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <path d="M35 105L105 35" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <path d="M85 85L15 15" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <path d="M105 85L35 15" stroke="white" stroke-width="3" stroke-linecap="round"/>
-    <path d="M65 105L-5 35" stroke="white" stroke-width="3" stroke-linecap="round"/>
-  </g>
-</svg>
-`;
-const logoSrc = `data:image/svg+xml;utf8,${encodeURIComponent(logoSvgString)}`;
+
+// UPDATED: We now reference the file in the /public folder instead of hardcoding the SVG string.
+// This allows you to update 'public/logo.svg' once and have it change everywhere.
+const logoSrc = '/logo.svg';
 
 // Brand Icons
 const GoogleIcon = () => (
