@@ -9,7 +9,7 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc
 } from 'firebase/firestore';
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X } from 'lucide-react';
 
 // --- Global Firebase & Auth Setup ---
 
@@ -37,7 +37,7 @@ const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial
 // The collection path for public, shared app data
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
 
-// --- CATEGORY DEFINITIONS & LOGIC ---
+// --- CATEGORY & ROOM DEFINITIONS ---
 
 const CATEGORIES = [
     "Paint & Finishes",
@@ -52,6 +52,26 @@ const CATEGORIES = [
     "Other"
 ];
 
+const ROOMS = [
+    "Kitchen",
+    "Living Room",
+    "Dining Room",
+    "Master Bedroom",
+    "Bedroom",
+    "Master Bathroom",
+    "Bathroom",
+    "Office",
+    "Laundry Room",
+    "Garage",
+    "Basement",
+    "Attic",
+    "Exterior",
+    "Hallway",
+    "Entryway",
+    "Patio/Deck",
+    "Other (Custom)"
+];
+
 const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];
 const FLOORING_TYPES = ["Hardwood", "Laminate", "Vinyl/LVP", "Tile", "Carpet", "Concrete", "Other"];
@@ -63,12 +83,12 @@ const initialRecordState = {
     item: '',
     brand: '',
     model: '',
-    serialNumber: '', // New field
-    material: '',     // New field for Roof/Flooring
-    sheen: '',        // New field for Paint
+    serialNumber: '', 
+    material: '',     
+    sheen: '',        
     dateInstalled: '',
     contractor: '',
-    contractorUrl: '', // NEW: Link to Yelp, Thumbtack, or Google Maps profile
+    contractorUrl: '',
     notes: '',
     purchaseLink: '',
     imageUrl: '',
@@ -408,6 +428,41 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
         modelLabel = "Model Number";
     }
 
+    // Logic for Area/Room input vs select
+    // State is handled by newRecord.area directly, but we need to manage the select value
+    // and the visibility of the custom input.
+    // We'll use a simple approach:
+    // If newRecord.area matches a standard room, show it in Select.
+    // If it doesn't match (and is not empty), or the user selects "Other (Custom)", show text input?
+    // Let's use a local state to track if we are in "Custom" mode.
+    const [isCustomArea, setIsCustomArea] = useState(false);
+
+    // Effect: If newRecord.area is a known standard room, ensure we are not in custom mode.
+    // If it's something else (e.g. from editing later), set custom mode.
+    useEffect(() => {
+        if (newRecord.area && !ROOMS.includes(newRecord.area)) {
+             setIsCustomArea(true);
+        }
+    }, [newRecord.area]);
+
+    const handleRoomSelectChange = (e) => {
+        const value = e.target.value;
+        if (value === "Other (Custom)") {
+            setIsCustomArea(true);
+            // Clear the actual value so user can type fresh, or keep "Other" as placeholder?
+            // Better to clear it for the text input
+            onInputChange({ target: { name: 'area', value: '' } });
+        } else {
+            setIsCustomArea(false);
+            onInputChange(e);
+        }
+    };
+
+    const handleBackToSelect = () => {
+        setIsCustomArea(false);
+        onInputChange({ target: { name: 'area', value: '' } });
+    }
+
     return (
         <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
             <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
@@ -436,16 +491,49 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
                 </div>
                  <div>
                     <label htmlFor="area" className="block text-sm font-medium text-gray-700 required-label">Area/Room <span className="text-red-500">*</span></label>
-                    <input
-                        type="text"
-                        name="area"
-                        id="area"
-                        value={newRecord.area}
-                        onChange={onInputChange}
-                        required
-                        placeholder="e.g., Kitchen"
-                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
-                    />
+                    
+                    {!isCustomArea ? (
+                        <div className="relative mt-1">
+                            <select
+                                name="area"
+                                id="area"
+                                value={ROOMS.includes(newRecord.area) ? newRecord.area : ""}
+                                onChange={handleRoomSelectChange}
+                                required={!isCustomArea}
+                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                            >
+                                <option value="" disabled>Select Room</option>
+                                {ROOMS.map(room => (
+                                    <option key={room} value={room}>{room}</option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <ChevronDown size={16} />
+                            </div>
+                        </div>
+                    ) : (
+                         <div className="relative mt-1 flex">
+                            <input
+                                type="text"
+                                name="area"
+                                id="area"
+                                value={newRecord.area}
+                                onChange={onInputChange}
+                                required={isCustomArea}
+                                autoFocus
+                                placeholder="e.g. Guest Cottage"
+                                className="block w-full rounded-l-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                            />
+                            <button 
+                                type="button"
+                                onClick={handleBackToSelect}
+                                className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-200 text-gray-600"
+                                title="Back to List"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
