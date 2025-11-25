@@ -57,21 +57,10 @@ const initialRecordState = {
     notes: '', purchaseLink: '', imageUrl: '',
 };
 
-// --- NEW LOGO SVG STRING (Matches the uploaded image style) ---
+// --- NEW LOGO SVG STRING (Updated to user provided logo) ---
 const logoSvgString = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="white"/>
-  <defs>
-    <path id="h" d="M50 10L90 45V90H10V45L50 10Z" />
-    <clipPath id="c"><use href="#h"/></clipPath>
-  </defs>
-  <use href="#h" fill="#2A2A72"/>
-  <rect x="20" y="25" width="8" height="15" fill="#2A2A72"/>
-  <g clip-path="url(#c)" stroke="white" stroke-width="4" stroke-linecap="square">
-    <path d="M-10 80L60 10"/><path d="M10 100L80 30"/><path d="M30 120L100 50"/><path d="M-30 60L40 -10"/>
-    <path d="M110 80L40 10"/><path d="M90 100L20 30"/><path d="M70 120L0 50"/><path d="M130 60L60 -10"/>
-  </g>
-  <use href="#h" stroke="#2A2A72" stroke-width="4" fill="none"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 755" fill="none">
+  <path fill="#2A2A72" d="M1016.48,403h-77.99l-90.49-68.07v404.35l-.72.72H175.72l-.72-.72v-404.35l-90.49,68.07H5.6l236.4-184.52v-108.48h67v53.04L512.62,8.05l503.86,394.95ZM512.31,73.38l-63.66,47.66,63.59,56.85,60.52-52.73c1.11-1.17.82-2.88.31-4.23-1.06-2.76-11.8-11.12-14.76-13.56-9.99-8.27-20.81-16.75-31.28-24.4-2.18-1.6-12.96-9.75-14.72-9.59ZM429.75,134.76l-70.14,53.73c-.25,2.24-.97,5.73.68,7.46l66.98,58.18c5.72-4.25,11.17-8.92,16.57-13.56,10.71-9.2,21.99-19.04,32.16-28.8,2.72-2.61,17.32-16.66,17.27-19.22l-63.52-57.79ZM591.91,134.84l-63.59,56.76,68.39,64.47,68.37-64.41-73.17-56.82ZM337.99,205.4l-71.27,57.24,75.66,68.83,68.8-61.63-73.2-64.44ZM754.88,261.93l-70.71-56.58-70.88,64.97,64.01,61.65,77.58-70.04ZM443.84,270.55l66.06,61.41,67.82-59.79-65.57-63.95-68.31,62.32ZM695.36,345.45l68.4,64.78c6-7.71,14.94-12.23,22.09-18.7,8.66-7.83,9.76-12.08,10.33-23.75.88-17.95-1.43-35.92-1.96-53.76-.19-6.3.01-12.68.28-18.96l-24.25-18.74c-.39,4.52-5.89,7.04-9.13,9.83-21.28,18.34-40.61,38.86-62.16,56.88-1.01.85-2.34,2.01-3.59,2.42ZM248.45,279.32c-6.37.8-12.21,8.42-17.2,12.09-.88.64-2.94,1.11-3.25,2.03l-.58,87.31c.22,1.66,2.79,3.78,4.09,5.03,8.72,8.35,17.83,16.41,26.83,24.43l67.95-65.9-70.78-62.69c-2.36-1.75-3.97-2.68-7.06-2.29ZM493.2,345.52c-.14-.23-3.65-2.3-4.46-2.97-16.69-13.84-30.58-30.97-46.81-45.35-2.6-2.3-13.14-11.58-16.07-11.29l-64.08,62.12,65.89,59.74c9.91-7.94,19.65-16.19,29.13-24.65,10.4-9.27,25.11-21.53,33.58-32.18.85-1.07,3.55-4.17,2.81-5.43ZM528.43,344.1c-.29.5-.19,2.33-.08,3,.24,1.37,6.04,8.35,7.4,9.87,16.73,18.72,40.52,31.34,56.65,50.86l67.91-60.23-63.18-61.13-68.7,57.62ZM411.2,423.21l-68.4-61.47-65.99,64.1c15.88,14.8,30.93,30.57,47.02,45.13,2.44,2.21,16.6,15.02,18.48,15.09l68.88-62.85ZM678.89,361.81l-67.98,62.04,67.95,62.18,65.23-56.09c1.92-1.98,2.66-4.84,3.49-7.4l-68.7-60.73ZM443.84,423.21l65.58,60.44,65-55.38c2.06-2.05-.06-5.1.36-7.61l-62.61-56.46-68.33,59.02ZM227,413.12v23.76c0,.48,1.14.76,1.67.76,4.05,0,4.64-4.93,6.95-7.02,1.72-1.56,4.8-2.15,6.25-4.3l-14.87-13.2ZM794.72,437.12l-1.19-24-10.72,12.72,11.91,11.27ZM257.91,440.07c-8.25,9.78-21.28,17.17-28.26,27.9-3.73,5.73-3.51,12.62-3.75,19.29-.48,13.32-.15,27.06.52,40.32.2,4.01-.36,9.52,1.09,13.31,1.11,2.92,10.08,11.51,12.81,14.07,2.21,2.08,12.91,11.79,15.14,11.74l70.75-64.61-68.3-62.02ZM427.27,440.12l-67.88,61.63c-.16.93,9.57,9.12,11.01,10.49,12.38,11.75,24.32,24.05,36.95,35.53,2.38,2.17,15.52,14.2,17.54,14.15l68.35-62.22-65.97-59.58ZM591.99,440.07l-63.15,59.62,68.3,62.19c11.25-9.53,22.53-19.07,33.43-29,7.82-7.13,15.71-14.45,23.29-21.83,1.18-1.15,8.94-8.66,8.83-9.31l-70.7-61.67ZM695.39,501.45l68.95,65.19c.78.15,4.66-2.28,5.6-2.89,5.64-3.66,23.52-18.82,25.06-24.86l.12-69.26c-.45-2.21-5.9-7.23-7.8-9-7.52-7.05-16.49-12.61-23.14-20.58l-68.79,61.41ZM509.93,515.9l-68.45,62.03,70.76,64.16,65.99-64.1-68.3-62.1ZM679.28,517.85l-65.98,60.1,73.11,64.1,63.67-59.71-70.79-64.49ZM342.44,518.79c-12.38,7.63-23.26,17.72-33.97,27.53-10.24,9.38-21.86,20.07-31.21,30.23-.95,1.04-4.82,5.09-5.21,5.83-.63,1.22-1.01,3.1-.05,4.25l65.51,55.46,71.27-64.58-66.35-58.73ZM354.08,658.87l33.95,29.17c24.09-.02,48.43.64,72.39-.34l32.85-31.47-60.94-58.57c-2.99-2.33-5.63-5.54-9.87-3.62-21.4,20.86-43.89,40.59-65.5,61.22-.59.56-3.32,2.96-2.87,3.6ZM596.79,593.63l-68.46,64.53,33.93,29.9c20.59-.61,41.79,2.88,62.32,1.56,10.6-.68,23.62-11.86,31.43-18.97,2.59-2.37,10.02-9.35,11.54-11.98.69-1.19.59-2.45.35-3.77l-71.11-61.26ZM227,689h59.28c9.51-7.44,19.92-16.29,27.85-25.43,1.61-1.86,5.98-6.53,4.58-8.91l-63.15-55.81-28.56,25.59v64.56ZM795,689v-64.56c-4.89-5.8-10.71-11.26-16.57-16.07-2.59-2.13-10.23-8.48-13.07-9.04-.58-.11-1.12-.22-1.7-.01l-62.06,57.51.25,1.23,31.47,30.94h61.68ZM530.24,689l-20.4-16.82-16.08,16.82h36.48ZM353.6,689l-18.01-14.32-16.07,14.32h34.08ZM700.16,688.17l-16.08-13.94-16.08,13.22c6.46.79,12.94.52,19.43.72,3.82.12,7.61.67,11.53.48.54-.03,1.32.31,1.19-.47Z"/>
 </svg>
 `;
 const logoSrc = `data:image/svg+xml;utf8,${encodeURIComponent(logoSvgString)}`;
@@ -87,14 +76,14 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
             <h3 className="text-xl font-semibold text-gray-800 mb-4">Confirm Action</h3>
             <p className="text-gray-600 mb-6">{message}</p>
             <div className="flex justify-end space-x-3">
-                <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
-                <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Delete</button>
+                <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">Delete</button>
             </div>
         </div>
     </div>
 );
 
-const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error }) => {
+const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -103,41 +92,80 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); }
+        const emailParam = params.get('email');
+        if (emailParam) {
+            setEmail(emailParam);
+            setIsSignUp(true);
+        }
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLocalError(null); setIsLoading(true);
-        try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); }
+        setLocalError(null);
+        setIsLoading(true);
+        
+        try {
+            await onLogin(email, password, isSignUp);
+        } catch (err) {
+            setLocalError(err.message);
+            setIsLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-                <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="Trellis" />
-                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}</h2>
+                <img className="mx-auto h-20 w-20 rounded-xl shadow-md" src={logoSrc} alt="Trellis" />
+                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">
+                    {isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}
+                </h2>
                 <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
             </div>
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><span className="mr-2"><GoogleIcon /></span> Google</button>
-                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"><span className="mr-2"><AppleIcon /></span> Apple</button>
+                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span className="mr-2"><GoogleIcon /></span> Google
+                        </button>
+                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span className="mr-2"><AppleIcon /></span> Apple
+                        </button>
                     </div>
                     <div className="relative mb-6">
                         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div>
                         <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div>
                     </div>
                     <form className="space-y-6" onSubmit={handleSubmit}>
-                        <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
-                        <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
-                        {(localError || error) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || error}</div>}
-                        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email address</label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div>
+                                <input id="email" name="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/>
+                            </div>
+                        </div>
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Password</label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div>
+                                <input id="password" name="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/>
+                            </div>
+                        </div>
+                        {(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || authError}</div>}
+                        <div>
+                            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                                {isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                            </button>
+                        </div>
                     </form>
-                    <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
-                    <div className="mt-6 text-center border-t pt-4"><button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
+                    <div className="mt-6 text-center">
+                        <button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest (Data will not be saved permanently)</button>
+                    </div>
+                    <div className="mt-6 text-center border-t pt-4">
+                        <button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -149,7 +177,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
-    const timeoutRef = useRef(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -159,6 +186,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         }
     };
 
+    const timeoutRef = useRef(null);
     const fetchAddressSuggestions = (query) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         timeoutRef.current = setTimeout(() => {
@@ -175,15 +203,22 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     };
 
     const selectSuggestion = (feature) => {
-        const p = feature.properties;
-        setFormData(prev => ({ ...prev, streetAddress: p.name || `${p.housenumber || ''} ${p.street || ''}`, city: p.city || p.town || '', state: p.state || '', zip: p.postcode || '' }));
+        const props = feature.properties;
+        const streetPart = props.street || '';
+        const numberPart = props.housenumber || '';
+        const fullStreet = numberPart ? `${numberPart} ${streetPart}` : (props.name || streetPart);
+        setFormData(prev => ({
+            ...prev, streetAddress: fullStreet, city: props.city || props.town || props.village || '', state: props.state || '', zip: props.postcode || ''
+        }));
         setShowSuggestions(false);
     };
 
     return (
         <div className="flex items-center justify-center min-h-[90vh]">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
-                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
+                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium">
+                    <LogOut size={14} className="mr-1" /> Sign Out
+                </button>
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-8 leading-relaxed text-sm">Start typing your address to auto-fill your property details.</p>
