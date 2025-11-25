@@ -13,7 +13,7 @@ import {
 /* import { 
     getStorage, ref, uploadBytes, getDownloadURL 
 } from 'firebase/storage'; */
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown } from 'lucide-react';
 
 // --- Global Firebase & Auth Setup ---
 
@@ -40,6 +40,21 @@ const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial
 
 // The collection path for public, shared app data
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
+
+// Standard Categories List
+const CATEGORIES = [
+    "Paint & Finishes",
+    "Appliances",
+    "Flooring",
+    "HVAC & Systems",
+    "Plumbing",
+    "Electrical",
+    "Roof & Exterior",
+    "Landscaping",
+    "Service & Repairs",
+    "Furniture & Decor",
+    "Other"
+];
 
 // State structure for a single record
 const initialRecordState = {
@@ -566,16 +581,24 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
             </div>
             <div>
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700 required-label">Category <span className="text-red-500">*</span></label>
-                <input
-                    type="text"
-                    name="category"
-                    id="category"
-                    value={newRecord.category}
-                    onChange={onInputChange}
-                    required
-                    placeholder="e.g., Paint"
-                    className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
-                />
+                <div className="relative">
+                    <select
+                        name="category"
+                        id="category"
+                        value={newRecord.category}
+                        onChange={onInputChange}
+                        required
+                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                    >
+                        <option value="" disabled>Select Category</option>
+                        {CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 pt-1">
+                        <ChevronDown size={16} />
+                    </div>
+                </div>
             </div>
         </div>
 
