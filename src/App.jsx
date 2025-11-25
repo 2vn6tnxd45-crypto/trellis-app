@@ -68,6 +68,7 @@ const initialRecordState = {
     sheen: '',        // New field for Paint
     dateInstalled: '',
     contractor: '',
+    contractorUrl: '', // NEW: Link to Yelp, Thumbtack, or Google Maps profile
     notes: '',
     purchaseLink: '',
     imageUrl: '',
@@ -351,7 +352,26 @@ const RecordCard = ({ record, onDeleteClick }) => (
                 {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
                 
                 {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Installed: {record.dateInstalled}</p>}
-                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Contractor: {record.contractor}</p>}
+                
+                {/* Updated Contractor Field with Link Support */}
+                {record.contractor && (
+                    <p className="flex items-center text-gray-600">
+                        <HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> 
+                        Contractor: 
+                        {record.contractorUrl ? (
+                            <a 
+                                href={record.contractorUrl.startsWith('http') ? record.contractorUrl : `https://${record.contractorUrl}`}
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="ml-1 text-indigo-600 hover:text-indigo-800 hover:underline font-medium flex items-center"
+                            >
+                                {record.contractor} <ExternalLink size={12} className="ml-1" />
+                            </a>
+                        ) : (
+                            <span className="ml-1">{record.contractor}</span>
+                        )}
+                    </p>
+                )}
                 
                 {record.purchaseLink && (
                     <a href={record.purchaseLink.startsWith('http') ? record.purchaseLink : `https://${record.purchaseLink}`} target="_blank" rel="noopener noreferrer" className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors underline pt-1" title={`Go to: ${record.purchaseLink}`}>
@@ -546,16 +566,33 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
                         className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
                     />
                 </div>
-                 <div>
-                    <label htmlFor="contractor" className="block text-sm font-medium text-gray-700">Contractor/Company</label>
-                    <input
-                        type="text"
-                        name="contractor"
-                        id="contractor"
-                        value={newRecord.contractor}
-                        onChange={onInputChange}
-                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
-                    />
+                 
+                 {/* Updated Contractor Section with URL */}
+                 <div className="space-y-2">
+                    <div>
+                        <label htmlFor="contractor" className="block text-sm font-medium text-gray-700">Contractor/Company</label>
+                        <input
+                            type="text"
+                            name="contractor"
+                            id="contractor"
+                            value={newRecord.contractor}
+                            onChange={onInputChange}
+                            placeholder="e.g. Joe's Plumbing"
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="contractorUrl" className="block text-xs font-medium text-gray-500">Profile Link (Yelp/Thumbtack/Google)</label>
+                        <input
+                            type="url"
+                            name="contractorUrl"
+                            id="contractorUrl"
+                            value={newRecord.contractorUrl}
+                            onChange={onInputChange}
+                            placeholder="https://yelp.com/biz/..."
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow text-sm"
+                        />
+                    </div>
                 </div>
             </div>
             
