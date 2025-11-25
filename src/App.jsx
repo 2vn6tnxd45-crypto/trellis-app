@@ -9,9 +9,10 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc
 } from 'firebase/firestore';
-import { 
+// Removed Storage imports for now to avoid billing requirements
+/* import { 
     getStorage, ref, uploadBytes, getDownloadURL 
-} from 'firebase/storage';
+} from 'firebase/storage'; */
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail } from 'lucide-react';
 
 // --- Global Firebase & Auth Setup ---
@@ -609,7 +610,7 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
                     hover:file:bg-indigo-200
                     cursor-pointer"
             />
-            <p className="text-xs text-gray-500 mt-1">Supported: JPG, PNG. Max 5MB recommended.</p>
+            <p className="text-xs text-gray-500 mt-1">Supported: JPG, PNG. Max 1MB recommended.</p>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -707,7 +708,8 @@ const App = () => {
     // Firebase State
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
-    const [storage, setStorage] = useState(null); 
+    // Storage state removed for now
+    // const [storage, setStorage] = useState(null); 
     const [userId, setUserId] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
     
@@ -732,13 +734,13 @@ const App = () => {
                 const app = initializeApp(finalConfig);
                 const firestore = getFirestore(app);
                 const firebaseAuth = getAuth(app);
-                const firebaseStorage = getStorage(app); 
+                // const firebaseStorage = getStorage(app); // Paused
                 
                 setLogLevel('error'); 
                 
                 setDb(firestore);
                 setAuth(firebaseAuth);
-                setStorage(firebaseStorage);
+                // setStorage(firebaseStorage);
 
                 const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
                     if (user) {
@@ -947,17 +949,12 @@ const App = () => {
             let finalImageUrl = '';
 
             if (selectedFile) {
-                try {
-                    const storageRef = ref(storage, `house_images/${userId}/${Date.now()}_${selectedFile.name}`);
-                    const snapshot = await uploadBytes(storageRef, selectedFile);
-                    finalImageUrl = await getDownloadURL(snapshot.ref);
-                } catch (uploadErr) {
-                    console.warn("Storage upload failed, utilizing fallback.", uploadErr);
-                    if (selectedFile.size < 800000) {
-                        finalImageUrl = await fileToBase64(selectedFile);
-                    } else {
-                        throw new Error("Image upload failed and file is too large for local fallback.");
-                    }
+                // Simplified for no-cost storage: Convert to Base64 string
+                // Note: Large strings in Firestore can be expensive/slow, so we limit size strictly.
+                if (selectedFile.size < 1048576) { // 1MB limit
+                    finalImageUrl = await fileToBase64(selectedFile);
+                } else {
+                    throw new Error("Image is too large. Please use an image under 1MB.");
                 }
             }
 
@@ -981,7 +978,7 @@ const App = () => {
         } finally {
             setIsSaving(false);
         }
-    }, [db, userId, isSaving, newRecord, selectedFile, storage, propertyProfile]); 
+    }, [db, userId, isSaving, newRecord, selectedFile, /* storage, */ propertyProfile]); // Removed storage from dependency array
 
     
     const handleDeleteConfirmed = async () => {
