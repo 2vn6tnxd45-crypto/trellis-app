@@ -110,7 +110,6 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
     </div>
 );
 
-// Auth Screen Component (Login / Signup)
 const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
@@ -118,150 +117,47 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     const [localError, setLocalError] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
-    // Check for email in URL params (from landing page)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const emailParam = params.get('email');
-        if (emailParam) {
-            setEmail(emailParam);
-            setIsSignUp(true); // Assume they came from "Get Started"
-        }
+        if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); }
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLocalError(null);
-        setIsLoading(true);
-        
-        try {
-            await onLogin(email, password, isSignUp);
-        } catch (err) {
-            setLocalError(err.message);
-            setIsLoading(false);
-        }
+        setLocalError(null); setIsLoading(true);
+        try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); }
     };
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
-            
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                 <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="Trellis" />
-                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">
-                    {isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}
-                </h2>
-                <p className="mt-2 text-sm text-gray-600">
-                    The permanent record for your home.
-                </p>
+                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}</h2>
+                <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
             </div>
-
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
-                    
-                    {/* Social Login Buttons */}
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button
-                            onClick={onGoogleLogin}
-                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
+                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                             <span className="mr-2"><GoogleIcon /></span> Google
                         </button>
-                        <button
-                            onClick={onAppleLogin}
-                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                        >
+                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                             <span className="mr-2"><AppleIcon /></span> Apple
                         </button>
                     </div>
-
                     <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-300" />
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">Or continue with email</span>
-                        </div>
+                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div>
+                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div>
                     </div>
-
                     <form className="space-y-6" onSubmit={handleSubmit}>
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                Email address
-                            </label>
-                            <div className="mt-1 relative rounded-md shadow-sm">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Mail size={16} className="text-gray-400" />
-                                </div>
-                                <input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    autoComplete="email"
-                                    required
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
-                                    placeholder="you@example.com"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                                Password
-                            </label>
-                            <div className="mt-1 relative rounded-md shadow-sm">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Lock size={16} className="text-gray-400" />
-                                </div>
-                                <input
-                                    id="password"
-                                    name="password"
-                                    type="password"
-                                    autoComplete="current-password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
-                                    placeholder="••••••••"
-                                />
-                            </div>
-                        </div>
-
-                        {(localError || authError) && (
-                            <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">
-                                {localError || authError}
-                            </div>
-                        )}
-
-                        <div>
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                {isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
-                            </button>
-                        </div>
+                        <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
+                        <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
+                        {(localError || error) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || error}</div>}
+                        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
                     </form>
-
-                    <div className="mt-6 text-center">
-                        <button 
-                            onClick={onGuestLogin}
-                            className="text-xs font-medium text-gray-400 hover:text-gray-600 underline"
-                        >
-                            Try as a Guest (Data will not be saved permanently)
-                        </button>
-                    </div>
-                    
-                    <div className="mt-6 text-center border-t pt-4">
-                        <button 
-                            onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }}
-                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
-                        >
-                            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
-                        </button>
-                    </div>
+                    <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
+                    <div className="mt-6 text-center border-t pt-4"><button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
                 </div>
             </div>
         </div>
@@ -271,30 +167,12 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
 // Setup Form with Address Autocomplete
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
-        propertyName: '',
-        streetAddress: '',
-        city: '',
-        state: '',
-        zip: ''
+        propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
     });
-
-    const [suggestions, setSuggestions] = useState([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-        
-        // Removed the Photon fetch logic that was here before.
-        // We rely solely on the Google Autocomplete attached via inputRef now.
-    };
-    
-    // Ref for Google Autocomplete input
+    // Google Maps Autocomplete Ref
     const inputRef = useRef(null);
     const [autocomplete, setAutocomplete] = useState(null);
 
-    // Initialize Google Autocomplete
     useEffect(() => {
         loadGoogleMapsScript(() => {
             if (inputRef.current && window.google) {
@@ -333,126 +211,44 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         });
     }, []);
 
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
-                <button 
-                    onClick={onSignOut}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"
-                >
-                    <LogOut size={14} className="mr-1" /> Sign Out
-                </button>
-                <div className="flex justify-center mb-6">
-                    <img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" />
-                </div>
+                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
+                <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
-                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Let's find your home. We'll use this to pull environmental insights.</p>
-                
-                <form onSubmit={onSave} className="space-y-4 text-left relative">
-                    <div>
-                        <label htmlFor="propertyName" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Property Nickname</label>
-                        <input
-                            type="text"
-                            name="propertyName"
-                            id="propertyName"
-                            required
-                            value={formData.propertyName}
-                            onChange={handleChange}
-                            placeholder="e.g. The Lake House"
-                            className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow"
-                        />
-                    </div>
-
-                    <div className="relative">
-                        <label htmlFor="streetAddress" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
-                        <div className="relative">
-                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                name="streetAddress"
-                                id="streetAddress"
-                                required
-                                value={formData.streetAddress}
-                                onChange={handleChange}
-                                autoComplete="off"
-                                placeholder="Start typing address..."
-                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border transition-shadow"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="city" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label>
-                            <input
-                                type="text"
-                                name="city"
-                                id="city"
-                                required
-                                value={formData.city}
-                                onChange={handleChange}
-                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <div>
-                                <label htmlFor="state" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label>
-                                <input
-                                    type="text"
-                                    name="state"
-                                    id="state"
-                                    required
-                                    value={formData.state}
-                                    onChange={handleChange}
-                                    maxLength="20" 
-                                    className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
-                                />
-                            </div>
-                            <div>
-                                <label htmlFor="zip" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label>
-                                <input
-                                    type="text"
-                                    name="zip"
-                                    id="zip"
-                                    required
-                                    value={formData.zip}
-                                    onChange={handleChange}
-                                    className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
-                                />
-                            </div>
-                        </div>
-                    </div>
+                <p className="text-gray-500 mb-8 leading-relaxed text-sm">Start typing your address to auto-fill details.</p>
+                <form onSubmit={onSave} className="space-y-5 text-left relative">
+                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
+                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" required value={formData.streetAddress} onChange={handleChange} autoComplete="off" placeholder="Start typing..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div>
+                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
                     
-                    {/* Estated Fields (Manual Entry for now) */}
-                    <div className="pt-4 border-t border-gray-100">
+                    {/* Hidden fields for lat/lon */}
+                    <input type="hidden" name="lat" value={formData.lat || ''} />
+                    <input type="hidden" name="lon" value={formData.lon || ''} />
+                    
+                     <div className="pt-4 border-t border-gray-100">
                          <p className="text-xs text-indigo-600 font-semibold mb-3">Property Details (Optional)</p>
                          <div className="grid grid-cols-3 gap-3">
                              <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} placeholder="1990" className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
                              <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} placeholder="2400" className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
-                             <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size (Acres)</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} placeholder="0.25" className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                             <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} placeholder="0.25" className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
                          </div>
-                         <p className="text-xs text-gray-400 mt-2 italic">Note: Automated data lookup requires a paid Estated key.</p>
                     </div>
-
-                    {/* Hidden fields for lat/lon */}
-                    <input type="hidden" name="lat" value={formData.lat || ''} />
-                    <input type="hidden" name="lon" value={formData.lon || ''} />
-
-                    <button
-                        type="submit"
-                        disabled={isSaving}
-                        className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center mt-4"
-                    >
-                        {isSaving ? 'Saving Profile...' : 'Create My Home Log'}
-                    </button>
+                    
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
                 </form>
             </div>
         </div>
     );
 };
 
-// ... EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, App remain unchanged ...
+// ... (RecordCard, AddRecordForm, EnvironmentalInsights, PedigreeReport, App remain unchanged)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { address, coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
