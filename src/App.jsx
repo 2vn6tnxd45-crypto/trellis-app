@@ -9,7 +9,7 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc
 } from 'firebase/firestore';
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag } from 'lucide-react';
 
 // --- Global Firebase & Auth Setup ---
 
@@ -52,20 +52,9 @@ const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slat
 const FLOORING_TYPES = ["Hardwood", "Laminate", "Vinyl/LVP", "Tile", "Carpet", "Concrete", "Other"];
 
 const initialRecordState = {
-    area: '',
-    category: '',
-    item: '',
-    brand: '',
-    model: '',
-    serialNumber: '', 
-    material: '',     
-    sheen: '',        
-    dateInstalled: '',
-    contractor: '',
-    contractorUrl: '',
-    notes: '',
-    purchaseLink: '',
-    imageUrl: '',
+    area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
+    material: '', sheen: '', dateInstalled: '', contractor: '', contractorUrl: '',
+    notes: '', purchaseLink: '', imageUrl: '',
 };
 
 // --- Embedded Logo Assets ---
@@ -94,7 +83,7 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
     </div>
 );
 
-// ... (AuthScreen and SetupPropertyForm components remain unchanged, but included for completeness)
+// ... (AuthScreen and SetupPropertyForm components remain unchanged)
 const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
@@ -148,8 +137,6 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
         </div>
     );
 };
-
-// ... SetupPropertyForm, RecordCard, AddRecordForm, PedigreeReport remain unchanged ...
 
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '' });
@@ -275,7 +262,89 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
     );
 };
 
+const PropertyMap = ({ propertyProfile }) => {
+    // Construct a safe query string for the map
+    // If we have a full address, use it. Otherwise use just the name (less accurate).
+    const address = propertyProfile?.address;
+    const mapQuery = address 
+        ? `${address.street}, ${address.city}, ${address.state} ${address.zip}`
+        : propertyProfile?.name || "Home";
+
+    const encodedQuery = encodeURIComponent(mapQuery);
+    const mapUrl = `https://maps.google.com/maps?q=${encodedQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
+                <h2 className="text-xl font-bold text-indigo-900 mb-4 flex items-center">
+                    <MapIcon className="mr-2 h-5 w-5" /> Property Location
+                </h2>
+                <div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative">
+                     <iframe 
+                        width="100%" 
+                        height="100%" 
+                        src={mapUrl} 
+                        frameBorder="0" 
+                        scrolling="no" 
+                        marginHeight="0" 
+                        marginWidth="0"
+                        title="Property Map"
+                        className="absolute inset-0"
+                    ></iframe>
+                </div>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                    Showing location for: <span className="font-medium">{mapQuery}</span>
+                </p>
+            </div>
+
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+                <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center">
+                    <ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers
+                </h3>
+                <p className="text-sm text-indigo-700 mb-4">
+                    Find parts and supplies quickly. These links search for stores near your property.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <a 
+                        href={`https://www.google.com/maps/search/Home+Depot+near+${encodedQuery}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
+                    >
+                        The Home Depot <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
+                    </a>
+                    <a 
+                        href={`https://www.google.com/maps/search/Lowe's+near+${encodedQuery}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
+                    >
+                        Lowe's Home Improvement <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
+                    </a>
+                    <a 
+                        href={`https://www.google.com/maps/search/Sherwin+Williams+near+${encodedQuery}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
+                    >
+                        Sherwin-Williams Paint <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
+                    </a>
+                    <a 
+                        href={`https://www.google.com/maps/search/Hardware+Store+near+${encodedQuery}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
+                    >
+                        Local Hardware Stores <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
+                    </a>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const PedigreeReport = ({ propertyProfile, records }) => {
+    // ... (Existing report code)
     const calculateAge = (categoryKeyword, itemKeyword) => {
         const record = records.find(r => 
             (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled
@@ -496,9 +565,15 @@ const App = () => {
                     <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
                     <button onClick={() => setActiveTab('Add Record')} className={`flex-1 px-4 py-3 font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
                     <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
+                    <button onClick={() => setActiveTab('Map')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Map'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Map</button>
                 </nav>
             )}
             {activeTab === 'Report' && (
+                 <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden">
+                    <button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button>
+                 </div>
+            )}
+            {activeTab === 'Map' && (
                  <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden">
                     <button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button>
                  </div>
@@ -513,6 +588,7 @@ const App = () => {
                     </section>
                 )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
                 {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
+                {activeTab === 'Map' && <PropertyMap propertyProfile={propertyProfile} />}
             </main>
             {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
         </div>
