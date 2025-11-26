@@ -25,6 +25,9 @@ const firebaseConfig = {
   measurementId: "G-JBP9F27RN1"
 };
 
+// 3. GOOGLE MAPS CONFIG: Your API Key
+const googleMapsApiKey = "AIzaSyC_hvAtqVO3GIWSFwRiQi5tQZppekkbRVM"; 
+
 // Fallback for preview environment vs production
 const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
     ? JSON.parse(__firebase_config) 
@@ -76,15 +79,14 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
             <h3 className="text-xl font-semibold text-gray-800 mb-4">Confirm Action</h3>
             <p className="text-gray-600 mb-6">{message}</p>
             <div className="flex justify-end space-x-3">
-                <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300">Cancel</button>
-                <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Delete</button>
+                <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">Delete</button>
             </div>
         </div>
     </div>
 );
 
-// ... (AuthScreen and SetupPropertyForm components remain unchanged)
-const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error }) => {
+const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -93,93 +95,343 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); }
+        const emailParam = params.get('email');
+        if (emailParam) {
+            setEmail(emailParam);
+            setIsSignUp(true); // Assume they came from "Get Started"
+        }
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLocalError(null); setIsLoading(true);
-        try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); }
+        setLocalError(null);
+        setIsLoading(true);
+        
+        try {
+            await onLogin(email, password, isSignUp);
+        } catch (err) {
+            setLocalError(err.message);
+            setIsLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
+            
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                 <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="Trellis" />
-                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}</h2>
-                <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
+                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">
+                    {isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                    The permanent record for your home.
+                </p>
             </div>
+
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
+                    
+                    {/* Social Login Buttons */}
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                            onClick={onGoogleLogin}
+                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
                             <span className="mr-2"><GoogleIcon /></span> Google
                         </button>
-                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                            onClick={onAppleLogin}
+                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
                             <span className="mr-2"><AppleIcon /></span> Apple
                         </button>
                     </div>
+
                     <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div>
-                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div>
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-300" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">Or continue with email</span>
+                        </div>
                     </div>
+
                     <form className="space-y-6" onSubmit={handleSubmit}>
-                        <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
-                        <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
-                        {(localError || error) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || error}</div>}
-                        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                                Email address
+                            </label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Mail size={16} className="text-gray-400" />
+                                </div>
+                                <input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                                Password
+                            </label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Lock size={16} className="text-gray-400" />
+                                </div>
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                        </div>
+
+                        {(localError || authError) && (
+                            <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">
+                                {localError || authError}
+                            </div>
+                        )}
+
+                        <div>
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                            </button>
+                        </div>
                     </form>
-                    <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
-                    <div className="mt-6 text-center border-t pt-4"><button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
+
+                    <div className="mt-6 text-center">
+                        <button 
+                            onClick={onGuestLogin}
+                            className="text-xs font-medium text-gray-400 hover:text-gray-600 underline"
+                        >
+                            Try as a Guest (Data will not be saved permanently)
+                        </button>
+                    </div>
+                    
+                    <div className="mt-6 text-center border-t pt-4">
+                        <button 
+                            onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }}
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
+// Setup Form with Address Autocomplete
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
-    const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '' });
+    const [formData, setFormData] = useState({
+        propertyName: '',
+        streetAddress: '',
+        city: '',
+        state: '',
+        zip: ''
+    });
+
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
-    const timeoutRef = useRef(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+
         if (name === 'streetAddress') {
-            if (value.length > 2) fetchAddressSuggestions(value); else { setSuggestions([]); setShowSuggestions(false); }
+            if (value.length > 2) {
+                fetchAddressSuggestions(value);
+            } else {
+                setSuggestions([]);
+                setShowSuggestions(false);
+            }
         }
     };
 
+    const timeoutRef = useRef(null);
+
     const fetchAddressSuggestions = (query) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
         timeoutRef.current = setTimeout(() => {
             setIsSearching(true);
-            fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en`).then(res => res.json()).then(data => { setSuggestions(data.features); setShowSuggestions(true); setIsSearching(false); }).catch(() => setIsSearching(false));
+            fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en`)
+                .then(res => res.json())
+                .then(data => {
+                    setSuggestions(data.features);
+                    setShowSuggestions(true);
+                    setIsSearching(false);
+                })
+                .catch(err => {
+                    console.error("Address lookup failed", err);
+                    setIsSearching(false);
+                });
         }, 400);
     };
 
     const selectSuggestion = (feature) => {
-        const p = feature.properties;
-        setFormData(prev => ({ ...prev, streetAddress: p.name || `${p.housenumber || ''} ${p.street || ''}`, city: p.city || p.town || '', state: p.state || '', zip: p.postcode || '' }));
+        const props = feature.properties;
+        
+        const streetPart = props.street || '';
+        const numberPart = props.housenumber || '';
+        const fullStreet = numberPart ? `${numberPart} ${streetPart}` : (props.name || streetPart);
+
+        setFormData(prev => ({
+            ...prev,
+            streetAddress: fullStreet,
+            city: props.city || props.town || props.village || '',
+            state: props.state || '',
+            zip: props.postcode || ''
+        }));
+
         setShowSuggestions(false);
     };
 
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
-                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
-                <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
+                <button 
+                    onClick={onSignOut}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"
+                >
+                    <LogOut size={14} className="mr-1" /> Sign Out
+                </button>
+                <div className="flex justify-center mb-6">
+                    <img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" />
+                </div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
-                <p className="text-gray-500 mb-8 leading-relaxed text-sm">Start typing your address to auto-fill details.</p>
+                <p className="text-gray-500 mb-8 leading-relaxed text-sm">
+                    Start typing your address to auto-fill your property details.
+                </p>
+                
                 <form onSubmit={onSave} className="space-y-5 text-left relative">
-                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
-                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input type="text" name="streetAddress" required value={formData.streetAddress} onChange={handleChange} autoComplete="off" placeholder="Start typing..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/>{isSearching && <div className="absolute right-3 top-3.5"><Search className="animate-spin text-indigo-500" size={18} /></div>}</div>
-                    {showSuggestions && suggestions.length > 0 && <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-auto divide-y divide-gray-100">{suggestions.map((item, i) => (<li key={i} onClick={() => selectSuggestion(item)} className="p-3 hover:bg-indigo-50 cursor-pointer text-sm text-gray-700 flex flex-col"><span className="font-bold text-indigo-900">{item.properties.name || `${item.properties.housenumber||''} ${item.properties.street||''}`}</span><span className="text-gray-500 text-xs">{item.properties.city}, {item.properties.state}</span></li>))}</ul>}</div>
-                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
-                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                    <div>
+                        <label htmlFor="propertyName" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Property Nickname</label>
+                        <input
+                            type="text"
+                            name="propertyName"
+                            id="propertyName"
+                            required
+                            value={formData.propertyName}
+                            onChange={handleChange}
+                            placeholder="e.g. The Lake House"
+                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 border transition-shadow"
+                        />
+                    </div>
+
+                    <div className="relative">
+                        <label htmlFor="streetAddress" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                            <input
+                                type="text"
+                                name="streetAddress"
+                                id="streetAddress"
+                                required
+                                value={formData.streetAddress}
+                                onChange={handleChange}
+                                autoComplete="off"
+                                placeholder="Start typing address..."
+                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 pl-10 border transition-shadow"
+                            />
+                            {isSearching && (
+                                <div className="absolute right-3 top-3.5">
+                                    <Search className="animate-spin text-indigo-500" size={18} />
+                                </div>
+                            )}
+                        </div>
+
+                        {showSuggestions && suggestions.length > 0 && (
+                            <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-auto divide-y divide-gray-100">
+                                {suggestions.map((item, index) => (
+                                    <li 
+                                        key={index}
+                                        onClick={() => selectSuggestion(item)}
+                                        className="p-3 hover:bg-indigo-50 cursor-pointer transition-colors text-sm text-gray-700 flex flex-col"
+                                    >
+                                        <span className="font-bold text-indigo-900">
+                                            {item.properties.name || `${item.properties.housenumber || ''} ${item.properties.street || ''}`}
+                                        </span>
+                                        <span className="text-gray-500 text-xs">
+                                            {item.properties.city}, {item.properties.state} {item.properties.postcode}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="city" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label>
+                            <input
+                                type="text"
+                                name="city"
+                                id="city"
+                                required
+                                value={formData.city}
+                                onChange={handleChange}
+                                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 border transition-shadow bg-gray-50"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label htmlFor="state" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label>
+                                <input
+                                    type="text"
+                                    name="state"
+                                    id="state"
+                                    required
+                                    value={formData.state}
+                                    onChange={handleChange}
+                                    maxLength="20" 
+                                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 border transition-shadow bg-gray-50"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="zip" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label>
+                                <input
+                                    type="text"
+                                    name="zip"
+                                    id="zip"
+                                    required
+                                    value={formData.zip}
+                                    onChange={handleChange}
+                                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-3 border transition-shadow bg-gray-50"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center mt-4"
+                    >
+                        {isSaving ? 'Saving Profile...' : 'Create My Home Log'}
+                    </button>
                 </form>
             </div>
         </div>
@@ -188,90 +440,436 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
 
 const RecordCard = ({ record, onDeleteClick }) => (
     <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
-        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        {record.imageUrl && (
+            <div className="h-48 w-full bg-gray-100 relative group print:h-32">
+                <img 
+                    src={record.imageUrl} 
+                    alt={record.item} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+            </div>
+        )}
+        
         <div className="p-5 flex flex-col space-y-3 flex-grow">
-            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{record.item}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2">
+                <div className="font-bold text-xl text-indigo-800 leading-tight">
+                    {record.item}
+                </div>
+                <button 
+                    onClick={() => onDeleteClick(record.id)}
+                    className="p-1 text-red-500 hover:text-red-700 transition-colors rounded-full bg-red-50 hover:bg-red-100 ml-2 print:hidden"
+                    title="Delete Record"
+                >
+                    <Trash2 size={20} />
+                </button>
+            </div>
+
             <div className="text-sm space-y-2">
                 <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {record.area} / {record.category}</p>
+                <p className="flex items-center text-gray-600"><FileText size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Category: {record.category}</p>
+                
                 {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
                 {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                
                 {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
                 {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
                 {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                
                 {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
-                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
-                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
-                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+                {record.contractor && (
+                    <p className="flex items-center text-gray-600">
+                        <HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> 
+                        {record.contractorUrl ? (
+                            <a 
+                                href={record.contractorUrl.startsWith('http') ? record.contractorUrl : `https://${record.contractorUrl}`}
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="ml-1 text-indigo-600 hover:text-indigo-800 hover:underline font-medium flex items-center print:no-underline print:text-gray-800"
+                            >
+                                {record.contractor} <ExternalLink size={12} className="ml-1 inline print:hidden"/>
+                            </a>
+                        ) : (
+                            <span className="ml-1">{record.contractor}</span>
+                        )}
+                    </p>
+                )}
+                
+                {record.purchaseLink && (
+                    <a 
+                        href={record.purchaseLink.startsWith('http') ? record.purchaseLink : `https://${record.purchaseLink}`}
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="flex items-center text-indigo-600 font-semibold hover:text-indigo-800 transition-colors underline pt-1 print:hidden"
+                        title={`Go to: ${record.purchaseLink}`}
+                    >
+                        <ExternalLink size={16} className="mr-3 min-w-[16px]" />
+                        View Replacement Link
+                    </a>
+                )}
+                
+                {record.notes && (
+                    <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">
+                        "{record.notes}"
+                    </div>
+                )}
             </div>
-            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {record.timestamp && typeof record.timestamp.toDate === 'function' ? record.timestamp.toDate().toLocaleDateString() : 'Just now'}</div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">
+                <p>Logged: {record.timestamp && typeof record.timestamp.toDate === 'function' ? record.timestamp.toDate().toLocaleDateString() : 'Just now'}</p>
+            </div>
         </div>
     </div>
 );
 
 const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange }) => {
-    // ... (Same logic as before for dynamic fields)
+    // Define dynamic fields logic
     const showSheen = newRecord.category === "Paint & Finishes";
     const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
     const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
-    const [isCustomArea, setIsCustomArea] = useState(false);
-    useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true); }, [newRecord.area]);
-    const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } };
     
-    // Labels logic
-    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
-    if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
-    else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
+    // Dynamic Labels
+    let brandLabel = "Brand";
+    let modelLabel = "Model/Color Code";
+    
+    if (newRecord.category === "Paint & Finishes") {
+        brandLabel = "Paint Brand";
+        modelLabel = "Color Name/Code";
+    } else if (newRecord.category === "Appliances") {
+        brandLabel = "Manufacturer";
+        modelLabel = "Model Number";
+    }
+
+    // Logic for Area/Room input vs select
+    const [isCustomArea, setIsCustomArea] = useState(false);
+
+    // Effect: If newRecord.area is a known standard room, ensure we are not in custom mode.
+    // If it's something else (e.g. from editing later), set custom mode.
+    useEffect(() => {
+        if (newRecord.area && !ROOMS.includes(newRecord.area)) {
+             setIsCustomArea(true);
+        }
+    }, [newRecord.area]);
+
+    const handleRoomSelectChange = (e) => {
+        const value = e.target.value;
+        if (value === "Other (Custom)") {
+            setIsCustomArea(true);
+            onInputChange({ target: { name: 'area', value: '' } });
+        } else {
+            setIsCustomArea(false);
+            onInputChange(e);
+        }
+    };
+
+    const handleBackToSelect = () => {
+        setIsCustomArea(false);
+        onInputChange({ target: { name: 'area', value: '' } });
+    }
 
     return (
         <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
             <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
+            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">Category *</label>
-                    <div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    <label htmlFor="category" className="block text-sm font-medium text-gray-700 required-label">Category <span className="text-red-500">*</span></label>
+                    <div className="relative mt-1">
+                        <select
+                            name="category"
+                            id="category"
+                            value={newRecord.category}
+                            onChange={onInputChange}
+                            required
+                            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                        >
+                            <option value="" disabled>Select Category</option>
+                            {CATEGORIES.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                            <ChevronDown size={16} />
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                 <div>
+                    <label htmlFor="area" className="block text-sm font-medium text-gray-700 required-label">Area/Room <span className="text-red-500">*</span></label>
+                    
                     {!isCustomArea ? (
-                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                        <div className="relative mt-1">
+                            <select
+                                name="area"
+                                id="area"
+                                value={ROOMS.includes(newRecord.area) ? newRecord.area : ""}
+                                onChange={handleRoomSelectChange}
+                                required={!isCustomArea}
+                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                            >
+                                <option value="" disabled>Select Room</option>
+                                {ROOMS.map(room => (
+                                    <option key={room} value={room}>{room}</option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <ChevronDown size={16} />
+                            </div>
+                        </div>
                     ) : (
-                        <div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                         <div className="relative mt-1 flex">
+                            <input
+                                type="text"
+                                name="area"
+                                id="area"
+                                value={newRecord.area}
+                                onChange={onInputChange}
+                                required={isCustomArea}
+                                autoFocus
+                                placeholder="e.g. Guest Cottage"
+                                className="block w-full rounded-l-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                            />
+                            <button 
+                                type="button"
+                                onClick={handleBackToSelect}
+                                className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-200 text-gray-600"
+                                title="Back to List"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
-            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={newRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
-                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={newRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
-                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+
+            <div>
+                <label htmlFor="item" className="block text-sm font-medium text-gray-700 required-label">Item Name/Service <span className="text-red-500">*</span></label>
+                <input
+                    type="text"
+                    name="item"
+                    id="item"
+                    value={newRecord.item}
+                    onChange={onInputChange}
+                    required
+                    placeholder={newRecord.category === 'Paint & Finishes' ? "e.g. North Wall Accent" : "e.g. Refrigerator"}
+                    className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                />
             </div>
+
+             {/* Dynamic Fields Block */}
+             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                {/* Brand - Always visible but label changes */}
+                <div>
+                    <label htmlFor="brand" className="block text-sm font-medium text-gray-700">{brandLabel}</label>
+                    <input
+                        type="text"
+                        name="brand"
+                        id="brand"
+                        value={newRecord.brand}
+                        onChange={onInputChange}
+                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                    />
+                </div>
+
+                {/* Model - Always visible but label changes */}
+                <div>
+                    <label htmlFor="model" className="block text-sm font-medium text-gray-700">{modelLabel}</label>
+                    <input
+                        type="text"
+                        name="model"
+                        id="model"
+                        value={newRecord.model}
+                        onChange={onInputChange}
+                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                    />
+                </div>
+
+                 {/* Paint Sheen (Conditional) */}
+                 {showSheen && (
+                    <div>
+                        <label htmlFor="sheen" className="block text-sm font-medium text-gray-700">Sheen</label>
+                         <div className="relative mt-1">
+                            <select
+                                name="sheen"
+                                id="sheen"
+                                value={newRecord.sheen}
+                                onChange={onInputChange}
+                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                            >
+                                <option value="" disabled>Select Sheen</option>
+                                {PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <ChevronDown size={16} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Serial Number (Conditional) */}
+                {showSerial && (
+                     <div>
+                        <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700">Serial Number</label>
+                        <input
+                            type="text"
+                            name="serialNumber"
+                            id="serialNumber"
+                            value={newRecord.serialNumber}
+                            onChange={onInputChange}
+                            placeholder="See warranty card"
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                        />
+                    </div>
+                )}
+
+                {/* Material Type (Conditional) */}
+                {showMaterial && (
+                    <div>
+                        <label htmlFor="material" className="block text-sm font-medium text-gray-700">Material Type</label>
+                         <div className="relative mt-1">
+                            <select
+                                name="material"
+                                id="material"
+                                value={newRecord.material}
+                                onChange={onInputChange}
+                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow appearance-none bg-white"
+                            >
+                                <option value="" disabled>Select Material</option>
+                                {(newRecord.category === "Roof & Exterior" ? ROOF_MATERIALS : FLOORING_TYPES).map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                <ChevronDown size={16} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+             </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-                <div className="space-y-2">
-                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={newRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                 <div>
+                    <label htmlFor="dateInstalled" className="block text-sm font-medium text-gray-700">Date Installed / Service Date</label>
+                    <input
+                        type="date"
+                        name="dateInstalled"
+                        id="dateInstalled"
+                        value={newRecord.dateInstalled}
+                        onChange={onInputChange}
+                        className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                    />
+                </div>
+                 
+                 {/* Updated Contractor Section with URL */}
+                 <div className="space-y-2">
+                    <div>
+                        <label htmlFor="contractor" className="block text-sm font-medium text-gray-700">Contractor/Company</label>
+                        <input
+                            type="text"
+                            name="contractor"
+                            id="contractor"
+                            value={newRecord.contractor}
+                            onChange={onInputChange}
+                            placeholder="e.g. Joe's Plumbing"
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="contractorUrl" className="block text-xs font-medium text-gray-500">Profile Link (Yelp/Thumbtack/Google)</label>
+                        <input
+                            type="url"
+                            name="contractorUrl"
+                            id="contractorUrl"
+                            value={newRecord.contractorUrl}
+                            onChange={onInputChange}
+                            placeholder="https://yelp.com/biz/..."
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow text-sm"
+                        />
+                    </div>
                 </div>
             </div>
-            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
-            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
-            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
+            
+            <div>
+                <label htmlFor="purchaseLink" className="block text-sm font-medium text-gray-700">Replacement Purchase Link</label>
+                <input
+                    type="url"
+                    name="purchaseLink"
+                    id="purchaseLink"
+                    value={newRecord.purchaseLink}
+                    onChange={onInputChange}
+                    placeholder="e.g. https://www.homedepot.com/..."
+                    className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow"
+                />
+            </div>
+
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                <label htmlFor="photo" className="block text-sm font-bold text-indigo-900 mb-2 flex items-center">
+                    <Camera size={18} className="mr-2" /> Upload Photo (Receipt, Label, etc.)
+                </label>
+                <input
+                    type="file"
+                    id="photo"
+                    accept="image/*"
+                    onChange={onFileChange}
+                    className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-indigo-100 file:text-indigo-700
+                        hover:file:bg-indigo-200
+                        cursor-pointer"
+                />
+                <p className="text-xs text-gray-500 mt-1">Supported: JPG, PNG. Max 1MB recommended.</p>
+            </div>
+
+            <div>
+                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notes & Warranty Details</label>
+                <textarea
+                    name="notes"
+                    id="notes"
+                    rows="4"
+                    value={newRecord.notes}
+                    onChange={onInputChange}
+                    className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border transition-shadow resize-none"
+                ></textarea>
+            </div>
+            
+            <button
+                type="submit"
+                disabled={isSaving}
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:bg-indigo-400 disabled:cursor-not-allowed"
+            >
+                {isSaving ? (
+                    'Saving Record...'
+                ) : (
+                    <>
+                        <PlusCircle size={20} className="mr-2" />
+                        Log New Home Component
+                    </>
+                )}
+            </button>
         </form>
     );
 };
 
 const PropertyMap = ({ propertyProfile }) => {
-    // Construct a safe query string for the map
-    // If we have a full address, use it. Otherwise use just the name (less accurate).
     const address = propertyProfile?.address;
-    const mapQuery = address 
-        ? `${address.street}, ${address.city}, ${address.state} ${address.zip}`
-        : propertyProfile?.name || "Home";
-
+    const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home";
+    // const encodedQuery = encodeURIComponent(mapQuery); // Not needed with Embed API "q" param usually handles spaces but encoding is safer
     const encodedQuery = encodeURIComponent(mapQuery);
-    const mapUrl = `https://maps.google.com/maps?q=${encodedQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+
+    // --- MAPS EMBED API LOGIC ---
+    // If the user has provided a key (via code editing), use the official Embed API.
+    // If not (default "PASTE_YOUR..."), fallback to the basic iframe which might show a "development purposes only" watermark or require billing.
+    // However, the basic "Search" embed mode is often free without a key for simple queries, but officially requires one.
+    // We will try the official format if a key looks real-ish (longer than 20 chars and doesn't contain "PASTE").
+    
+    let mapUrl;
+    const isKeyValid = googleMapsApiKey && googleMapsApiKey.length > 20 && !googleMapsApiKey.includes("PASTE");
+
+    if (isKeyValid) {
+         mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`;
+    } else {
+        // Fallback to the "legacy" iframe format which sometimes works without a key for testing
+        mapUrl = `https://maps.google.com/maps?q=${encodedQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
+    }
 
     return (
         <div className="space-y-6">
@@ -280,63 +878,20 @@ const PropertyMap = ({ propertyProfile }) => {
                     <MapIcon className="mr-2 h-5 w-5" /> Property Location
                 </h2>
                 <div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative">
-                     <iframe 
-                        width="100%" 
-                        height="100%" 
-                        src={mapUrl} 
-                        frameBorder="0" 
-                        scrolling="no" 
-                        marginHeight="0" 
-                        marginWidth="0"
-                        title="Property Map"
-                        className="absolute inset-0"
-                    ></iframe>
+                     <iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" marginHeight="0" marginWidth="0" title="Property Map" className="absolute inset-0"></iframe>
                 </div>
-                <p className="text-xs text-gray-500 mt-2 text-center">
-                    Showing location for: <span className="font-medium">{mapQuery}</span>
-                </p>
+                <p className="text-xs text-gray-500 mt-2 text-center">Showing location for: <span className="font-medium">{mapQuery}</span></p>
+                {!isKeyValid && <p className="text-xs text-amber-600 text-center mt-1">Note: Add a Google Maps API Key in the code to remove watermarks/limits.</p>}
             </div>
 
             <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center">
-                    <ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers
-                </h3>
-                <p className="text-sm text-indigo-700 mb-4">
-                    Find parts and supplies quickly. These links search for stores near your property.
-                </p>
+                <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3>
+                <p className="text-sm text-indigo-700 mb-4">Find parts and supplies quickly. These links search for stores near your property.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <a 
-                        href={`https://www.google.com/maps/search/Home+Depot+near+${encodedQuery}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
-                    >
-                        The Home Depot <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
-                    </a>
-                    <a 
-                        href={`https://www.google.com/maps/search/Lowe's+near+${encodedQuery}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
-                    >
-                        Lowe's Home Improvement <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
-                    </a>
-                    <a 
-                        href={`https://www.google.com/maps/search/Sherwin+Williams+near+${encodedQuery}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
-                    >
-                        Sherwin-Williams Paint <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
-                    </a>
-                    <a 
-                        href={`https://www.google.com/maps/search/Hardware+Store+near+${encodedQuery}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group"
-                    >
-                        Local Hardware Stores <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/>
-                    </a>
+                    <a href={`https://www.google.com/maps/search/Home+Depot+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
+                    <a href={`https://www.google.com/maps/search/Lowe's+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's Home Improvement <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
+                    <a href={`https://www.google.com/maps/search/Sherwin+Williams+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Sherwin-Williams Paint <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
+                    <a href={`https://www.google.com/maps/search/Hardware+Store+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Local Hardware Stores <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
                 </div>
             </div>
         </div>
@@ -344,7 +899,6 @@ const PropertyMap = ({ propertyProfile }) => {
 };
 
 const PedigreeReport = ({ propertyProfile, records }) => {
-    // ... (Existing report code)
     const calculateAge = (categoryKeyword, itemKeyword) => {
         const record = records.find(r => 
             (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled
