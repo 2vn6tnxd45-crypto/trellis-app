@@ -25,9 +25,8 @@ const firebaseConfig = {
   measurementId: "G-JBP9F27RN1"
 };
 
-// 3. GOOGLE MAPS CONFIG: Your API Key (Ensure 'Solar API' and 'Air Quality API' are enabled in Google Cloud)
+// 3. GOOGLE MAPS CONFIG: Your API Key
 const googleMapsApiKey = "AIzaSyC_hvAtqVO3GIWSFwRiQi5tQZppekkbRVM"; 
-const estatedApiKey = "PASTE_ESTATED_KEY_HERE"; // Placeholder for Estated
 
 // Fallback for preview environment vs production
 const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_config) 
@@ -37,6 +36,30 @@ const finalConfig = (typeof __firebase_config !== 'undefined' && __firebase_conf
 const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
+
+// --- HELPER: Load Google Maps Script ---
+// This allows us to use the Places Library for Autocomplete
+const loadGoogleMapsScript = (callback) => {
+    const existingScript = document.getElementById('googleMapsScript');
+    if (existingScript) {
+        if (window.google && window.google.maps && window.google.maps.places) {
+            if (callback) callback();
+        } else {
+            existingScript.addEventListener('load', callback);
+        }
+        return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'googleMapsScript';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+        if (callback) callback();
+    };
+    document.head.appendChild(script);
+};
 
 // --- CATEGORY & ROOM DEFINITIONS ---
 
@@ -87,9 +110,8 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
     </div>
 );
 
-// ... (AuthScreen and SetupPropertyForm remain similar but with layout tweaks if needed)
-const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error }) => {
-    // ... (Same state and logic)
+// ... (AuthScreen, RecordCard, AddRecordForm, etc. remain unchanged except for usage of updated logoSrc)
+const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -132,7 +154,7 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
                         <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
-                        {(localError || error) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || error}</div>}
+                        {(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || authError}</div>}
                         <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
                     </form>
                     <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
@@ -145,41 +167,50 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
 
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', yearBuilt: '', sqFt: '', lotSize: '' });
-    const [suggestions, setSuggestions] = useState([]);
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
-    const timeoutRef = useRef(null);
+    // Ref for Google Autocomplete input
+    const inputRef = useRef(null);
+    const [autocomplete, setAutocomplete] = useState(null);
+
+    // Initialize Google Autocomplete
+    useEffect(() => {
+        loadGoogleMapsScript(() => {
+            if (inputRef.current && window.google) {
+                const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
+                    types: ['address'],
+                    fields: ['address_components', 'geometry', 'formatted_address']
+                });
+                auto.addListener('place_changed', () => {
+                    const place = auto.getPlace();
+                    if (!place.geometry) return;
+
+                    // Extract address components
+                    let streetNum = '', route = '', city = '', state = '', zip = '';
+                    place.address_components.forEach(comp => {
+                        if (comp.types.includes('street_number')) streetNum = comp.long_name;
+                        if (comp.types.includes('route')) route = comp.long_name;
+                        if (comp.types.includes('locality')) city = comp.long_name;
+                        if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
+                        if (comp.types.includes('postal_code')) zip = comp.long_name;
+                    });
+
+                    setFormData(prev => ({
+                        ...prev,
+                        streetAddress: `${streetNum} ${route}`.trim(),
+                        city,
+                        state,
+                        zip,
+                        lat: place.geometry.location.lat(),
+                        lon: place.geometry.location.lng()
+                    }));
+                });
+                setAutocomplete(auto);
+            }
+        });
+    }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        if (name === 'streetAddress') {
-            if (value.length > 2) fetchAddressSuggestions(value); else { setSuggestions([]); setShowSuggestions(false); }
-        }
-    };
-
-    const fetchAddressSuggestions = (query) => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            setIsSearching(true);
-            fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5&lang=en`).then(res => res.json()).then(data => { setSuggestions(data.features); setShowSuggestions(true); setIsSearching(false); }).catch(() => setIsSearching(false));
-        }, 400);
-    };
-
-    const selectSuggestion = (feature) => {
-        const p = feature.properties;
-        const coords = feature.geometry.coordinates; // [lon, lat]
-        setFormData(prev => ({
-            ...prev, 
-            streetAddress: p.name || `${p.housenumber || ''} ${p.street || ''}`, 
-            city: p.city || p.town || '', 
-            state: p.state || '', 
-            zip: p.postcode || '',
-            // Save coordinates for future API calls
-            lat: coords[1],
-            lon: coords[0]
-        }));
-        setShowSuggestions(false);
     };
 
     return (
@@ -191,8 +222,26 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Let's find your home. We'll use this to pull environmental insights.</p>
                 <form onSubmit={onSave} className="space-y-4 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
-                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input type="text" name="streetAddress" required value={formData.streetAddress} onChange={handleChange} autoComplete="off" placeholder="Start typing..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/>{isSearching && <div className="absolute right-3 top-3.5"><Search className="animate-spin text-indigo-500" size={18} /></div>}</div>
-                    {showSuggestions && suggestions.length > 0 && <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-auto divide-y divide-gray-100">{suggestions.map((item, i) => (<li key={i} onClick={() => selectSuggestion(item)} className="p-3 hover:bg-indigo-50 cursor-pointer text-sm text-gray-700 flex flex-col"><span className="font-bold text-indigo-900">{item.properties.name || `${item.properties.housenumber||''} ${item.properties.street||''}`}</span><span className="text-gray-500 text-xs">{item.properties.city}, {item.properties.state}</span></li>))}</ul>}</div>
+                    
+                    {/* Google Places Autocomplete Input */}
+                    <div className="relative">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
+                            <input 
+                                ref={inputRef}
+                                type="text" 
+                                name="streetAddress" 
+                                required 
+                                value={formData.streetAddress} 
+                                onChange={handleChange} 
+                                autoComplete="off" 
+                                placeholder="Start typing address..." 
+                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border transition-shadow"
+                            />
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
                     
                     {/* Estated Fields (Manual Entry for now) */}
@@ -217,7 +266,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
-// New Environmental Insights Component
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { address, coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -231,7 +279,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // 1. Fetch Air Quality
                 const aqUrl = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`;
                 const aqRes = await fetch(aqUrl, {
                     method: 'POST',
@@ -243,8 +290,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                      setAirQuality(aqData.indexes[0]);
                 }
 
-                // 2. Fetch Solar Potential (Building Insights)
-                // Note: This API might return 404 if the location isn't covered or if billing isn't enabled for Solar API specifically
                 const solarUrl = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`;
                 const solarRes = await fetch(solarUrl);
                 if (solarRes.ok) {
@@ -253,7 +298,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                 }
             } catch (err) {
                 console.error("Environmental data fetch failed", err);
-                // Don't set main error state to avoid blocking the whole UI, just log or show partial data
             } finally {
                 setLoading(false);
             }
@@ -271,7 +315,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Air Quality Card */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
                      <div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div>
                      <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality</h3>
@@ -289,7 +332,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                      )}
                 </div>
 
-                {/* Solar Potential Card */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
                      <div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div>
                      <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>
@@ -311,7 +353,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                 </div>
             </div>
             
-             {/* Map Component Reuse */}
             <PropertyMap propertyProfile={propertyProfile} />
         </div>
     );
@@ -352,17 +393,89 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
+// ... (RecordCard, AddRecordForm, PedigreeReport, App remain generally same logic, ensuring logoSvgString is used)
+const RecordCard = ({ record, onDeleteClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{record.item}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {record.area} / {record.category}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {record.timestamp && typeof record.timestamp.toDate === 'function' ? record.timestamp.toDate().toLocaleDateString() : 'Just now'}</div>
+        </div>
+    </div>
+);
+
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange }) => {
+    // ... (Same logic as before for dynamic fields)
+    const showSheen = newRecord.category === "Paint & Finishes";
+    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
+    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
+    const [isCustomArea, setIsCustomArea] = useState(false);
+    useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true); }, [newRecord.area]);
+    const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } };
+    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
+    if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
+    else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
+
+    return (
+        <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
+            <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={newRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={newRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
+                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div className="space-y-2">
+                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={newRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
+            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
+        </form>
+    );
+};
+
 const PedigreeReport = ({ propertyProfile, records }) => {
     const calculateAge = (categoryKeyword, itemKeyword) => {
-        const record = records.find(r => 
-            (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled
-        );
+        const record = records.find(r => (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled);
         if (!record) return { age: 'N/A', date: 'No record' };
         const installed = new Date(record.dateInstalled);
         const now = new Date();
         return { age: `${now.getFullYear() - installed.getFullYear()} Yrs`, date: `Installed ${installed.getFullYear()}` };
     };
-
     const hvacStats = calculateAge('HVAC', 'hvac');
     const roofStats = calculateAge('Roof', 'roof');
     const heaterStats = calculateAge('Plumbing', 'water heater');
@@ -378,7 +491,6 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                 <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
                 <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
             </div>
-
             <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
                 <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
@@ -391,27 +503,12 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                         <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
                      </div>
                 </div>
-
-                {/* Property Stats - Now Dynamic from Profile! */}
                 <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
-                     <div className="p-6 text-center">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Year Built</p>
-                         <p className="text-2xl font-extrabold text-indigo-900">{propertyProfile?.yearBuilt || "N/A"}</p>
-                     </div>
-                     <div className="p-6 text-center">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Square Ft</p>
-                         <p className="text-2xl font-extrabold text-indigo-900">{propertyProfile?.sqFt || "N/A"}</p>
-                     </div>
-                     <div className="p-6 text-center">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p>
-                         <p className="text-2xl font-extrabold text-green-600">{hvacStats.age}</p>
-                     </div>
-                     <div className="p-6 text-center">
-                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Records</p>
-                         <p className="text-2xl font-extrabold text-indigo-600">{records.length}</p>
-                     </div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{hvacStats.age}</p><p className="text-xs text-gray-500 mt-1">{hvacStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{roofStats.age}</p><p className="text-xs text-gray-500 mt-1">{roofStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{heaterStats.age}</p><p className="text-xs text-gray-500 mt-1">{heaterStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records.length}</p></div>
                 </div>
-
                 <div className="p-8 md:p-10">
                      <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
                         {sortedRecords.map(record => (
@@ -528,31 +625,11 @@ const App = () => {
 
     const handleSaveProfile = async (e) => {
         e.preventDefault();
-        const form = e.target;
-        // Extract values manually as e.target.elements can be tricky with naming clashes
-        const propertyName = form.querySelector('[name="propertyName"]').value;
-        const streetAddress = form.querySelector('[name="streetAddress"]').value;
-        const city = form.querySelector('[name="city"]').value;
-        const state = form.querySelector('[name="state"]').value;
-        const zip = form.querySelector('[name="zip"]').value;
-        const yearBuilt = form.querySelector('[name="yearBuilt"]')?.value || '';
-        const sqFt = form.querySelector('[name="sqFt"]')?.value || '';
-        const lotSize = form.querySelector('[name="lotSize"]')?.value || '';
-        const lat = form.querySelector('[name="lat"]')?.value;
-        const lon = form.querySelector('[name="lon"]')?.value;
-
-        if(!propertyName) return;
+        const { propertyName, streetAddress, city, state, zip } = e.target.elements;
+        if(!propertyName.value) return;
         setIsSaving(true);
         try {
-            const data = { 
-                name: propertyName, 
-                address: { street: streetAddress, city, state, zip },
-                yearBuilt,
-                sqFt,
-                lotSize,
-                coordinates: (lat && lon) ? { lat, lon } : null,
-                createdAt: serverTimestamp() 
-            };
+            const data = { name: propertyName.value, address: { street: streetAddress.value, city: city.value, state: state.value, zip: zip.value }, createdAt: serverTimestamp() };
             await setDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile'), data);
             setPropertyProfile(data);
         } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); }
@@ -602,7 +679,7 @@ const App = () => {
                 <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
                     <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
                     <button onClick={() => setActiveTab('Add Record')} className={`flex-1 px-4 py-3 font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
-                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
+                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
                     <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
                 </nav>
             )}
