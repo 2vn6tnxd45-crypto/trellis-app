@@ -149,6 +149,8 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error 
     );
 };
 
+// ... SetupPropertyForm, RecordCard, AddRecordForm, PedigreeReport remain unchanged ...
+
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '' });
     const [suggestions, setSuggestions] = useState([]);
@@ -237,8 +239,18 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
         <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
             <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-medium text-gray-700">Category *</label><div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>
-                <div><label className="block text-sm font-medium text-gray-700">Area/Room *</label>{!isCustomArea ? (<div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>) : (<div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>)}</div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
+                </div>
             </div>
             <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -392,8 +404,38 @@ const App = () => {
     }, [isAuthReady, db, propertyProfile]);
 
     const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } };
-    const handleGoogleLogin = async () => { if(!auth) return; await signInWithPopup(auth, new GoogleAuthProvider()); };
-    const handleAppleLogin = async () => { if(!auth) return; await signInWithPopup(auth, new OAuthProvider('apple.com')); };
+    const handleGoogleLogin = async () => {
+        if (!auth) return;
+        try {
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+        } catch (err) {
+            console.error("Google login error", err);
+            let msg = "Google sign-in failed. Please try again.";
+            if (err.code === 'auth/popup-closed-by-user') msg = "Sign-in cancelled.";
+            if (err.code === 'auth/cancelled-popup-request') msg = "Sign-in cancelled.";
+            if (err.code === 'auth/operation-not-allowed') msg = "Google Sign-in is not enabled in Firebase Console.";
+            if (err.code === 'auth/unauthorized-domain') msg = "This domain is not authorized for OAuth operations in Firebase Console.";
+            throw new Error(msg);
+        }
+    };
+
+    const handleAppleLogin = async () => {
+        if (!auth) return;
+        try {
+            const provider = new OAuthProvider('apple.com');
+            await signInWithPopup(auth, provider);
+        } catch (err) {
+            console.error("Apple login error", err);
+            let msg = "Apple sign-in failed. Please try again.";
+            if (err.code === 'auth/popup-closed-by-user') msg = "Sign-in cancelled.";
+            if (err.code === 'auth/cancelled-popup-request') msg = "Sign-in cancelled.";
+            if (err.code === 'auth/operation-not-allowed') msg = "Apple Sign-in is not enabled in Firebase Console.";
+            if (err.code === 'auth/unauthorized-domain') msg = "This domain is not authorized for OAuth operations in Firebase Console.";
+            throw new Error(msg);
+        }
+    };
+
     const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
     const handleSignOut = async () => { if(!auth) return; await signOut(auth); setUserId(null); setPropertyProfile(null); setRecords([]); };
 
@@ -437,7 +479,7 @@ const App = () => {
         <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
             <link rel="icon" type="image/svg+xml" href={logoSrc} />
-            <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative print:hidden">
+            <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
                 <button onClick={handleSignOut} className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium sm:mt-2"><LogOut size={16} className="mr-1"/> Sign Out</button>
                 <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
                 <div className="text-center sm:text-left">
