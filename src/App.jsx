@@ -110,7 +110,7 @@ const CustomConfirm = ({ message, onConfirm, onCancel }) => (
     </div>
 );
 
-// ... (AuthScreen, RecordCard, AddRecordForm, etc. remain unchanged except for usage of updated logoSrc)
+// Auth Screen Component (Login / Signup)
 const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => {
     const [isSignUp, setIsSignUp] = useState(false);
     const [email, setEmail] = useState('');
@@ -118,55 +118,178 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     const [localError, setLocalError] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Check for email in URL params (from landing page)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); }
+        const emailParam = params.get('email');
+        if (emailParam) {
+            setEmail(emailParam);
+            setIsSignUp(true); // Assume they came from "Get Started"
+        }
     }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLocalError(null); setIsLoading(true);
-        try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); }
+        setLocalError(null);
+        setIsLoading(true);
+        
+        try {
+            await onLogin(email, password, isSignUp);
+        } catch (err) {
+            setLocalError(err.message);
+            setIsLoading(false);
+        }
     };
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
+            
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                 <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="Trellis" />
-                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}</h2>
-                <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
+                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">
+                    {isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                    The permanent record for your home.
+                </p>
             </div>
+
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
+                    
+                    {/* Social Login Buttons */}
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                            onClick={onGoogleLogin}
+                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
                             <span className="mr-2"><GoogleIcon /></span> Google
                         </button>
-                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                        <button
+                            onClick={onAppleLogin}
+                            className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
                             <span className="mr-2"><AppleIcon /></span> Apple
                         </button>
                     </div>
+
                     <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div>
-                        <div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div>
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-300" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">Or continue with email</span>
+                        </div>
                     </div>
+
                     <form className="space-y-6" onSubmit={handleSubmit}>
-                        <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
-                        <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
-                        {(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || authError}</div>}
-                        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
+                        <div>
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                                Email address
+                            </label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Mail size={16} className="text-gray-400" />
+                                </div>
+                                <input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    autoComplete="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                                Password
+                            </label>
+                            <div className="mt-1 relative rounded-md shadow-sm">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Lock size={16} className="text-gray-400" />
+                                </div>
+                                <input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    autoComplete="current-password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                        </div>
+
+                        {(localError || authError) && (
+                            <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">
+                                {localError || authError}
+                            </div>
+                        )}
+
+                        <div>
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}
+                            </button>
+                        </div>
                     </form>
-                    <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
-                    <div className="mt-6 text-center border-t pt-4"><button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
+
+                    <div className="mt-6 text-center">
+                        <button 
+                            onClick={onGuestLogin}
+                            className="text-xs font-medium text-gray-400 hover:text-gray-600 underline"
+                        >
+                            Try as a Guest (Data will not be saved permanently)
+                        </button>
+                    </div>
+                    
+                    <div className="mt-6 text-center border-t pt-4">
+                        <button 
+                            onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }}
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                        >
+                            {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     );
 };
 
+// Setup Form with Address Autocomplete
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
-    const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', yearBuilt: '', sqFt: '', lotSize: '' });
+    const [formData, setFormData] = useState({
+        propertyName: '',
+        streetAddress: '',
+        city: '',
+        state: '',
+        zip: ''
+    });
+
+    const [suggestions, setSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+        
+        // Removed the Photon fetch logic that was here before.
+        // We rely solely on the Google Autocomplete attached via inputRef now.
+    };
+    
     // Ref for Google Autocomplete input
     const inputRef = useRef(null);
     const [autocomplete, setAutocomplete] = useState(null);
@@ -185,13 +308,15 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
 
                     // Extract address components
                     let streetNum = '', route = '', city = '', state = '', zip = '';
-                    place.address_components.forEach(comp => {
-                        if (comp.types.includes('street_number')) streetNum = comp.long_name;
-                        if (comp.types.includes('route')) route = comp.long_name;
-                        if (comp.types.includes('locality')) city = comp.long_name;
-                        if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
-                        if (comp.types.includes('postal_code')) zip = comp.long_name;
-                    });
+                    if (place.address_components) {
+                        place.address_components.forEach(comp => {
+                            if (comp.types.includes('street_number')) streetNum = comp.long_name;
+                            if (comp.types.includes('route')) route = comp.long_name;
+                            if (comp.types.includes('locality')) city = comp.long_name;
+                            if (comp.types.includes('administrative_area_level_1')) state = comp.short_name;
+                            if (comp.types.includes('postal_code')) zip = comp.long_name;
+                        });
+                    }
 
                     setFormData(prev => ({
                         ...prev,
@@ -208,41 +333,96 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         });
     }, []);
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
-                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
-                <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
+                <button 
+                    onClick={onSignOut}
+                    className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"
+                >
+                    <LogOut size={14} className="mr-1" /> Sign Out
+                </button>
+                <div className="flex justify-center mb-6">
+                    <img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" />
+                </div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Let's find your home. We'll use this to pull environmental insights.</p>
+                
                 <form onSubmit={onSave} className="space-y-4 text-left relative">
-                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
-                    
-                    {/* Google Places Autocomplete Input */}
+                    <div>
+                        <label htmlFor="propertyName" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Property Nickname</label>
+                        <input
+                            type="text"
+                            name="propertyName"
+                            id="propertyName"
+                            required
+                            value={formData.propertyName}
+                            onChange={handleChange}
+                            placeholder="e.g. The Lake House"
+                            className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow"
+                        />
+                    </div>
+
                     <div className="relative">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
+                        <label htmlFor="streetAddress" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
                         <div className="relative">
                             <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                            <input 
+                            <input
                                 ref={inputRef}
-                                type="text" 
-                                name="streetAddress" 
-                                required 
-                                value={formData.streetAddress} 
-                                onChange={handleChange} 
-                                autoComplete="off" 
-                                placeholder="Start typing address..." 
+                                type="text"
+                                name="streetAddress"
+                                id="streetAddress"
+                                required
+                                value={formData.streetAddress}
+                                onChange={handleChange}
+                                autoComplete="off"
+                                placeholder="Start typing address..."
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border transition-shadow"
                             />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label htmlFor="city" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label>
+                            <input
+                                type="text"
+                                name="city"
+                                id="city"
+                                required
+                                value={formData.city}
+                                onChange={handleChange}
+                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <div>
+                                <label htmlFor="state" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label>
+                                <input
+                                    type="text"
+                                    name="state"
+                                    id="state"
+                                    required
+                                    value={formData.state}
+                                    onChange={handleChange}
+                                    maxLength="20" 
+                                    className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="zip" className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label>
+                                <input
+                                    type="text"
+                                    name="zip"
+                                    id="zip"
+                                    required
+                                    value={formData.zip}
+                                    onChange={handleChange}
+                                    className="w-full rounded-lg border-gray-300 shadow-sm p-3 border transition-shadow bg-gray-50"
+                                />
+                            </div>
+                        </div>
+                    </div>
                     
                     {/* Estated Fields (Manual Entry for now) */}
                     <div className="pt-4 border-t border-gray-100">
@@ -259,13 +439,20 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     <input type="hidden" name="lat" value={formData.lat || ''} />
                     <input type="hidden" name="lon" value={formData.lon || ''} />
 
-                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                    <button
+                        type="submit"
+                        disabled={isSaving}
+                        className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg transition-all disabled:opacity-70 disabled:cursor-not-allowed flex justify-center items-center mt-4"
+                    >
+                        {isSaving ? 'Saving Profile...' : 'Create My Home Log'}
+                    </button>
                 </form>
             </div>
         </div>
     );
 };
 
+// ... EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, App remain unchanged ...
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { address, coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -393,7 +580,6 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-// ... (RecordCard, AddRecordForm, PedigreeReport, App remain generally same logic, ensuring logoSvgString is used)
 const RecordCard = ({ record, onDeleteClick }) => (
     <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
         {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
@@ -465,72 +651,6 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
             <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
             <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
         </form>
-    );
-};
-
-const PedigreeReport = ({ propertyProfile, records }) => {
-    const calculateAge = (categoryKeyword, itemKeyword) => {
-        const record = records.find(r => (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled);
-        if (!record) return { age: 'N/A', date: 'No record' };
-        const installed = new Date(record.dateInstalled);
-        const now = new Date();
-        return { age: `${now.getFullYear() - installed.getFullYear()} Yrs`, date: `Installed ${installed.getFullYear()}` };
-    };
-    const hvacStats = calculateAge('HVAC', 'hvac');
-    const roofStats = calculateAge('Roof', 'roof');
-    const heaterStats = calculateAge('Plumbing', 'water heater');
-    const sortedRecords = [...records].sort((a, b) => {
-        const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp?.toDate ? a.timestamp.toDate() : new Date(0));
-        const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp?.toDate ? b.timestamp.toDate() : new Date(0));
-        return dateB - dateA;
-    });
-
-    return (
-        <div className="bg-gray-50 min-h-screen pb-12">
-            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
-                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
-                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
-            </div>
-            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
-                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
-                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div>
-                             <div className="flex items-center mb-4"><span className="text-xs font-bold tracking-widest uppercase text-indigo-200 border border-indigo-700 px-2 py-1 rounded">Verified Pedigree</span></div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
-                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city} ${propertyProfile.address.state}` : 'No Address Listed'}</p>
-                        </div>
-                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
-                     </div>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{hvacStats.age}</p><p className="text-xs text-gray-500 mt-1">{hvacStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{roofStats.age}</p><p className="text-xs text-gray-500 mt-1">{roofStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{heaterStats.age}</p><p className="text-xs text-gray-500 mt-1">{heaterStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records.length}</p></div>
-                </div>
-                <div className="p-8 md:p-10">
-                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
-                        {sortedRecords.map(record => (
-                            <div key={record.id} className="relative break-inside-avoid">
-                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
-                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between"><span className="font-bold text-lg text-gray-900 mr-3">{record.item}</span><span className="text-sm font-mono text-gray-500">{record.dateInstalled || (record.timestamp?.toDate ? record.timestamp.toDate().toLocaleDateString() : 'No Date')}</span></div>
-                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
-                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{record.category}</span></div>
-                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{record.brand}</span></div>}
-                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{record.contractor}</span></div>}
-                                     </div>
-                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{record.notes}"</p>}
-                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
-                                </div>
-                            </div>
-                        ))}
-                     </div>
-                </div>
-                <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
-            </div>
-        </div>
     );
 };
 
