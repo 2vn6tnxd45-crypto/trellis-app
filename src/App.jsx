@@ -105,31 +105,25 @@ const fileToBase64 = (file) => {
 const loadGoogleMapsScript = (callback) => {
     if (typeof window === 'undefined') return;
     
-    // If already loaded
     if (window.google && window.google.maps && window.google.maps.places) {
         if (callback) callback();
         return;
     }
 
-    // If script tag exists but not loaded
     const existingScript = document.getElementById('googleMapsScript');
     if (existingScript) {
-        existingScript.addEventListener('load', () => {
-             if (callback) callback();
-        });
+        existingScript.addEventListener('load', callback);
         return;
     }
-
     const script = document.createElement('script');
     script.id = 'googleMapsScript';
     script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
     script.async = true;
     script.defer = true;
-    script.onload = () => {
-        if (callback) callback();
-    };
+    script.onload = callback;
     script.onerror = (e) => {
         console.error("Google Maps Script failed to load", e);
+        if(callback) callback(); 
     };
     document.head.appendChild(script);
 };
@@ -273,8 +267,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        // NOTE: Removed the conflicting 'fetchAddressSuggestions' call here.
-        // We now rely solely on Google Maps Autocomplete managed by the useEffect above.
     };
 
     return (
@@ -283,40 +275,12 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
-                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address to auto-fill details.</p>
+                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
                 <form onSubmit={onSave} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
-                    
-                    {/* Address Input - Now exclusively controlled by Google Maps ref */}
-                    <div className="relative">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
-                        <div className="relative">
-                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                            <input 
-                                ref={inputRef} 
-                                type="text" 
-                                name="streetAddress" 
-                                required 
-                                value={formData.streetAddress} 
-                                onChange={handleChange} 
-                                autoComplete="off" 
-                                placeholder="Start typing address..." 
-                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
-                            />
-                        </div>
-                    </div>
-                    
+                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" required value={formData.streetAddress} onChange={handleChange} placeholder="Start typing address..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div>
                     <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
-                    
-                    <div className="pt-4 border-t border-gray-100">
-                         <p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p>
-                         <div className="grid grid-cols-3 gap-3">
-                             <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
-                             <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
-                             <div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
-                         </div>
-                    </div>
-
+                    <div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div>
                     <input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} />
                     <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
                 </form>
@@ -325,7 +289,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain unchanged)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -469,6 +432,72 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
     );
 };
 
+const PedigreeReport = ({ propertyProfile, records }) => {
+    const calculateAge = (categoryKeyword, itemKeyword) => {
+        const record = records.find(r => (r.category.includes(categoryKeyword) || (r.item && r.item.toLowerCase().includes(itemKeyword))) && r.dateInstalled);
+        if (!record) return { age: 'N/A', date: 'No record' };
+        const installed = new Date(record.dateInstalled);
+        const now = new Date();
+        return { age: `${now.getFullYear() - installed.getFullYear()} Yrs`, date: `Installed ${installed.getFullYear()}` };
+    };
+    const hvacStats = calculateAge('HVAC', 'hvac');
+    const roofStats = calculateAge('Roof', 'roof');
+    const heaterStats = calculateAge('Plumbing', 'water heater');
+    const sortedRecords = [...records].sort((a, b) => {
+        const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp?.toDate ? a.timestamp.toDate() : new Date(0));
+        const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp?.toDate ? b.timestamp.toDate() : new Date(0));
+        return dateB - dateA;
+    });
+
+    return (
+        <div className="bg-gray-50 min-h-screen pb-12">
+            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
+                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
+                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
+            </div>
+            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
+                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
+                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                             <div className="flex items-center mb-4"><span className="text-xs font-bold tracking-widest uppercase text-indigo-200 border border-indigo-700 px-2 py-1 rounded">Verified Pedigree</span></div>
+                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
+                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city} ${propertyProfile.address.state}` : 'No Address Listed'}</p>
+                        </div>
+                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
+                     </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{hvacStats.age}</p><p className="text-xs text-gray-500 mt-1">{hvacStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{roofStats.age}</p><p className="text-xs text-gray-500 mt-1">{roofStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{heaterStats.age}</p><p className="text-xs text-gray-500 mt-1">{heaterStats.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records.length}</p></div>
+                </div>
+                <div className="p-8 md:p-10">
+                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
+                        {sortedRecords.map(record => (
+                            <div key={record.id} className="relative break-inside-avoid">
+                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
+                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between"><span className="font-bold text-lg text-gray-900 mr-3">{record.item}</span><span className="text-sm font-mono text-gray-500">{record.dateInstalled || (record.timestamp?.toDate ? record.timestamp.toDate().toLocaleDateString() : 'No Date')}</span></div>
+                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
+                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
+                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{record.category}</span></div>
+                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{record.brand}</span></div>}
+                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{record.contractor}</span></div>}
+                                     </div>
+                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{record.notes}"</p>}
+                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
+                                </div>
+                            </div>
+                        ))}
+                     </div>
+                </div>
+                <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
+            </div>
+        </div>
+    );
+};
+
 const App = () => {
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
@@ -486,23 +515,33 @@ const App = () => {
     const [confirmDelete, setConfirmDelete] = useState(null);
 
     useEffect(() => {
+        // Initialize Firebase (Safe check for existing apps)
         if (firebaseConfig) {
             try {
-                // Ensure we only initialize once
                 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
                 const firestore = getFirestore(app);
                 const firebaseAuth = getAuth(app);
                 setLogLevel('error');
                 setDb(firestore);
                 setAuth(firebaseAuth);
+
+                // Safety Timeout: If Auth doesn't resolve in 2s, force stop loading
+                const safetyTimer = setTimeout(() => {
+                     if (loading) setLoading(false);
+                }, 2000);
+
                 const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+                    clearTimeout(safetyTimer);
                     if (user) setUserId(user.uid);
-                    else if (initialAuthToken) { await signInWithCustomToken(firebaseAuth, initialAuthToken); setUserId(firebaseAuth.currentUser.uid); }
                     else setUserId(null);
-                    setIsAuthReady(true); setLoading(false);
+                    setIsAuthReady(true); 
+                    setLoading(false);
                 });
                 return () => unsubscribe();
-            } catch (err) { setError("Init failed: " + err.message); setLoading(false); }
+            } catch (err) { 
+                setError("Init failed: " + err.message); 
+                setLoading(false); 
+            }
         }
     }, []);
 
