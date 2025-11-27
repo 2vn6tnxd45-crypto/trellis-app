@@ -85,11 +85,12 @@ const fileToBase64 = (file) => {
     });
 };
 
-// Helper: Load Google Maps Script Robustly (Promise-based)
+// Helper: Load Google Maps Script Robustly (Promise-based singleton)
 let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
     
+    // Check if script is already loaded and ready
     if (window.google && window.google.maps && window.google.maps.places) {
         return Promise.resolve();
     }
@@ -99,7 +100,9 @@ const loadGoogleMapsScript = () => {
     }
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        if (document.getElementById('googleMapsScript')) {
+        // Check if script tag exists but maybe not fully ready
+        const existingScript = document.getElementById('googleMapsScript');
+        if (existingScript) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -270,12 +273,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        // Global auth failure handler from Google Maps
-        window.gm_authFailure = () => {
-            console.error("Google Maps Auth Failure detected");
-            alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
-        };
-
         loadGoogleMapsScript().then(() => {
             if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
                 try {
@@ -372,6 +369,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap remain same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -444,90 +442,76 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-const PedigreeReport = ({ propertyProfile, records }) => {
-    const calculateAge = (categoryKeyword, itemKeyword) => {
-        // SAFELY HANDLE RECORDS: Check if record exists, if category is a string, etc.
-        const record = records.find(r => {
-             // Defensive check for missing or malformed data
-             if (!r || !r.category) return false;
-             
-             const catMatch = r.category.toString().includes(categoryKeyword);
-             // Check item name defensively
-             const itemMatch = r.item && r.item.toLowerCase().includes(itemKeyword);
-             
-             return (catMatch || itemMatch) && r.dateInstalled;
-        });
+const RecordCard = ({ record, onDeleteClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{record.item}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {record.area} / {record.category}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {record.timestamp && typeof record.timestamp.toDate === 'function' ? record.timestamp.toDate().toLocaleDateString() : 'Just now'}</div>
+        </div>
+    </div>
+);
 
-        if (!record) return { age: 'N/A', date: 'No record' };
-        
-        const installed = new Date(record.dateInstalled);
-        // Check if date is valid
-        if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
-
-        const now = new Date();
-        const age = now.getFullYear() - installed.getFullYear();
-        return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
-    };
-
-    const hvacStats = calculateAge('HVAC', 'hvac');
-    const roofStats = calculateAge('Roof', 'roof');
-    const heaterStats = calculateAge('Plumbing', 'water heater');
-
-    const sortedRecords = [...records].sort((a, b) => {
-        const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp?.toDate ? a.timestamp.toDate() : new Date(0));
-        const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp?.toDate ? b.timestamp.toDate() : new Date(0));
-        return dateB - dateA;
-    });
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange }) => {
+    const showSheen = newRecord.category === "Paint & Finishes";
+    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
+    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
+    const [isCustomArea, setIsCustomArea] = useState(false);
+    useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true); }, [newRecord.area]);
+    const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } };
+    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
+    if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
+    else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
 
     return (
-        <div className="bg-gray-50 min-h-screen pb-12">
-            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
-                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
-                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
+        <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
+            <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
+                </div>
             </div>
-
-            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
-                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
-                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div>
-                             <div className="flex items-center mb-4"><span className="text-xs font-bold tracking-widest uppercase text-indigo-200 border border-indigo-700 px-2 py-1 rounded">Verified Pedigree</span></div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
-                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city} ${propertyProfile.address.state}` : 'No Address Listed'}</p>
-                        </div>
-                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
-                     </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{hvacStats.age}</p><p className="text-xs text-gray-500 mt-1">{hvacStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{roofStats.age}</p><p className="text-xs text-gray-500 mt-1">{roofStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{heaterStats.age}</p><p className="text-xs text-gray-500 mt-1">{heaterStats.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records.length}</p></div>
-                </div>
-
-                <div className="p-8 md:p-10">
-                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
-                        {sortedRecords.map(record => (
-                            <div key={record.id} className="relative break-inside-avoid">
-                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
-                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between"><span className="font-bold text-lg text-gray-900 mr-3">{record.item}</span><span className="text-sm font-mono text-gray-500">{record.dateInstalled || (record.timestamp?.toDate ? record.timestamp.toDate().toLocaleDateString() : 'No Date')}</span></div>
-                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
-                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{record.category}</span></div>
-                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{record.brand}</span></div>}
-                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{record.contractor}</span></div>}
-                                     </div>
-                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{record.notes}"</p>}
-                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
-                                </div>
-                            </div>
-                        ))}
-                     </div>
-                </div>
-                <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
+            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={newRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={newRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
+                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
             </div>
-        </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div className="space-y-2">
+                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={newRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
+            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
+        </form>
     );
 };
 
@@ -591,12 +575,12 @@ const App = () => {
 
     useEffect(() => {
         if (!isAuthReady || !db || !propertyProfile) return;
-        const q = query(collection(db, PUBLIC_COLLECTION_PATH));
+        const q = query(collection(db, PUBLIC_COLLECTION_PATH)); // REMOVED DEPENDENCY ON propertyProfile OBJECT
         const unsub = onSnapshot(q, (snap) => {
             setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate().toLocaleDateString() || 'N/A' })));
         }, (err) => setError("Failed to load records."));
         return () => unsub();
-    }, [isAuthReady, db, propertyProfile]);
+    }, [isAuthReady, db, propertyProfile?.name]); // Changed dependency to a primitive value
 
     const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } };
     const handleGoogleLogin = async () => {
@@ -645,7 +629,7 @@ const App = () => {
         // 2. Delete all Records associated with the user (Important for PUBLIC_COLLECTION)
         // NOTE: This assumes the records in the public collection are tied to a userId
         const userRecordsQuery = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const recordsSnapshot = await getDocs(userRecordsQuery); // <<< FIX: getDocs must be imported
+        const recordsSnapshot = await getDocs(userRecordsQuery); 
         
         recordsSnapshot.docs.forEach((doc) => {
             // Only delete records created by THIS user, if using a shared collection
