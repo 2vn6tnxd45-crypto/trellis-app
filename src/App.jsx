@@ -85,21 +85,15 @@ const fileToBase64 = (file) => {
     });
 };
 
-// Helper: Load Google Maps Script Robustly (Promise-based singleton)
 let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
-    
-    if (window.google && window.google.maps && window.google.maps.places) {
-        return Promise.resolve();
-    }
-    
-    if (googleMapsScriptLoadingPromise) {
-        return googleMapsScriptLoadingPromise;
-    }
+    if (window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
+    if (googleMapsScriptLoadingPromise) return googleMapsScriptLoadingPromise;
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        if (document.getElementById('googleMapsScript')) {
+        const existingScript = document.getElementById('googleMapsScript');
+        if (existingScript) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -108,7 +102,6 @@ const loadGoogleMapsScript = () => {
             }, 100);
             return;
         }
-
         const script = document.createElement('script');
         script.id = 'googleMapsScript';
         script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
@@ -121,7 +114,6 @@ const loadGoogleMapsScript = () => {
         };
         document.head.appendChild(script);
     });
-    
     return googleMapsScriptLoadingPromise;
 };
 
@@ -153,14 +145,12 @@ const initialRecordState = {
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
-
     const handleSubmit = (e) => {
         e.preventDefault();
         setError(null);
         if (!password) { setError("Password is required."); return; }
         onConfirm(password).catch(err => setError(err.message || "Re-authentication failed."));
     };
-
     return (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
             <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
@@ -240,7 +230,6 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete (FIXED: Uses native form submission)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
@@ -248,7 +237,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); };
+        window.gm_authFailure = () => { console.error("Google Maps Auth Failure"); alert("Google Maps API Key Error."); };
         loadGoogleMapsScript().then(() => {
             if (inputRef.current && window.google) {
                 try {
@@ -279,9 +268,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Use standard FormData to extract all values reliably
         const formDataObj = new FormData(e.target);
-        // Manually add the address if controlled separately
         if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value);
         onSave(formDataObj); 
     };
@@ -360,89 +347,123 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-// Updated PedigreeReport with CRASH-PROOF data access
-const PedigreeReport = ({ propertyProfile, records = [] }) => { 
-    const stats = useMemo(() => {
-        const defaultVal = { age: 'N/A', date: 'No data' };
-        try {
-            const calculateAge = (categoryKeyword, itemKeyword) => {
-                if (!records || records.length === 0) return defaultVal;
-                const record = records.find(r => {
-                    if (!r) return false;
-                    const cat = String(r.category || '').toLowerCase();
-                    const item = String(r.item || '').toLowerCase();
-                    return (cat.includes(categoryKeyword.toLowerCase()) || item.includes(itemKeyword.toLowerCase())) && r.dateInstalled;
-                });
-                if (!record) return { age: 'N/A', date: 'No record' };
-                const installed = new Date(record.dateInstalled);
-                if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
-                const age = new Date().getFullYear() - installed.getFullYear();
-                return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
-            };
-            return { hvac: calculateAge('HVAC', 'hvac'), roof: calculateAge('Roof', 'roof'), heater: calculateAge('Plumbing', 'water heater') };
-        } catch (e) { return { hvac: defaultVal, roof: defaultVal, heater: defaultVal }; }
-    }, [records]);
+const RecordCard = ({ record, onDeleteClick, onEditClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2">
+                <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div>
+                <div className="flex ml-2 print:hidden">
+                    <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button>
+                    <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button>
+                </div>
+            </div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={(record.contractorUrl || '').startsWith('http') ? record.contractorUrl : `https://${record.contractorUrl}`} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={(record.purchaseLink || '').startsWith('http') ? record.purchaseLink : `https://${record.purchaseLink}`} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div>
+        </div>
+    </div>
+);
 
-    const sortedRecords = useMemo(() => {
-        if (!records) return [];
-        return [...records].sort((a, b) => {
-            const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
-            const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
-            return dateB - dateA;
-        });
-    }, [records]);
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => {
+    const showSheen = newRecord.category === "Paint & Finishes";
+    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
+    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
+    const [isCustomArea, setIsCustomArea] = useState(false);
+    
+    const safeRecord = newRecord || initialRecordState;
+
+    useEffect(() => { 
+        if (safeRecord.area && !ROOMS.includes(safeRecord.area)) {
+            setIsCustomArea(true); 
+        } else if (!safeRecord.area) {
+            setIsCustomArea(false);
+        }
+    }, [safeRecord.area]);
+
+    const handleRoomChange = (e) => { 
+        if (e.target.value === "Other (Custom)") { 
+            setIsCustomArea(true); 
+            onInputChange({ target: { name: 'area', value: '' } }); 
+        } else { 
+            setIsCustomArea(false); 
+            onInputChange(e); 
+        } 
+    };
+
+    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
+    if (safeRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
+    else if (safeRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
 
     return (
-        <div className="bg-gray-50 min-h-screen pb-12">
-            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
-                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
-                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
+        <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
+            <div className="flex justify-between items-center border-b pb-2 mb-2">
+                 <h2 className="text-2xl font-bold text-indigo-700">{isEditing ? 'Edit Record' : 'Record New Home Data'}</h2>
+                 {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-gray-500 hover:text-gray-700 flex items-center"><X size={16} className="mr-1"/> Cancel Edit</button>}
             </div>
-            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
-                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
-                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
-                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}</p>
-                        </div>
-                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
-                     </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={safeRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div>
-                </div>
-                <div className="p-8 md:p-10">
-                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
-                        {sortedRecords.map(record => (
-                            <div key={record.id} className="relative break-inside-avoid">
-                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
-                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
-                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
-                                </div>
-                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
-                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div>
-                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>}
-                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>}
-                                     </div>
-                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{String(record.notes)}"</p>}
-                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
-                                </div>
-                            </div>
-                        ))}
-                     </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(safeRecord.area) ? safeRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option></select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={safeRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
                 </div>
             </div>
-        </div>
+            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={safeRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={safeRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={safeRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={safeRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={safeRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
+                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={safeRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(safeRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={safeRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div className="space-y-2">
+                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={safeRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={safeRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                <label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label>
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={onFileChange}
+                    ref={fileInputRef} 
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"
+                />
+                <p className="text-xs text-gray-500 mt-1">Max 1MB</p>
+            </div>
+            
+            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
+            
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={20} className="mr-2"/> Update Record</> : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>)}
+            </button>
+        </form>
     );
 };
 
-const App = () => {
+const AppContent = () => {
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
     const [userId, setUserId] = useState(null);
@@ -459,6 +480,7 @@ const App = () => {
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showReauth, setShowReauth] = useState(false);
+    
     const [editingId, setEditingId] = useState(null);
     const fileInputRef = useRef(null);
 
@@ -613,49 +635,55 @@ const App = () => {
     if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
 
     return (
-        <ErrorBoundary>
-            <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-                <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
-                <link rel="icon" type="image/svg+xml" href={logoSrc} />
-                <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
-                    <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10">
-                        <button onClick={initiateAccountDeletion} className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100" title="Delete Account"><UserMinus size={16} /></button>
-                        <button onClick={handleSignOut} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Sign Out"><LogOut size={16} /></button>
-                    </div>
-                    <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
-                    <div className="text-center sm:text-left">
-                        <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
-                        <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div>
-                    </div>
-                </header>
-                {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>}
-                {activeTab !== 'Report' && (
-                    <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
-                        <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
-                        <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
-                        <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
-                        <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
-                    </nav>
-                )}
-                {activeTab === 'Report' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
-                {activeTab === 'Insights' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
+            <link rel="icon" type="image/svg+xml" href={logoSrc} />
+            <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
+                <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10">
+                    <button onClick={initiateAccountDeletion} className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100" title="Delete Account"><UserMinus size={16} /></button>
+                    <button onClick={handleSignOut} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Sign Out"><LogOut size={16} /></button>
+                </div>
+                <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
+                <div className="text-center sm:text-left">
+                    <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
+                    <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
+                    <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div>
+                </div>
+            </header>
+            {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>}
+            {activeTab !== 'Report' && (
+                <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
+                    <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
+                    <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
+                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
+                    <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
+                </nav>
+            )}
+            {activeTab === 'Report' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
+            {activeTab === 'Insights' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
 
-                <main className="max-w-4xl mx-auto">
-                    {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} fileInputRef={fileInputRef} isEditing={!!editingId} onCancelEdit={handleCancelEdit} />}
-                    {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => (
-                        <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
-                            <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div>
-                        </section>
-                    )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
-                    {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
-                    {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
-                </main>
-                {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
-                {showReauth && <ReauthModal isLoading={isSaving} onCancel={() => setShowReauth(false)} onConfirm={async (password) => { setIsSaving(true); try { await handleDeleteAccount(password); } catch (e) { setIsSaving(false); throw e; } }} />}
-                {showDeleteConfirm && <CustomConfirm type="account" message="Delete account permanently?" onConfirm={async () => { setIsSaving(true); await handleDeleteAccount(); setIsSaving(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
-            </div>
+            <main className="max-w-4xl mx-auto">
+                {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} fileInputRef={fileInputRef} isEditing={!!editingId} onCancelEdit={handleCancelEdit} />}
+                {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => (
+                    <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
+                        <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div>
+                    </section>
+                )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
+                {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
+                {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
+            </main>
+            {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
+            {showReauth && <ReauthModal isLoading={isSaving} onCancel={() => setShowReauth(false)} onConfirm={async (password) => { setIsSaving(true); try { await handleDeleteAccount(password); } catch (e) { setIsSaving(false); throw e; } }} />}
+            {showDeleteConfirm && <CustomConfirm type="account" message="Delete account permanently?" onConfirm={async () => { setIsSaving(true); await handleDeleteAccount(); setIsSaving(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
+        </div>
+    );
+};
+
+const App = () => {
+    return (
+        <ErrorBoundary>
+            <AppContent />
         </ErrorBoundary>
     );
 };
