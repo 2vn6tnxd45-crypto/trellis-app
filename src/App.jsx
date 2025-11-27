@@ -220,13 +220,14 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete
+// Setup Form with Address Autocomplete (Clean Version)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
     });
     const inputRef = useRef(null);
 
+    // Clean Google Maps Init
     useEffect(() => {
         loadGoogleMapsScript(googleMapsApiKey).then(() => {
              if (inputRef.current && window.google) {
@@ -249,6 +250,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 if (comp.types.includes('postal_code')) zip = comp.long_name;
                             });
                         }
+
                         setFormData(prev => ({
                             ...prev,
                             streetAddress: `${streetNum} ${route}`.trim(),
@@ -275,7 +277,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
-                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address to auto-fill details.</p>
+                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
                 <form onSubmit={onSave} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
@@ -283,13 +285,12 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
                         <div className="relative">
                             <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                            {/* Note: 'defaultValue' used instead of 'value' to prevent fighting with Google Maps during typing */}
                             <input 
                                 ref={inputRef} 
                                 type="text" 
                                 name="streetAddress" 
                                 required 
-                                defaultValue={formData.streetAddress}
+                                defaultValue={formData.streetAddress} // Uncontrolled input to prevent fighting with Maps
                                 onChange={handleChange} 
                                 autoComplete="off"
                                 placeholder="Start typing address..." 
@@ -308,7 +309,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap remain unchanged)
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain mostly the same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -322,10 +323,8 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
             try {
                 const aqUrl = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`;
                 const aqRes = await fetch(aqUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
-                if(aqRes.ok) {
-                     const aqData = await aqRes.json();
-                     if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
-                }
+                const aqData = await aqRes.json();
+                if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
 
                 const solarUrl = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`;
                 const solarRes = await fetch(solarUrl);
