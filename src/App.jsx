@@ -3,13 +3,13 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
     getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-    GoogleAuthProvider, OAuthProvider, signInWithPopup
+    GoogleAuthProvider, OAuthProvider, signInWithPopup, deleteUser, EmailAuthProvider, reauthenticateWithCredential
 } from 'firebase/auth';
 import { 
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc
 } from 'firebase/firestore';
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus } from 'lucide-react';
 
 // --- Global Config ---
 
@@ -150,14 +150,16 @@ const initialRecordState = {
 
 // --- Components ---
 
-const CustomConfirm = ({ message, onConfirm, onCancel }) => (
+const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (
     <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
         <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Confirm Action</h3>
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">{type === 'account' ? 'Confirm Account Deletion' : 'Confirm Action'}</h3>
             <p className="text-gray-600 mb-6">{message}</p>
             <div className="flex justify-end space-x-3">
                 <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors">Delete</button>
+                <button onClick={onConfirm} className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${type === 'account' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'}`}>
+                    {type === 'account' ? 'Delete Permanently' : 'Delete'}
+                </button>
             </div>
         </div>
     </div>
