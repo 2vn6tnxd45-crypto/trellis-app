@@ -101,16 +101,21 @@ const fileToBase64 = (file) => {
     });
 };
 
-// Helper: Load Google Maps Script Robustly (Promise-based)
-const loadGoogleMapsScript = (key) => {
-    return new Promise((resolve, reject) => {
-        if (typeof window === 'undefined') return resolve();
-        if (window.google && window.google.maps && window.google.maps.places) {
-            return resolve();
-        }
-        
-        const scriptId = 'google-maps-script-loader';
-        if (document.getElementById(scriptId)) {
+// Helper: Load Google Maps Script Robustly
+let googleMapsScriptLoadingPromise = null;
+const loadGoogleMapsScript = () => {
+    if (typeof window === 'undefined') return Promise.resolve();
+    
+    if (window.google && window.google.maps && window.google.maps.places) {
+        return Promise.resolve();
+    }
+    
+    if (googleMapsScriptLoadingPromise) {
+        return googleMapsScriptLoadingPromise;
+    }
+
+    googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
+        if (document.getElementById('googleMapsScript')) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -121,14 +126,19 @@ const loadGoogleMapsScript = (key) => {
         }
 
         const script = document.createElement('script');
-        script.id = scriptId;
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+        script.id = 'googleMapsScript';
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
         script.onload = () => resolve();
-        script.onerror = (err) => reject(err);
+        script.onerror = (err) => {
+            googleMapsScriptLoadingPromise = null;
+            reject(err);
+        };
         document.head.appendChild(script);
     });
+    
+    return googleMapsScriptLoadingPromise;
 };
 
 // --- CATEGORY & ROOM DEFINITIONS ---
@@ -220,22 +230,28 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete (Clean Version)
+// Fixed Setup Form: Removed Photon logic, Fixed Google Maps conflicts
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
     });
     const inputRef = useRef(null);
 
-    // Clean Google Maps Init
+    // Initialize Google Maps Autocomplete safely
     useEffect(() => {
-        loadGoogleMapsScript(googleMapsApiKey).then(() => {
-             if (inputRef.current && window.google) {
+        loadGoogleMapsScript().then(() => {
+            if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
                 try {
                     const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
                         types: ['address'],
                         fields: ['address_components', 'geometry', 'formatted_address']
                     });
+                    
+                    // Prevent form submission on "Enter" key in address field
+                    inputRef.current.addEventListener('keydown', (e) => {
+                        if(e.key === 'Enter') e.preventDefault(); 
+                    });
+
                     auto.addListener('place_changed', () => {
                         const place = auto.getPlace();
                         if (!place.geometry) return;
@@ -263,12 +279,42 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     console.warn("Google Auto fail", e);
                 }
             }
-        }).catch(err => console.error(err));
+        }).catch(err => console.error("Maps load error", err));
     }, []);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    // Manual save handler to avoid form nesting issues
+    const handleManualSave = (e) => {
+        e.preventDefault();
+        onSave({
+            preventDefault: () => {},
+            target: {
+                querySelector: (sel) => {
+                    const name = sel.match(/name="([^"]+)"/)[1];
+                    // If it's the address field, prioritize the state over the input value if they differ slightly
+                    // but usually input value is what the user sees.
+                    // Note: InputRef value might be the "formatted address" from Google.
+                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
+                    return { value: formData[name] || '' }; 
+                },
+                elements: {
+                    propertyName: { value: formData.propertyName },
+                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
+                    city: { value: formData.city },
+                    state: { value: formData.state },
+                    zip: { value: formData.zip },
+                    yearBuilt: { value: formData.yearBuilt },
+                    sqFt: { value: formData.sqFt },
+                    lotSize: { value: formData.lotSize },
+                    lat: { value: formData.lat },
+                    lon: { value: formData.lon }
+                }
+            }
+        });
     };
 
     return (
@@ -278,8 +324,10 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
-                <form onSubmit={onSave} className="space-y-5 text-left relative">
-                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
+                
+                {/* Using a div instead of form for outer container to prevent browser validation fighting */}
+                <div className="space-y-5 text-left relative">
+                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
                     <div className="relative">
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
@@ -289,27 +337,27 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 ref={inputRef} 
                                 type="text" 
                                 name="streetAddress" 
-                                required 
-                                defaultValue={formData.streetAddress} // Uncontrolled input to prevent fighting with Maps
-                                onChange={handleChange} 
-                                autoComplete="off"
+                                defaultValue={formData.streetAddress}
+                                onChange={handleChange}
+                                autoComplete="new-password" // Hack to disable browser autocomplete
                                 placeholder="Start typing address..." 
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
                             />
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" required value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" required value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" required value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
+                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
+                    
                     <div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div>
-                    <input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} />
-                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
-                </form>
+                    
+                    <button onClick={handleManualSave} disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                </div>
             </div>
         </div>
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain mostly the same)
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain the same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -323,8 +371,10 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
             try {
                 const aqUrl = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`;
                 const aqRes = await fetch(aqUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
-                const aqData = await aqRes.json();
-                if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
+                if(aqRes.ok) {
+                     const aqData = await aqRes.json();
+                     if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
+                }
 
                 const solarUrl = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`;
                 const solarRes = await fetch(solarUrl);
@@ -555,27 +605,38 @@ const App = () => {
 
     const handleSaveProfile = async (e) => {
         e.preventDefault();
-        const form = e.target;
-        // Manual extraction to avoid conflicts
-        const propertyName = form.querySelector('input[name="propertyName"]').value;
-        const streetAddress = form.querySelector('input[name="streetAddress"]').value;
-        const city = form.querySelector('input[name="city"]').value;
-        const state = form.querySelector('input[name="state"]').value;
-        const zip = form.querySelector('input[name="zip"]').value;
-        // Optional fields
-        const yearBuilt = form.querySelector('input[name="yearBuilt"]')?.value || '';
-        const sqFt = form.querySelector('input[name="sqFt"]')?.value || '';
-        const lotSize = form.querySelector('input[name="lotSize"]')?.value || '';
-        // Hidden fields populated by autocomplete
-        const lat = form.querySelector('input[name="lat"]')?.value;
-        const lon = form.querySelector('input[name="lon"]')?.value;
+        
+        // Safe Extraction: Use the form passed in the custom event
+        // (SetupPropertyForm passes a constructed object)
+        // OR the native event target if it was a standard submit.
+        
+        // We structured SetupPropertyForm to pass a synthetic event with a target object 
+        // mimicking form elements for the manual save.
+        const target = e.target; 
+        // But wait, our manual handler sends { target: { elements: ... } }? 
+        // Let's look at SetupPropertyForm's handleManualSave.
+        // It sends: { preventDefault:..., target: { querySelector: ..., elements: {...} } }
+        // So we can access values via the .elements property we mocked.
+        
+        const els = target.elements; 
+        const name = els.propertyName.value;
+        const street = els.streetAddress.value;
+        const city = els.city.value;
+        const state = els.state.value;
+        const zip = els.zip.value;
+        // Optional
+        const yearBuilt = els.yearBuilt?.value || '';
+        const sqFt = els.sqFt?.value || '';
+        const lotSize = els.lotSize?.value || '';
+        const lat = els.lat?.value;
+        const lon = els.lon?.value;
 
-        if(!propertyName) return;
+        if(!name) return;
         setIsSaving(true);
         try {
             const data = { 
-                name: propertyName, 
-                address: { street: streetAddress, city, state, zip },
+                name, 
+                address: { street, city, state, zip },
                 yearBuilt, sqFt, lotSize,
                 coordinates: (lat && lon) ? { lat, lon } : null,
                 createdAt: serverTimestamp() 
