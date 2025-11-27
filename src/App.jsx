@@ -90,6 +90,7 @@ let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
     
+    // Check if script is already loaded and ready
     if (window.google && window.google.maps && window.google.maps.places) {
         return Promise.resolve();
     }
@@ -99,7 +100,9 @@ const loadGoogleMapsScript = () => {
     }
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        if (document.getElementById('googleMapsScript')) {
+        // Check if script tag exists but maybe not fully ready
+        const existingScript = document.getElementById('googleMapsScript');
+        if (existingScript) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -262,7 +265,7 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete (FIXED)
+// Setup Form with Address Autocomplete
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
@@ -270,7 +273,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        // Global auth failure handler from Google Maps
         window.gm_authFailure = () => {
             console.error("Google Maps Auth Failure detected");
             alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
@@ -470,21 +472,42 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-// Updated PedigreeReport with Strict Type Safety and Memoization
+const RecordCard = ({ record, onDeleteClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div>
+        </div>
+    </div>
+);
+
+// Updated PedigreeReport with Crash-Proof Logic
 const PedigreeReport = ({ propertyProfile, records }) => {
-    
-    // Memoize stats calculation to prevent re-renders on every cycle
+    // Memoize to prevent render loops
     const stats = useMemo(() => {
-        const calculateAge = (categoryKeyword, itemKeyword) => {
-            if (!Array.isArray(records)) return { age: 'N/A', date: 'No data' };
+        const calculateAge = (catKey, itemKey) => {
+            if (!records || !Array.isArray(records)) return { age: 'N/A', date: 'No data' };
             
+            // Find a matching record safely
             const record = records.find(r => {
                 if (!r) return false;
-                const catStr = String(r.category || '').toLowerCase();
-                const itemStr = String(r.item || '').toLowerCase();
-                const catMatch = catStr.includes(categoryKeyword.toLowerCase());
-                const itemMatch = itemStr.includes(itemKeyword.toLowerCase());
-                return (catMatch || itemMatch) && r.dateInstalled;
+                const cat = String(r.category || '').toLowerCase();
+                const item = String(r.item || '').toLowerCase();
+                const isMatch = cat.includes(catKey.toLowerCase()) || item.includes(itemKey.toLowerCase());
+                return isMatch && r.dateInstalled; // Must have date
             });
 
             if (!record) return { age: 'N/A', date: 'No record' };
@@ -492,8 +515,7 @@ const PedigreeReport = ({ propertyProfile, records }) => {
             const installed = new Date(record.dateInstalled);
             if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
 
-            const now = new Date();
-            const age = now.getFullYear() - installed.getFullYear();
+            const age = new Date().getFullYear() - installed.getFullYear();
             return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
         };
 
@@ -504,13 +526,11 @@ const PedigreeReport = ({ propertyProfile, records }) => {
         };
     }, [records]);
 
-    // Memoize sorted records to prevent sort operations on render
     const sortedRecords = useMemo(() => {
-        if (!Array.isArray(records)) return [];
+        if (!records) return [];
         return [...records].sort((a, b) => {
-            const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
-            const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
-            return dateB - dateA;
+            const getVal = (r) => r.dateInstalled ? new Date(r.dateInstalled).getTime() : 0;
+            return getVal(b) - getVal(a);
         });
     }, [records]);
 
@@ -538,7 +558,7 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div>
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div>
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records.length}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div>
                 </div>
 
                 <div className="p-8 md:p-10">
@@ -547,13 +567,12 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                             <div key={record.id} className="relative break-inside-avoid">
                                 <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
                                 <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    {/* Forcing strings for display to prevent Object crashes */}
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
-                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || 'No Date'}</span>
+                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown')}</span>
+                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
                                 </div>
                                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div>
+                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'General')}</span></div>
                                         {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>}
                                         {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>}
                                      </div>
