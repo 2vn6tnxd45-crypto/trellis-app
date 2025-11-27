@@ -15,7 +15,7 @@ import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileTex
 
 const appId = 'trellis-home-log'; 
 
-// YOUR KEYS
+// YOUR KEYS (Hardcoded for Production Stability)
 const firebaseConfig = {
   apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
   authDomain: "trellis-6cd18.firebaseapp.com",
@@ -51,6 +51,9 @@ class ErrorBoundary extends React.Component {
           <AlertTriangle className="h-12 w-12 text-red-600 mb-4" />
           <h1 className="text-2xl font-bold text-red-800 mb-2">Something went wrong.</h1>
           <p className="text-red-600 mb-4">The application encountered a critical error.</p>
+          <div className="bg-white p-4 rounded border border-red-200 text-left overflow-auto max-w-lg w-full">
+            <code className="text-xs text-red-500 font-mono">{this.state.error?.toString()}</code>
+          </div>
           <button 
             onClick={() => window.location.reload()} 
             className="mt-6 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -82,15 +85,21 @@ const fileToBase64 = (file) => {
     });
 };
 
+// Helper: Load Google Maps Script Robustly (Promise-based singleton)
 let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
-    if (window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
-    if (googleMapsScriptLoadingPromise) return googleMapsScriptLoadingPromise;
+    
+    if (window.google && window.google.maps && window.google.maps.places) {
+        return Promise.resolve();
+    }
+    
+    if (googleMapsScriptLoadingPromise) {
+        return googleMapsScriptLoadingPromise;
+    }
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        const existingScript = document.getElementById('googleMapsScript');
-        if (existingScript) {
+        if (document.getElementById('googleMapsScript')) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -99,6 +108,7 @@ const loadGoogleMapsScript = () => {
             }, 100);
             return;
         }
+
         const script = document.createElement('script');
         script.id = 'googleMapsScript';
         script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
@@ -111,6 +121,7 @@ const loadGoogleMapsScript = () => {
         };
         document.head.appendChild(script);
     });
+    
     return googleMapsScriptLoadingPromise;
 };
 
@@ -142,12 +153,14 @@ const initialRecordState = {
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
+
     const handleSubmit = (e) => {
         e.preventDefault();
         setError(null);
         if (!password) { setError("Password is required."); return; }
         onConfirm(password).catch(err => setError(err.message || "Re-authentication failed."));
     };
+
     return (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
             <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
@@ -259,7 +272,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     });
                 } catch (e) { console.warn("Google Auto fail", e); }
             }
-        });
+        }).catch(err => console.error("Maps load error", err));
     }, []);
 
     const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
@@ -324,7 +337,7 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
                      <div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div>
                      <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>
-                     {loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData.solarPotential.maxSunshineHoursPerYear)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}
+                     {loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData?.solarPotential?.maxSunshineHoursPerYear || 0)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}
                 </div>
             </div>
             <PropertyMap propertyProfile={propertyProfile} />
@@ -333,7 +346,10 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
 };
 
 const PropertyMap = ({ propertyProfile }) => {
-    const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city}, ${propertyProfile.address.state} ${propertyProfile.address.zip}` : propertyProfile?.name || "Home")}`;
+    const address = propertyProfile?.address;
+    const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home";
+    const encodedQuery = encodeURIComponent(mapQuery);
+    const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`;
     return (
         <div className="space-y-6">
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
@@ -344,7 +360,7 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-// Updated PedigreeReport with SAFE DATA ACCESS and Memoization
+// Updated PedigreeReport with CRASH-PROOF data access
 const PedigreeReport = ({ propertyProfile, records = [] }) => { 
     const stats = useMemo(() => {
         const defaultVal = { age: 'N/A', date: 'No data' };
@@ -405,7 +421,7 @@ const PedigreeReport = ({ propertyProfile, records = [] }) => {
                             <div key={record.id} className="relative break-inside-avoid">
                                 <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
                                 <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown')}</span>
+                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
                                     <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
                                 </div>
                                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
