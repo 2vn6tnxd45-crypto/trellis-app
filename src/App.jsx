@@ -102,15 +102,20 @@ const fileToBase64 = (file) => {
 };
 
 // Helper: Load Google Maps Script Robustly (Promise-based)
-const loadGoogleMapsScript = (key) => {
-    return new Promise((resolve, reject) => {
-        if (typeof window === 'undefined') return resolve();
-        if (window.google && window.google.maps && window.google.maps.places) {
-            return resolve();
-        }
-        
-        const scriptId = 'google-maps-script-loader';
-        if (document.getElementById(scriptId)) {
+let googleMapsScriptLoadingPromise = null;
+const loadGoogleMapsScript = () => {
+    if (typeof window === 'undefined') return Promise.resolve();
+    
+    if (window.google && window.google.maps && window.google.maps.places) {
+        return Promise.resolve();
+    }
+    
+    if (googleMapsScriptLoadingPromise) {
+        return googleMapsScriptLoadingPromise;
+    }
+
+    googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
+        if (document.getElementById('googleMapsScript')) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -121,16 +126,19 @@ const loadGoogleMapsScript = (key) => {
         }
 
         const script = document.createElement('script');
-        script.id = scriptId;
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
+        script.id = 'googleMapsScript';
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
         script.async = true;
         script.defer = true;
         script.onload = () => resolve();
         script.onerror = (err) => {
+            googleMapsScriptLoadingPromise = null;
             reject(err);
         };
         document.head.appendChild(script);
     });
+    
+    return googleMapsScriptLoadingPromise;
 };
 
 // --- CATEGORY & ROOM DEFINITIONS ---
@@ -222,14 +230,13 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete (Fix for Freezing)
+// Setup Form with Address Autocomplete (FIXED)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
     });
     const inputRef = useRef(null);
 
-    // Initialize Google Maps Autocomplete safely
     useEffect(() => {
         // Global auth failure handler from Google Maps
         window.gm_authFailure = () => {
@@ -237,7 +244,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
             alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
         };
 
-        loadGoogleMapsScript(googleMapsApiKey).then(() => {
+        loadGoogleMapsScript().then(() => {
             if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
                 try {
                     const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
@@ -273,7 +280,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                             lon: place.geometry.location.lng()
                         }));
                         
-                        // Update the input visual value manually to prevent race conditions
                         if (inputRef.current) {
                             inputRef.current.value = `${streetNum} ${route}`.trim();
                         }
@@ -298,7 +304,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
             target: {
                 querySelector: (sel) => {
                     const name = sel.match(/name="([^"]+)"/)[1];
-                    // If it's the address field, prioritize the input value since user might have typed manually
                     if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
                     return { value: formData[name] || '' }; 
                 },
@@ -326,7 +331,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
                 
-                {/* Using a div instead of form for outer container to prevent browser validation fighting */}
                 <div className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
@@ -338,9 +342,8 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 ref={inputRef} 
                                 type="text" 
                                 name="streetAddress" 
-                                // Controlled input removed - Letting Google Maps handle the value directly
-                                // We only capture it on save or selection
-                                defaultValue={formData.streetAddress}
+                                defaultValue={formData.streetAddress} // Uncontrolled input (key fix)
+                                onChange={handleChange} 
                                 autoComplete="new-password" 
                                 placeholder="Start typing address..." 
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
@@ -359,7 +362,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain the same)
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -654,86 +657,200 @@ const App = () => {
     const saveRecord = useCallback(async (e) => {
         e.preventDefault();
         if (!db || !userId || isSaving) return;
+
         if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; }
         setIsSaving(true); setError(null);
+
         try {
-            let url = '';
-            if (selectedFile) { if(selectedFile.size < 1048576) url = await fileToBase64(selectedFile); else throw new Error("Image too large"); }
-            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), { ...newRecord, propertyLocation: propertyProfile?.name, imageUrl: url, userId, timestamp: serverTimestamp() });
-            setNewRecord(initialRecordState); setSelectedFile(null); document.getElementById('photo').value = ""; setActiveTab('View Records');
-        } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); }
-    }, [db, userId, isSaving, newRecord, selectedFile, propertyProfile]);
+            let finalImageUrl = '';
 
-    const deleteRec = async (id) => { if(!db) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, id)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
-    const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
+            if (selectedFile) {
+                // Simplified for no-cost storage: Convert to Base64 string
+                // Note: Large strings in Firestore can be expensive/slow, so we limit size strictly.
+                if (selectedFile.size < 1048576) { // 1MB limit
+                    finalImageUrl = await fileToBase64(selectedFile);
+                } else {
+                    throw new Error("Image is too large. Please use an image under 1MB.");
+                }
+            }
 
-    // Error Boundary for main app
-    class ErrorBoundary extends React.Component {
-        constructor(props) { super(props); this.state = { hasError: false, error: null }; }
-        static getDerivedStateFromError(error) { return { hasError: true, error }; }
-        render() { if (this.state.hasError) return <div className="p-8 text-red-600"><h1>Crash!</h1><pre>{this.state.error?.toString()}</pre></div>; return this.props.children; }
+            const recordToSave = {
+                ...newRecord,
+                propertyLocation: propertyProfile?.name || 'My Property', 
+                imageUrl: finalImageUrl,
+                userId,
+                timestamp: serverTimestamp(),
+            };
+
+            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordToSave);
+
+            setNewRecord(initialRecordState);
+            setSelectedFile(null);
+            document.getElementById('photo').value = ""; 
+            setActiveTab('View Records');
+        } catch (err) {
+            console.error("Error saving record:", err);
+            setError("Failed to save the record. " + err.message);
+        } finally {
+            setIsSaving(false);
+        }
+    }, [db, userId, isSaving, newRecord, selectedFile, /* storage, */ propertyProfile]); // Removed storage from dependency array
+
+    
+    const handleDeleteConfirmed = async () => {
+        if (!db || !confirmDelete) return;
+
+        try {
+            await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete));
+            setConfirmDelete(null);
+        } catch (err) {
+            console.error("Error deleting document:", err);
+            setError("Failed to delete the record.");
+        }
+    };
+
+    const groupedRecords = records.reduce((acc, record) => {
+        const key = record.area || 'Uncategorized';
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(record);
+        return acc;
+    }, {});
+    
+    // --- Render Logic ---
+
+    if (loading) {
+        return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
     }
 
-    if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-500">Initializing Trellis...</div>;
-    
-    return (
-        <ErrorBoundary>
-            {!userId ? (
-                <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />
-            ) : isLoadingProfile ? (
-                <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>
-            ) : !propertyProfile ? (
-                <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>
-            ) : (
-                <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-                    <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
-                    <link rel="icon" type="image/svg+xml" href={logoSrc} />
-                    <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
-                        <button onClick={handleSignOut} className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium sm:mt-2"><LogOut size={16} className="mr-1"/> Sign Out</button>
-                        <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
-                        <div className="text-center sm:text-left">
-                            <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
-                            <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                            <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
-                                <MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name} {propertyProfile.address?.city ? `• ${propertyProfile.address.city}` : ''}</span>
-                            </div>
-                        </div>
-                    </header>
-                    {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>}
-                    {activeTab !== 'Report' && (
-                        <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
-                            <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
-                            <button onClick={() => setActiveTab('Add Record')} className={`flex-1 px-4 py-3 font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
-                            <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
-                            <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
-                        </nav>
-                    )}
-                    {activeTab === 'Report' && (
-                         <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden">
-                            <button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button>
-                         </div>
-                    )}
-                    {activeTab === 'Insights' && (
-                         <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden">
-                            <button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button>
-                         </div>
-                    )}
+    // 1. If NOT authenticated, show Login/Signup
+    if (!userId) {
+        return (
+            <AuthScreen 
+                onLogin={handleLogin} 
+                onGoogleLogin={handleGoogleLogin}
+                onAppleLogin={handleAppleLogin}
+                onGuestLogin={handleGuestLogin} 
+                error={error} 
+            />
+        );
+    }
 
-                    <main className="max-w-4xl mx-auto">
-                        {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} />}
-                        {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => (
-                            <section key={area} className="bg-white p-6 rounded-3xl shadow-xl border border-indigo-100">
-                                <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
-                            </section>
-                        )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
-                        {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
-                        {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
-                    </main>
-                    {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
+    // 2. If authenticated but NO profile, show Setup
+    if (isLoadingProfile) {
+        return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Loading Profile...</div>;
+    }
+
+    if (!propertyProfile) {
+        return (
+            <div className="min-h-screen bg-gray-50 p-4 font-sans">
+                <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
+                <SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} />
+            </div>
+        );
+    }
+
+    // 3. Main App UI (Authenticated & Setup Complete)
+    return (
+        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+                body { font-family: 'Inter', sans-serif; }
+            `}</style>
+            
+            <link rel="icon" type="image/svg+xml" href={logoSrc} />
+            
+            <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
+                <button 
+                    onClick={handleSignOut}
+                    className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium sm:mt-2"
+                    title="Sign Out"
+                >
+                    <LogOut size={16} className="mr-1" /> Sign Out
+                </button>
+
+                <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
+                <div className="text-center sm:text-left">
+                    <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
+                    <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
+                    {/* Dynamic Property Name from Settings */}
+                    <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
+                        <MapPin size={14} className="text-indigo-500 mr-2" />
+                        <span className="text-gray-600 font-semibold text-sm sm:text-base">
+                            {propertyProfile.name} 
+                            {propertyProfile.address?.city ? ` • ${propertyProfile.address.city}, ${propertyProfile.address.state}` : ''}
+                        </span>
+                    </div>
+                </div>
+            </header>
+
+            {error && (
+                <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-4 shadow-md" role="alert">
+                    <strong className="font-bold">Error:</strong>
+                    <span className="block sm:inline ml-2">{error}</span>
+                    <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setError(null)}>
+                        &times;
+                    </span>
                 </div>
             )}
-        </ErrorBoundary>
+
+            <nav className="flex justify-center mb-6 max-w-lg mx-auto">
+                <button
+                    onClick={() => setActiveTab('View Records')}
+                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl transition-all border-b-2 ${
+                        activeTab === 'View Records' 
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                    }`}
+                >
+                    View History ({records.length})
+                </button>
+                <button
+                    onClick={() => setActiveTab('Add Record')}
+                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl transition-all border-b-2 ${
+                        activeTab === 'Add Record' 
+                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                    }`}
+                >
+                    Add New Component
+                </button>
+            </nav>
+
+            <main className="max-w-4xl mx-auto">
+                {activeTab === 'Add Record' && (
+                    <AddRecordForm 
+                        onSave={saveRecord}
+                        isSaving={isSaving}
+                        newRecord={newRecord}
+                        onInputChange={handleInputChange}
+                        onFileChange={handleFileChange}
+                    />
+                )}
+                
+                {activeTab === 'View Records' && (
+                    <div className="space-y-10">
+                        {Object.keys(groupedRecords).length > 0 ? (
+                            Object.keys(groupedRecords).map(area => (
+                                <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
+                                    <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center">
+                                        <Home size={28} className="mr-3 text-indigo-600" />
+                                        {area}
+                                    </h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
+                                </section>
+                            ))
+                        ) : (
+                            <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>
+                        )}
+                    </div>
+                )}
+                {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
+                {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
+            </main>
+            {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
+        </div>
     );
 };
 
