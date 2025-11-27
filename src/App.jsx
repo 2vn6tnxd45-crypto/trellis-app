@@ -111,7 +111,6 @@ const loadGoogleMapsScript = (key) => {
         
         const scriptId = 'google-maps-script-loader';
         if (document.getElementById(scriptId)) {
-            // Script already loading, poll for readiness
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -221,27 +220,23 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Clean Sheet Setup Form: No Photon, Pure Google Maps, Simplified Logic
+// Setup Form with Address Autocomplete
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
     });
     const inputRef = useRef(null);
 
-    // Initialize Google Autocomplete cleanly
     useEffect(() => {
-        let autocomplete = null;
-        
         loadGoogleMapsScript(googleMapsApiKey).then(() => {
              if (inputRef.current && window.google) {
                 try {
-                    autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+                    const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
                         types: ['address'],
                         fields: ['address_components', 'geometry', 'formatted_address']
                     });
-                    
-                    autocomplete.addListener('place_changed', () => {
-                        const place = autocomplete.getPlace();
+                    auto.addListener('place_changed', () => {
+                        const place = auto.getPlace();
                         if (!place.geometry) return;
 
                         let streetNum = '', route = '', city = '', state = '', zip = '';
@@ -254,9 +249,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 if (comp.types.includes('postal_code')) zip = comp.long_name;
                             });
                         }
-
-                        // Important: Update state with new values. 
-                        // This triggers re-render, but since we aren't binding 'value' strictly while typing, it won't freeze.
                         setFormData(prev => ({
                             ...prev,
                             streetAddress: `${streetNum} ${route}`.trim(),
@@ -266,9 +258,9 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                         }));
                     });
                 } catch (e) {
-                    console.warn("Google Maps Auto Init Error", e);
+                    console.warn("Google Auto fail", e);
                 }
-             }
+            }
         }).catch(err => console.error(err));
     }, []);
 
@@ -283,7 +275,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
-                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
+                <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address to auto-fill details.</p>
                 <form onSubmit={onSave} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" required value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
@@ -299,6 +291,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 required 
                                 defaultValue={formData.streetAddress}
                                 onChange={handleChange} 
+                                autoComplete="off"
                                 placeholder="Start typing address..." 
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
                             />
@@ -315,6 +308,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap remain unchanged)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -326,7 +320,6 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // Air Quality API
                 const aqUrl = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`;
                 const aqRes = await fetch(aqUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
                 if(aqRes.ok) {
@@ -334,11 +327,9 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
                      if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
                 }
 
-                // Solar API
                 const solarUrl = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`;
                 const solarRes = await fetch(solarUrl);
                 if (solarRes.ok) setSolarData(await solarRes.json());
-                
             } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); }
         };
         fetchData();
@@ -480,6 +471,7 @@ const App = () => {
     const [confirmDelete, setConfirmDelete] = useState(null);
 
     useEffect(() => {
+        // Initialize Firebase (Safe check for existing apps)
         if (firebaseConfig) {
             try {
                 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -488,14 +480,24 @@ const App = () => {
                 setLogLevel('error');
                 setDb(firestore);
                 setAuth(firebaseAuth);
+
+                // Safety Timeout: If Auth doesn't resolve in 2s, force stop loading
+                const safetyTimer = setTimeout(() => {
+                     if (loading) setLoading(false);
+                }, 2000);
+
                 const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
+                    clearTimeout(safetyTimer);
                     if (user) setUserId(user.uid);
-                    else if (initialAuthToken) { await signInWithCustomToken(firebaseAuth, initialAuthToken); setUserId(firebaseAuth.currentUser.uid); }
                     else setUserId(null);
-                    setIsAuthReady(true); setLoading(false);
+                    setIsAuthReady(true); 
+                    setLoading(false);
                 });
                 return () => unsubscribe();
-            } catch (err) { setError("Init failed."); setLoading(false); }
+            } catch (err) { 
+                setError("Init failed: " + err.message); 
+                setLoading(false); 
+            }
         }
     }, []);
 
@@ -555,16 +557,17 @@ const App = () => {
     const handleSaveProfile = async (e) => {
         e.preventDefault();
         const form = e.target;
-        
-        // Get values directly from form elements to avoid state issues
+        // Manual extraction to avoid conflicts
         const propertyName = form.querySelector('input[name="propertyName"]').value;
         const streetAddress = form.querySelector('input[name="streetAddress"]').value;
         const city = form.querySelector('input[name="city"]').value;
         const state = form.querySelector('input[name="state"]').value;
         const zip = form.querySelector('input[name="zip"]').value;
+        // Optional fields
         const yearBuilt = form.querySelector('input[name="yearBuilt"]')?.value || '';
         const sqFt = form.querySelector('input[name="sqFt"]')?.value || '';
         const lotSize = form.querySelector('input[name="lotSize"]')?.value || '';
+        // Hidden fields populated by autocomplete
         const lat = form.querySelector('input[name="lat"]')?.value;
         const lon = form.querySelector('input[name="lon"]')?.value;
 
