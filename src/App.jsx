@@ -261,7 +261,7 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete (FIXED)
+// Setup Form with Address Autocomplete (FIXED: Uses native form submission)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
@@ -327,33 +327,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Manual save handler to avoid form nesting issues
-    const handleManualSave = (e) => {
-        e.preventDefault();
-        onSave({
-            preventDefault: () => {},
-            target: {
-                querySelector: (sel) => {
-                    const name = sel.match(/name="([^"]+)"/)[1];
-                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
-                    return { value: formData[name] || '' }; 
-                },
-                elements: {
-                    propertyName: { value: formData.propertyName },
-                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
-                    city: { value: formData.city },
-                    state: { value: formData.state },
-                    zip: { value: formData.zip },
-                    yearBuilt: { value: formData.yearBuilt },
-                    sqFt: { value: formData.sqFt },
-                    lotSize: { value: formData.lotSize },
-                    lat: { value: formData.lat },
-                    lon: { value: formData.lon }
-                }
-            }
-        });
-    };
-
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
@@ -391,7 +364,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     <input type="hidden" name="lon" value={formData.lon || ''} />
                     
                     {/* Standard Submit Button */}
-                    <button onClick={handleManualSave} disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
                 </form>
             </div>
         </div>
