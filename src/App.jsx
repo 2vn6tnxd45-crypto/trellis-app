@@ -3,11 +3,11 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
     getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-    GoogleAuthProvider, OAuthProvider, signInWithPopup, deleteUser, EmailAuthProvider, reauthenticateWithCredential
+    GoogleAuthProvider, OAuthProvider, signInWithPopup, deleteUser, EmailAuthProvider, reauthenticateWithCredential, signInWithCredential
 } from 'firebase/auth';
 import { 
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
-    doc, deleteDoc, setLogLevel, setDoc, getDoc
+    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch
 } from 'firebase/firestore';
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus } from 'lucide-react';
 
@@ -149,6 +149,53 @@ const initialRecordState = {
 };
 
 // --- Components ---
+
+// NEW: Modal for password re-authentication before deletion
+const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        setError(null);
+        if (!password) {
+            setError("Password is required.");
+            return;
+        }
+        onConfirm(password).catch(err => {
+            setError(err.message || "Re-authentication failed.");
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
+            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                <h3 className="text-xl font-semibold text-red-800 mb-2">Security Check</h3>
+                <p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion. This action cannot be reversed.</p>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <input
+                        type="password"
+                        placeholder="Current Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                        required
+                    />
+                    {error && <p className="text-red-600 text-xs">{error}</p>}
+                    
+                    <div className="flex justify-end space-x-3 pt-2">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">
+                            {isLoading ? 'Deleting...' : 'Confirm Deletion'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 
 const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (
     <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
@@ -509,6 +556,9 @@ const App = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('View Records');
     const [confirmDelete, setConfirmDelete] = useState(null);
+    // NEW: State for deletion confirmation and re-auth modal
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showReauth, setShowReauth] = useState(false);
 
     useEffect(() => {
         // Initialize Firebase (Safe check for existing apps)
@@ -594,28 +644,92 @@ const App = () => {
     const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
     const handleSignOut = async () => { if(!auth) return; await signOut(auth); setUserId(null); setPropertyProfile(null); setRecords([]); };
 
-    const handleSaveProfile = async (e) => {
+    // NEW: Function to delete user data from Firestore
+    const deleteUserData = async (uid) => {
+        const batch = writeBatch(db);
+        
+        // 1. Delete User Profile
+        const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile');
+        batch.delete(profileRef);
+
+        // 2. Delete all Records associated with the user (Important for PUBLIC_COLLECTION)
+        // NOTE: This assumes the records in the public collection are tied to a userId
+        const userRecordsQuery = query(collection(db, PUBLIC_COLLECTION_PATH));
+        const recordsSnapshot = await getDocs(userRecordsQuery); // Using getDocs for batch delete
+        
+        recordsSnapshot.docs.forEach((doc) => {
+            // Only delete records created by THIS user, if using a shared collection
+            if (doc.data().userId === uid) {
+                batch.delete(doc.ref);
+            }
+        });
+
+        return batch.commit();
+    };
+
+    // NEW: Main Deletion Logic
+    const handleDeleteAccount = async (password = null) => {
+        const user = auth.currentUser;
+        if (!user || !db) return;
+
+        try {
+            // 1. Handle Re-authentication if it's an email/password user
+            if (user.providerData.some(p => p.providerId === 'password') && password) {
+                const credential = EmailAuthProvider.credential(user.email, password);
+                await reauthenticateWithCredential(user, credential);
+            } else if (user.providerData.some(p => p.providerId === 'password') && !password) {
+                 // Should be caught by modal presentation, but safe check
+                 setShowReauth(true);
+                 return;
+            }
+
+            // 2. Delete all Firestore data first
+            await deleteUserData(user.uid);
+
+            // 3. Delete Auth account
+            await deleteUser(user); 
+            
+            // Cleanup state (onAuthStateChanged should handle it, but for immediacy):
+            handleSignOut(); 
+            setError("Account permanently deleted. Goodbye!");
+        } catch (e) {
+            console.error("Account deletion failed:", e);
+            setShowReauth(false);
+            if (e.code === 'auth/requires-recent-login' || e.code === 'auth/wrong-password') {
+                throw new Error("Invalid password or recent sign-in required.");
+            } else if (e.code === 'permission-denied') {
+                setError("Deletion failed. Check Firebase security rules.");
+            } else {
+                setError("Failed to delete account: " + e.message);
+            }
+        }
+    };
+    
+    // NEW: Handler to start the deletion flow
+    const initiateAccountDeletion = () => {
+        const user = auth.currentUser;
+        if (!user) return; // Should not happen
+
+        // Check if the user needs re-authentication (only email/password users need it)
+        const isEmailPassword = user.providerData.some(p => p.providerId === 'password');
+        
+        if (isEmailPassword) {
+            setShowReauth(true);
+        } else {
+            // Google/Apple/Anonymous users can proceed directly to confirmation
+            setShowDeleteConfirm(true);
+        }
+    };
+
+    const handleManualSave = async (e) => {
         e.preventDefault();
         
-        // Safe Extraction: Use the form passed in the custom event
-        // (SetupPropertyForm passes a constructed object)
-        // OR the native event target if it was a standard submit.
-        
-        // We structured SetupPropertyForm to pass a synthetic event with a target object 
-        // mimicking form elements for the manual save.
-        const target = e.target; 
-        // But wait, our manual handler sends { target: { elements: ... } }? 
-        // Let's look at SetupPropertyForm's handleManualSave.
-        // It sends: { preventDefault:..., target: { querySelector: ..., elements: {...} } }
-        // So we can access values via the .elements property we mocked.
-        
-        const els = target.elements; 
+        const els = e.target.elements; 
         const name = els.propertyName.value;
         const street = els.streetAddress.value;
         const city = els.city.value;
         const state = els.state.value;
         const zip = els.zip.value;
-        // Optional
         const yearBuilt = els.yearBuilt?.value || '';
         const sqFt = els.sqFt?.value || '';
         const lotSize = els.lotSize?.value || '';
@@ -651,9 +765,7 @@ const App = () => {
             let finalImageUrl = '';
 
             if (selectedFile) {
-                // Simplified for no-cost storage: Convert to Base64 string
-                // Note: Large strings in Firestore can be expensive/slow, so we limit size strictly.
-                if (selectedFile.size < 1048576) { // 1MB limit
+                if (selectedFile.size < 1048576) { 
                     finalImageUrl = await fileToBase64(selectedFile);
                 } else {
                     throw new Error("Image is too large. Please use an image under 1MB.");
@@ -680,7 +792,7 @@ const App = () => {
         } finally {
             setIsSaving(false);
         }
-    }, [db, userId, isSaving, newRecord, selectedFile, /* storage, */ propertyProfile]); // Removed storage from dependency array
+    }, [db, userId, isSaving, newRecord, selectedFile, propertyProfile]); 
 
     
     const handleDeleteConfirmed = async () => {
@@ -748,13 +860,25 @@ const App = () => {
             <link rel="icon" type="image/svg+xml" href={logoSrc} />
             
             <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
-                <button 
-                    onClick={handleSignOut}
-                    className="absolute top-0 right-0 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium sm:mt-2"
-                    title="Sign Out"
-                >
-                    <LogOut size={16} className="mr-1" /> Sign Out
-                </button>
+                
+                {/* NEW: Account Action Buttons */}
+                <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2">
+                    <button 
+                        onClick={initiateAccountDeletion}
+                        className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors"
+                        title="Delete Account"
+                    >
+                        <UserMinus size={16} />
+                    </button>
+                    <button 
+                        onClick={handleSignOut}
+                        className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center transition-colors"
+                        title="Sign Out"
+                    >
+                        <LogOut size={16} />
+                    </button>
+                </div>
+
 
                 {/* Logo using standard file reference for consistency across all pages */}
                 <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
@@ -857,6 +981,36 @@ const App = () => {
                 {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
             </main>
             {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
+            {/* NEW: Re-auth Modal for Email/Password Users */}
+            {showReauth && (
+                <ReauthModal
+                    isLoading={isSaving}
+                    onCancel={() => setShowReauth(false)}
+                    onConfirm={async (password) => {
+                        setIsSaving(true);
+                        try {
+                           // This calls the main delete function, which handles re-auth internally
+                           await handleDeleteAccount(password);
+                        } catch (e) {
+                           setIsSaving(false);
+                           throw e; // ReauthModal will catch and show the error
+                        }
+                    }}
+                />
+            )}
+            {/* NEW: Final Account Deletion Confirmation Modal (for Anon/Social users) */}
+            {showDeleteConfirm && (
+                <CustomConfirm
+                    type="account"
+                    message="Are you sure you want to permanently delete your Trellis account and ALL associated data? This cannot be undone."
+                    onConfirm={async () => {
+                        setIsSaving(true);
+                        await handleDeleteAccount();
+                        setIsSaving(false);
+                    }}
+                    onCancel={() => setShowDeleteConfirm(false)}
+                />
+            )}
         </div>
     );
 };
