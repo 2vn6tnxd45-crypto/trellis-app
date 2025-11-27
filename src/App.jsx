@@ -101,21 +101,16 @@ const fileToBase64 = (file) => {
     });
 };
 
-// Helper: Load Google Maps Script Robustly
-let googleMapsScriptLoadingPromise = null;
-const loadGoogleMapsScript = () => {
-    if (typeof window === 'undefined') return Promise.resolve();
-    
-    if (window.google && window.google.maps && window.google.maps.places) {
-        return Promise.resolve();
-    }
-    
-    if (googleMapsScriptLoadingPromise) {
-        return googleMapsScriptLoadingPromise;
-    }
-
-    googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        if (document.getElementById('googleMapsScript')) {
+// Helper: Load Google Maps Script Robustly (Promise-based)
+const loadGoogleMapsScript = (key) => {
+    return new Promise((resolve, reject) => {
+        if (typeof window === 'undefined') return resolve();
+        if (window.google && window.google.maps && window.google.maps.places) {
+            return resolve();
+        }
+        
+        const scriptId = 'google-maps-script-loader';
+        if (document.getElementById(scriptId)) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -126,19 +121,16 @@ const loadGoogleMapsScript = () => {
         }
 
         const script = document.createElement('script');
-        script.id = 'googleMapsScript';
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
+        script.id = scriptId;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`;
         script.async = true;
         script.defer = true;
         script.onload = () => resolve();
         script.onerror = (err) => {
-            googleMapsScriptLoadingPromise = null;
             reject(err);
         };
         document.head.appendChild(script);
     });
-    
-    return googleMapsScriptLoadingPromise;
 };
 
 // --- CATEGORY & ROOM DEFINITIONS ---
@@ -230,7 +222,7 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Fixed Setup Form: Removed Photon logic, Fixed Google Maps conflicts
+// Setup Form with Address Autocomplete (Fix for Freezing)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
@@ -239,7 +231,13 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
 
     // Initialize Google Maps Autocomplete safely
     useEffect(() => {
-        loadGoogleMapsScript().then(() => {
+        // Global auth failure handler from Google Maps
+        window.gm_authFailure = () => {
+            console.error("Google Maps Auth Failure detected");
+            alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
+        };
+
+        loadGoogleMapsScript(googleMapsApiKey).then(() => {
             if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
                 try {
                     const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
@@ -274,6 +272,11 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                             lat: place.geometry.location.lat(),
                             lon: place.geometry.location.lng()
                         }));
+                        
+                        // Update the input visual value manually to prevent race conditions
+                        if (inputRef.current) {
+                            inputRef.current.value = `${streetNum} ${route}`.trim();
+                        }
                     });
                 } catch (e) {
                     console.warn("Google Auto fail", e);
@@ -295,9 +298,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
             target: {
                 querySelector: (sel) => {
                     const name = sel.match(/name="([^"]+)"/)[1];
-                    // If it's the address field, prioritize the state over the input value if they differ slightly
-                    // but usually input value is what the user sees.
-                    // Note: InputRef value might be the "formatted address" from Google.
+                    // If it's the address field, prioritize the input value since user might have typed manually
                     if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
                     return { value: formData[name] || '' }; 
                 },
@@ -337,9 +338,10 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 ref={inputRef} 
                                 type="text" 
                                 name="streetAddress" 
+                                // Controlled input removed - Letting Google Maps handle the value directly
+                                // We only capture it on save or selection
                                 defaultValue={formData.streetAddress}
-                                onChange={handleChange}
-                                autoComplete="new-password" // Hack to disable browser autocomplete
+                                autoComplete="new-password" 
                                 placeholder="Start typing address..." 
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
                             />
