@@ -67,7 +67,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// --- Helper: Safe Logo (Using simple file reference for consistency) ---
+// --- Helper: Safe Logo ---
 const logoSrc = '/logo.svg';
 
 // Brand Icons
@@ -150,7 +150,7 @@ const initialRecordState = {
 
 // --- Components ---
 
-// NEW: Re-auth Modal (Restored)
+// Re-auth Modal for password re-authentication
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -328,33 +328,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Manual save handler to avoid form nesting issues
-    const handleManualSave = (e) => {
-        e.preventDefault();
-        onSave({
-            preventDefault: () => {},
-            target: {
-                querySelector: (sel) => {
-                    const name = sel.match(/name="([^"]+)"/)[1];
-                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
-                    return { value: formData[name] || '' }; 
-                },
-                elements: {
-                    propertyName: { value: formData.propertyName },
-                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
-                    city: { value: formData.city },
-                    state: { value: formData.state },
-                    zip: { value: formData.zip },
-                    yearBuilt: { value: formData.yearBuilt },
-                    sqFt: { value: formData.sqFt },
-                    lotSize: { value: formData.lotSize },
-                    lat: { value: formData.lat },
-                    lon: { value: formData.lon }
-                }
-            }
-        });
-    };
-
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
@@ -363,7 +336,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
                 
-                <div className="space-y-5 text-left relative">
+                <form onSubmit={onSave} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
                     <div className="relative">
@@ -387,14 +360,18 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     
                     <div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div>
                     
-                    <button onClick={handleManualSave} disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
-                </div>
+                    {/* Hidden fields for lat/lon passed via form submission */}
+                    <input type="hidden" name="lat" value={formData.lat || ''} />
+                    <input type="hidden" name="lon" value={formData.lon || ''} />
+                    
+                    {/* Standard Submit Button */}
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                </form>
             </div>
         </div>
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -720,27 +697,29 @@ const App = () => {
         }
     };
 
-    const handleManualSave = async (e) => {
+    const handleSaveProfile = async (e) => {
         e.preventDefault();
-        
-        const els = e.target.elements; 
-        const name = els.propertyName.value;
-        const street = els.streetAddress.value;
-        const city = els.city.value;
-        const state = els.state.value;
-        const zip = els.zip.value;
-        const yearBuilt = els.yearBuilt?.value || '';
-        const sqFt = els.sqFt?.value || '';
-        const lotSize = els.lotSize?.value || '';
-        const lat = els.lat?.value;
-        const lon = els.lon?.value;
+        const form = e.target;
+        // Correctly extract values from the form elements using standard names
+        const propertyName = form.querySelector('input[name="propertyName"]').value;
+        const streetAddress = form.querySelector('input[name="streetAddress"]').value;
+        const city = form.querySelector('input[name="city"]').value;
+        const state = form.querySelector('input[name="state"]').value;
+        const zip = form.querySelector('input[name="zip"]').value;
+        // Optional fields
+        const yearBuilt = form.querySelector('input[name="yearBuilt"]')?.value || '';
+        const sqFt = form.querySelector('input[name="sqFt"]')?.value || '';
+        const lotSize = form.querySelector('input[name="lotSize"]')?.value || '';
+        // Hidden fields populated by autocomplete
+        const lat = form.querySelector('input[name="lat"]')?.value;
+        const lon = form.querySelector('input[name="lon"]')?.value;
 
-        if(!name) return;
+        if(!propertyName) return;
         setIsSaving(true);
         try {
             const data = { 
-                name, 
-                address: { street, city, state, zip },
+                name: propertyName, 
+                address: { street: streetAddress, city, state, zip },
                 yearBuilt, sqFt, lotSize,
                 coordinates: (lat && lon) ? { lat, lon } : null,
                 createdAt: serverTimestamp() 
