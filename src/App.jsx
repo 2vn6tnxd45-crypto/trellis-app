@@ -26,7 +26,7 @@ const firebaseConfig = {
   measurementId: "G-JBP9F27RN1"
 };
 
-const googleMapsApiKey = "AIzaSyC_hvAtqVO3GIWSFwRiQi5tQZppekkbRVM"; 
+const googleMapsApiKey = "AIzaSyC1gVI-IeB2mbLAlHgJDmrPKwcZTpVWPOw"; 
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
 
 // --- Helper: Error Boundary ---
@@ -838,7 +838,7 @@ const App = () => {
                                         <Home size={28} className="mr-3 text-indigo-600" />
                                         {area}
                                     </h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{groupedRecords[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
                                 </section>
                             ))
                         ) : (
