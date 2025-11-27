@@ -3,11 +3,11 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
     getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
     createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-    GoogleAuthProvider, OAuthProvider, signInWithPopup, deleteUser, EmailAuthProvider, reauthenticateWithCredential, signInWithCredential
+    GoogleAuthProvider, OAuthProvider, signInWithPopup, deleteUser, EmailAuthProvider, reauthenticateWithCredential
 } from 'firebase/auth';
 import { 
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
-    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs // <<< FIX: Added getDocs
+    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs
 } from 'firebase/firestore';
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus } from 'lucide-react';
 
@@ -150,7 +150,7 @@ const initialRecordState = {
 
 // --- Components ---
 
-// NEW: Modal for password re-authentication before deletion
+// NEW: Re-auth Modal (Restored)
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -196,7 +196,6 @@ const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     );
 };
 
-
 const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (
     <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
         <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
@@ -234,7 +233,6 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden">
             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-                {/* Logo using standard file reference */}
                 <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="Trellis" />
                 <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to Trellis'}</h2>
                 <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
@@ -396,6 +394,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
