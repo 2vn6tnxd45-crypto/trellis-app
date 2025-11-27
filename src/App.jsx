@@ -265,7 +265,7 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
     );
 };
 
-// Setup Form with Address Autocomplete
+// Setup Form with Address Autocomplete (FIXED)
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [formData, setFormData] = useState({
         propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: ''
@@ -273,6 +273,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
+        // Global auth failure handler from Google Maps
         window.gm_authFailure = () => {
             console.error("Google Maps Auth Failure detected");
             alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
@@ -286,6 +287,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                         fields: ['address_components', 'geometry', 'formatted_address']
                     });
                     
+                    // Prevent form submission on "Enter" key in address field
                     inputRef.current.addEventListener('keydown', (e) => {
                         if(e.key === 'Enter') e.preventDefault(); 
                     });
@@ -472,42 +474,20 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-const RecordCard = ({ record, onDeleteClick }) => (
-    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
-        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
-        <div className="p-5 flex flex-col space-y-3 flex-grow">
-            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
-            <div className="text-sm space-y-2">
-                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
-                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
-                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
-                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
-                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
-                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
-                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
-                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
-                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
-                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
-            </div>
-            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div>
-        </div>
-    </div>
-);
-
-// Updated PedigreeReport with Crash-Proof Logic
+// Updated PedigreeReport with Strict Type Safety and Memoization
 const PedigreeReport = ({ propertyProfile, records }) => {
-    // Memoize to prevent render loops
+    // Memoize stats calculation to prevent re-renders on every cycle
     const stats = useMemo(() => {
-        const calculateAge = (catKey, itemKey) => {
-            if (!records || !Array.isArray(records)) return { age: 'N/A', date: 'No data' };
+        const calculateAge = (categoryKeyword, itemKeyword) => {
+            if (!Array.isArray(records)) return { age: 'N/A', date: 'No data' };
             
-            // Find a matching record safely
             const record = records.find(r => {
                 if (!r) return false;
-                const cat = String(r.category || '').toLowerCase();
-                const item = String(r.item || '').toLowerCase();
-                const isMatch = cat.includes(catKey.toLowerCase()) || item.includes(itemKey.toLowerCase());
-                return isMatch && r.dateInstalled; // Must have date
+                const catStr = String(r.category || '').toLowerCase();
+                const itemStr = String(r.item || '').toLowerCase();
+                const catMatch = catStr.includes(categoryKeyword.toLowerCase());
+                const itemMatch = itemStr.includes(itemKeyword.toLowerCase());
+                return (catMatch || itemMatch) && r.dateInstalled;
             });
 
             if (!record) return { age: 'N/A', date: 'No record' };
@@ -515,7 +495,8 @@ const PedigreeReport = ({ propertyProfile, records }) => {
             const installed = new Date(record.dateInstalled);
             if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
 
-            const age = new Date().getFullYear() - installed.getFullYear();
+            const now = new Date();
+            const age = now.getFullYear() - installed.getFullYear();
             return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
         };
 
@@ -526,11 +507,13 @@ const PedigreeReport = ({ propertyProfile, records }) => {
         };
     }, [records]);
 
+    // Memoize sorted records to prevent sort operations on render
     const sortedRecords = useMemo(() => {
-        if (!records) return [];
+        if (!Array.isArray(records)) return [];
         return [...records].sort((a, b) => {
-            const getVal = (r) => r.dateInstalled ? new Date(r.dateInstalled).getTime() : 0;
-            return getVal(b) - getVal(a);
+            const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
+            const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
+            return dateB - dateA;
         });
     }, [records]);
 
@@ -567,12 +550,13 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                             <div key={record.id} className="relative break-inside-avoid">
                                 <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
                                 <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown')}</span>
-                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
+                                    {/* Forcing strings for display to prevent Object crashes */}
+                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
+                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || 'No Date'}</span>
                                 </div>
                                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'General')}</span></div>
+                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div>
                                         {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>}
                                         {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>}
                                      </div>
@@ -586,6 +570,101 @@ const PedigreeReport = ({ propertyProfile, records }) => {
                 <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
             </div>
         </div>
+    );
+};
+
+const RecordCard = ({ record, onDeleteClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div>
+        </div>
+    </div>
+);
+
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange }) => {
+    const showSheen = newRecord.category === "Paint & Finishes";
+    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
+    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
+    const [isCustomArea, setIsCustomArea] = useState(false);
+    
+    // Update isCustomArea when newRecord.area changes
+    useEffect(() => { 
+        if (newRecord.area && !ROOMS.includes(newRecord.area)) {
+            setIsCustomArea(true); 
+        } else if (!newRecord.area) {
+            // Reset to dropdown if area is cleared (e.g. after save)
+            setIsCustomArea(false);
+        }
+    }, [newRecord.area]);
+
+    const handleRoomChange = (e) => { 
+        if (e.target.value === "Other (Custom)") { 
+            setIsCustomArea(true); 
+            onInputChange({ target: { name: 'area', value: '' } }); 
+        } else { 
+            setIsCustomArea(false); 
+            onInputChange(e); 
+        } 
+    };
+
+    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
+    if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
+    else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
+
+    // Use safe default for newRecord to prevent destructuring errors if undefined passed
+    const safeRecord = newRecord || initialRecordState;
+
+    return (
+        <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
+            <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={safeRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(safeRecord.area) ? safeRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option></select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={safeRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={safeRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={safeRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={safeRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={safeRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={safeRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
+                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={safeRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(safeRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={safeRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div className="space-y-2">
+                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={safeRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={safeRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
+            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
+        </form>
     );
 };
 
