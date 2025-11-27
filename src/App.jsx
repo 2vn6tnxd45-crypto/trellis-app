@@ -273,6 +273,12 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
+        // Global auth failure handler from Google Maps
+        window.gm_authFailure = () => {
+            console.error("Google Maps Auth Failure detected");
+            alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
+        };
+
         loadGoogleMapsScript().then(() => {
             if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
                 try {
@@ -325,6 +331,33 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Manual save handler to avoid form nesting issues
+    const handleManualSave = (e) => {
+        e.preventDefault();
+        onSave({
+            preventDefault: () => {},
+            target: {
+                querySelector: (sel) => {
+                    const name = sel.match(/name="([^"]+)"/)[1];
+                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
+                    return { value: formData[name] || '' }; 
+                },
+                elements: {
+                    propertyName: { value: formData.propertyName },
+                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
+                    city: { value: formData.city },
+                    state: { value: formData.state },
+                    zip: { value: formData.zip },
+                    yearBuilt: { value: formData.yearBuilt },
+                    sqFt: { value: formData.sqFt },
+                    lotSize: { value: formData.lotSize },
+                    lat: { value: formData.lat },
+                    lon: { value: formData.lon }
+                }
+            }
+        });
+    };
+
     return (
         <div className="flex items-center justify-center min-h-[90vh] print:hidden">
             <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
@@ -369,7 +402,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     );
 };
 
-// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap remain same)
+// ... (EnvironmentalInsights, RecordCard, AddRecordForm, PedigreeReport, PropertyMap, App remain same)
 const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates } = propertyProfile || {};
     const [airQuality, setAirQuality] = useState(null);
@@ -629,7 +662,7 @@ const App = () => {
         // 2. Delete all Records associated with the user (Important for PUBLIC_COLLECTION)
         // NOTE: This assumes the records in the public collection are tied to a userId
         const userRecordsQuery = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const recordsSnapshot = await getDocs(userRecordsQuery); 
+        const recordsSnapshot = await getDocs(userRecordsQuery); // <<< FIX: getDocs must be imported
         
         recordsSnapshot.docs.forEach((doc) => {
             // Only delete records created by THIS user, if using a shared collection
