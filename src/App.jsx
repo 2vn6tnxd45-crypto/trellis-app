@@ -15,7 +15,7 @@ import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileTex
 
 const appId = 'trellis-home-log'; 
 
-// YOUR KEYS (Hardcoded for Production Stability)
+// YOUR KEYS
 const firebaseConfig = {
   apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
   authDomain: "trellis-6cd18.firebaseapp.com",
@@ -51,9 +51,6 @@ class ErrorBoundary extends React.Component {
           <AlertTriangle className="h-12 w-12 text-red-600 mb-4" />
           <h1 className="text-2xl font-bold text-red-800 mb-2">Something went wrong.</h1>
           <p className="text-red-600 mb-4">The application encountered a critical error.</p>
-          <div className="bg-white p-4 rounded border border-red-200 text-left overflow-auto max-w-lg w-full">
-            <code className="text-xs text-red-500 font-mono">{this.state.error?.toString()}</code>
-          </div>
           <button 
             onClick={() => window.location.reload()} 
             className="mt-6 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
@@ -85,21 +82,15 @@ const fileToBase64 = (file) => {
     });
 };
 
-// Helper: Load Google Maps Script Robustly (Promise-based singleton)
 let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
-    
-    if (window.google && window.google.maps && window.google.maps.places) {
-        return Promise.resolve();
-    }
-    
-    if (googleMapsScriptLoadingPromise) {
-        return googleMapsScriptLoadingPromise;
-    }
+    if (window.google && window.google.maps && window.google.maps.places) return Promise.resolve();
+    if (googleMapsScriptLoadingPromise) return googleMapsScriptLoadingPromise;
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        if (document.getElementById('googleMapsScript')) {
+        const existingScript = document.getElementById('googleMapsScript');
+        if (existingScript) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -108,7 +99,6 @@ const loadGoogleMapsScript = () => {
             }, 100);
             return;
         }
-
         const script = document.createElement('script');
         script.id = 'googleMapsScript';
         script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
@@ -121,7 +111,6 @@ const loadGoogleMapsScript = () => {
         };
         document.head.appendChild(script);
     });
-    
     return googleMapsScriptLoadingPromise;
 };
 
@@ -153,41 +142,23 @@ const initialRecordState = {
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
-
     const handleSubmit = (e) => {
         e.preventDefault();
         setError(null);
-        if (!password) {
-            setError("Password is required.");
-            return;
-        }
-        onConfirm(password).catch(err => {
-            setError(err.message || "Re-authentication failed.");
-        });
+        if (!password) { setError("Password is required."); return; }
+        onConfirm(password).catch(err => setError(err.message || "Re-authentication failed."));
     };
-
     return (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
             <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
                 <h3 className="text-xl font-semibold text-red-800 mb-2">Security Check</h3>
-                <p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion. This action cannot be reversed.</p>
-                
+                <p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion.</p>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    <input
-                        type="password"
-                        placeholder="Current Password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                        required
-                    />
+                    <input type="password" placeholder="Current Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" required />
                     {error && <p className="text-red-600 text-xs">{error}</p>}
-                    
                     <div className="flex justify-end space-x-3 pt-2">
                         <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
-                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">
-                            {isLoading ? 'Deleting...' : 'Confirm Deletion'}
-                        </button>
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">{isLoading ? 'Deleting...' : 'Confirm Deletion'}</button>
                     </div>
                 </form>
             </div>
@@ -239,12 +210,8 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
                     <div className="grid grid-cols-2 gap-3 mb-6">
-                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                            <span className="mr-2"><GoogleIcon /></span> Google
-                        </button>
-                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                            <span className="mr-2"><AppleIcon /></span> Apple
-                        </button>
+                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><GoogleIcon /></span> Google</button>
+                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><AppleIcon /></span> Apple</button>
                     </div>
                     <div className="relative mb-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div></div>
                     <form className="space-y-6" onSubmit={handleSubmit}>
@@ -254,7 +221,6 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
                         <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
                     </form>
                     <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
-                    <div className="mt-6 text-center border-t pt-4"><button onClick={() => { setIsSignUp(!isSignUp); setLocalError(null); }} className="text-sm font-medium text-indigo-600 hover:text-indigo-500">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}</button></div>
                 </div>
             </div>
         </div>
@@ -269,29 +235,15 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        // Global auth failure handler from Google Maps
-        window.gm_authFailure = () => {
-            console.error("Google Maps Auth Failure detected");
-            alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
-        };
-
+        window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); };
         loadGoogleMapsScript().then(() => {
-            if (inputRef.current && window.google && window.google.maps && window.google.maps.places) {
+            if (inputRef.current && window.google) {
                 try {
-                    const auto = new window.google.maps.places.Autocomplete(inputRef.current, {
-                        types: ['address'],
-                        fields: ['address_components', 'geometry', 'formatted_address']
-                    });
-                    
-                    // Prevent form submission on "Enter" key in address field
-                    inputRef.current.addEventListener('keydown', (e) => {
-                        if(e.key === 'Enter') e.preventDefault(); 
-                    });
-
+                    const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] });
+                    inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); });
                     auto.addListener('place_changed', () => {
                         const place = auto.getPlace();
                         if (!place.geometry) return;
-
                         let streetNum = '', route = '', city = '', state = '', zip = '';
                         if (place.address_components) {
                             place.address_components.forEach(comp => {
@@ -302,56 +254,23 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 if (comp.types.includes('postal_code')) zip = comp.long_name;
                             });
                         }
-
-                        setFormData(prev => ({
-                            ...prev,
-                            streetAddress: `${streetNum} ${route}`.trim(),
-                            city, state, zip,
-                            lat: place.geometry.location.lat(),
-                            lon: place.geometry.location.lng()
-                        }));
-                        
-                        if (inputRef.current) {
-                            inputRef.current.value = `${streetNum} ${route}`.trim();
-                        }
+                        setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() }));
+                        if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim();
                     });
-                } catch (e) {
-                    console.warn("Google Auto fail", e);
-                }
-            }
-        }).catch(err => console.error("Maps load error", err));
-    }, []);
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    // Manual save handler to avoid form nesting issues
-    const handleManualSave = (e) => {
-        e.preventDefault();
-        onSave({
-            preventDefault: () => {},
-            target: {
-                querySelector: (sel) => {
-                    const name = sel.match(/name="([^"]+)"/)[1];
-                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
-                    return { value: formData[name] || '' }; 
-                },
-                elements: {
-                    propertyName: { value: formData.propertyName },
-                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
-                    city: { value: formData.city },
-                    state: { value: formData.state },
-                    zip: { value: formData.zip },
-                    yearBuilt: { value: formData.yearBuilt },
-                    sqFt: { value: formData.sqFt },
-                    lotSize: { value: formData.lotSize },
-                    lat: { value: formData.lat },
-                    lon: { value: formData.lon }
-                }
+                } catch (e) { console.warn("Google Auto fail", e); }
             }
         });
+    }, []);
+
+    const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // Use standard FormData to extract all values reliably
+        const formDataObj = new FormData(e.target);
+        // Manually add the address if controlled separately
+        if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value);
+        onSave(formDataObj); 
     };
 
     return (
@@ -361,37 +280,13 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <div className="flex justify-center mb-6"><img src={logoSrc} alt="Trellis Logo" className="h-24 w-24 shadow-md rounded-xl" /></div>
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
-                
-                <form onSubmit={onSave} className="space-y-5 text-left relative">
+                <form onSubmit={handleSubmit} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
-                    
-                    <div className="relative">
-                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label>
-                        <div className="relative">
-                            <MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                            <input 
-                                ref={inputRef} 
-                                type="text" 
-                                name="streetAddress" 
-                                defaultValue={formData.streetAddress} 
-                                // IMPORTANT: Removed onChange here to prevent conflict
-                                autoComplete="new-password" 
-                                placeholder="Start typing address..." 
-                                className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
-                            />
-                        </div>
-                    </div>
-
+                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div>
                     <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
-                    
                     <div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div>
-                    
-                    {/* Hidden fields for lat/lon passed via form submission */}
-                    <input type="hidden" name="lat" value={formData.lat || ''} />
-                    <input type="hidden" name="lon" value={formData.lon || ''} />
-                    
-                    {/* Standard Submit Button */}
-                    <button onClick={handleManualSave} disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                    <input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} />
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
                 </form>
             </div>
         </div>
@@ -403,29 +298,20 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
     const [airQuality, setAirQuality] = useState(null);
     const [solarData, setSolarData] = useState(null);
     const [loading, setLoading] = useState(false);
-
     useEffect(() => {
         if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return;
         const fetchData = async () => {
             setLoading(true);
             try {
-                const aqUrl = `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`;
-                const aqRes = await fetch(aqUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
-                if(aqRes.ok) {
-                     const aqData = await aqRes.json();
-                     if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]);
-                }
-
-                const solarUrl = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`;
-                const solarRes = await fetch(solarUrl);
+                const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
+                if(aqRes.ok) { const aqData = await aqRes.json(); if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]); }
+                const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
                 if (solarRes.ok) setSolarData(await solarRes.json());
             } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); }
         };
         fetchData();
     }, [coordinates]);
-
     if (!coordinates?.lat) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
-
     return (
         <div className="space-y-6">
             <h2 className="text-xl font-bold text-indigo-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2>
@@ -447,74 +333,42 @@ const EnvironmentalInsights = ({ propertyProfile }) => {
 };
 
 const PropertyMap = ({ propertyProfile }) => {
-    const address = propertyProfile?.address;
-    const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home";
-    const encodedQuery = encodeURIComponent(mapQuery);
-    const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`;
-
+    const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city}, ${propertyProfile.address.state} ${propertyProfile.address.zip}` : propertyProfile?.name || "Home")}`;
     return (
         <div className="space-y-6">
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
-                <div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative">
-                     <iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe>
-                </div>
+                <div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative"><iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe></div>
             </div>
-            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
-                <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <a href={`https://www.google.com/maps/search/Home+Depot+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
-                    <a href={`https://www.google.com/maps/search/Lowe's+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's <ExternalLink size={14} className="text-indigo-400 group-hover:text-indigo-600"/></a>
-                </div>
-            </div>
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100"><h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14}/></a><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's <ExternalLink size={14}/></a></div></div>
         </div>
     );
 };
 
-// Updated PedigreeReport with SAFE DATA ACCESS
-const PedigreeReport = ({ propertyProfile, records = [] }) => { // Default records to []
-    // Memoize stats calculation to prevent re-renders on every cycle
+// Updated PedigreeReport with SAFE DATA ACCESS and Memoization
+const PedigreeReport = ({ propertyProfile, records = [] }) => { 
     const stats = useMemo(() => {
         const defaultVal = { age: 'N/A', date: 'No data' };
-        
-        // Safe calculation function
-        const calculateAge = (categoryKeyword, itemKeyword) => {
-            if (!records || !Array.isArray(records) || records.length === 0) return defaultVal;
-            
-            const record = records.find(r => {
-                if (!r) return false;
-                const catStr = String(r.category || '').toLowerCase();
-                const itemStr = String(r.item || '').toLowerCase();
-                const catMatch = catStr.includes(categoryKeyword.toLowerCase());
-                const itemMatch = itemStr.includes(itemKeyword.toLowerCase());
-                return (catMatch || itemMatch) && r.dateInstalled;
-            });
-
-            if (!record) return { age: 'N/A', date: 'No record' };
-            
-            const installed = new Date(record.dateInstalled);
-            if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
-
-            const now = new Date();
-            const age = now.getFullYear() - installed.getFullYear();
-            return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
-        };
-
-        // Always return a structure, even if empty
         try {
-            return {
-                hvac: calculateAge('HVAC', 'hvac'),
-                roof: calculateAge('Roof', 'roof'),
-                heater: calculateAge('Plumbing', 'water heater')
+            const calculateAge = (categoryKeyword, itemKeyword) => {
+                if (!records || records.length === 0) return defaultVal;
+                const record = records.find(r => {
+                    if (!r) return false;
+                    const cat = String(r.category || '').toLowerCase();
+                    const item = String(r.item || '').toLowerCase();
+                    return (cat.includes(categoryKeyword.toLowerCase()) || item.includes(itemKeyword.toLowerCase())) && r.dateInstalled;
+                });
+                if (!record) return { age: 'N/A', date: 'No record' };
+                const installed = new Date(record.dateInstalled);
+                if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
+                const age = new Date().getFullYear() - installed.getFullYear();
+                return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
             };
-        } catch (e) {
-            console.error("Stats calc error", e);
-            return { hvac: defaultVal, roof: defaultVal, heater: defaultVal };
-        }
+            return { hvac: calculateAge('HVAC', 'hvac'), roof: calculateAge('Roof', 'roof'), heater: calculateAge('Plumbing', 'water heater') };
+        } catch (e) { return { hvac: defaultVal, roof: defaultVal, heater: defaultVal }; }
     }, [records]);
 
-    // Memoize sorted records to prevent sort operations on render
     const sortedRecords = useMemo(() => {
-        if (!records || !Array.isArray(records)) return [];
+        if (!records) return [];
         return [...records].sort((a, b) => {
             const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
             const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
@@ -528,38 +382,30 @@ const PedigreeReport = ({ propertyProfile, records = [] }) => { // Default recor
                 <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
                 <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
             </div>
-
             <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
                 <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
                      <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
                         <div>
-                             <div className="flex items-center mb-4"><span className="text-xs font-bold tracking-widest uppercase text-indigo-200 border border-indigo-700 px-2 py-1 rounded">Verified Pedigree</span></div>
                             <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
-                            {/* SAFE ADDRESS RENDERING */}
-                            <p className="text-indigo-200 text-lg flex items-center">
-                                <MapPin className="h-5 w-5 mr-2" /> 
-                                {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}
-                            </p>
+                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}</p>
                         </div>
                         <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
                      </div>
                 </div>
-
                 <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div>
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div>
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div>
                      <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div>
                 </div>
-
                 <div className="p-8 md:p-10">
                      <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
                         {sortedRecords.map(record => (
                             <div key={record.id} className="relative break-inside-avoid">
                                 <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
                                 <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
+                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown')}</span>
                                     <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
                                 </div>
                                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
@@ -575,7 +421,6 @@ const PedigreeReport = ({ propertyProfile, records = [] }) => { // Default recor
                         ))}
                      </div>
                 </div>
-                <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
             </div>
         </div>
     );
@@ -596,11 +441,8 @@ const App = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('View Records');
     const [confirmDelete, setConfirmDelete] = useState(null);
-    // NEW: State for deletion confirmation and re-auth modal
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showReauth, setShowReauth] = useState(false);
-    
-    // Edit Mode State
     const [editingId, setEditingId] = useState(null);
     const fileInputRef = useRef(null);
 
@@ -673,18 +515,24 @@ const App = () => {
     
     const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
 
-    const handleSaveProfile = async (e) => {
-        e.preventDefault();
-        const f = e.target;
-        const name = f.querySelector('input[name="propertyName"]').value;
+    const handleSaveProfile = async (formDataObjectOrEvent) => {
+        let formData;
+        if (formDataObjectOrEvent instanceof FormData) {
+            formData = formDataObjectOrEvent;
+        } else {
+             formDataObjectOrEvent.preventDefault();
+             formData = new FormData(formDataObjectOrEvent.target);
+        }
+        
+        const name = formData.get('propertyName');
         if(!name) return;
         setIsSaving(true);
         try {
             const data = { 
                 name, 
-                address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value },
-                yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value,
-                coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null,
+                address: { street: formData.get('streetAddress'), city: formData.get('city'), state: formData.get('state'), zip: formData.get('zip') },
+                yearBuilt: formData.get('yearBuilt'), sqFt: formData.get('sqFt'), lotSize: formData.get('lotSize'),
+                coordinates: (formData.get('lat') && formData.get('lon')) ? { lat: formData.get('lat'), lon: formData.get('lon') } : null,
                 createdAt: serverTimestamp() 
             };
             await setDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile'), data);
@@ -722,17 +570,12 @@ const App = () => {
             const recordData = {
                 ...newRecord,
                 propertyLocation: propertyProfile?.name || 'My Property',
-                imageUrl: finalImageUrl || newRecord.imageUrl, // Keep old image if not replaced
+                imageUrl: finalImageUrl || newRecord.imageUrl, 
                 userId,
                 timestamp: editingId ? newRecord.timestamp : serverTimestamp(), 
             };
-
-            if (editingId) {
-                await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData);
-            } else {
-                await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData);
-            }
-
+            if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } 
+            else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); }
             setNewRecord(initialRecordState);
             setEditingId(null);
             setSelectedFile(null);
