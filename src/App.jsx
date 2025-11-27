@@ -7,7 +7,7 @@ import {
 } from 'firebase/auth';
 import { 
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
-    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch
+    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs // <<< FIX: Added getDocs
 } from 'firebase/firestore';
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus } from 'lucide-react';
 
@@ -655,7 +655,7 @@ const App = () => {
         // 2. Delete all Records associated with the user (Important for PUBLIC_COLLECTION)
         // NOTE: This assumes the records in the public collection are tied to a userId
         const userRecordsQuery = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const recordsSnapshot = await getDocs(userRecordsQuery); // Using getDocs for batch delete
+        const recordsSnapshot = await getDocs(userRecordsQuery); // <<< FIX: getDocs must be imported
         
         recordsSnapshot.docs.forEach((doc) => {
             // Only delete records created by THIS user, if using a shared collection
@@ -851,167 +851,169 @@ const App = () => {
 
     // 3. Main App UI (Authenticated & Setup Complete)
     return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-                body { font-family: 'Inter', sans-serif; }
-            `}</style>
-            
-            <link rel="icon" type="image/svg+xml" href={logoSrc} />
-            
-            <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
+        <ErrorBoundary>
+            <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
+                <style>{`
+                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+                    body { font-family: 'Inter', sans-serif; }
+                `}</style>
                 
-                {/* NEW: Account Action Buttons */}
-                <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2">
-                    <button 
-                        onClick={initiateAccountDeletion}
-                        className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors"
-                        title="Delete Account"
-                    >
-                        <UserMinus size={16} />
-                    </button>
-                    <button 
-                        onClick={handleSignOut}
-                        className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center transition-colors"
-                        title="Sign Out"
-                    >
-                        <LogOut size={16} />
-                    </button>
-                </div>
+                <link rel="icon" type="image/svg+xml" href={logoSrc} />
+                
+                <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
+                    
+                    {/* NEW: Account Action Buttons */}
+                    <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2">
+                        <button 
+                            onClick={initiateAccountDeletion}
+                            className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors"
+                            title="Delete Account"
+                        >
+                            <UserMinus size={16} />
+                        </button>
+                        <button 
+                            onClick={handleSignOut}
+                            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center transition-colors"
+                            title="Sign Out"
+                        >
+                            <LogOut size={16} />
+                        </button>
+                    </div>
 
 
-                {/* Logo using standard file reference for consistency across all pages */}
-                <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
-                <div className="text-center sm:text-left">
-                    <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
-                    <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                    {/* Dynamic Property Name from Settings */}
-                    <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
-                        <MapPin size={14} className="text-indigo-500 mr-2" />
-                        <span className="text-gray-600 font-semibold text-sm sm:text-base">
-                            {propertyProfile.name} 
-                            {propertyProfile.address?.city ? ` • ${propertyProfile.address.city}, ${propertyProfile.address.state}` : ''}
+                    {/* Logo using standard file reference for consistency across all pages */}
+                    <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
+                    <div className="text-center sm:text-left">
+                        <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
+                        <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
+                        {/* Dynamic Property Name from Settings */}
+                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
+                            <MapPin size={14} className="text-indigo-500 mr-2" />
+                            <span className="text-gray-600 font-semibold text-sm sm:text-base">
+                                {propertyProfile.name} 
+                                {propertyProfile.address?.city ? ` • ${propertyProfile.address.city}, ${propertyProfile.address.state}` : ''}
+                            </span>
+                        </div>
+                    </div>
+                </header>
+
+                {error && (
+                    <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-4 shadow-md" role="alert">
+                        <strong className="font-bold">Error:</strong>
+                        <span className="block sm:inline ml-2">{error}</span>
+                        <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setError(null)}>
+                            &times;
                         </span>
                     </div>
-                </div>
-            </header>
+                )}
 
-            {error && (
-                <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-4 shadow-md" role="alert">
-                    <strong className="font-bold">Error:</strong>
-                    <span className="block sm:inline ml-2">{error}</span>
-                    <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setError(null)}>
-                        &times;
-                    </span>
-                </div>
-            )}
+                <nav className="flex justify-center mb-6 max-w-lg mx-auto">
+                    <button
+                        onClick={() => setActiveTab('View Records')}
+                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl transition-all border-b-2 ${
+                            activeTab === 'View Records' 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                        }`}
+                    >
+                        View History ({records.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Add Record')}
+                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
+                            activeTab === 'Add Record' 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                        }`}
+                    >
+                        Add New Component
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Report')}
+                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
+                            activeTab === 'Report' 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                        }`}
+                    >
+                        Report
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('Insights')}
+                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl transition-all border-b-2 ${
+                            activeTab === 'Insights' 
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
+                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
+                        }`}
+                    >
+                        Insights
+                    </button>
+                </nav>
 
-            <nav className="flex justify-center mb-6 max-w-lg mx-auto">
-                <button
-                    onClick={() => setActiveTab('View Records')}
-                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl transition-all border-b-2 ${
-                        activeTab === 'View Records' 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                    }`}
-                >
-                    View History ({records.length})
-                </button>
-                <button
-                    onClick={() => setActiveTab('Add Record')}
-                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
-                        activeTab === 'Add Record' 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                    }`}
-                >
-                    Add New Component
-                </button>
-                <button
-                    onClick={() => setActiveTab('Report')}
-                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
-                        activeTab === 'Report' 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                    }`}
-                >
-                    Report
-                </button>
-                 <button
-                    onClick={() => setActiveTab('Insights')}
-                    className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl transition-all border-b-2 ${
-                        activeTab === 'Insights' 
-                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                            : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                    }`}
-                >
-                    Insights
-                </button>
-            </nav>
-
-            <main className="max-w-4xl mx-auto">
-                {activeTab === 'Add Record' && (
-                    <AddRecordForm 
-                        onSave={saveRecord}
-                        isSaving={isSaving}
-                        newRecord={newRecord}
-                        onInputChange={handleInputChange}
-                        onFileChange={handleFileChange}
+                <main className="max-w-4xl mx-auto">
+                    {activeTab === 'Add Record' && (
+                        <AddRecordForm 
+                            onSave={saveRecord}
+                            isSaving={isSaving}
+                            newRecord={newRecord}
+                            onInputChange={handleInputChange}
+                            onFileChange={handleFileChange}
+                        />
+                    )}
+                    
+                    {activeTab === 'View Records' && (
+                        <div className="space-y-10">
+                            {Object.keys(groupedRecords).length > 0 ? (
+                                Object.keys(groupedRecords).map(area => (
+                                    <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
+                                        <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center">
+                                            <Home size={28} className="mr-3 text-indigo-600" />
+                                            {area}
+                                        </h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{groupedRecords[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
+                                    </section>
+                                ))
+                            ) : (
+                                <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>
+                            )}
+                        </div>
+                    )}
+                    {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
+                    {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
+                </main>
+                {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
+                {/* NEW: Re-auth Modal for Email/Password Users */}
+                {showReauth && (
+                    <ReauthModal
+                        isLoading={isSaving}
+                        onCancel={() => setShowReauth(false)}
+                        onConfirm={async (password) => {
+                            setIsSaving(true);
+                            try {
+                            // This calls the main delete function, which handles re-auth internally
+                            await handleDeleteAccount(password);
+                            } catch (e) {
+                            setIsSaving(false);
+                            throw e; // ReauthModal will catch and show the error
+                            }
+                        }}
                     />
                 )}
-                
-                {activeTab === 'View Records' && (
-                    <div className="space-y-10">
-                        {Object.keys(groupedRecords).length > 0 ? (
-                            Object.keys(groupedRecords).map(area => (
-                                <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
-                                    <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center">
-                                        <Home size={28} className="mr-3 text-indigo-600" />
-                                        {area}
-                                    </h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{groupedRecords[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
-                                </section>
-                            ))
-                        ) : (
-                            <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>
-                        )}
-                    </div>
+                {/* NEW: Final Account Deletion Confirmation Modal (for Anon/Social users) */}
+                {showDeleteConfirm && (
+                    <CustomConfirm
+                        type="account"
+                        message="Are you sure you want to permanently delete your Trellis account and ALL associated data? This cannot be undone."
+                        onConfirm={async () => {
+                            setIsSaving(true);
+                            await handleDeleteAccount();
+                            setIsSaving(false);
+                        }}
+                        onCancel={() => setShowDeleteConfirm(false)}
+                    />
                 )}
-                {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
-                {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
-            </main>
-            {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
-            {/* NEW: Re-auth Modal for Email/Password Users */}
-            {showReauth && (
-                <ReauthModal
-                    isLoading={isSaving}
-                    onCancel={() => setShowReauth(false)}
-                    onConfirm={async (password) => {
-                        setIsSaving(true);
-                        try {
-                           // This calls the main delete function, which handles re-auth internally
-                           await handleDeleteAccount(password);
-                        } catch (e) {
-                           setIsSaving(false);
-                           throw e; // ReauthModal will catch and show the error
-                        }
-                    }}
-                />
-            )}
-            {/* NEW: Final Account Deletion Confirmation Modal (for Anon/Social users) */}
-            {showDeleteConfirm && (
-                <CustomConfirm
-                    type="account"
-                    message="Are you sure you want to permanently delete your Trellis account and ALL associated data? This cannot be undone."
-                    onConfirm={async () => {
-                        setIsSaving(true);
-                        await handleDeleteAccount();
-                        setIsSaving(false);
-                    }}
-                    onCancel={() => setShowDeleteConfirm(false)}
-                />
-            )}
-        </div>
+            </div>
+        </ErrorBoundary>
     );
 };
 
