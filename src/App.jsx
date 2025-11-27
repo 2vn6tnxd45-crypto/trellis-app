@@ -7,9 +7,9 @@ import {
 } from 'firebase/auth';
 import { 
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
-    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs
+    doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs, updateDoc
 } from 'firebase/firestore';
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil } from 'lucide-react';
 
 // --- Global Config ---
 
@@ -90,7 +90,6 @@ let googleMapsScriptLoadingPromise = null;
 const loadGoogleMapsScript = () => {
     if (typeof window === 'undefined') return Promise.resolve();
     
-    // Check if script is already loaded and ready
     if (window.google && window.google.maps && window.google.maps.places) {
         return Promise.resolve();
     }
@@ -100,9 +99,7 @@ const loadGoogleMapsScript = () => {
     }
 
     googleMapsScriptLoadingPromise = new Promise((resolve, reject) => {
-        // Check if script tag exists but maybe not fully ready
-        const existingScript = document.getElementById('googleMapsScript');
-        if (existingScript) {
+        if (document.getElementById('googleMapsScript')) {
             const checkInterval = setInterval(() => {
                  if (window.google && window.google.maps && window.google.maps.places) {
                      clearInterval(checkInterval);
@@ -153,7 +150,6 @@ const initialRecordState = {
 
 // --- Components ---
 
-// Re-auth Modal for password re-authentication
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
@@ -273,7 +269,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const inputRef = useRef(null);
 
     useEffect(() => {
-        // Global auth failure handler from Google Maps
         window.gm_authFailure = () => {
             console.error("Google Maps Auth Failure detected");
             alert("Google Maps API Key Error. Please check your 'Places API' and 'Maps Embed API' settings in Google Cloud.");
@@ -287,7 +282,6 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                         fields: ['address_components', 'geometry', 'formatted_address']
                     });
                     
-                    // Prevent form submission on "Enter" key in address field
                     inputRef.current.addEventListener('keydown', (e) => {
                         if(e.key === 'Enter') e.preventDefault(); 
                     });
@@ -331,31 +325,11 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // Manual save handler to avoid form nesting issues
-    const handleManualSave = (e) => {
-        e.preventDefault();
-        onSave({
-            preventDefault: () => {},
-            target: {
-                querySelector: (sel) => {
-                    const name = sel.match(/name="([^"]+)"/)[1];
-                    if (name === 'streetAddress' && inputRef.current) return { value: inputRef.current.value };
-                    return { value: formData[name] || '' }; 
-                },
-                elements: {
-                    propertyName: { value: formData.propertyName },
-                    streetAddress: { value: inputRef.current ? inputRef.current.value : formData.streetAddress },
-                    city: { value: formData.city },
-                    state: { value: formData.state },
-                    zip: { value: formData.zip },
-                    yearBuilt: { value: formData.yearBuilt },
-                    sqFt: { value: formData.sqFt },
-                    lotSize: { value: formData.lotSize },
-                    lat: { value: formData.lat },
-                    lon: { value: formData.lon }
-                }
-            }
-        });
+    // Use standard form submission handler, extracting values directly from form elements
+    // to avoid any React state/DOM sync issues with the Google-controlled input.
+    const handleSubmit = (e) => {
+        // Pass the event directly to parent; parent handles extraction
+        onSave(e); 
     };
 
     return (
@@ -366,7 +340,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 <h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2>
                 <p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p>
                 
-                <form onSubmit={onSave} className="space-y-5 text-left relative">
+                <form onSubmit={handleSubmit} className="space-y-5 text-left relative">
                     <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
                     
                     <div className="relative">
@@ -378,7 +352,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                                 type="text" 
                                 name="streetAddress" 
                                 defaultValue={formData.streetAddress} 
-                                // IMPORTANT: Removed onChange={handleChange} here to prevent React/Google conflict
+                                // IMPORTANT: Removed onChange here to prevent conflict
                                 autoComplete="new-password" 
                                 placeholder="Start typing address..." 
                                 className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"
@@ -394,8 +368,7 @@ const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     <input type="hidden" name="lat" value={formData.lat || ''} />
                     <input type="hidden" name="lon" value={formData.lon || ''} />
                     
-                    {/* Standard Submit Button */}
-                    <button onClick={handleManualSave} disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
                 </form>
             </div>
         </div>
@@ -474,110 +447,17 @@ const PropertyMap = ({ propertyProfile }) => {
     );
 };
 
-// Updated PedigreeReport with Strict Type Safety and Memoization
-const PedigreeReport = ({ propertyProfile, records }) => {
-    // Memoize stats calculation to prevent re-renders on every cycle
-    const stats = useMemo(() => {
-        const calculateAge = (categoryKeyword, itemKeyword) => {
-            if (!Array.isArray(records)) return { age: 'N/A', date: 'No data' };
-            
-            const record = records.find(r => {
-                if (!r) return false;
-                const catStr = String(r.category || '').toLowerCase();
-                const itemStr = String(r.item || '').toLowerCase();
-                const catMatch = catStr.includes(categoryKeyword.toLowerCase());
-                const itemMatch = itemStr.includes(itemKeyword.toLowerCase());
-                return (catMatch || itemMatch) && r.dateInstalled;
-            });
-
-            if (!record) return { age: 'N/A', date: 'No record' };
-            
-            const installed = new Date(record.dateInstalled);
-            if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
-
-            const now = new Date();
-            const age = now.getFullYear() - installed.getFullYear();
-            return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
-        };
-
-        return {
-            hvac: calculateAge('HVAC', 'hvac'),
-            roof: calculateAge('Roof', 'roof'),
-            heater: calculateAge('Plumbing', 'water heater')
-        };
-    }, [records]);
-
-    // Memoize sorted records to prevent sort operations on render
-    const sortedRecords = useMemo(() => {
-        if (!Array.isArray(records)) return [];
-        return [...records].sort((a, b) => {
-            const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
-            const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
-            return dateB - dateA;
-        });
-    }, [records]);
-
-    return (
-        <div className="bg-gray-50 min-h-screen pb-12">
-            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
-                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
-                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
-            </div>
-
-            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
-                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
-                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div>
-                             <div className="flex items-center mb-4"><span className="text-xs font-bold tracking-widest uppercase text-indigo-200 border border-indigo-700 px-2 py-1 rounded">Verified Pedigree</span></div>
-                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
-                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address ? `${propertyProfile.address.street}, ${propertyProfile.address.city} ${propertyProfile.address.state}` : 'No Address Listed'}</p>
-                        </div>
-                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
-                     </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div>
-                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div>
-                </div>
-
-                <div className="p-8 md:p-10">
-                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
-                        {sortedRecords.map(record => (
-                            <div key={record.id} className="relative break-inside-avoid">
-                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
-                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                    {/* Forcing strings for display to prevent Object crashes */}
-                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
-                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || 'No Date'}</span>
-                                </div>
-                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
-                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
-                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div>
-                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>}
-                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>}
-                                     </div>
-                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{String(record.notes)}"</p>}
-                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
-                                </div>
-                            </div>
-                        ))}
-                     </div>
-                </div>
-                <div className="bg-gray-50 p-8 text-center border-t border-gray-200 print:bg-white"><p className="text-sm text-gray-500 flex items-center justify-center font-medium"><Lock className="h-4 w-4 mr-2 text-indigo-600" /> Authenticated by Trellis Property Data</p></div>
-            </div>
-        </div>
-    );
-};
-
-const RecordCard = ({ record, onDeleteClick }) => (
+const RecordCard = ({ record, onDeleteClick, onEditClick }) => (
     <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
         {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
         <div className="p-5 flex flex-col space-y-3 flex-grow">
-            <div className="flex justify-between items-start border-b border-indigo-50 pb-2"><div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div><button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700 ml-2 print:hidden"><Trash2 size={20} /></button></div>
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2">
+                <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div>
+                <div className="flex ml-2 print:hidden">
+                    <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button>
+                    <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button>
+                </div>
+            </div>
             <div className="text-sm space-y-2">
                 <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
                 {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
@@ -595,18 +475,16 @@ const RecordCard = ({ record, onDeleteClick }) => (
     </div>
 );
 
-const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange }) => {
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => {
     const showSheen = newRecord.category === "Paint & Finishes";
     const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
     const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
     const [isCustomArea, setIsCustomArea] = useState(false);
     
-    // Update isCustomArea when newRecord.area changes
     useEffect(() => { 
         if (newRecord.area && !ROOMS.includes(newRecord.area)) {
             setIsCustomArea(true); 
         } else if (!newRecord.area) {
-            // Reset to dropdown if area is cleared (e.g. after save)
             setIsCustomArea(false);
         }
     }, [newRecord.area]);
@@ -625,12 +503,15 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
     if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
     else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
 
-    // Use safe default for newRecord to prevent destructuring errors if undefined passed
     const safeRecord = newRecord || initialRecordState;
 
     return (
         <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
-            <h2 className="text-2xl font-bold text-indigo-700 mb-4 border-b pb-2">Record New Home Data</h2>
+            <div className="flex justify-between items-center border-b pb-2 mb-2">
+                 <h2 className="text-2xl font-bold text-indigo-700">{isEditing ? 'Edit Record' : 'Record New Home Data'}</h2>
+                 {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-gray-500 hover:text-gray-700 flex items-center"><X size={16} className="mr-1"/> Cancel Edit</button>}
+            </div>
+            
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Category *</label>
@@ -661,9 +542,24 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
                 </div>
             </div>
             <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
-            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
+            
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                <label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label>
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={onFileChange}
+                    ref={fileInputRef} // Updated to use ref
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"
+                />
+                <p className="text-xs text-gray-500 mt-1">Max 1MB</p>
+            </div>
+            
             <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
-            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isSaving ? 'Saving...' : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>}</button>
+            
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={20} className="mr-2"/> Update Record</> : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>)}
+            </button>
         </form>
     );
 };
@@ -683,12 +579,14 @@ const App = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('View Records');
     const [confirmDelete, setConfirmDelete] = useState(null);
-    // NEW: State for deletion confirmation and re-auth modal
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showReauth, setShowReauth] = useState(false);
+    
+    // Edit Mode State
+    const [editingId, setEditingId] = useState(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
-        // Initialize Firebase (Safe check for existing apps)
         if (firebaseConfig) {
             try {
                 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -697,24 +595,14 @@ const App = () => {
                 setLogLevel('error');
                 setDb(firestore);
                 setAuth(firebaseAuth);
-
-                // Safety Timeout: If Auth doesn't resolve in 2s, force stop loading
-                const safetyTimer = setTimeout(() => {
-                     if (loading) setLoading(false);
-                }, 2000);
-
+                const safetyTimer = setTimeout(() => { if (loading) setLoading(false); }, 2000);
                 const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
                     clearTimeout(safetyTimer);
-                    if (user) setUserId(user.uid);
-                    else setUserId(null);
-                    setIsAuthReady(true); 
-                    setLoading(false);
+                    if (user) setUserId(user.uid); else setUserId(null);
+                    setIsAuthReady(true); setLoading(false);
                 });
                 return () => unsubscribe();
-            } catch (err) { 
-                setError("Init failed: " + err.message); 
-                setLoading(false); 
-            }
+            } catch (err) { setError("Init failed: " + err.message); setLoading(false); }
         }
     }, []);
 
@@ -729,16 +617,12 @@ const App = () => {
     useEffect(() => {
         if (!isAuthReady || !db || !propertyProfile) return;
         const q = query(collection(db, PUBLIC_COLLECTION_PATH));
-        // Fix: Ensure timestamp is handled safely, even if it's a string
         const unsub = onSnapshot(q, (snap) => {
             setRecords(snap.docs.map(d => {
                 const data = d.data();
                 let dateStr = 'N/A';
-                if (data.timestamp && typeof data.timestamp.toDate === 'function') {
-                    dateStr = data.timestamp.toDate().toLocaleDateString();
-                } else if (typeof data.timestamp === 'string') {
-                    dateStr = data.timestamp;
-                }
+                if (data.timestamp && typeof data.timestamp.toDate === 'function') dateStr = data.timestamp.toDate().toLocaleDateString();
+                else if (typeof data.timestamp === 'string') dateStr = data.timestamp;
                 return { id: d.id, ...data, timestamp: dateStr };
             }));
         }, (err) => setError("Failed to load records."));
@@ -746,147 +630,43 @@ const App = () => {
     }, [isAuthReady, db, propertyProfile?.name]);
 
     const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } };
-    const handleGoogleLogin = async () => {
-        if (!auth) return;
-        try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
-        } catch (err) {
-            console.error("Google login error", err);
-            let msg = "Google sign-in failed. Please try again.";
-            if (err.code === 'auth/popup-closed-by-user') msg = "Sign-in cancelled.";
-            if (err.code === 'auth/cancelled-popup-request') msg = "Sign-in cancelled.";
-            if (err.code === 'auth/operation-not-allowed') msg = "Google Sign-in is not enabled in Firebase Console.";
-            if (err.code === 'auth/unauthorized-domain') msg = "This domain is not authorized for OAuth operations in Firebase Console.";
-            throw new Error(msg);
-        }
-    };
-
-    const handleAppleLogin = async () => {
-        if (!auth) return;
-        try {
-            const provider = new OAuthProvider('apple.com');
-            await signInWithPopup(auth, provider);
-        } catch (err) {
-            console.error("Apple login error", err);
-            let msg = "Apple sign-in failed. Please try again.";
-            if (err.code === 'auth/popup-closed-by-user') msg = "Sign-in cancelled.";
-            if (err.code === 'auth/cancelled-popup-request') msg = "Sign-in cancelled.";
-            if (err.code === 'auth/operation-not-allowed') msg = "Apple Sign-in is not enabled in Firebase Console.";
-            if (err.code === 'auth/unauthorized-domain') msg = "This domain is not authorized for OAuth operations in Firebase Console.";
-            throw new Error(msg);
-        }
-    };
-
+    const handleGoogleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); throw new Error("Google sign-in failed."); } };
+    const handleAppleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new OAuthProvider('apple.com')); } catch(e) { console.error(e); throw new Error("Apple sign-in failed."); } };
     const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
     const handleSignOut = async () => { if(!auth) return; await signOut(auth); setUserId(null); setPropertyProfile(null); setRecords([]); };
 
-    // Function to delete user data from Firestore
     const deleteUserData = async (uid) => {
         const batch = writeBatch(db);
-        
-        // 1. Delete User Profile
-        const profileRef = doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile');
-        batch.delete(profileRef);
-
-        // 2. Delete all Records associated with the user (Important for PUBLIC_COLLECTION)
-        // NOTE: This assumes the records in the public collection are tied to a userId
-        const userRecordsQuery = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const recordsSnapshot = await getDocs(userRecordsQuery); 
-        
-        recordsSnapshot.docs.forEach((doc) => {
-            // Only delete records created by THIS user, if using a shared collection
-            if (doc.data().userId === uid) {
-                batch.delete(doc.ref);
-            }
-        });
-
+        batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile'));
+        const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH)));
+        snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); });
         return batch.commit();
     };
 
-    // Main Deletion Logic
     const handleDeleteAccount = async (password = null) => {
         const user = auth.currentUser;
-        if (!user || !db) {
-             alert("Could not find user account to delete.");
-             return;
-        }
-
+        if (!user || !db) { alert("Error finding user."); return; }
         try {
-            // 1. Handle Re-authentication if it's an email/password user
-            if (user.providerData.some(p => p.providerId === 'password') && password) {
-                const credential = EmailAuthProvider.credential(user.email, password);
-                await reauthenticateWithCredential(user, credential);
-            } else if (user.providerData.some(p => p.providerId === 'password') && !password) {
-                 // Should be caught by modal presentation, but safe check
-                 setShowReauth(true);
-                 return;
-            }
-
-            // 2. Delete all Firestore data first
-            await deleteUserData(user.uid);
-
-            // 3. Delete Auth account
-            await deleteUser(user); 
-            
-            // Cleanup state (onAuthStateChanged should handle it, but for immediacy):
-            handleSignOut(); 
-            setError("Account permanently deleted. Goodbye!");
-        } catch (e) {
-            console.error("Account deletion failed:", e);
-            setShowReauth(false);
-            if (e.code === 'auth/requires-recent-login' || e.code === 'auth/wrong-password') {
-                throw new Error("Invalid password or recent sign-in required.");
-            } else if (e.code === 'permission-denied') {
-                setError("Deletion failed. Check Firebase security rules.");
-            } else {
-                setError("Failed to delete account: " + e.message);
-            }
-        }
+            if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+            else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; }
+            await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted.");
+        } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); }
     };
     
-    // NEW: Handler to start the deletion flow
-    const initiateAccountDeletion = () => {
-        const user = auth?.currentUser;
-        if (!user) {
-            console.error("No user found for deletion");
-            return; 
-        }
+    const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
 
-        // Check if the user needs re-authentication (only email/password users need it)
-        const isEmailPassword = user.providerData.some(p => p.providerId === 'password');
-        
-        if (isEmailPassword) {
-            setShowReauth(true);
-        } else {
-            // Google/Apple/Anonymous users can proceed directly to confirmation
-            setShowDeleteConfirm(true);
-        }
-    };
-
-    const handleManualSave = async (e) => {
+    const handleSaveProfile = async (e) => {
         e.preventDefault();
-        
-        const els = e.target.elements; 
-        const name = els.propertyName.value;
-        const street = els.streetAddress.value;
-        const city = els.city.value;
-        const state = els.state.value;
-        const zip = els.zip.value;
-        const yearBuilt = els.yearBuilt?.value || '';
-        const sqFt = els.sqFt?.value || '';
-        const lotSize = els.lotSize?.value || '';
-        const lat = els.lat?.value;
-        const lon = els.lon?.value;
-
+        const f = e.target;
+        const name = f.querySelector('input[name="propertyName"]').value;
         if(!name) return;
         setIsSaving(true);
         try {
             const data = { 
                 name, 
-                address: { street, city, state, zip },
-                yearBuilt, sqFt, lotSize,
-                coordinates: (lat && lon) ? { lat, lon } : null,
+                address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value },
+                yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value,
+                coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null,
                 createdAt: serverTimestamp() 
             };
             await setDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile'), data);
@@ -897,264 +677,107 @@ const App = () => {
     const handleInputChange = useCallback((e) => { const { name, value } = e.target; setNewRecord(prev => ({ ...prev, [name]: value })); }, []);
     const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []);
 
+    const handleEditClick = (record) => {
+        setNewRecord(record);
+        setEditingId(record.id);
+        setActiveTab('Add Record');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleCancelEdit = () => {
+        setNewRecord(initialRecordState);
+        setEditingId(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
     const saveRecord = useCallback(async (e) => {
         e.preventDefault();
         if (!db || !userId || isSaving) return;
-
         if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; }
         setIsSaving(true); setError(null);
-
         try {
             let finalImageUrl = '';
-
             if (selectedFile) {
-                if (selectedFile.size < 1048576) { 
-                    finalImageUrl = await fileToBase64(selectedFile);
-                } else {
-                    throw new Error("Image is too large. Please use an image under 1MB.");
-                }
+                if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile);
+                else throw new Error("Image too large (Max 1MB)");
             }
-
-            const recordToSave = {
+            const recordData = {
                 ...newRecord,
-                propertyLocation: propertyProfile?.name || 'My Property', 
-                imageUrl: finalImageUrl,
+                propertyLocation: propertyProfile?.name || 'My Property',
+                imageUrl: finalImageUrl || newRecord.imageUrl, // Keep old image if not replaced
                 userId,
-                timestamp: serverTimestamp(),
+                timestamp: editingId ? newRecord.timestamp : serverTimestamp(), 
             };
 
-            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordToSave);
+            if (editingId) {
+                await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData);
+            } else {
+                await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData);
+            }
 
             setNewRecord(initialRecordState);
+            setEditingId(null);
             setSelectedFile(null);
-            document.getElementById('photo').value = ""; 
+            if (fileInputRef.current) fileInputRef.current.value = "";
             setActiveTab('View Records');
-        } catch (err) {
-            console.error("Error saving record:", err);
-            setError("Failed to save the record. " + err.message);
-        } finally {
-            setIsSaving(false);
-        }
-    }, [db, userId, isSaving, newRecord, selectedFile, propertyProfile]); 
+        } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); }
+    }, [db, userId, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
 
-    
     const handleDeleteConfirmed = async () => {
-        if (!db || !confirmDelete) return;
-
-        try {
-            await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete));
-            setConfirmDelete(null);
-        } catch (err) {
-            console.error("Error deleting document:", err);
-            setError("Failed to delete the record.");
-        }
+        if(!db || !confirmDelete) return;
+        try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); }
     };
 
-    const groupedRecords = records.reduce((acc, record) => {
-        const key = record.area || 'Uncategorized';
-        if (!acc[key]) {
-            acc[key] = [];
-        }
-        acc[key].push(record);
-        return acc;
-    }, {});
-    
-    // --- Render Logic ---
+    const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
 
-    if (loading) {
-        return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
-    }
+    if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-500">Initializing Trellis...</div>;
+    if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
+    if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>;
+    if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
 
-    // 1. If NOT authenticated, show Login/Signup
-    if (!userId) {
-        return (
-            <AuthScreen 
-                onLogin={handleLogin} 
-                onGoogleLogin={handleGoogleLogin}
-                onAppleLogin={handleAppleLogin}
-                onGuestLogin={handleGuestLogin} 
-                error={error} 
-            />
-        );
-    }
-
-    // 2. If authenticated but NO profile, show Setup
-    if (isLoadingProfile) {
-        return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Loading Profile...</div>;
-    }
-
-    if (!propertyProfile) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-4 font-sans">
-                <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
-                <SetupPropertyForm onSave={handleManualSave} isSaving={isSaving} onSignOut={handleSignOut} />
-            </div>
-        );
-    }
-
-    // 3. Main App UI (Authenticated & Setup Complete)
     return (
         <ErrorBoundary>
             <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-                <style>{`
-                    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-                    body { font-family: 'Inter', sans-serif; }
-                `}</style>
-                
+                <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
                 <link rel="icon" type="image/svg+xml" href={logoSrc} />
-                
                 <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
-                    
-                    {/* NEW: Account Action Buttons */}
                     <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10">
-                        <button 
-                            onClick={initiateAccountDeletion}
-                            className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors"
-                            title="Delete Account"
-                        >
-                            <UserMinus size={16} />
-                        </button>
-                        <button 
-                            onClick={handleSignOut}
-                            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center transition-colors"
-                            title="Sign Out"
-                        >
-                            <LogOut size={16} />
-                        </button>
+                        <button onClick={initiateAccountDeletion} className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100" title="Delete Account"><UserMinus size={16} /></button>
+                        <button onClick={handleSignOut} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Sign Out"><LogOut size={16} /></button>
                     </div>
-
-
-                    {/* Logo using standard file reference for consistency across all pages */}
                     <img src={logoSrc} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
                     <div className="text-center sm:text-left">
                         <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
                         <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                        {/* Dynamic Property Name from Settings */}
-                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
-                            <MapPin size={14} className="text-indigo-500 mr-2" />
-                            <span className="text-gray-600 font-semibold text-sm sm:text-base">
-                                {propertyProfile.name} 
-                                {propertyProfile.address?.city ? ` • ${propertyProfile.address.city}, ${propertyProfile.address.state}` : ''}
-                            </span>
-                        </div>
+                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div>
                     </div>
                 </header>
-
-                {error && (
-                    <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl relative mb-4 shadow-md" role="alert">
-                        <strong className="font-bold">Error:</strong>
-                        <span className="block sm:inline ml-2">{error}</span>
-                        <span className="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer" onClick={() => setError(null)}>
-                            &times;
-                        </span>
-                    </div>
+                {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>}
+                {activeTab !== 'Report' && (
+                    <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
+                        <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>View History ({records.length})</button>
+                        <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add New</button>
+                        <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
+                        <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
+                    </nav>
                 )}
-
-                <nav className="flex justify-center mb-6 max-w-lg mx-auto">
-                    <button
-                        onClick={() => setActiveTab('View Records')}
-                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-l-xl transition-all border-b-2 ${
-                            activeTab === 'View Records' 
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                        }`}
-                    >
-                        View History ({records.length})
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('Add Record')}
-                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
-                            activeTab === 'Add Record' 
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                        }`}
-                    >
-                        Add New Component
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('Report')}
-                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold transition-all border-b-2 ${
-                            activeTab === 'Report' 
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                        }`}
-                    >
-                        Report
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('Insights')}
-                        className={`flex-1 px-4 py-3 text-sm sm:text-base font-semibold rounded-r-xl transition-all border-b-2 ${
-                            activeTab === 'Insights' 
-                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-inner' 
-                                : 'bg-white text-gray-600 hover:bg-indigo-50 border-gray-200'
-                        }`}
-                    >
-                        Insights
-                    </button>
-                </nav>
+                {activeTab === 'Report' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
+                {activeTab === 'Insights' && <div className="max-w-5xl mx-auto mb-6 flex items-center print:hidden"><button onClick={() => setActiveTab('View Records')} className="flex items-center text-gray-500 hover:text-indigo-600 transition"><Trash2 className="h-4 w-4 mr-1 rotate-180" style={{display: 'none'}} /><span className="text-sm font-medium">← Back to Dashboard</span></button></div>}
 
                 <main className="max-w-4xl mx-auto">
-                    {activeTab === 'Add Record' && (
-                        <AddRecordForm 
-                            onSave={saveRecord}
-                            isSaving={isSaving}
-                            newRecord={newRecord}
-                            onInputChange={handleInputChange}
-                            onFileChange={handleFileChange}
-                        />
-                    )}
-                    
-                    {activeTab === 'View Records' && (
-                        <div className="space-y-10">
-                            {Object.keys(groupedRecords).length > 0 ? (
-                                Object.keys(groupedRecords).map(area => (
-                                    <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
-                                        <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center">
-                                            <Home size={28} className="mr-3 text-indigo-600" />
-                                            {area}
-                                        </h2>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{groupedRecords[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} />)}</div>
-                                    </section>
-                                ))
-                            ) : (
-                                <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>
-                            )}
-                        </div>
-                    )}
+                    {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} fileInputRef={fileInputRef} isEditing={!!editingId} onCancelEdit={handleCancelEdit} />}
+                    {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => (
+                        <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
+                            <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div>
+                        </section>
+                    )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
                     {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
                     {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
                 </main>
                 {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
-                {/* NEW: Re-auth Modal for Email/Password Users */}
-                {showReauth && (
-                    <ReauthModal
-                        isLoading={isSaving}
-                        onCancel={() => setShowReauth(false)}
-                        onConfirm={async (password) => {
-                            setIsSaving(true);
-                            try {
-                            // This calls the main delete function, which handles re-auth internally
-                            await handleDeleteAccount(password);
-                            } catch (e) {
-                            setIsSaving(false);
-                            throw e; // ReauthModal will catch and show the error
-                            }
-                        }}
-                    />
-                )}
-                {/* NEW: Final Account Deletion Confirmation Modal (for Anon/Social users) */}
-                {showDeleteConfirm && (
-                    <CustomConfirm
-                        type="account"
-                        message="Are you sure you want to permanently delete your Trellis account and ALL associated data? This cannot be undone."
-                        onConfirm={async () => {
-                            setIsSaving(true);
-                            await handleDeleteAccount();
-                            setIsSaving(false);
-                        }}
-                        onCancel={() => setShowDeleteConfirm(false)}
-                    />
-                )}
+                {showReauth && <ReauthModal isLoading={isSaving} onCancel={() => setShowReauth(false)} onConfirm={async (password) => { setIsSaving(true); try { await handleDeleteAccount(password); } catch (e) { setIsSaving(false); throw e; } }} />}
+                {showDeleteConfirm && <CustomConfirm type="account" message="Delete account permanently?" onConfirm={async () => { setIsSaving(true); await handleDeleteAccount(); setIsSaving(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
             </div>
         </ErrorBoundary>
     );
