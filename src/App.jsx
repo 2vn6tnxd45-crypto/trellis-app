@@ -646,7 +646,10 @@ const App = () => {
     // NEW: Main Deletion Logic
     const handleDeleteAccount = async (password = null) => {
         const user = auth.currentUser;
-        if (!user || !db) return;
+        if (!user || !db) {
+             alert("Could not find user account to delete.");
+             return;
+        }
 
         try {
             // 1. Handle Re-authentication if it's an email/password user
@@ -683,8 +686,11 @@ const App = () => {
     
     // NEW: Handler to start the deletion flow
     const initiateAccountDeletion = () => {
-        const user = auth.currentUser;
-        if (!user) return; // Should not happen
+        const user = auth?.currentUser;
+        if (!user) {
+            console.error("No user found for deletion");
+            return; 
+        }
 
         // Check if the user needs re-authentication (only email/password users need it)
         const isEmailPassword = user.providerData.some(p => p.providerId === 'password');
@@ -841,7 +847,7 @@ const App = () => {
                 <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
                     
                     {/* NEW: Account Action Buttons */}
-                    <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2">
+                    <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10">
                         <button 
                             onClick={initiateAccountDeletion}
                             className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100 transition-colors"
