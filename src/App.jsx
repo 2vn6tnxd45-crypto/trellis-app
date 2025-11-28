@@ -193,8 +193,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
     );
 };
 
-
-// Contractor Form Component (Polished & Fixed)
+// Contractor Form Component (Visual Redesign & Logo Fix)
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -209,8 +208,9 @@ const ContractorView = () => {
         if (!requestId) { setError("Invalid request link."); setLoading(false); return; }
         const fetchRequest = async () => {
             try {
+                // Try anon auth, if it fails (disabled in console), assume public access is okay or user is logged in
                 if (!auth.currentUser) { 
-                    try { await signInAnonymously(auth); } catch(e) { /* ignore */ } 
+                    try { await signInAnonymously(auth); } catch(e) { console.warn("Anon auth failed, trying public access"); } 
                 }
                 const docRef = doc(db, REQUESTS_COLLECTION_PATH, requestId);
                 const docSnap = await getDoc(docRef);
@@ -220,7 +220,7 @@ const ContractorView = () => {
                     setError("This request has expired or does not exist.");
                 }
             } catch (e) { 
-                setError("Could not load request: " + e.message); 
+                setError("Could not load request details. Please contact the homeowner."); 
                 console.error(e); 
             } finally { 
                 setLoading(false); 
@@ -247,83 +247,112 @@ const ContractorView = () => {
         } catch (e) { setError("Submission failed: " + e.message); } finally { setLoading(false); }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>;
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50 text-indigo-600 font-medium">Loading Request...</div>;
     if (submitted) return (
-        <div className="min-h-screen flex items-center justify-center bg-green-50 p-8">
-            <div className="bg-white p-10 rounded-2xl shadow-xl text-center max-w-md border-t-8 border-green-500">
-                <CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6"/>
-                <h1 className="text-3xl font-extrabold text-gray-900 mb-2">Submission Received!</h1>
-                <p className="text-gray-600 text-lg">The homeowner has been notified.</p>
+        <div className="min-h-screen flex items-center justify-center bg-green-50 p-6">
+            <div className="bg-white p-10 rounded-3xl shadow-xl text-center max-w-md border border-green-100">
+                <div className="h-24 w-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="h-12 w-12 text-green-600"/>
+                </div>
+                <h1 className="text-3xl font-extrabold text-gray-900 mb-3">Submission Received!</h1>
+                <p className="text-gray-500 text-lg">Thank you. The homeowner has been notified and the record is pending approval.</p>
             </div>
         </div>
     );
-    if (error) return <div className="min-h-screen flex items-center justify-center bg-red-50 p-8 text-center text-red-700 font-bold text-xl">{error}</div>;
+    if (error) return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+            <div className="bg-white p-8 rounded-2xl shadow-lg text-center max-w-md border-t-4 border-red-500">
+                <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4"/>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Unable to Load Request</h3>
+                <p className="text-gray-500">{error}</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6 font-sans flex items-center justify-center">
-            <div className="max-w-2xl w-full bg-white rounded-2xl shadow-2xl border-t-8 border-indigo-600 overflow-hidden">
-                <div className="bg-indigo-50 p-8 border-b border-indigo-100 text-center">
-                     <div className="flex justify-center mb-4">
-                        <img src={logoSrc} alt="Trellis Logo" className="h-16 w-16 shadow-sm rounded-xl bg-white p-2 object-contain" style={{height: '64px', width: '64px'}} />
+        <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans flex justify-center">
+            <div className="max-w-2xl w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                {/* Header */}
+                <div className="bg-indigo-900 p-8 text-center relative overflow-hidden">
+                     <div className="relative z-10 flex flex-col items-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-lg mb-4">
+                            <img src={logoSrc} alt="Trellis Logo" className="h-12 w-12 object-contain" />
+                        </div>
+                        <h1 className="text-3xl font-extrabold text-white tracking-tight mb-1">Contractor Submission</h1>
+                        <div className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-800/50 border border-indigo-700 text-indigo-200 text-sm mt-2">
+                            <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
+                            Active Request for {requestData?.propertyName}
+                        </div>
+                        <p className="text-indigo-200 mt-4 font-medium border-t border-indigo-800/50 pt-4 w-full max-w-xs mx-auto">
+                           PROJECT: <span className="text-white font-bold uppercase tracking-wide">{requestData?.description || "Maintenance"}</span>
+                        </p>
                      </div>
-                     <h1 className="text-3xl font-extrabold text-indigo-900 tracking-tight mb-2">Contractor Submission</h1>
-                     <p className="text-indigo-600 font-medium">
-                        Project: <span className="text-indigo-800 font-bold">{requestData?.description || "Home Maintenance"}</span>
-                     </p>
-                     <p className="text-gray-500 text-sm mt-2">for {requestData?.propertyName}</p>
+                     {/* Background Pattern */}
+                     <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block">Contractor Details</label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-3.5 text-gray-400 h-5 w-5"/>
-                            <input type="text" placeholder="Your Name / Company Name" className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition" required value={formData.contractor} onChange={e=>setFormData({...formData, contractor: e.target.value})} />
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="p-8 space-y-8">
+                    
+                    {/* Section 1: Who */}
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">1. Contractor Details</h4>
+                        <div className="relative group">
+                            <User className="absolute left-4 top-3.5 text-gray-400 h-5 w-5 group-focus-within:text-indigo-500 transition-colors"/>
+                            <input type="text" placeholder="Your Name or Company Name" className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all font-medium text-gray-800" required value={formData.contractor} onChange={e=>setFormData({...formData, contractor: e.target.value})} />
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block">Category</label>
-                            <div className="relative">
-                                <Tag className="absolute left-3 top-3.5 text-gray-400 h-5 w-5"/>
-                                <select className="w-full pl-10 p-3 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 outline-none" required value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})}>
+
+                    {/* Section 2: What */}
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">2. Component Details</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="relative group">
+                                <Tag className="absolute left-4 top-3.5 text-gray-400 h-5 w-5 group-focus-within:text-indigo-500 transition-colors"/>
+                                <select className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-medium text-gray-700" required value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})}>
                                     <option value="" disabled>Select Category</option>
                                     {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
                                 </select>
+                                <ChevronDown className="absolute right-4 top-4 text-gray-400 h-4 w-4 pointer-events-none"/>
+                            </div>
+                            <div className="relative group">
+                                <Box className="absolute left-4 top-3.5 text-gray-400 h-5 w-5 group-focus-within:text-indigo-500 transition-colors"/>
+                                <input type="text" placeholder="Item Name (e.g. Furnace)" className="w-full pl-12 p-3.5 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-medium text-gray-800" required value={formData.item} onChange={e=>setFormData({...formData, item: e.target.value})} />
                             </div>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block">Item Installed</label>
-                            <div className="relative">
-                                <Box className="absolute left-3 top-3.5 text-gray-400 h-5 w-5"/>
-                                <input type="text" placeholder="e.g. New Furnace" className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" required value={formData.item} onChange={e=>setFormData({...formData, item: e.target.value})} />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 ml-1">Brand / Manufacturer</label>
+                                <input type="text" placeholder="e.g. Trane" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-gray-500 ml-1">Model / Serial #</label>
+                                <input type="text" placeholder="e.g. TUD2C100A9V5" className="w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} />
                             </div>
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-4 rounded-xl border border-gray-100">
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Brand / Manufacturer</label>
-                            <input type="text" placeholder="e.g. Trane" className="w-full p-2 border border-gray-200 rounded bg-white focus:ring-1 focus:ring-indigo-300 outline-none" value={formData.brand} onChange={e=>setFormData({...formData, brand: e.target.value})} />
+
+                    {/* Section 3: Documentation */}
+                    <div className="space-y-4">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">3. Documentation</h4>
+                        <textarea placeholder="Notes, warranty expiration dates, filter sizes, or maintenance instructions..." className="w-full p-4 border border-gray-200 rounded-xl h-32 focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-gray-700" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}></textarea>
+                        
+                        <div className="border-2 border-dashed border-indigo-200 rounded-2xl p-8 text-center hover:bg-indigo-50 hover:border-indigo-300 transition-all cursor-pointer relative group bg-gray-50">
+                             <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" accept="image/*" onChange={e=>setSelectedFile(e.target.files[0])} />
+                             <div className="flex flex-col items-center relative z-10">
+                                <div className="h-12 w-12 bg-white rounded-full shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                    <UploadCloud className="h-6 w-6 text-indigo-600"/>
+                                </div>
+                                <span className="text-indigo-900 font-bold text-lg group-hover:text-indigo-700">Upload Receipt or Photo</span>
+                                <span className="text-gray-500 text-sm mt-1 max-w-xs">{selectedFile ? <span className="text-green-600 font-bold flex items-center justify-center"><CheckCircle className="h-3 w-3 mr-1"/> {selectedFile.name}</span> : "Drag and drop or click to browse (Max 1MB)"}</span>
+                             </div>
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-xs font-bold text-gray-400 uppercase">Model / Serial #</label>
-                            <input type="text" placeholder="e.g. TUD2C100A9V5" className="w-full p-2 border border-gray-200 rounded bg-white focus:ring-1 focus:ring-indigo-300 outline-none" value={formData.model} onChange={e=>setFormData({...formData, model: e.target.value})} />
-                        </div>
                     </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wide block">Notes & Warranty Info</label>
-                        <textarea placeholder="Enter installation details, warranty expiration, etc." className="w-full p-3 border border-gray-300 rounded-lg h-32 focus:ring-2 focus:ring-indigo-500 outline-none resize-none" value={formData.notes} onChange={e=>setFormData({...formData, notes: e.target.value})}></textarea>
-                    </div>
-                    <div className="border-2 border-dashed border-indigo-200 rounded-xl p-8 text-center hover:bg-indigo-50 transition cursor-pointer relative group">
-                         <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="image/*" onChange={e=>setSelectedFile(e.target.files[0])} />
-                         <div className="flex flex-col items-center">
-                            <UploadCloud className="h-12 w-12 text-indigo-400 mb-3 group-hover:scale-110 transition-transform"/>
-                            <span className="text-indigo-600 font-bold text-lg">Upload Receipt or Photo</span>
-                            <span className="text-gray-400 text-sm mt-1">{selectedFile ? selectedFile.name : "Click or drag file here (Max 1MB)"}</span>
-                         </div>
-                    </div>
-                    <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center">
-                        <Send className="mr-2 h-5 w-5"/> Submit Record to Homeowner
+
+                    <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center group">
+                        <span>Submit Record</span>
+                        <Send className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform"/>
                     </button>
                 </form>
             </div>
@@ -331,7 +360,7 @@ const ContractorView = () => {
     );
 };
 
-// Request Manager Component (Updated with description field)
+// Request Manager Component (Updated for better tracking)
 const RequestManager = ({ userId, propertyName }) => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -347,7 +376,7 @@ const RequestManager = ({ userId, propertyName }) => {
 
     const createRequest = async () => {
         if (!newRequestName.trim()) {
-            alert("Please enter a contractor name or job description.");
+            alert("Please enter a contractor name or job description (e.g., ' HVAC Repair').");
             return;
         }
         setLoading(true);
@@ -390,63 +419,89 @@ const RequestManager = ({ userId, propertyName }) => {
         alert("Link copied! Send this to your contractor.");
     };
 
+    const deleteRequest = async (id) => {
+        if(confirm("Delete this request?")) await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
+    }
+
     const pending = requests.filter(r => r.status === 'pending');
     const submitted = requests.filter(r => r.status === 'submitted');
 
     return (
         <div className="space-y-8">
-            <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="bg-white p-8 rounded-3xl shadow-xl border border-indigo-50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                 <div>
-                    <h3 className="text-lg font-bold text-indigo-900">Contractor Requests</h3>
-                    <p className="text-sm text-indigo-600">Generate a link to let contractors fill out data for you.</p>
+                    <h3 className="text-2xl font-extrabold text-indigo-900 mb-2">Contractor Requests</h3>
+                    <p className="text-gray-500 max-w-md">Create a secure, one-time link for your contractor to upload their work details directly to your log.</p>
                 </div>
-                <div className="flex w-full md:w-auto gap-2">
+                <div className="flex w-full md:w-auto gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
                      <input 
                         type="text" 
                         placeholder="e.g. Kitchen Painter" 
-                        className="px-4 py-3 rounded-lg border border-indigo-200 flex-grow"
+                        className="px-4 py-3 rounded-lg bg-white border-none flex-grow focus:ring-2 focus:ring-indigo-200 outline-none font-medium"
                         value={newRequestName}
                         onChange={(e) => setNewRequestName(e.target.value)}
                      />
-                    <button onClick={createRequest} disabled={loading} className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center whitespace-nowrap">
-                        <PlusCircle className="mr-2 h-5 w-5"/> Create
+                    <button onClick={createRequest} disabled={loading} className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center whitespace-nowrap transition-colors">
+                        <PlusCircle className="mr-2 h-5 w-5"/> Create Link
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h4 className="font-bold text-gray-700 mb-4 flex items-center"><Clock className="mr-2 h-4 w-4"/> Pending ({pending.length})</h4>
-                    {pending.length === 0 ? <p className="text-sm text-gray-400 italic">No active links.</p> : (
-                        <ul className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Pending Column */}
+                <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-gray-500 uppercase tracking-wider text-xs flex items-center"><Clock className="mr-2 h-4 w-4"/> Pending ({pending.length})</h4>
+                     </div>
+                    {pending.length === 0 ? (
+                        <div className="p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center text-gray-400 bg-gray-50">
+                            No active requests.
+                        </div>
+                    ) : (
+                        <ul className="space-y-4">
                             {pending.map(r => (
-                                <li key={r.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                    <div className="flex flex-col">
-                                         <span className="text-sm font-bold text-gray-700">{r.description || "Untitled Request"}</span>
-                                         <span className="text-xs text-gray-400 font-mono">ID: {r.id.slice(0,6)}</span>
+                                <li key={r.id} className="flex flex-col p-5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between items-start mb-4">
+                                         <div>
+                                             <span className="text-lg font-bold text-gray-800 block">{r.description || "Untitled Request"}</span>
+                                             <span className="text-xs text-gray-400 font-mono mt-1 block">ID: {r.id.slice(0,8)}</span>
+                                         </div>
+                                         <button onClick={() => deleteRequest(r.id)} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
                                     </div>
-                                    <button onClick={() => copyLink(r.id)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center"><LinkIcon className="h-3 w-3 mr-1"/> Copy Link</button>
+                                    <button onClick={() => copyLink(r.id)} className="w-full py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition flex items-center justify-center">
+                                        <LinkIcon className="h-4 w-4 mr-2"/> Copy Link
+                                    </button>
                                 </li>
                             ))}
                         </ul>
                     )}
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h4 className="font-bold text-green-700 mb-4 flex items-center"><CheckCircle className="mr-2 h-4 w-4"/> Ready for Approval ({submitted.length})</h4>
-                     {submitted.length === 0 ? <p className="text-sm text-gray-400 italic">No new submissions.</p> : (
-                        <ul className="space-y-3">
+                {/* Submitted Column */}
+                <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-green-600 uppercase tracking-wider text-xs flex items-center"><CheckCircle className="mr-2 h-4 w-4"/> Ready for Approval ({submitted.length})</h4>
+                     </div>
+                     {submitted.length === 0 ? (
+                        <div className="p-8 border-2 border-dashed border-gray-200 rounded-2xl text-center text-gray-400 bg-gray-50">
+                            No new submissions yet.
+                        </div>
+                    ) : (
+                        <ul className="space-y-4">
                             {submitted.map(r => (
-                                <li key={r.id} className="p-3 bg-green-50 border border-green-100 rounded-lg">
-                                    <div className="flex justify-between mb-2">
+                                <li key={r.id} className="p-5 bg-white border-l-4 border-green-500 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex justify-between mb-3">
                                         <div>
-                                            <span className="block font-bold text-green-900">{r.item}</span>
-                                            <span className="text-xs text-green-800">For: {r.description}</span>
+                                            <span className="block font-bold text-green-900 text-lg">{r.item}</span>
+                                            <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-md mt-1 inline-block">{r.category}</span>
                                         </div>
-                                        <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded self-start">{r.category}</span>
                                     </div>
-                                    <p className="text-xs text-gray-600 mb-3">By: {r.contractor}</p>
-                                    <button onClick={() => approveRequest(r)} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700">Approve & Add to Log</button>
+                                    <div className="flex items-center text-sm text-gray-500 mb-4 bg-gray-50 p-2 rounded-lg">
+                                        <User size={14} className="mr-2"/> <span className="font-medium text-gray-700 mr-1">Contractor:</span> {r.contractor}
+                                    </div>
+                                    <button onClick={() => approveRequest(r)} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition shadow-lg shadow-green-100">
+                                        Approve & Add to Log
+                                    </button>
                                 </li>
                             ))}
                         </ul>
@@ -457,171 +512,8 @@ const RequestManager = ({ userId, propertyName }) => {
     );
 };
 
-// ... [RecordCard, AddRecordForm, EnvironmentalInsights, PropertyMap, PedigreeReport remain same] ...
-const EnvironmentalInsights = ({ propertyProfile }) => { const { coordinates } = propertyProfile || {}; const [airQuality, setAirQuality] = useState(null); const [solarData, setSolarData] = useState(null); const [loading, setLoading] = useState(false); useEffect(() => { if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return; const fetchData = async () => { setLoading(true); try { const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) }); if(aqRes.ok) { const aqData = await aqRes.json(); if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]); } const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`); if (solarRes.ok) setSolarData(await solarRes.json()); } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); } }; fetchData(); }, [coordinates]); if (!coordinates?.lat) return <div className="p-6 text-center text-gray-500">Location data missing.</div>; return (<div className="space-y-6"><h2 className="text-xl font-bold text-indigo-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (airQuality ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{airQuality.aqi}</span><span className="ml-2 text-sm font-medium text-gray-500">US AQI</span></div><p className="text-indigo-600 font-medium mt-1">{airQuality.category}</p></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div><div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData?.solarPotential?.maxSunshineHoursPerYear || 0)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div></div><PropertyMap propertyProfile={propertyProfile} /></div>); };
-const PropertyMap = ({ propertyProfile }) => { const address = propertyProfile?.address; const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home"; const encodedQuery = encodeURIComponent(mapQuery); const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`; return (<div className="space-y-6"><div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100"><div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative"><iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe></div></div><div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100"><h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><a href={`https://www.google.com/maps/search/Home+Depot+near+${encodedQuery}`} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14}/></a><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's <ExternalLink size={14}/></a></div></div></div>); };
-const RecordCard = ({ record, onDeleteClick, onEditClick }) => ( <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid"> {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>} <div className="p-5 flex flex-col space-y-3 flex-grow"> <div className="flex justify-between items-start border-b border-indigo-50 pb-2"> <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div> <div className="flex ml-2 print:hidden"> <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button> <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button> </div> </div> <div className="text-sm space-y-2"> <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p> {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>} {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>} {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>} {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>} {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>} {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>} {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>} {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>} {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>} </div> <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div> </div> </div> );
-const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => { const showSheen = newRecord.category === "Paint & Finishes"; const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category); const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category); const [isCustomArea, setIsCustomArea] = useState(false); useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) { setIsCustomArea(true); } else if (!newRecord.area) { setIsCustomArea(false); } }, [newRecord.area]); const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } }; let brandLabel = "Brand"; let modelLabel = "Model/Color Code"; if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; } else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; } const safeRecord = newRecord || initialRecordState; return ( <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4"> <div className="flex justify-between items-center border-b pb-2 mb-2"> <h2 className="text-2xl font-bold text-indigo-700">{isEditing ? 'Edit Record' : 'Record New Home Data'}</h2> {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-gray-500 hover:text-gray-700 flex items-center"><X size={16} className="mr-1"/> Cancel Edit</button>} </div> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> <div> <label className="block text-sm font-medium text-gray-700">Category *</label> <div className="relative mt-1"><select name="category" value={safeRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div> </div> <div> <label className="block text-sm font-medium text-gray-700">Area/Room *</label> {!isCustomArea ? ( <div className="relative mt-1"><select name="area" value={ROOMS.includes(safeRecord.area) ? safeRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option></select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div> ) : ( <div className="relative mt-1 flex"><input type="text" name="area" value={safeRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div> )} </div> </div> <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={safeRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200"> <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={safeRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={safeRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={safeRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>} {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={safeRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>} {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={safeRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(safeRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>} </div> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={safeRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div className="space-y-2"> <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={safeRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={safeRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div> </div> </div> <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div> <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div> <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"> {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={20} className="mr-2"/> Update Record</> : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>)} </button> </form> ); };
-const PedigreeReport = ({ propertyProfile, records = [] }) => { const stats = useMemo(() => { const defaultVal = { age: 'N/A', date: 'No data' }; try { const calculateAge = (categoryKeyword, itemKeyword) => { if (!records || records.length === 0) return defaultVal; const record = records.find(r => { if (!r) return false; const cat = String(r.category || '').toLowerCase(); const item = String(r.item || '').toLowerCase(); return (cat.includes(categoryKeyword.toLowerCase()) || item.includes(itemKeyword.toLowerCase())) && r.dateInstalled; }); if (!record) return { age: 'N/A', date: 'No record' }; const installed = new Date(record.dateInstalled); if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' }; const age = new Date().getFullYear() - installed.getFullYear(); return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` }; }; return { hvac: calculateAge('HVAC', 'hvac'), roof: calculateAge('Roof', 'roof'), heater: calculateAge('Plumbing', 'water heater') }; } catch (e) { return { hvac: defaultVal, roof: defaultVal, heater: defaultVal }; } }, [records]); const sortedRecords = useMemo(() => { if (!records) return []; return [...records].sort((a, b) => { const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0)); const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0)); return dateB - dateA; }); }, [records]); return ( <div className="bg-gray-50 min-h-screen pb-12"> <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4"> <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2> <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button> </div> <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0"> <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden"> <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div> <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center"> <div> <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1> <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}</p> </div> <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div> </div> </div> <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4"> <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div> </div> <div className="p-8 md:p-10"> <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative"> {sortedRecords.map(record => ( <div key={record.id} className="relative break-inside-avoid"> <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div> <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between"> <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span> <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span> </div> <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border"> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm"> <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div> {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>} {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>} </div> {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{String(record.notes)}"</p>} {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>} </div> </div> ))} </div> </div> </div> </div> ); };
-
-// UPDATED MAIN APP COMPONENT to handle Routing
-const AppContent = () => {
-    const [isAuthReady, setIsAuthReady] = useState(false);
-    const [propertyProfile, setPropertyProfile] = useState(null);
-    const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-    const [records, setRecords] = useState([]);
-    const [newRecord, setNewRecord] = useState(initialRecordState);
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('View Records');
-    const [confirmDelete, setConfirmDelete] = useState(null);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [showReauth, setShowReauth] = useState(false);
-    const [editingId, setEditingId] = useState(null);
-    const fileInputRef = useRef(null);
-    const [currentUser, setCurrentUser] = useState(null);
-    const [userId, setUserId] = useState(null); 
-    
-    // Branding State
-    const [currentLogo, setCurrentLogo] = useState(logoSrc);
-
-    // Check for Contractor Mode
-    const [isContractorMode, setIsContractorMode] = useState(false);
-
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('requestId')) {
-            setIsContractorMode(true);
-            setLoading(false); // Directly stop loading if contractor mode
-        } else {
-            const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                setCurrentUser(user);
-                if(user) setUserId(user.uid); else setUserId(null);
-                setIsAuthReady(true); 
-                setLoading(false);
-            });
-            return () => unsubscribe();
-        }
-    }, []);
-
-    useEffect(() => {
-        if (isContractorMode || !isAuthReady || !userId) { if(isAuthReady && !userId) setIsLoadingProfile(false); return; }
-        const fetchProfile = async () => { try { const snap = await getDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile')); if(snap.exists()) setPropertyProfile(snap.data()); else setPropertyProfile(null); } catch(e){console.error(e);} finally { setIsLoadingProfile(false); setLoading(false); } };
-        fetchProfile();
-    }, [isAuthReady, userId, isContractorMode]);
-
-    useEffect(() => {
-        if (isContractorMode || !isAuthReady || !userId || !propertyProfile) return;
-        const q = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load"));
-        return () => unsub();
-    }, [isAuthReady, userId, propertyProfile?.name, isContractorMode]);
-
-    // Logo Switcher Handler
-    const handleLogoSelect = (type) => {
-        if (type === 'structural') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#1E1E2E"/>
-  <path d="M50 15L80 40V60H70V85H60V60H40V85H30V60H20V40L50 15Z" stroke="#4F46E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M40 85V95H60V85" stroke="#4F46E5" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="50" cy="45" r="8" stroke="#4F46E5" stroke-width="4"/>
-</svg>`)}`);
-        else if (type === 'digital') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#0F172A"/>
-  <circle cx="50" cy="20" r="4" fill="#38BDF8"/>
-  <circle cx="20" cy="50" r="4" fill="#38BDF8"/>
-  <circle cx="80" cy="50" r="4" fill="#38BDF8"/>
-  <circle cx="20" cy="80" r="4" fill="#38BDF8"/>
-  <circle cx="80" cy="80" r="4" fill="#38BDF8"/>
-  <path d="M50 20L20 50V80H80V50L50 20Z" stroke="#38BDF8" stroke-width="2" stroke-dasharray="4 2"/>
-  <path d="M50 20V50M20 50H80" stroke="#38BDF8" stroke-width="2"/>
-</svg>`)}`);
-        else if (type === 'keystone') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#312E81"/>
-  <path d="M25 25H75L65 90H35L25 25Z" fill="#4F46E5"/>
-  <circle cx="50" cy="50" r="8" fill="#312E81"/>
-  <path d="M46 55H54L56 75H44L46 55Z" fill="#312E81"/>
-</svg>`)}`);
-        else setCurrentLogo('/logo.svg');
-    };
-
-    const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } };
-    const handleGoogleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); throw new Error("Google sign-in failed."); } };
-    const handleAppleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new OAuthProvider('apple.com')); } catch(e) { console.error(e); throw new Error("Apple sign-in failed."); } };
-    const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
-    const handleSignOut = async () => { if(!auth) return; await signOut(auth); setCurrentUser(null); setUserId(null); setPropertyProfile(null); setRecords([]); };
-    const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); };
-    const handleDeleteAccount = async (password = null) => { const user = auth.currentUser; if (!user || !db) { alert("Error finding user."); return; } try { if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password)); else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; } await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted."); } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); } };
-    const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
-    const handleSaveProfile = async (e) => { e.preventDefault(); const f = e.target; const name = f.querySelector('input[name="propertyName"]').value; if(!name) return; setIsSaving(true); try { const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'), data); setPropertyProfile(data); } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } };
-    const handleInputChange = useCallback((e) => { const { name, value } = e.target; setNewRecord(prev => ({ ...prev, [name]: value })); }, []);
-    const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []);
-    const handleEditClick = (record) => { setNewRecord(record); setEditingId(record.id); setActiveTab('Add Record'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const handleCancelEdit = () => { setNewRecord(initialRecordState); setEditingId(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
-    const saveRecord = useCallback(async (e) => { e.preventDefault(); if (!db || !userId || isSaving) return; if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } setIsSaving(true); setError(null); try { let finalImageUrl = ''; if (selectedFile) { if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); else throw new Error("Image too large (Max 1MB)"); } const recordData = { ...newRecord, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
-    const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
-    const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
-
-    if (isContractorMode) return <ContractorView />; 
-
-    if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
-    if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
-    if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>;
-    if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
-
-    return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-             {/* ... Header ... */}
-             <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
-                <link rel="icon" type="image/svg+xml" href={currentLogo} />
-                <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
-                    <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10">
-                        <button onClick={initiateAccountDeletion} className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100" title="Delete Account"><UserMinus size={16} /></button>
-                        <button onClick={handleSignOut} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Sign Out"><LogOut size={16} /></button>
-                    </div>
-                    <img src={currentLogo} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
-                    <div className="text-center sm:text-left">
-                        <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1>
-                        <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div>
-                    </div>
-                </header>
-                {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>}
-                
-                <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden">
-                    <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>History</button>
-                    <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add</button>
-                    <button onClick={() => setActiveTab('Requests')} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Requests'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Contractors</button>
-                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button>
-                    <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button>
-                    <button onClick={() => setActiveTab('Branding')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-r-xl border-b-2 ${activeTab==='Branding'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}><Palette size={16}/></button>
-                </nav>
-
-                <main className="max-w-4xl mx-auto">
-                    {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} fileInputRef={fileInputRef} isEditing={!!editingId} onCancelEdit={handleCancelEdit} />}
-                    {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => (
-                        <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100">
-                            <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div>
-                        </section>
-                    )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
-                    {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
-                    {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
-                    {/* NEW Requests Tab */}
-                    {activeTab === 'Requests' && <RequestManager userId={userId} propertyName={propertyProfile.name} />}
-                    {/* NEW Branding Tab */}
-                    {activeTab === 'Branding' && <BrandingStudio onSelectLogo={handleLogoSelect} />}
-                </main>
-                {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />}
-                {showReauth && <ReauthModal isLoading={isSaving} onCancel={() => setShowReauth(false)} onConfirm={async (password) => { setIsSaving(true); try { await handleDeleteAccount(password); } catch (e) { setIsSaving(false); throw e; } }} />}
-                {showDeleteConfirm && <CustomConfirm type="account" message="Delete account permanently?" onConfirm={async () => { setIsSaving(true); await handleDeleteAccount(); setIsSaving(false); }} onCancel={() => setShowDeleteConfirm(false)} />}
-        </div>
-    );
-};
+// ... [AppContent, EnvironmentalInsights, PropertyMap, RecordCard, etc. remain the same] ...
+const AppContent = () => { const [isAuthReady, setIsAuthReady] = useState(false); const [propertyProfile, setPropertyProfile] = useState(null); const [isLoadingProfile, setIsLoadingProfile] = useState(true); const [records, setRecords] = useState([]); const [newRecord, setNewRecord] = useState(initialRecordState); const [selectedFile, setSelectedFile] = useState(null); const [loading, setLoading] = useState(true); const [isSaving, setIsSaving] = useState(false); const [error, setError] = useState(null); const [activeTab, setActiveTab] = useState('View Records'); const [confirmDelete, setConfirmDelete] = useState(null); const [showDeleteConfirm, setShowDeleteConfirm] = useState(false); const [showReauth, setShowReauth] = useState(false); const [editingId, setEditingId] = useState(null); const fileInputRef = useRef(null); const [currentUser, setCurrentUser] = useState(null); const [userId, setUserId] = useState(null); const [currentLogo, setCurrentLogo] = useState(logoSrc); const [isContractorMode, setIsContractorMode] = useState(false); useEffect(() => { const params = new URLSearchParams(window.location.search); if (params.get('requestId')) { setIsContractorMode(true); setLoading(false); } else { const unsubscribe = onAuthStateChanged(auth, async (user) => { setCurrentUser(user); if(user) setUserId(user.uid); else setUserId(null); setIsAuthReady(true); setLoading(false); }); return () => unsubscribe(); } }, []); useEffect(() => { if (isContractorMode || !isAuthReady || !userId) { if(isAuthReady && !userId) setIsLoadingProfile(false); return; } const fetchProfile = async () => { try { const snap = await getDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile')); if(snap.exists()) setPropertyProfile(snap.data()); else setPropertyProfile(null); } catch(e){console.error(e);} finally { setIsLoadingProfile(false); setLoading(false); } }; fetchProfile(); }, [isAuthReady, userId, isContractorMode]); useEffect(() => { if (isContractorMode || !isAuthReady || !userId || !propertyProfile) return; const q = query(collection(db, PUBLIC_COLLECTION_PATH)); const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load")); return () => unsub(); }, [isAuthReady, userId, propertyProfile?.name, isContractorMode]); const handleLogoSelect = (type) => { if (type === 'structural') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="20" fill="#1E1E2E"/><path d="M50 15L80 40V60H70V85H60V60H40V85H30V60H20V40L50 15Z" stroke="#4F46E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 85V95H60V85" stroke="#4F46E5" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="45" r="8" stroke="#4F46E5" stroke-width="4"/></svg>`)}`); else if (type === 'digital') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="20" fill="#0F172A"/><circle cx="50" cy="20" r="4" fill="#38BDF8"/><circle cx="20" cy="50" r="4" fill="#38BDF8"/><circle cx="80" cy="50" r="4" fill="#38BDF8"/><circle cx="20" cy="80" r="4" fill="#38BDF8"/><circle cx="80" cy="80" r="4" fill="#38BDF8"/><path d="M50 20L20 50V80H80V50L50 20Z" stroke="#38BDF8" stroke-width="2" stroke-dasharray="4 2"/><path d="M50 20V50M20 50H80" stroke="#38BDF8" stroke-width="2"/></svg>`)}`); else if (type === 'keystone') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><rect width="100" height="100" rx="20" fill="#312E81"/><path d="M25 25H75L65 90H35L25 25Z" fill="#4F46E5"/><circle cx="50" cy="50" r="8" fill="#312E81"/><path d="M46 55H54L56 75H44L46 55Z" fill="#312E81"/></svg>`)}`); else setCurrentLogo('/logo.svg'); }; const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } }; const handleGoogleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); throw new Error("Google sign-in failed."); } }; const handleAppleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new OAuthProvider('apple.com')); } catch(e) { console.error(e); throw new Error("Apple sign-in failed."); } }; const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); }; const handleSignOut = async () => { if(!auth) return; await signOut(auth); setCurrentUser(null); setUserId(null); setPropertyProfile(null); setRecords([]); }; const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); }; const handleDeleteAccount = async (password = null) => { const user = auth.currentUser; if (!user || !db) { alert("Error finding user."); return; } try { if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password)); else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; } await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted."); } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); } }; const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); }; const handleSaveProfile = async (e) => { e.preventDefault(); const f = e.target; const name = f.querySelector('input[name="propertyName"]').value; if(!name) return; setIsSaving(true); try { const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'), data); setPropertyProfile(data); } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }; const handleInputChange = useCallback((e) => { const { name, value } = e.target; setNewRecord(prev => ({ ...prev, [name]: value })); }, []); const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []); const handleEditClick = (record) => { setNewRecord(record); setEditingId(record.id); setActiveTab('Add Record'); window.scrollTo({ top: 0, behavior: 'smooth' }); }; const handleCancelEdit = () => { setNewRecord(initialRecordState); setEditingId(null); if (fileInputRef.current) fileInputRef.current.value = ""; }; const saveRecord = useCallback(async (e) => { e.preventDefault(); if (!db || !userId || isSaving) return; if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } setIsSaving(true); setError(null); try { let finalImageUrl = ''; if (selectedFile) { if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); else throw new Error("Image too large (Max 1MB)"); } const recordData = { ...newRecord, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } }; const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {}); if (isContractorMode) return <ContractorView />; if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>; if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />; if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>; if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>; return ( <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans"> <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style> <link rel="icon" type="image/svg+xml" href={currentLogo} /> <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative"> <div className="absolute top-0 right-0 flex space-x-3 items-center sm:mt-2 z-10"> <button onClick={initiateAccountDeletion} className="p-1.5 rounded-full text-red-500 hover:text-red-700 hover:bg-red-100" title="Delete Account"><UserMinus size={16} /></button> <button onClick={handleSignOut} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100" title="Sign Out"><LogOut size={16} /></button> </div> <img src={currentLogo} alt="Trellis Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" /> <div className="text-center sm:text-left"> <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">Trellis</span> Home Log</h1> <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p> <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div> </div> </header> {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">{error}<span className="float-right cursor-pointer" onClick={()=>setError(null)}>&times;</span></div>} <nav className="flex justify-center mb-6 max-w-lg mx-auto print:hidden"> <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-l-xl border-b-2 ${activeTab==='View Records'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>History</button> <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Add Record'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Add</button> <button onClick={() => setActiveTab('Requests')} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Requests'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Contractors</button> <button onClick={() => setActiveTab('Report')} className={`flex-1 px-2 py-3 text-sm font-semibold border-b-2 border-l-0 border-r-0 ${activeTab==='Report'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Report</button> <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-r-xl border-b-2 ${activeTab==='Insights'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}>Insights</button> <button onClick={() => setActiveTab('Branding')} className={`flex-1 px-2 py-3 text-sm font-semibold rounded-r-xl border-b-2 ${activeTab==='Branding'?'bg-indigo-600 text-white border-indigo-600':'bg-white text-gray-600 border-gray-200'}`}><Palette size={16}/></button> </nav> <main className="max-w-4xl mx-auto"> {activeTab === 'Add Record' && <AddRecordForm onSave={saveRecord} isSaving={isSaving} newRecord={newRecord} onInputChange={handleInputChange} onFileChange={handleFileChange} fileInputRef={fileInputRef} isEditing={!!editingId} onCancelEdit={handleCancelEdit} />} {activeTab === 'View Records' && <div className="space-y-10">{Object.keys(grouped).length>0 ? Object.keys(grouped).map(area => ( <section key={area} className="bg-white p-4 sm:p-6 rounded-3xl shadow-2xl border border-indigo-100"> <h2 className="text-3xl font-extrabold text-gray-800 mb-6 flex items-center"><Home size={28} className="mr-3 text-indigo-600"/> {area}</h2> <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div> </section> )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>} {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />} {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />} {activeTab === 'Requests' && <RequestManager userId={userId} propertyName={propertyProfile.name} />} {activeTab === 'Branding' && <BrandingStudio onSelectLogo={handleLogoSelect} />} </main> {confirmDelete && <CustomConfirm message="Delete this record? Cannot be undone." onConfirm={handleDeleteConfirmed} onCancel={() => setConfirmDelete(null)} />} {showReauth && <ReauthModal isLoading={isSaving} onCancel={() => setShowReauth(false)} onConfirm={async (password) => { setIsSaving(true); try { await handleDeleteAccount(password); } catch (e) { setIsSaving(false); throw e; } }} />} {showDeleteConfirm && <CustomConfirm type="account" message="Delete account permanently?" onConfirm={async () => { setIsSaving(true); await handleDeleteAccount(); setIsSaving(false); }} onCancel={() => setShowDeleteConfirm(false)} />} </div> ); };
 
 const App = () => {
     return (
