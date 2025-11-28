@@ -193,8 +193,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
     );
 };
 
-
-// ... [ContractorView, RequestManager remain the same] ...
+// Contractor Form Component
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -373,7 +372,230 @@ const RequestManager = ({ userId, propertyName }) => {
     );
 };
 
-// UPDATED MAIN APP COMPONENT
+// Environmental Insights
+const EnvironmentalInsights = ({ propertyProfile }) => {
+    const { coordinates } = propertyProfile || {};
+    const [airQuality, setAirQuality] = useState(null);
+    const [solarData, setSolarData] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return;
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) });
+                if(aqRes.ok) { const aqData = await aqRes.json(); if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]); }
+                const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
+                if (solarRes.ok) setSolarData(await solarRes.json());
+            } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); }
+        };
+        fetchData();
+    }, [coordinates]);
+
+    if (!coordinates?.lat) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
+
+    return (
+        <div className="space-y-6">
+            <h2 className="text-xl font-bold text-indigo-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
+                     <div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div>
+                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality</h3>
+                     {loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (airQuality ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{airQuality.aqi}</span><span className="ml-2 text-sm font-medium text-gray-500">US AQI</span></div><p className="text-indigo-600 font-medium mt-1">{airQuality.category}</p></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
+                     <div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div>
+                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>
+                     {loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData?.solarPotential?.maxSunshineHoursPerYear || 0)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}
+                </div>
+            </div>
+            <PropertyMap propertyProfile={propertyProfile} />
+        </div>
+    );
+};
+
+const PropertyMap = ({ propertyProfile }) => {
+    const address = propertyProfile?.address;
+    const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home";
+    const encodedQuery = encodeURIComponent(mapQuery);
+    const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`;
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100">
+                <div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative"><iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe></div>
+            </div>
+            <div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100"><h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14}/></a><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's <ExternalLink size={14}/></a></div></div>
+        </div>
+    );
+};
+
+const RecordCard = ({ record, onDeleteClick, onEditClick }) => (
+    <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid">
+        {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>}
+        <div className="p-5 flex flex-col space-y-3 flex-grow">
+            <div className="flex justify-between items-start border-b border-indigo-50 pb-2">
+                <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div>
+                <div className="flex ml-2 print:hidden">
+                    <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button>
+                    <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button>
+                </div>
+            </div>
+            <div className="text-sm space-y-2">
+                <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p>
+                {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>}
+                {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>}
+                {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>}
+                {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>}
+                {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>}
+                {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>}
+                {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>}
+                {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>}
+                {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>}
+            </div>
+            <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div>
+        </div>
+    </div>
+);
+
+const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => {
+    const showSheen = newRecord.category === "Paint & Finishes";
+    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
+    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
+    const [isCustomArea, setIsCustomArea] = useState(false);
+    useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true); }, [newRecord.area]);
+    const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } };
+    let brandLabel = "Brand"; let modelLabel = "Model/Color Code";
+    if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; }
+    else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; }
+
+    return (
+        <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl border-t-4 border-indigo-600 space-y-4">
+            <div className="flex justify-between items-center border-b pb-2 mb-2">
+                 <h2 className="text-2xl font-bold text-indigo-700">{isEditing ? 'Edit Record' : 'Record New Home Data'}</h2>
+                 {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-gray-500 hover:text-gray-700 flex items-center"><X size={16} className="mr-1"/> Cancel Edit</button>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Category *</label>
+                    <div className="relative mt-1"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700">Area/Room *</label>
+                    {!isCustomArea ? (
+                        <div className="relative mt-1"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option></select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div>
+                    ) : (
+                        <div className="relative mt-1 flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-lg border-gray-300 shadow-sm p-2 border"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg"><X size={18}/></button></div>
+                    )}
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div><label className="block text-sm font-medium text-gray-700">{brandLabel}</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div><label className="block text-sm font-medium text-gray-700">{modelLabel}</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                {showSheen && <div><label className="block text-sm font-medium text-gray-700">Sheen</label><div className="relative mt-1"><select name="sheen" value={newRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+                {showSerial && <div><label className="block text-sm font-medium text-gray-700">Serial #</label><input type="text" name="serialNumber" value={newRecord.serialNumber} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>}
+                {showMaterial && <div><label className="block text-sm font-medium text-gray-700">Material</label><div className="relative mt-1"><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-gray-300 shadow-sm p-2 border appearance-none"><option value="" disabled>Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/></div></div>}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-gray-700">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                <div className="space-y-2">
+                    <div><label className="block text-sm font-medium text-gray-700">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+                    <div><label className="block text-xs font-medium text-gray-500">Profile URL</label><input type="url" name="contractorUrl" value={newRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div>
+                </div>
+            </div>
+            <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div>
+            <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div>
+            <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
+            <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">
+                {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={20} className="mr-2"/> Update Record</> : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>)}
+            </button>
+        </form>
+    );
+};
+
+const PedigreeReport = ({ propertyProfile, records = [] }) => { 
+    const stats = useMemo(() => {
+        const defaultVal = { age: 'N/A', date: 'No data' };
+        try {
+            const calculateAge = (categoryKeyword, itemKeyword) => {
+                if (!records || records.length === 0) return defaultVal;
+                const record = records.find(r => {
+                    if (!r) return false;
+                    const cat = String(r.category || '').toLowerCase();
+                    const item = String(r.item || '').toLowerCase();
+                    return (cat.includes(categoryKeyword.toLowerCase()) || item.includes(itemKeyword.toLowerCase())) && r.dateInstalled;
+                });
+                if (!record) return { age: 'N/A', date: 'No record' };
+                const installed = new Date(record.dateInstalled);
+                if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' };
+                const age = new Date().getFullYear() - installed.getFullYear();
+                return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` };
+            };
+            return { hvac: calculateAge('HVAC', 'hvac'), roof: calculateAge('Roof', 'roof'), heater: calculateAge('Plumbing', 'water heater') };
+        } catch (e) { return { hvac: defaultVal, roof: defaultVal, heater: defaultVal }; }
+    }, [records]);
+
+    const sortedRecords = useMemo(() => {
+        if (!records) return [];
+        return [...records].sort((a, b) => {
+            const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0));
+            const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0));
+            return dateB - dateA;
+        });
+    }, [records]);
+
+    return (
+        <div className="bg-gray-50 min-h-screen pb-12">
+            <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4">
+                <h2 className="text-2xl font-bold text-gray-800">Pedigree Report</h2>
+                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg shadow-sm hover:bg-indigo-700 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button>
+            </div>
+            <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200 print:shadow-none print:border-0">
+                <div className="bg-indigo-900 text-white p-8 md:p-12 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div>
+                     <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1>
+                            <p className="text-indigo-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}</p>
+                        </div>
+                        <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-indigo-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div>
+                     </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-gray-100 border-b border-gray-100 bg-gray-50 print:grid-cols-4">
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.hvac.age}</p><p className="text-xs text-gray-500 mt-1">{stats.hvac.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-indigo-900">{stats.roof.age}</p><p className="text-xs text-gray-500 mt-1">{stats.roof.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-indigo-900">{stats.heater.age}</p><p className="text-xs text-gray-500 mt-1">{stats.heater.date}</p></div>
+                     <div className="p-6 text-center"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-indigo-600">{records ? records.length : 0}</p></div>
+                </div>
+                <div className="p-8 md:p-10">
+                     <div className="space-y-8 border-l-2 border-indigo-100 ml-3 pl-8 relative">
+                        {sortedRecords.map(record => (
+                            <div key={record.id} className="relative break-inside-avoid">
+                                <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
+                                <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                                    <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
+                                    <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
+                                </div>
+                                <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm print:shadow-none print:border">
+                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm">
+                                        <div><span className="text-gray-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium">{String(record.category || 'Uncategorized')}</span></div>
+                                        {record.brand && <div><span className="text-gray-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium">{String(record.brand)}</span></div>}
+                                        {record.contractor && <div><span className="text-gray-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium">{String(record.contractor)}</span></div>}
+                                     </div>
+                                     {record.notes && <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded border border-gray-100 italic print:bg-transparent print:border-0">"{String(record.notes)}"</p>}
+                                     {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-lg border border-gray-200 object-cover print:h-24" /></div>}
+                                </div>
+                            </div>
+                        ))}
+                     </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [propertyProfile, setPropertyProfile] = useState(null);
