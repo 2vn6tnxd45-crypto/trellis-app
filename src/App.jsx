@@ -93,6 +93,9 @@ const logoTrellis = `data:image/svg+xml;utf8,${encodeURIComponent(`
   <use href="#h" stroke="#2A2A72" stroke-width="4" fill="none"/>
 </svg>`)}`;
 
+// --- Helper: Safe Logo Default ---
+const logoSrc = logoHausKey;
+
 // --- Helper Functions ---
 
 const fileToBase64 = (file) => {
