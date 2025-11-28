@@ -194,7 +194,8 @@ const BrandingStudio = ({ onSelectLogo }) => {
     );
 };
 
-// Contractor Form Component
+
+// ... [ContractorView, RequestManager remain the same] ...
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -202,9 +203,7 @@ const ContractorView = () => {
     const [error, setError] = useState(null);
     const [formData, setFormData] = useState({ category: '', item: '', brand: '', model: '', notes: '', contractor: '' });
     const [selectedFile, setSelectedFile] = useState(null);
-    
-    // Pass the global db instance
-    const firestore = db;
+    const db = getFirestore();
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -212,9 +211,10 @@ const ContractorView = () => {
         if (!requestId) { setError("Invalid request link."); setLoading(false); return; }
         const fetchRequest = async () => {
             try {
-                // Use the global auth instance
+                // We need auth to read/write to firestore usually
+                const auth = getAuth();
                 if (!auth.currentUser) { await signInAnonymously(auth); }
-                const docRef = doc(firestore, REQUESTS_COLLECTION_PATH, requestId);
+                const docRef = doc(db, REQUESTS_COLLECTION_PATH, requestId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists() && docSnap.data().status === 'pending') {
                     setRequestData({ id: docSnap.id, ...docSnap.data() });
@@ -233,9 +233,16 @@ const ContractorView = () => {
         try {
             let imageUrl = '';
             if (selectedFile && selectedFile.size < 1048576) { imageUrl = await fileToBase64(selectedFile); }
-            await updateDoc(doc(firestore, REQUESTS_COLLECTION_PATH, requestData.id), { ...formData, imageUrl, status: 'submitted', submittedAt: serverTimestamp() });
+            
+            // Update request doc with submission
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, requestData.id), {
+                ...formData,
+                imageUrl,
+                status: 'submitted',
+                submittedAt: serverTimestamp()
+            });
             setSubmitted(true);
-        } catch (e) { setError("Submission failed."); } finally { setLoading(false); }
+        } catch (e) { setError("Submission failed. Please try again."); } finally { setLoading(false); }
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50">Loading...</div>;
@@ -372,7 +379,7 @@ const RequestManager = ({ userId, propertyName }) => {
     );
 };
 
-// UPDATED MAIN APP COMPONENT
+// UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [propertyProfile, setPropertyProfile] = useState(null);
@@ -422,7 +429,7 @@ const AppContent = () => {
     useEffect(() => {
         if (isContractorMode || !isAuthReady || !currentUser || !propertyProfile) return;
         const q = query(collection(db, PUBLIC_COLLECTION_PATH));
-        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load"));
+        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N.A' }))); }, (err) => setError("Failed load"));
         return () => unsub();
     }, [isAuthReady, currentUser, propertyProfile?.name, isContractorMode]);
 
@@ -477,7 +484,7 @@ const AppContent = () => {
     if (isContractorMode) return <ContractorView />; 
 
     if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
-    if (!currentUser) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
+    if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
     if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>;
     if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
 
