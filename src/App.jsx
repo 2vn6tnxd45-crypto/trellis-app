@@ -194,7 +194,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
 };
 
 
-// Contractor Form Component (FIXED SIZE LOGO)
+// Contractor Form Component (Visual Redesign & Logo Fix)
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -421,6 +421,14 @@ const RequestManager = ({ userId, propertyName }) => {
         alert("Link copied! Send this to your contractor.");
     };
 
+    const sendEmail = (id, description) => {
+        const baseUrl = window.location.href.split('?')[0];
+        const url = `${baseUrl}?requestId=${id}`;
+        const subject = encodeURIComponent(`Contractor Request: ${description}`);
+        const body = encodeURIComponent(`Hello,\n\nPlease fill out the project details for ${description} here:\n\n${url}\n\nThanks!`);
+        window.open(`mailto:?subject=${subject}&body=${body}`);
+    };
+
     const deleteRequest = async (id) => {
         if(confirm("Delete this request?")) await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
     }
@@ -460,7 +468,10 @@ const RequestManager = ({ userId, propertyName }) => {
                                          <span className="text-sm font-bold text-gray-700">{r.description || "Untitled Request"}</span>
                                          <span className="text-xs text-gray-400 font-mono">ID: {r.id.slice(0,6)}</span>
                                     </div>
-                                    <button onClick={() => copyLink(r.id)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center"><LinkIcon className="h-3 w-3 mr-1"/> Copy Link</button>
+                                    <div className="flex items-center">
+                                        <button onClick={() => copyLink(r.id)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center mr-3"><LinkIcon className="h-3 w-3 mr-1"/> Copy</button>
+                                        <button onClick={() => sendEmail(r.id, r.description)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center"><Mail className="h-3 w-3 mr-1"/> Email</button>
+                                    </div>
                                 </li>
                             ))}
                         </ul>
