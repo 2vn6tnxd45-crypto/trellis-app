@@ -29,7 +29,7 @@ const googleMapsApiKey = "AIzaSyC1gVI-IeB2mbLAlHgJDmrPKwcZTpVWPOw";
 const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
 const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 
-// Initialize Firebase GLOBALLY
+// Initialize Firebase GLOBALLY to prevent race conditions
 let app, auth, db;
 try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -193,6 +193,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
     );
 };
 
+
 // Contractor Form Component
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
@@ -273,6 +274,7 @@ const ContractorView = () => {
 const RequestManager = ({ userId, propertyName }) => {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [newRequestName, setNewRequestName] = useState(''); // New state for description
 
     useEffect(() => {
         const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("userId", "==", userId));
@@ -283,14 +285,20 @@ const RequestManager = ({ userId, propertyName }) => {
     }, [userId]);
 
     const createRequest = async () => {
+        if (!newRequestName.trim()) {
+            alert("Please enter a contractor name or job description.");
+            return;
+        }
         setLoading(true);
         try {
             await addDoc(collection(db, REQUESTS_COLLECTION_PATH), {
                 userId,
                 propertyName,
+                description: newRequestName, // Save description
                 status: 'pending',
                 createdAt: serverTimestamp()
             });
+            setNewRequestName(''); // Clear input
         } catch (e) { alert("Error creating request"); } finally { setLoading(false); }
     };
 
@@ -315,7 +323,9 @@ const RequestManager = ({ userId, propertyName }) => {
     };
 
     const copyLink = (id) => {
-        const url = `${window.location.origin}/?requestId=${id}`;
+        // Robust URL generation
+        const baseUrl = window.location.href.split('?')[0];
+        const url = `${baseUrl}?requestId=${id}`;
         navigator.clipboard.writeText(url);
         alert("Link copied! Send this to your contractor.");
     };
@@ -325,14 +335,23 @@ const RequestManager = ({ userId, propertyName }) => {
 
     return (
         <div className="space-y-8">
-            <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col md:flex-row items-center justify-between">
+            <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-bold text-indigo-900">Contractor Requests</h3>
                     <p className="text-sm text-indigo-600">Generate a link to let contractors fill out data for you.</p>
                 </div>
-                <button onClick={createRequest} disabled={loading} className="mt-4 md:mt-0 px-6 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center">
-                    <PlusCircle className="mr-2 h-5 w-5"/> Create New Request
-                </button>
+                <div className="flex w-full md:w-auto gap-2">
+                     <input 
+                        type="text" 
+                        placeholder="e.g. Kitchen Painter" 
+                        className="px-4 py-3 rounded-lg border border-indigo-200 flex-grow"
+                        value={newRequestName}
+                        onChange={(e) => setNewRequestName(e.target.value)}
+                     />
+                    <button onClick={createRequest} disabled={loading} className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center whitespace-nowrap">
+                        <PlusCircle className="mr-2 h-5 w-5"/> Create
+                    </button>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -342,7 +361,10 @@ const RequestManager = ({ userId, propertyName }) => {
                         <ul className="space-y-3">
                             {pending.map(r => (
                                 <li key={r.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                    <span className="text-xs text-gray-500 font-mono">{r.id.slice(0,8)}...</span>
+                                    <div className="flex flex-col">
+                                         <span className="text-sm font-bold text-gray-700">{r.description || "Untitled Request"}</span>
+                                         <span className="text-xs text-gray-400 font-mono">ID: {r.id.slice(0,6)}</span>
+                                    </div>
                                     <button onClick={() => copyLink(r.id)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center"><LinkIcon className="h-3 w-3 mr-1"/> Copy Link</button>
                                 </li>
                             ))}
@@ -357,8 +379,11 @@ const RequestManager = ({ userId, propertyName }) => {
                             {submitted.map(r => (
                                 <li key={r.id} className="p-3 bg-green-50 border border-green-100 rounded-lg">
                                     <div className="flex justify-between mb-2">
-                                        <span className="font-bold text-green-900">{r.item}</span>
-                                        <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded">{r.category}</span>
+                                        <div>
+                                            <span className="block font-bold text-green-900">{r.item}</span>
+                                            <span className="text-xs text-green-800">For: {r.description}</span>
+                                        </div>
+                                        <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded self-start">{r.category}</span>
                                     </div>
                                     <p className="text-xs text-gray-600 mb-3">By: {r.contractor}</p>
                                     <button onClick={() => approveRequest(r)} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700">Approve & Add to Log</button>
@@ -514,6 +539,7 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
     );
 };
 
+// Updated PedigreeReport with SAFE DATA ACCESS and Memoization
 const PedigreeReport = ({ propertyProfile, records = [] }) => { 
     const stats = useMemo(() => {
         const defaultVal = { age: 'N/A', date: 'No data' };
@@ -574,6 +600,7 @@ const PedigreeReport = ({ propertyProfile, records = [] }) => {
                             <div key={record.id} className="relative break-inside-avoid">
                                 <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-indigo-600"></div>
                                 <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                                    {/* Forcing strings for display to prevent Object crashes */}
                                     <span className="font-bold text-lg text-gray-900 mr-3">{String(record.item || 'Unknown Item')}</span>
                                     <span className="text-sm font-mono text-gray-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span>
                                 </div>
