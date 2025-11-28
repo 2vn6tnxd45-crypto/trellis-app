@@ -140,6 +140,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
                 <p className="text-gray-500 mb-6">Select a logo style to preview it in the app header.</p>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Option 1: Structural */}
                     <button onClick={() => onSelectLogo('structural')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
                         <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
                             <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -153,6 +154,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
                         <span className="font-bold text-gray-700 group-hover:text-indigo-600">The Structural Key</span>
                     </button>
 
+                    {/* Option 3: Digital */}
                     <button onClick={() => onSelectLogo('digital')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
                         <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
                             <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -170,6 +172,7 @@ const BrandingStudio = ({ onSelectLogo }) => {
                         <span className="font-bold text-gray-700 group-hover:text-indigo-600">Digital Hearth</span>
                     </button>
 
+                    {/* Option 4: Keystone */}
                     <button onClick={() => onSelectLogo('keystone')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
                         <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
                             <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
@@ -463,40 +466,12 @@ const AppContent = () => {
     const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); };
     const handleDeleteAccount = async (password = null) => { const user = auth.currentUser; if (!user || !db) { alert("Error finding user."); return; } try { if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password)); else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; } await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted."); } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); } };
     const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
-    const handleSaveProfile = async (e) => { e.preventDefault(); const f = e.target; const name = f.querySelector('input[name="propertyName"]').value; if(!name) return; setIsSaving(true); try { const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; await setDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile'), data); setPropertyProfile(data); } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } };
+    const handleSaveProfile = async (e) => { e.preventDefault(); const f = e.target; const name = f.querySelector('input[name="propertyName"]').value; if(!name) return; setIsSaving(true); try { const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'), data); setPropertyProfile(data); } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } };
     const handleInputChange = useCallback((e) => { const { name, value } = e.target; setNewRecord(prev => ({ ...prev, [name]: value })); }, []);
     const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []);
     const handleEditClick = (record) => { setNewRecord(record); setEditingId(record.id); setActiveTab('Add Record'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const handleCancelEdit = () => { setNewRecord(initialRecordState); setEditingId(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
-    
-    const saveRecord = useCallback(async (e) => { 
-        e.preventDefault(); 
-        if (!db || !userId || isSaving) return; 
-        if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } 
-        setIsSaving(true); setError(null); 
-        try { 
-            let finalImageUrl = ''; 
-            if (selectedFile) { 
-                if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); 
-                else throw new Error("Image too large (Max 1MB)"); 
-            } 
-            const recordData = { 
-                ...newRecord, 
-                propertyLocation: propertyProfile?.name || 'My Property', 
-                imageUrl: finalImageUrl || newRecord.imageUrl, 
-                userId, 
-                timestamp: editingId ? newRecord.timestamp : serverTimestamp(), 
-            }; 
-            if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } 
-            else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } 
-            setNewRecord(initialRecordState); 
-            setEditingId(null); 
-            setSelectedFile(null); 
-            if (fileInputRef.current) fileInputRef.current.value = ""; 
-            setActiveTab('View Records'); 
-        } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } 
-    }, [db, userId, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
-
+    const saveRecord = useCallback(async (e) => { e.preventDefault(); if (!db || !userId || isSaving) return; if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } setIsSaving(true); setError(null); try { let finalImageUrl = ''; if (selectedFile) { if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); else throw new Error("Image too large (Max 1MB)"); } const recordData = { ...newRecord, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
     const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
     const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
 
