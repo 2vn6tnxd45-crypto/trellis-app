@@ -62,24 +62,18 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// --- NEW HAUSKEY LOGO (Vectorized from concept) ---
+// --- LOGOS ---
 const logoHausKey = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- House Outline -->
   <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#4F46E5" stroke-width="8" stroke-linejoin="round" fill="none"/>
-  
-  <!-- Key Shape (Integrated) -->
   <circle cx="50" cy="50" r="10" fill="#4F46E5"/>
   <rect x="46" y="55" width="8" height="25" rx="2" fill="#4F46E5"/>
   <rect x="54" y="65" width="6" height="4" fill="#4F46E5"/>
   <rect x="54" y="72" width="4" height="4" fill="#4F46E5"/>
-  
-  <!-- Key Hole Detail -->
   <circle cx="50" cy="50" r="3" fill="white"/>
 </svg>
 `)}`;
 
-// Original Trellis for history
 const logoTrellis = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
   <rect width="100" height="100" rx="20" fill="white"/>
@@ -93,7 +87,6 @@ const logoTrellis = `data:image/svg+xml;utf8,${encodeURIComponent(`
   <use href="#h" stroke="#2A2A72" stroke-width="4" fill="none"/>
 </svg>`)}`;
 
-// --- Helper: Safe Logo Default ---
 const logoSrc = logoHausKey;
 
 // --- Helper Functions ---
@@ -143,8 +136,6 @@ const loadGoogleMapsScript = () => {
 const CATEGORIES = ["Paint & Finishes", "Appliances", "Flooring", "HVAC & Systems", "Plumbing", "Electrical", "Roof & Exterior", "Landscaping", "Service & Repairs", "Other"];
 const ROOMS = ["Kitchen", "Living Room", "Dining Room", "Master Bedroom", "Bedroom", "Master Bathroom", "Bathroom", "Office", "Laundry Room", "Garage", "Basement", "Attic", "Exterior", "Hallway", "Entryway", "Patio/Deck", "Other (Custom)"];
 const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
-const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];
-const FLOORING_TYPES = ["Hardwood", "Laminate", "Vinyl/LVP", "Tile", "Carpet", "Concrete", "Other"];
 
 const initialRecordState = {
     area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
@@ -154,75 +145,175 @@ const initialRecordState = {
 
 // --- Components ---
 
-const ReauthModal = ({ onConfirm, onCancel, isLoading }) => { const [password, setPassword] = useState(''); const [error, setError] = useState(null); const handleSubmit = (e) => { e.preventDefault(); setError(null); if (!password) { setError("Password is required."); return; } onConfirm(password).catch(err => setError(err.message || "Re-authentication failed.")); }; return (<div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden"><div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full"><h3 className="text-xl font-semibold text-red-800 mb-2">Security Check</h3><p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion.</p><form onSubmit={handleSubmit} className="space-y-4"><input type="password" placeholder="Current Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" required />{error && <p className="text-red-600 text-xs">{error}</p>}<div className="flex justify-end space-x-3 pt-2"><button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button><button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">{isLoading ? 'Deleting...' : 'Confirm Deletion'}</button></div></form></div></div>); };
-const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (<div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden"><div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full"><h3 className="text-xl font-semibold text-gray-800 mb-4">{type === 'account' ? 'Confirm Account Deletion' : 'Confirm Action'}</h3><p className="text-gray-600 mb-6">{message}</p><div className="flex justify-end space-x-3"><button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button><button onClick={onConfirm} className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${type === 'account' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'}`}>{type === 'account' ? 'Delete Permanently' : 'Delete'}</button></div></div></div>);
-const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => { const [isSignUp, setIsSignUp] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [localError, setLocalError] = useState(null); const [isLoading, setIsLoading] = useState(false); useEffect(() => { const params = new URLSearchParams(window.location.search); if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); } }, []); const handleSubmit = async (e) => { e.preventDefault(); setLocalError(null); setIsLoading(true); try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); } }; return (<div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><div className="sm:mx-auto sm:w-full sm:max-w-md text-center"><img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="HausKey" /><h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to HausKey'}</h2><p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p></div><div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"><div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50"><div className="grid grid-cols-2 gap-3 mb-6"><button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><GoogleIcon /></span> Google</button><button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><AppleIcon /></span> Apple</button></div><div className="relative mb-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div></div><form className="space-y-6" onSubmit={handleSubmit}><div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div><div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>{(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || authError}</div>}<button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button></form><div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div></div></div></div>); };
-const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => { const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: '' }); const inputRef = useRef(null); useEffect(() => { window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); }; loadGoogleMapsScript().then(() => { if (inputRef.current && window.google && window.google.maps && window.google.maps.places) { try { const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] }); inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); }); auto.addListener('place_changed', () => { const place = auto.getPlace(); if (!place.geometry) return; let streetNum = '', route = '', city = '', state = '', zip = ''; if (place.address_components) { place.address_components.forEach(comp => { if (comp.types.includes('street_number')) streetNum = comp.long_name; if (comp.types.includes('route')) route = comp.long_name; if (comp.types.includes('locality')) city = comp.long_name; if (comp.types.includes('administrative_area_level_1')) state = comp.short_name; if (comp.types.includes('postal_code')) zip = comp.long_name; }); } setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() })); if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim(); }); } catch (e) { console.warn("Google Auto fail", e); } } }).catch(err => console.error("Maps load error", err)); }, []); const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); }; const handleSubmit = (e) => { e.preventDefault(); const formDataObj = new FormData(e.target); if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value); onSave(formDataObj); }; return (<div className="flex items-center justify-center min-h-[90vh] print:hidden"><div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative"><button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button><div className="flex justify-center mb-6"><img src={logoSrc} alt="HausKey Logo" className="h-24 w-24 shadow-md rounded-xl" style={{height:'64px',width:'64px'}} /><h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2><p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p></div><form onSubmit={handleSubmit} className="space-y-5 text-left relative"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div><div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div><input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} /><button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button></form></div></div>); };
+const GoogleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" /><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" /><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" /><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" /></svg>);
+const AppleIcon = () => (<svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.64 3.4 1.74-3.12 1.84-2.6 5.75.64 7.13-.5 1.24-1.14 2.47-2.69 4.14zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.54 4.33-3.74 4.25z" /></svg>);
 
-// NEW: Branding Studio Component
+const ReauthModal = ({ onConfirm, onCancel, isLoading }) => { 
+    const [password, setPassword] = useState(''); 
+    const [error, setError] = useState(null); 
+    const handleSubmit = (e) => { 
+        e.preventDefault(); 
+        setError(null); 
+        if (!password) { setError("Password is required."); return; } 
+        onConfirm(password).catch(err => setError(err.message || "Re-authentication failed.")); 
+    }; 
+    return (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
+            <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+                <h3 className="text-xl font-semibold text-red-800 mb-2">Security Check</h3>
+                <p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion.</p>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <input type="password" placeholder="Current Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" required />
+                    {error && <p className="text-red-600 text-xs">{error}</p>}
+                    <div className="flex justify-end space-x-3 pt-2">
+                        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                        <button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">{isLoading ? 'Deleting...' : 'Confirm Deletion'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    ); 
+};
+
+const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (
+    <div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden">
+        <div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+            <h3 className="text-xl font-semibold text-gray-800 mb-4">{type === 'account' ? 'Confirm Account Deletion' : 'Confirm Action'}</h3>
+            <p className="text-gray-600 mb-6">{message}</p>
+            <div className="flex justify-end space-x-3">
+                <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button>
+                <button onClick={onConfirm} className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${type === 'account' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'}`}>{type === 'account' ? 'Delete Permanently' : 'Delete'}</button>
+            </div>
+        </div>
+    </div>
+);
+
+const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => { 
+    const [isSignUp, setIsSignUp] = useState(false); 
+    const [email, setEmail] = useState(''); 
+    const [password, setPassword] = useState(''); 
+    const [localError, setLocalError] = useState(null); 
+    const [isLoading, setIsLoading] = useState(false); 
+    
+    useEffect(() => { 
+        const params = new URLSearchParams(window.location.search); 
+        if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); } 
+    }, []); 
+    
+    const handleSubmit = async (e) => { 
+        e.preventDefault(); setLocalError(null); setIsLoading(true); 
+        try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); } 
+    }; 
+    
+    return (
+        <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden">
+            <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
+            <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+                <img className="mx-auto h-24 w-24 rounded-xl shadow-md bg-white p-1" src={logoSrc} alt="HausKey" />
+                <h2 className="mt-6 text-3xl font-extrabold text-indigo-900">{isSignUp ? 'Create your Pedigree' : 'Sign in to HausKey'}</h2>
+                <p className="mt-2 text-sm text-gray-600">The permanent record for your home.</p>
+            </div>
+            <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+                <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10 border border-indigo-50">
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><GoogleIcon /></span> Google</button>
+                        <button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><AppleIcon /></span> Apple</button>
+                    </div>
+                    <div className="relative mb-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300" /></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-500">Or continue with email</span></div></div>
+                    <form className="space-y-6" onSubmit={handleSubmit}>
+                        <div><label className="block text-sm font-medium text-gray-700">Email</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={16} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="you@example.com"/></div></div>
+                        <div><label className="block text-sm font-medium text-gray-700">Password</label><div className="mt-1 relative rounded-md shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={16} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3 border" placeholder="••••••••"/></div></div>
+                        {(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-2 rounded border border-red-100">{localError || authError}</div>}
+                        <button type="submit" disabled={isLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button>
+                    </form>
+                    <div className="mt-6 text-center"><button onClick={onGuestLogin} className="text-xs font-medium text-gray-400 hover:text-gray-600 underline">Try as a Guest</button></div>
+                </div>
+            </div>
+        </div>
+    ); 
+};
+
+const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => { 
+    const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: '' }); 
+    const inputRef = useRef(null); 
+    
+    useEffect(() => { 
+        window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); }; 
+        loadGoogleMapsScript().then(() => { 
+            if (inputRef.current && window.google && window.google.maps && window.google.maps.places) { 
+                try { 
+                    const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] }); 
+                    inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); }); 
+                    auto.addListener('place_changed', () => { 
+                        const place = auto.getPlace(); 
+                        if (!place.geometry) return; 
+                        let streetNum = '', route = '', city = '', state = '', zip = ''; 
+                        if (place.address_components) { 
+                            place.address_components.forEach(comp => { 
+                                if (comp.types.includes('street_number')) streetNum = comp.long_name; 
+                                if (comp.types.includes('route')) route = comp.long_name; 
+                                if (comp.types.includes('locality')) city = comp.long_name; 
+                                if (comp.types.includes('administrative_area_level_1')) state = comp.short_name; 
+                                if (comp.types.includes('postal_code')) zip = comp.long_name; 
+                            }); 
+                        } 
+                        setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() })); 
+                        if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim(); 
+                    }); 
+                } catch (e) { console.warn("Google Auto fail", e); } 
+            } 
+        }).catch(err => console.error("Maps load error", err)); 
+    }, []); 
+
+    const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); }; 
+    const handleSubmit = (e) => { e.preventDefault(); const formDataObj = new FormData(e.target); if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value); onSave(formDataObj); }; 
+    
+    return (
+        <div className="flex items-center justify-center min-h-[90vh] print:hidden">
+            <div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative">
+                <button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button>
+                <div className="flex justify-center mb-6"><img src={logoSrc} alt="HausKey Logo" className="h-24 w-24 shadow-md rounded-xl" style={{height:'64px',width:'64px'}} /><h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2><p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p></div>
+                <form onSubmit={handleSubmit} className="space-y-5 text-left relative">
+                    <div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div>
+                    <div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div>
+                    <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div>
+                    <div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div>
+                    <input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} />
+                    <button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button>
+                </form>
+            </div>
+        </div>
+    ); 
+};
+
+// Branding Studio Component
 const BrandingStudio = ({ onSelectLogo }) => {
     return (
         <div className="space-y-8">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 text-center">
                 <h2 className="text-2xl font-bold text-indigo-900 mb-2">Branding Studio</h2>
                 <p className="text-gray-500 mb-6">Select a logo style to preview it in the app header.</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Option 1: Structural */}
-                    <button onClick={() => onSelectLogo('structural')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
-                        <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
-                            <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#1E1E2E"/>
-  <path d="M50 15L80 40V60H70V85H60V60H40V85H30V60H20V40L50 15Z" stroke="#4F46E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M40 85V95H60V85" stroke="#4F46E5" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="50" cy="45" r="8" stroke="#4F46E5" stroke-width="4"/>
-</svg>`)}`} className="h-16 w-16" alt="Structural" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <button onClick={() => onSelectLogo('hauskey')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
+                         <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
+                            <img src={logoHausKey} className="h-16 w-16" alt="HausKey" />
                         </div>
-                        <span className="font-bold text-gray-700 group-hover:text-indigo-600">The Structural Key</span>
+                        <span className="font-bold text-gray-700 group-hover:text-indigo-600">HausKey (New)</span>
                     </button>
-
-                    {/* Option 3: Digital */}
-                    <button onClick={() => onSelectLogo('digital')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
-                        <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
-                            <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#0F172A"/>
-  <circle cx="50" cy="20" r="4" fill="#38BDF8"/>
-  <circle cx="20" cy="50" r="4" fill="#38BDF8"/>
-  <circle cx="80" cy="50" r="4" fill="#38BDF8"/>
-  <circle cx="20" cy="80" r="4" fill="#38BDF8"/>
-  <circle cx="80" cy="80" r="4" fill="#38BDF8"/>
-  <path d="M50 20L20 50V80H80V50L50 20Z" stroke="#38BDF8" stroke-width="2" stroke-dasharray="4 2"/>
-  <path d="M50 20V50M20 50H80" stroke="#38BDF8" stroke-width="2"/>
-</svg>`)}`} className="h-16 w-16" alt="Digital" />
+                    <button onClick={() => onSelectLogo('trellis')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
+                         <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
+                            <img src={logoTrellis} className="h-16 w-16" alt="Trellis" />
                         </div>
-                        <span className="font-bold text-gray-700 group-hover:text-indigo-600">Digital Hearth</span>
-                    </button>
-
-                    {/* Option 4: Keystone */}
-                    <button onClick={() => onSelectLogo('keystone')} className="group p-6 border-2 border-gray-100 hover:border-indigo-500 rounded-xl transition flex flex-col items-center">
-                        <div className="h-24 w-24 mb-4 bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-indigo-50">
-                            <img src={`data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <rect width="100" height="100" rx="20" fill="#312E81"/>
-  <path d="M25 25H75L65 90H35L25 25Z" fill="#4F46E5"/>
-  <circle cx="50" cy="50" r="8" fill="#312E81"/>
-  <path d="M46 55H54L56 75H44L46 55Z" fill="#312E81"/>
-</svg>`)}`} className="h-16 w-16" alt="Keystone" />
-                        </div>
-                        <span className="font-bold text-gray-700 group-hover:text-indigo-600">The Keystone</span>
+                        <span className="font-bold text-gray-700 group-hover:text-indigo-600">Trellis (Original)</span>
                     </button>
                 </div>
-                
-                <button onClick={() => onSelectLogo('original')} className="mt-8 text-sm text-gray-400 hover:text-gray-600 underline">Reset to Original</button>
             </div>
         </div>
     );
 };
 
 
-// Contractor Form Component (Visual Redesign & Logo Fix)
+// Contractor Form Component
 const ContractorView = () => {
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -237,7 +328,6 @@ const ContractorView = () => {
         if (!requestId) { setError("Invalid request link."); setLoading(false); return; }
         const fetchRequest = async () => {
             try {
-                // Try anon auth, if it fails (disabled in console), assume public access is okay or user is logged in
                 if (!auth.currentUser) { 
                     try { await signInAnonymously(auth); } catch(e) { console.warn("Anon auth failed, trying public access"); } 
                 }
@@ -304,9 +394,8 @@ const ContractorView = () => {
                 {/* Header */}
                 <div className="bg-indigo-900 p-8 text-center relative overflow-hidden">
                      <div className="relative z-10 flex flex-col items-center">
-                        {/* FIXED LOGO SIZE */}
                         <div className="bg-white p-3 rounded-2xl shadow-lg mb-4">
-                            <img src={logoHausKey} alt="HausKey Logo" className="object-contain" style={{ width: '64px', height: '64px' }} />
+                            <img src={logoSrc} alt="HausKey Logo" className="object-contain" style={{ width: '64px', height: '64px' }} />
                         </div>
                         <h1 className="text-3xl font-extrabold text-white tracking-tight mb-1">Contractor Submission</h1>
                         <div className="inline-flex items-center px-3 py-1 rounded-full bg-indigo-800/50 border border-indigo-700 text-indigo-200 text-sm mt-2">
@@ -441,17 +530,6 @@ const RequestManager = ({ userId, propertyName }) => {
             await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, req.id));
         } catch(e) { alert("Approval failed: " + e.message); }
     };
-    
-    // NEW: Delete Request Function
-    const deleteRequest = async (id) => {
-        if (confirm("Are you sure you want to delete this pending request?")) {
-            try {
-                await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
-            } catch (e) {
-                alert("Failed to delete request: " + e.message);
-            }
-        }
-    };
 
     const copyLink = (id) => {
         const baseUrl = window.location.href.split('?')[0];
@@ -467,6 +545,10 @@ const RequestManager = ({ userId, propertyName }) => {
         const body = encodeURIComponent(`Hello,\n\nPlease fill out the project details for ${description} here:\n\n${url}\n\nThanks!`);
         window.open(`mailto:?subject=${subject}&body=${body}`);
     };
+
+    const deleteRequest = async (id) => {
+        if(confirm("Delete this request?")) await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
+    }
 
     const pending = requests.filter(r => r.status === 'pending');
     const submitted = requests.filter(r => r.status === 'submitted');
@@ -506,7 +588,6 @@ const RequestManager = ({ userId, propertyName }) => {
                                     <div className="flex items-center">
                                         <button onClick={() => copyLink(r.id)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center mr-3"><LinkIcon className="h-3 w-3 mr-1"/> Copy</button>
                                         <button onClick={() => sendEmail(r.id, r.description)} className="text-indigo-600 text-xs font-bold hover:underline flex items-center mr-3"><Mail className="h-3 w-3 mr-1"/> Email</button>
-                                        {/* NEW: Delete Button */}
                                         <button onClick={() => deleteRequest(r.id)} className="text-gray-400 hover:text-red-500 transition-colors" title="Delete Request"><Trash2 size={16}/></button>
                                     </div>
                                 </li>
@@ -549,7 +630,6 @@ const PedigreeReport = ({ propertyProfile, records = [] }) => { const stats = us
 
 // UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
-    // ... existing state ...
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [propertyProfile, setPropertyProfile] = useState(null);
     const [isLoadingProfile, setIsLoadingProfile] = useState(true);
@@ -573,12 +653,90 @@ const AppContent = () => {
 
     // Check for Contractor Mode
     const [isContractorMode, setIsContractorMode] = useState(false);
-    
-    // ... existing useEffects ...
 
-    // ... existing handlers ...
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('requestId')) {
+            setIsContractorMode(true);
+            setLoading(false); // Directly stop loading if contractor mode
+        } else {
+            const unsubscribe = onAuthStateChanged(auth, async (user) => {
+                setCurrentUser(user);
+                if(user) setUserId(user.uid); else setUserId(null);
+                setIsAuthReady(true); 
+                setLoading(false);
+            });
+            return () => unsubscribe();
+        }
+    }, []);
 
-    // REBRANDING: Update Header Text
+    useEffect(() => {
+        if (isContractorMode || !isAuthReady || !userId) { if(isAuthReady && !userId) setIsLoadingProfile(false); return; }
+        const fetchProfile = async () => { try { const snap = await getDoc(doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile')); if(snap.exists()) setPropertyProfile(snap.data()); else setPropertyProfile(null); } catch(e){console.error(e);} finally { setIsLoadingProfile(false); setLoading(false); } };
+        fetchProfile();
+    }, [isAuthReady, userId, isContractorMode]);
+
+    useEffect(() => {
+        if (isContractorMode || !isAuthReady || !userId || !propertyProfile) return;
+        const q = query(collection(db, PUBLIC_COLLECTION_PATH));
+        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load"));
+        return () => unsub();
+    }, [isAuthReady, userId, propertyProfile?.name, isContractorMode]);
+
+    // Logo Switcher Handler
+    const handleLogoSelect = (type) => {
+        if (type === 'structural') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="20" fill="#1E1E2E"/>
+  <path d="M50 15L80 40V60H70V85H60V60H40V85H30V60H20V40L50 15Z" stroke="#4F46E5" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40 85V95H60V85" stroke="#4F46E5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="50" cy="45" r="8" stroke="#4F46E5" stroke-width="4"/>
+</svg>`)}`);
+        else if (type === 'digital') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="20" fill="#0F172A"/>
+  <circle cx="50" cy="20" r="4" fill="#38BDF8"/>
+  <circle cx="20" cy="50" r="4" fill="#38BDF8"/>
+  <circle cx="80" cy="50" r="4" fill="#38BDF8"/>
+  <circle cx="20" cy="80" r="4" fill="#38BDF8"/>
+  <circle cx="80" cy="80" r="4" fill="#38BDF8"/>
+  <path d="M50 20L20 50V80H80V50L50 20Z" stroke="#38BDF8" stroke-width="2" stroke-dasharray="4 2"/>
+  <path d="M50 20V50M20 50H80" stroke="#38BDF8" stroke-width="2"/>
+</svg>`)}`);
+        else if (type === 'keystone') setCurrentLogo(`data:image/svg+xml;utf8,${encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="20" fill="#312E81"/>
+  <path d="M25 25H75L65 90H35L25 25Z" fill="#4F46E5"/>
+  <circle cx="50" cy="50" r="8" fill="#312E81"/>
+  <path d="M46 55H54L56 75H44L46 55Z" fill="#312E81"/>
+</svg>`)}`);
+        else setCurrentLogo('/logo.svg');
+    };
+
+    const handleLogin = async (email, password, isSignUp) => { if(!auth) return; try { if(isSignUp) await createUserWithEmailAndPassword(auth, email, password); else await signInWithEmailAndPassword(auth, email, password); } catch(e) { throw new Error(e.message); } };
+    const handleGoogleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch(e) { console.error(e); throw new Error("Google sign-in failed."); } };
+    const handleAppleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new OAuthProvider('apple.com')); } catch(e) { console.error(e); throw new Error("Apple sign-in failed."); } };
+    const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
+    const handleSignOut = async () => { if(!auth) return; await signOut(auth); setCurrentUser(null); setUserId(null); setPropertyProfile(null); setRecords([]); };
+    const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); };
+    const handleDeleteAccount = async (password = null) => { const user = auth.currentUser; if (!user || !db) { alert("Error finding user."); return; } try { if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password)); else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; } await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted."); } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); } };
+    const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
+    const handleSaveProfile = async (e) => { e.preventDefault(); const f = e.target; const name = f.querySelector('input[name="propertyName"]').value; if(!name) return; setIsSaving(true); try { const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'), data); setPropertyProfile(data); } catch(e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } };
+    const handleInputChange = useCallback((e) => { const { name, value } = e.target; setNewRecord(prev => ({ ...prev, [name]: value })); }, []);
+    const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []);
+    const handleEditClick = (record) => { setNewRecord(record); setEditingId(record.id); setActiveTab('Add Record'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+    const handleCancelEdit = () => { setNewRecord(initialRecordState); setEditingId(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
+    const saveRecord = useCallback(async (e) => { e.preventDefault(); if (!db || !userId || isSaving) return; if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } setIsSaving(true); setError(null); try { let finalImageUrl = ''; if (selectedFile) { if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); else throw new Error("Image too large (Max 1MB)"); } const recordData = { ...newRecord, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
+    const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
+    const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
+
+    if (isContractorMode) return <ContractorView />; 
+
+    if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
+    if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
+    if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>;
+    if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
+
     return (
         <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
              {/* ... Header ... */}
