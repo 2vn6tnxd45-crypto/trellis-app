@@ -833,9 +833,19 @@ const AppContent = () => {
                     <img src={logoSrc} alt="HausKey Logo" className="h-20 w-20 mb-4 sm:mb-0 sm:mr-6 shadow-sm rounded-xl" />
                     <div className="text-center sm:text-left">
                         {/* REBRANDED TITLE */}
-                        <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">HausKey</span> Home Log</h1>
+                        <h1 className="text-4xl sm:text-5xl font-extrabold text-indigo-900 tracking-tighter"><span className="text-indigo-600">HausKey</span> Log</h1>
                         <p className="text-gray-500 mt-2 text-lg">The official Property Pedigree for your home.</p>
-                        <div className="mt-2 inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100"><MapPin size={14} className="text-indigo-500 mr-2" /><span className="text-gray-600 font-semibold text-sm">{propertyProfile.name}</span></div>
+                        
+                        <div className="mt-3 flex flex-col sm:flex-row items-center gap-2">
+                            <div className="inline-flex items-center bg-white px-3 py-1 rounded-full shadow-sm border border-indigo-100">
+                                <Home size={14} className="text-indigo-500 mr-2" />
+                                <span className="text-gray-800 font-bold text-sm">{propertyProfile.name}</span>
+                            </div>
+                            <div className="inline-flex items-center text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 text-sm">
+                                <MapPin size={14} className="text-gray-500 mr-2" />
+                                <span>{propertyProfile.address?.street}, {propertyProfile.address?.city}</span>
+                            </div>
+                        </div>
                     </div>
                 </header>
                 {/* ... rest of render ... */}
