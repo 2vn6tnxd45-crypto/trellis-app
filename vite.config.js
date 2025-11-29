@@ -15,3 +15,5 @@ export default defineConfig({
     },
   },
 })
+
+// Force rebuild for AI tools
