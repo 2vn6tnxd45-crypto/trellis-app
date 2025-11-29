@@ -131,11 +131,20 @@ const ROOMS = ["Kitchen", "Living Room", "Dining Room", "Master Bedroom", "Bedro
 const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];
 const FLOORING_TYPES = ["Hardwood", "Laminate", "Vinyl/LVP", "Tile", "Carpet", "Concrete", "Other"];
+const MAINTENANCE_FREQUENCIES = [
+    { label: "None (One-time)", value: "none", months: 0 },
+    { label: "Quarterly", value: "quarterly", months: 3 },
+    { label: "Bi-Annually", value: "semiannual", months: 6 },
+    { label: "Annually", value: "annual", months: 12 },
+    { label: "Every 2 Years", value: "biennial", months: 24 },
+    { label: "Every 5 Years", value: "quinquennial", months: 60 }
+];
+
 
 const initialRecordState = {
     area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
     material: '', sheen: '', dateInstalled: '', contractor: '', contractorUrl: '',
-    notes: '', purchaseLink: '', imageUrl: '',
+    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, // NEW FIELDS
 };
 
 // --- Components ---
@@ -379,7 +388,7 @@ const RequestManager = ({ userId, propertyName }) => {
         const baseUrl = window.location.href.split('?')[0];
         const url = `${baseUrl}?requestId=${id}`;
         const subject = encodeURIComponent(`Contractor Request: ${description}`);
-        const body = encodeURIComponent(`Hello,\n\nPlease fill out the project details for ${description} here:\n\n${url}\n\nThanks!`);
+        const body = encodeURIComponent(`Hello,\n\nPlease find the active request for ${propertyName} below:\n\n${url}\n\nThanks!`);
         window.open(`mailto:?subject=${subject}&body=${body}`);
     };
 
@@ -394,8 +403,8 @@ const RequestManager = ({ userId, propertyName }) => {
         <div className="space-y-8">
             <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100 flex flex-col md:flex-row items-center justify-between gap-4">
                 <div>
-                    <h3 className="text-lg font-bold text-indigo-900">Contractor Requests</h3>
-                    <p className="text-sm text-indigo-600">Generate a link to let contractors fill out data for you.</p>
+                    <h3 className="text-lg font-bold text-indigo-900">Request Links</h3>
+                    <p className="text-sm text-indigo-600">Generate a unique link for a contractor to fill out the record.</p>
                 </div>
                 <div className="flex w-full md:w-auto gap-2">
                      <input 
@@ -536,14 +545,13 @@ const AppContent = () => {
 
     if (isContractorMode) return <ContractorView />; 
 
-    if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing Trellis...</div>;
+    if (loading) return <div className="flex items-center justify-center min-h-screen text-lg font-medium text-gray-500">Initializing HausKey...</div>;
     if (!userId) return <AuthScreen onLogin={handleLogin} onGoogleLogin={handleGoogleLogin} onAppleLogin={handleAppleLogin} onGuestLogin={handleGuestLogin} error={error} />;
     if (isLoadingProfile) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading Profile...</div>;
     if (!propertyProfile) return <div className="min-h-screen bg-gray-50 p-4"><style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style><SetupPropertyForm onSave={handleSaveProfile} isSaving={isSaving} onSignOut={handleSignOut} /></div>;
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 sm:p-8 font-sans">
-             {/* ... Header ... */}
              <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap'); body { font-family: 'Inter', sans-serif; }`}</style>
                 <link rel="icon" type="image/svg+xml" href={logoSrc} />
                 <header className="text-center mb-8 flex flex-col sm:flex-row items-center justify-center relative">
