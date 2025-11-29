@@ -605,47 +605,64 @@ const PropertyMap = ({ propertyProfile }) => { const address = propertyProfile?.
 const RecordCard = ({ record, onDeleteClick, onEditClick }) => ( <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid"> {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>} <div className="p-5 flex flex-col space-y-3 flex-grow"> <div className="flex justify-between items-start border-b border-indigo-50 pb-2"> <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div> <div className="flex ml-2 print:hidden"> <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button> <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button> </div> </div> <div className="text-sm space-y-2"> <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p> {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>} {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>} {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>} {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>} {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>} {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>} {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>} {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>} {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>} {record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && ( <div className="mt-2 text-xs font-bold text-blue-600 flex items-center bg-blue-50 p-1 rounded"> <Clock className="h-3 w-3 mr-1"/> Maintenance: {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label} </div> )} </div> <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div> </div> </div> );
 const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => { const showSheen = newRecord.category === "Paint & Finishes"; const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category); const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category); const [isCustomArea, setIsCustomArea] = useState(false); useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) { setIsCustomArea(true); } else if (!newRecord.area) { setIsCustomArea(false); } }, [newRecord.area]); const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } }; let brandLabel = "Brand"; let modelLabel = "Model/Color Code"; if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; } else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; } const safeRecord = newRecord || initialRecordState; 
 
-    // --- NEW: AI Suggestion Logic ---
+    // --- NEW: AI Suggestion Logic (UPDATED) ---
     const [isSuggesting, setIsSuggesting] = useState(false);
+    const [suggestedTasks, setSuggestedTasks] = useState([]); // NEW STATE
 
     const suggestMaintenance = async () => {
-        // 1. Check if we have enough info
         if (!newRecord.item && !newRecord.category) {
             alert("Please enter an Item Name or Category first.");
             return;
         }
 
         setIsSuggesting(true);
+        setSuggestedTasks([]); // Clear old suggestions
+
         try {
-            // 2. Construct the prompt for Gemini
+            // Updated Prompt: Ask for JSON with tasks
             const prompt = `
                 I have a home maintenance record.
                 Category: ${newRecord.category || 'Unknown'}
                 Item: ${newRecord.item}
                 Brand: ${newRecord.brand || 'Unknown'}
                 
-                Based on general home maintenance standards, what is the recommended maintenance frequency?
-                Return ONLY one of the following exact strings:
-                "quarterly", "semiannual", "annual", "biennial", "quinquennial", "none".
-                Do not add any other text or explanation.
+                1. Recommend a maintenance frequency (one of: quarterly, semiannual, annual, biennial, quinquennial, none).
+                2. List 3-5 specific maintenance tasks for this item.
+                
+                Return ONLY valid JSON in this format:
+                {
+                  "frequency": "annual",
+                  "tasks": ["Task 1", "Task 2", "Task 3"]
+                }
             `;
 
-            // 3. Ask Gemini
             const result = await window.geminiModel.generateContent(prompt);
             const response = result.response;
-            const text = response.text().trim().replace(/['"]/g, '');
+            // Clean up code blocks if the model wraps the JSON in markdown
+            const text = response.text().replace(/```json|```/g, '').trim(); 
+            
+            const data = JSON.parse(text); // Parse the JSON
 
-            // 4. Update the form automatically
-            const validFreqs = ["quarterly", "semiannual", "annual", "biennial", "quinquennial", "none"];
-            if (validFreqs.includes(text)) {
-                onInputChange({ target: { name: 'maintenanceFrequency', value: text } });
-                alert(`✨ Suggested Frequency: ${text.toUpperCase()}`);
-            } else {
-                onInputChange({ target: { name: 'maintenanceFrequency', value: 'annual' } });
+            // Update Frequency
+            if (data.frequency) {
+                const validFreqs = ["quarterly", "semiannual", "annual", "biennial", "quinquennial", "none"];
+                if (validFreqs.includes(data.frequency)) {
+                    onInputChange({ target: { name: 'maintenanceFrequency', value: data.frequency } });
+                }
             }
+
+            // Update Tasks (and show them)
+            if (data.tasks && Array.isArray(data.tasks)) {
+                setSuggestedTasks(data.tasks);
+                // Optional: Automatically add tasks to the "Notes" field if it's empty
+                if (!safeRecord.notes) {
+                    onInputChange({ target: { name: 'notes', value: "Suggested Maintenance:\n- " + data.tasks.join("\n- ") } });
+                }
+            }
+
         } catch (error) {
             console.error("AI Error:", error);
-            alert("Could not fetch suggestion. (Check console for details)");
+            alert("Could not fetch details. Please try again.");
         } finally {
             setIsSuggesting(false);
         }
@@ -678,6 +695,20 @@ return ( <form onSubmit={onSave} className="p-6 bg-white rounded-xl shadow-2xl b
             </select>
             <ChevronDown size={16} className="absolute right-2 top-3 text-gray-500 pointer-events-none"/>
         </div>
+        
+        {/* NEW: Display Suggested Tasks */}
+        {suggestedTasks.length > 0 && (
+            <div className="mt-3 p-3 bg-indigo-50 rounded-lg border border-indigo-100 text-sm">
+                <p className="font-bold text-indigo-900 mb-1 flex items-center">
+                    <Wrench size={12} className="mr-1"/> Suggested Tasks:
+                </p>
+                <ul className="list-disc pl-4 space-y-1 text-indigo-800">
+                    {suggestedTasks.map((task, i) => (
+                        <li key={i}>{task}</li>
+                    ))}
+                </ul>
+            </div>
+        )}
     </div>
     
     <div><label className="block text-sm font-medium text-gray-700">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border"/></div> <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-100"><label className="block text-sm font-bold text-indigo-900 mb-2 flex items-center"><Camera size={18} className="mr-2"/> Upload Photo</label><input type="file" accept="image/*" onChange={onFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 cursor-pointer"/><p className="text-xs text-gray-500 mt-1">Max 1MB</p></div> <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div> <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"> {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={20} className="mr-2"/> Update Record</> : <><PlusCircle size={20} className="mr-2"/> Log New Home Component</>)} </button> </form> ); };
