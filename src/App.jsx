@@ -9,8 +9,8 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs, updateDoc, where
 } from 'firebase/firestore';
-// NEW: Import the AI tools
-import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
+// FIX: Use the 'preview' path which is safer for build servers
+import { getVertexAI, getGenerativeModel } from "firebase/vertexai-preview";
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench } from 'lucide-react';
 
 // --- Global Config & Init ---
@@ -73,13 +73,16 @@ class ErrorBoundary extends React.Component {
 // --- HAUSKEY LOGO ---
 const logoHausKey = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- House Outline -->
   <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#4F46E5" stroke-width="8" stroke-linejoin="round" fill="none"/>
   
+  <!-- Key Shape (Integrated) -->
   <circle cx="50" cy="50" r="10" fill="#4F46E5"/>
   <rect x="46" y="55" width="8" height="25" rx="2" fill="#4F46E5"/>
   <rect x="54" y="65" width="6" height="4" fill="#4F46E5"/>
   <rect x="54" y="72" width="4" height="4" fill="#4F46E5"/>
   
+  <!-- Key Hole Detail -->
   <circle cx="50" cy="50" r="3" fill="white"/>
 </svg>
 `)}`;
