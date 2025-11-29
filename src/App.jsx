@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 // FIX: Use the 'preview' path which is safer for build servers
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai-preview";
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks } from 'lucide-react';
 
 // --- Global Config & Init ---
 
@@ -178,7 +178,7 @@ const MAINTENANCE_FREQUENCIES = [
 const initialRecordState = {
     area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
     material: '', sheen: '', dateInstalled: '', contractor: '', contractorUrl: '',
-    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, // NEW FIELDS
+    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, maintenanceTasks: [] // NEW FIELD
 };
 
 // --- Components ---
@@ -234,25 +234,39 @@ const MaintenanceDashboard = ({ records }) => {
                 </h2>
                 <div className="grid gap-4">
                     {tasks.map(task => (
-                        <div key={task.id} className={`p-4 rounded-lg border-l-4 shadow-sm bg-white flex justify-between items-center ${
+                        <div key={task.id} className={`p-4 rounded-lg border-l-4 shadow-sm bg-white ${
                             task.status === 'overdue' ? 'border-red-500 bg-red-50' : 
                             task.status === 'due-soon' ? 'border-yellow-500 bg-yellow-50' : 
                             'border-green-500'
                         }`}>
-                            <div>
-                                <h4 className="font-bold text-gray-800">{task.item}</h4>
-                                <p className="text-sm text-gray-600">{task.category} - {MAINTENANCE_FREQUENCIES.find(f => f.value === task.maintenanceFrequency)?.label}</p>
+                            <div className="flex justify-between items-center mb-2">
+                                <div>
+                                    <h4 className="font-bold text-gray-800">{task.item}</h4>
+                                    <p className="text-sm text-gray-600">{task.category} - {MAINTENANCE_FREQUENCIES.find(f => f.value === task.maintenanceFrequency)?.label}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className={`font-bold ${
+                                        task.status === 'overdue' ? 'text-red-600' : 
+                                        task.status === 'due-soon' ? 'text-yellow-600' : 
+                                        'text-green-600'
+                                    }`}>
+                                        {task.status === 'overdue' ? `Overdue by ${Math.abs(task.daysUntil)} days` : `Due in ${task.daysUntil} days`}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{new Date(task.nextServiceDate).toLocaleDateString()}</p>
+                                </div>
                             </div>
-                            <div className="text-right">
-                                <p className={`font-bold ${
-                                    task.status === 'overdue' ? 'text-red-600' : 
-                                    task.status === 'due-soon' ? 'text-yellow-600' : 
-                                    'text-green-600'
-                                }`}>
-                                    {task.status === 'overdue' ? `Overdue by ${Math.abs(task.daysUntil)} days` : `Due in ${task.daysUntil} days`}
-                                </p>
-                                <p className="text-xs text-gray-500">{new Date(task.nextServiceDate).toLocaleDateString()}</p>
-                            </div>
+                            
+                            {/* UPDATED: Show Tasks in Dashboard */}
+                            {task.maintenanceTasks && task.maintenanceTasks.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-gray-200/50">
+                                    <p className="text-xs font-bold text-gray-500 mb-1 flex items-center">
+                                        <ListChecks size={12} className="mr-1"/> Recommended Tasks:
+                                    </p>
+                                    <ul className="text-xs text-gray-600 list-disc pl-4 space-y-0.5">
+                                        {task.maintenanceTasks.map((t, i) => <li key={i}>{t}</li>)}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -602,7 +616,20 @@ const RequestManager = ({ userId, propertyName }) => {
 // ... [EnvironmentalInsights, PropertyMap, PedigreeReport remain same] ...
 const EnvironmentalInsights = ({ propertyProfile }) => { const { coordinates } = propertyProfile || {}; const [airQuality, setAirQuality] = useState(null); const [solarData, setSolarData] = useState(null); const [loading, setLoading] = useState(false); useEffect(() => { if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return; const fetchData = async () => { setLoading(true); try { const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) }); if(aqRes.ok) { const aqData = await aqRes.json(); if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]); } const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`); if (solarRes.ok) setSolarData(await solarRes.json()); } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); } }; fetchData(); }, [coordinates]); if (!coordinates?.lat) return <div className="p-6 text-center text-gray-500">Location data missing.</div>; return (<div className="space-y-6"><h2 className="text-xl font-bold text-indigo-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (airQuality ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{airQuality.aqi}</span><span className="ml-2 text-sm font-medium text-gray-500">US AQI</span></div><p className="text-indigo-600 font-medium mt-1">{airQuality.category}</p></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div><div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData?.solarPotential?.maxSunshineHoursPerYear || 0)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div></div><PropertyMap propertyProfile={propertyProfile} /></div>); };
 const PropertyMap = ({ propertyProfile }) => { const address = propertyProfile?.address; const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home"; const encodedQuery = encodeURIComponent(mapQuery); const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`; return (<div className="space-y-6"><div className="bg-white p-4 rounded-2xl shadow-sm border border-indigo-100"><div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative"><iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe></div></div><div className="bg-indigo-50 p-6 rounded-2xl border border-indigo-100"><h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">The Home Depot <ExternalLink size={14}/></a><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-indigo-100 hover:shadow-md transition text-indigo-800 font-medium text-sm group">Lowe's <ExternalLink size={14}/></a></div></div></div>); };
-const RecordCard = ({ record, onDeleteClick, onEditClick }) => ( <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid"> {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>} <div className="p-5 flex flex-col space-y-3 flex-grow"> <div className="flex justify-between items-start border-b border-indigo-50 pb-2"> <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div> <div className="flex ml-2 print:hidden"> <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button> <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button> </div> </div> <div className="text-sm space-y-2"> <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p> {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>} {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>} {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>} {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>} {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>} {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>} {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>} {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>} {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>} {record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && ( <div className="mt-2 text-xs font-bold text-blue-600 flex items-center bg-blue-50 p-1 rounded"> <Clock className="h-3 w-3 mr-1"/> Maintenance: {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label} </div> )} </div> <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div> </div> </div> );
+const RecordCard = ({ record, onDeleteClick, onEditClick }) => ( <div className="bg-white p-0 rounded-xl shadow-sm border border-indigo-100 transition-all hover:shadow-lg flex flex-col overflow-hidden break-inside-avoid"> {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>} <div className="p-5 flex flex-col space-y-3 flex-grow"> <div className="flex justify-between items-start border-b border-indigo-50 pb-2"> <div className="font-bold text-xl text-indigo-800 leading-tight">{String(record.item || 'Unknown')}</div> <div className="flex ml-2 print:hidden"> <button onClick={() => onEditClick(record)} className="p-1 text-indigo-500 hover:text-indigo-700 mr-1" title="Edit"><Pencil size={20} /></button> <button onClick={() => onDeleteClick(record.id)} className="p-1 text-red-500 hover:text-red-700" title="Delete"><Trash2 size={20} /></button> </div> </div> <div className="text-sm space-y-2"> <p className="flex items-center text-gray-700 font-medium"><Home size={16} className="mr-3 text-indigo-500 min-w-[16px]" /> {String(record.area || 'Unknown')} / {String(record.category || 'General')}</p> {record.brand && <p className="flex items-center text-gray-600"><PaintBucket size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Brand' : 'Make'}: {record.brand}</p>} {record.model && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.category === 'Paint & Finishes' ? 'Color' : 'Model'}: {record.model}</p>} {record.sheen && <p className="flex items-center text-gray-600"><Layers size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Sheen: {record.sheen}</p>} {record.serialNumber && <p className="flex items-center text-gray-600"><Hash size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Serial #: {record.serialNumber}</p>} {record.material && <p className="flex items-center text-gray-600"><Info size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> Material: {record.material}</p>} {record.dateInstalled && <p className="flex items-center text-gray-600"><Calendar size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.dateInstalled}</p>} {record.contractor && <p className="flex items-center text-gray-600"><HardHat size={16} className="mr-3 text-indigo-400 min-w-[16px]" /> {record.contractorUrl ? <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline ml-1 print:no-underline print:text-gray-800">{record.contractor} <ExternalLink size={12} className="inline print:hidden"/></a> : record.contractor}</p>} {record.purchaseLink && <a href={record.purchaseLink} target="_blank" rel="noreferrer" className="flex items-center text-indigo-600 hover:underline print:hidden"><ExternalLink size={16} className="mr-3" /> Replacement Link</a>} {record.notes && <div className="mt-2 pt-3 border-t border-indigo-50 text-gray-500 text-xs italic bg-gray-50 p-2 rounded">{record.notes}</div>} {record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && ( <div className="mt-2 text-xs font-bold text-blue-600 flex items-center bg-blue-50 p-1 rounded"> <Clock className="h-3 w-3 mr-1"/> Maintenance: {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label} </div> )}
+                            
+                            {/* UPDATED: Show Tasks in Record Card */}
+                            {record.maintenanceTasks && record.maintenanceTasks.length > 0 && (
+                                <div className="mt-2 text-xs bg-gray-50 p-2 rounded border border-gray-100">
+                                    <p className="font-bold text-gray-500 mb-1 flex items-center">
+                                        <ListChecks size={10} className="mr-1"/> Recommended Tasks:
+                                    </p>
+                                    <ul className="list-disc pl-4 space-y-0.5 text-gray-600">
+                                        {record.maintenanceTasks.map((t, i) => <li key={i}>{t}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+ </div> <div className="text-xs text-gray-400 pt-2 mt-auto text-right">Logged: {String(record.timestamp || 'Just now')}</div> </div> </div> );
 const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChange, fileInputRef, isEditing, onCancelEdit }) => { const showSheen = newRecord.category === "Paint & Finishes"; const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category); const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category); const [isCustomArea, setIsCustomArea] = useState(false); useEffect(() => { if (newRecord.area && !ROOMS.includes(newRecord.area)) { setIsCustomArea(true); } else if (!newRecord.area) { setIsCustomArea(false); } }, [newRecord.area]); const handleRoomChange = (e) => { if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } else { setIsCustomArea(false); onInputChange(e); } }; let brandLabel = "Brand"; let modelLabel = "Model/Color Code"; if (newRecord.category === "Paint & Finishes") { brandLabel = "Paint Brand"; modelLabel = "Color Name/Code"; } else if (newRecord.category === "Appliances") { brandLabel = "Manufacturer"; modelLabel = "Model Number"; } const safeRecord = newRecord || initialRecordState; 
 
     // --- NEW: AI Suggestion Logic (UPDATED) ---
@@ -654,10 +681,8 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
             // Update Tasks (and show them)
             if (data.tasks && Array.isArray(data.tasks)) {
                 setSuggestedTasks(data.tasks);
-                // Optional: Automatically add tasks to the "Notes" field if it's empty
-                if (!safeRecord.notes) {
-                    onInputChange({ target: { name: 'notes', value: "Suggested Maintenance:\n- " + data.tasks.join("\n- ") } });
-                }
+                // Also update the parent state so it saves
+                onInputChange({ target: { name: 'maintenanceTasks', value: data.tasks } });
             }
 
         } catch (error) {
@@ -784,7 +809,7 @@ const AppContent = () => {
     // Calculate Next Service Date
     const nextServiceDate = calculateNextDate(newRecord.dateInstalled, newRecord.maintenanceFrequency);
 
-    const recordData = { ...newRecord, nextServiceDate, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
+    const recordData = { ...newRecord, nextServiceDate, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), maintenanceTasks: suggestedTasks || [] }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId, suggestedTasks]); 
     const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
     const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
 
