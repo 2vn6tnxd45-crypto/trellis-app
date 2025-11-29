@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HausKey | The Property Pedigree for Your Home</title>
     
     <!-- Favicon Link -->
@@ -24,6 +24,22 @@
             background-position: 0 0, 10px 10px;
             opacity: 0.1;
         }
+
+        /* --- NEW ANIMATION CSS --- */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-on-load {
+            opacity: 0;
+            animation: fadeSlideUp 0.8s ease-out forwards;
+        }
+        
+        /* Apply delays for staggered effect */
+        .animate-on-load.delay-1 { animation-delay: 0.2s; }
+        .animate-on-load.delay-2 { animation-delay: 0.4s; }
+        .animate-on-load.delay-3 { animation-delay: 0.6s; }
     </style>
 </head>
 <body class="text-gray-800 antialiased">
@@ -50,16 +66,16 @@
     <div class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div class="absolute inset-0 hero-pattern z-0"></div>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-            <div class="inline-flex items-center px-3 py-1 rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wide mb-6">
+            <div class="inline-flex items-center px-3 py-1 rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wide mb-6 animate-on-load">
                 <span class="w-2 h-2 bg-indigo-600 rounded-full mr-2 animate-pulse"></span> The New Standard for Homeowners
             </div>
-            <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-tight">
+            <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-tight animate-on-load delay-1">
                 The <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500">Property Pedigree</span> <br> for your home.
             </h1>
-            <p class="mt-4 max-w-2xl mx-auto text-xl text-gray-500">
+            <p class="mt-4 max-w-2xl mx-auto text-xl text-gray-500 animate-on-load delay-2">
                 Stop digging through drawers for old receipts. HausKey creates a permanent, transferrable digital pedigree of your home's history, maintenance, and upgrades.
             </p>
-            <div class="mt-10 flex justify-center gap-4">
+            <div class="mt-10 flex justify-center gap-4 animate-on-load delay-3">
                 <a href="/app" class="px-8 py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 transition shadow-xl shadow-indigo-200 flex items-center">
                     <i data-lucide="home" class="mr-2 h-5 w-5"></i> Claim Your Address
                 </a>
@@ -68,7 +84,7 @@
                 </a>
             </div>
             
-            <p class="mt-8 text-sm text-gray-400 uppercase tracking-widest font-semibold">Trust the data, not the memory</p>
+            <p class="mt-8 text-sm text-gray-400 uppercase tracking-widest font-semibold animate-on-load delay-3">Trust the data, not the memory</p>
         </div>
     </div>
 
@@ -195,7 +211,7 @@
                 <span class="text-2xl font-bold text-white tracking-tight">HausKey</span>
             </div>
             <div class="flex space-x-6 text-gray-400 text-sm">
-                <a href="#" class="hover:text-white">Privacy Policy</a>
+                <a href="/privacy_policy.html" class="hover:text-white">Privacy Policy</a>
                 <a href="#" class="hover:text-white">Terms of Service</a>
                 <a href="#" class="hover:text-white">Contact</a>
             </div>
