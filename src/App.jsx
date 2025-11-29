@@ -40,8 +40,8 @@ try {
     
     // NEW: Start the AI engine
     const vertexAI = getVertexAI(app);
-    // NEW: Select the "Flash" model (Cheaper & Faster)
-    window.geminiModel = getGenerativeModel(vertexAI, { model: "gemini-1.5-flash" });
+    // FIX: Updated to Gemini 2.0 Flash because 1.5 is retired
+    window.geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
 
 } catch (e) {
     console.error("Firebase Init Error:", e);
