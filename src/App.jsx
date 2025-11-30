@@ -900,14 +900,29 @@ const AppContent = () => {
     const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
     
     // UPDATED: Handle Save Profile triggers Onboarding
-    const handleSaveProfile = async (e) => { 
-        e.preventDefault(); 
-        const f = e.target; 
-        const name = f.querySelector('input[name="propertyName"]').value; 
+    const handleSaveProfile = async (formData) => { 
+        // e.preventDefault();  <-- REMOVED: formData is not an event
+        const name = formData.get('propertyName'); 
         if(!name) return; 
         setIsSaving(true); 
         try { 
-            const data = { name, address: { street: f.querySelector('input[name="streetAddress"]').value, city: f.querySelector('input[name="city"]').value, state: f.querySelector('input[name="state"]').value, zip: f.querySelector('input[name="zip"]').value }, yearBuilt: f.querySelector('input[name="yearBuilt"]')?.value, sqFt: f.querySelector('input[name="sqFt"]')?.value, lotSize: f.querySelector('input[name="lotSize"]')?.value, coordinates: (f.querySelector('input[name="lat"]')?.value && f.querySelector('input[name="lon"]')?.value) ? { lat: f.querySelector('input[name="lat"]').value, lon: f.querySelector('input[name="lon"]').value } : null, createdAt: serverTimestamp() }; 
+            const data = { 
+                name, 
+                address: { 
+                    street: formData.get('streetAddress'), 
+                    city: formData.get('city'), 
+                    state: formData.get('state'), 
+                    zip: formData.get('zip') 
+                }, 
+                yearBuilt: formData.get('yearBuilt'), 
+                sqFt: formData.get('sqFt'), 
+                lotSize: formData.get('lotSize'), 
+                coordinates: (formData.get('lat') && formData.get('lon')) ? { 
+                    lat: parseFloat(formData.get('lat')), 
+                    lon: parseFloat(formData.get('lon')) 
+                } : null, 
+                createdAt: serverTimestamp() 
+            }; 
             await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'), data); 
             setPropertyProfile(data);
             // Trigger Welcome Modal
