@@ -3,29 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HausKey | The Property Pedigree for Your Home</title>
+    <title>HausKey | The Property Pedigree</title>
     
     <!-- Favicon Link -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Updated Font: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+    
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Outfit', sans-serif; }
+        
         .glass-nav {
             background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #f0f9ff;
         }
+        
         .hero-pattern {
-            background-color: #ffffff;
-            background-image: radial-gradient(#4F46E5 0.5px, transparent 0.5px), radial-gradient(#4F46E5 0.5px, #ffffff 0.5px);
-            background-size: 20px 20px;
-            background-position: 0 0, 10px 10px;
-            opacity: 0.1;
+            background-color: #f8fafc;
+            background-image: radial-gradient(#bae6fd 0.5px, transparent 0.5px), radial-gradient(#bae6fd 0.5px, #f8fafc 0.5px);
+            background-size: 24px 24px;
+            background-position: 0 0, 12px 12px;
+            opacity: 0.6;
         }
 
-        /* --- NEW ANIMATION CSS --- */
+        /* Animations */
         @keyframes fadeSlideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -33,30 +41,37 @@
 
         .animate-on-load {
             opacity: 0;
-            animation: fadeSlideUp 0.8s ease-out forwards;
+            animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
         
-        /* Apply delays for staggered effect */
-        .animate-on-load.delay-1 { animation-delay: 0.2s; }
-        .animate-on-load.delay-2 { animation-delay: 0.4s; }
-        .animate-on-load.delay-3 { animation-delay: 0.6s; }
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
     </style>
 </head>
-<body class="text-gray-800 antialiased">
+<body class="text-slate-800 antialiased bg-slate-50 selection:bg-sky-200">
 
     <!-- Navbar -->
-    <nav class="fixed w-full z-50 top-0 glass-nav border-b border-gray-100">
+    <nav class="fixed w-full z-50 top-0 glass-nav">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
-                <div class="flex items-center">
-                    <img src="/logo.svg" alt="HausKey Logo" class="h-10 w-10 mr-3">
-                    <span class="text-2xl font-extrabold text-indigo-900 tracking-tight">HausKey</span>
+                <div class="flex items-center gap-2">
+                    <!-- Inline Logo SVG for immediate load -->
+                    <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#0ea5e9" stroke-width="8" stroke-linejoin="round"/>
+                        <circle cx="50" cy="50" r="10" fill="#0c4a6e"/>
+                        <rect x="46" y="55" width="8" height="25" rx="2" fill="#0c4a6e"/>
+                        <rect x="54" y="65" width="6" height="4" fill="#0c4a6e"/>
+                        <rect x="54" y="72" width="4" height="4" fill="#0c4a6e"/>
+                        <circle cx="50" cy="50" r="3" fill="white"/>
+                    </svg>
+                    <span class="text-2xl font-extrabold text-sky-900 tracking-tight">Haus<span class="text-sky-500 font-normal">Key</span></span>
                 </div>
                 <div class="hidden md:flex space-x-8 items-center">
-                    <a href="#features" class="text-gray-500 hover:text-indigo-600 font-medium">Features</a>
-                    <a href="#value" class="text-gray-500 hover:text-indigo-600 font-medium">For Sellers</a>
-                    <a href="/app" class="text-indigo-600 font-semibold">Log In</a>
-                    <a href="/app" class="px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">Start My Log</a>
+                    <a href="#features" class="text-slate-500 hover:text-sky-600 font-medium text-sm transition">Features</a>
+                    <a href="#value" class="text-slate-500 hover:text-sky-600 font-medium text-sm transition">For Sellers</a>
+                    <a href="/app" class="text-sky-700 font-bold hover:text-sky-900 transition">Log In</a>
+                    <a href="/app" class="px-5 py-2.5 rounded-xl bg-sky-900 text-white font-bold hover:bg-sky-800 transition shadow-lg shadow-sky-900/20 text-sm">Start My Log</a>
                 </div>
             </div>
         </div>
@@ -66,56 +81,56 @@
     <div class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div class="absolute inset-0 hero-pattern z-0"></div>
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-            <div class="inline-flex items-center px-3 py-1 rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 text-xs font-bold uppercase tracking-wide mb-6 animate-on-load">
-                <span class="w-2 h-2 bg-indigo-600 rounded-full mr-2 animate-pulse"></span> The New Standard for Homeowners
+            <div class="inline-flex items-center px-4 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 text-xs font-bold uppercase tracking-widest mb-8 animate-on-load">
+                <span class="w-2 h-2 bg-sky-500 rounded-full mr-2 animate-pulse"></span> The New Standard for Homeowners
             </div>
-            <h1 class="text-5xl md:text-7xl font-extrabold text-gray-900 tracking-tight mb-6 leading-tight animate-on-load delay-1">
-                The <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-500">Property Pedigree</span> <br> for your home.
+            <h1 class="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-tight mb-6 leading-tight animate-on-load delay-1">
+                The <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-400">Property Pedigree</span> <br> for your home.
             </h1>
-            <p class="mt-4 max-w-2xl mx-auto text-xl text-gray-500 animate-on-load delay-2">
+            <p class="mt-6 max-w-2xl mx-auto text-xl text-slate-500 animate-on-load delay-2 font-light leading-relaxed">
                 Stop digging through drawers for old receipts. HausKey creates a permanent, transferrable digital pedigree of your home's history, maintenance, and upgrades.
             </p>
-            <div class="mt-10 flex justify-center gap-4 animate-on-load delay-3">
-                <a href="/app" class="px-8 py-4 rounded-xl bg-indigo-600 text-white font-bold text-lg hover:bg-indigo-700 transition shadow-xl shadow-indigo-200 flex items-center">
+            <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4 animate-on-load delay-3">
+                <a href="/app" class="px-8 py-4 rounded-2xl bg-sky-900 text-white font-bold text-lg hover:bg-sky-800 transition shadow-xl shadow-sky-900/20 flex items-center justify-center">
                     <i data-lucide="home" class="mr-2 h-5 w-5"></i> Claim Your Address
                 </a>
-                <a href="pedigree_report.html" class="px-8 py-4 rounded-xl bg-white text-gray-700 font-bold text-lg border border-gray-200 hover:bg-gray-50 transition flex items-center">
+                <a href="pedigree_report.html" class="px-8 py-4 rounded-2xl bg-white text-slate-700 font-bold text-lg border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center">
                     See Example Pedigree
                 </a>
             </div>
             
-            <p class="mt-8 text-sm text-gray-400 uppercase tracking-widest font-semibold animate-on-load delay-3">Trust the data, not the memory</p>
+            <p class="mt-8 text-xs text-slate-400 uppercase tracking-widest font-bold animate-on-load delay-3">Secure • Transferable • Private</p>
         </div>
     </div>
 
     <!-- Value Proposition Grid -->
-    <div id="features" class="py-24 bg-gray-50">
+    <div id="features" class="py-24 bg-white">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-6">
-                        <i data-lucide="history" class="text-indigo-600 h-6 w-6"></i>
+                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
+                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="history" class="text-sky-600 h-7 w-7"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-3">Permanent History</h3>
-                    <p class="text-gray-500 leading-relaxed">
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Permanent History</h3>
+                    <p class="text-slate-500 leading-relaxed">
                         From the exact brand of paint in the living room to the date your HVAC was replaced. Build a complete pedigree of care.
                     </p>
                 </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-6">
-                        <i data-lucide="file-check" class="text-blue-600 h-6 w-6"></i>
+                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
+                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="file-check" class="text-sky-600 h-7 w-7"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-3">Warranty Tracker</h3>
-                    <p class="text-gray-500 leading-relaxed">
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Warranty Tracker</h3>
+                    <p class="text-slate-500 leading-relaxed">
                         Upload photos of receipts and warranty cards. We keep them safe and searchable so you can file claims in seconds.
                     </p>
                 </div>
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
-                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-6">
-                        <i data-lucide="arrow-right-left" class="text-green-600 h-6 w-6"></i>
+                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
+                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
+                        <i data-lucide="arrow-right-left" class="text-sky-600 h-7 w-7"></i>
                     </div>
-                    <h3 class="text-xl font-bold text-gray-900 mb-3">Transfer on Sale</h3>
-                    <p class="text-gray-500 leading-relaxed">
+                    <h3 class="text-xl font-bold text-slate-900 mb-3">Transfer on Sale</h3>
+                    <p class="text-slate-500 leading-relaxed">
                         Selling? Transfer the entire HausKey pedigree to the new owner. Prove the value of your upgrades instantly.
                     </p>
                 </div>
@@ -123,100 +138,45 @@
         </div>
     </div>
 
-    <!-- Mockup / Show, Don't Tell -->
-    <div class="py-24 bg-white overflow-hidden">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center">
-            <div class="md:w-1/2 mb-12 md:mb-0 pr-0 md:pr-16">
-                <h2 class="text-4xl font-extrabold text-gray-900 mb-6">Your house, documented in seconds.</h2>
-                <ul class="space-y-6">
-                    <li class="flex items-start">
-                        <div class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 flex items-center justify-center mt-1">
-                            <i data-lucide="check" class="h-4 w-4 text-green-600"></i>
-                        </div>
-                        <p class="ml-4 text-lg text-gray-600">Mobile-first design for logging while you work.</p>
-                    </li>
-                    <li class="flex items-start">
-                        <div class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 flex items-center justify-center mt-1">
-                            <i data-lucide="check" class="h-4 w-4 text-green-600"></i>
-                        </div>
-                        <p class="ml-4 text-lg text-gray-600">Searchable database for "What filter does the furnace use?"</p>
-                    </li>
-                    <li class="flex items-start">
-                        <div class="flex-shrink-0 h-6 w-6 rounded-full bg-green-100 flex items-center justify-center mt-1">
-                            <i data-lucide="check" class="h-4 w-4 text-green-600"></i>
-                        </div>
-                        <p class="ml-4 text-lg text-gray-600">Secure cloud storage for peace of mind.</p>
-                    </li>
-                </ul>
-            </div>
-            <div class="md:w-1/2 relative">
-                <!-- Abstract representation of the App Interface -->
-                <div class="rounded-2xl shadow-2xl bg-gray-900 border border-gray-800 p-2 transform rotate-2 hover:rotate-0 transition duration-500">
-                    <div class="bg-gray-50 rounded-xl overflow-hidden h-96 flex flex-col">
-                        <div class="bg-white p-4 border-b border-gray-100 flex justify-between items-center">
-                            <div class="font-bold text-indigo-900">123 Maple Ave</div>
-                            <div class="h-8 w-8 bg-indigo-100 rounded-full"></div>
-                        </div>
-                        <div class="p-4 space-y-4">
-                            <!-- Fake Record Card 1 -->
-                            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                <div class="flex justify-between mb-2">
-                                    <div class="font-bold text-gray-800">HVAC Replacement</div>
-                                    <span class="text-xs text-gray-400">Oct 2023</span>
-                                </div>
-                                <div class="text-sm text-gray-500">Trane XR14 - 5 Ton Unit</div>
-                                <div class="mt-2 text-xs text-indigo-600 font-medium flex items-center">
-                                    <i data-lucide="file-text" class="h-3 w-3 mr-1"></i> Warranty Active
-                                </div>
-                            </div>
-                            <!-- Fake Record Card 2 -->
-                            <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                                <div class="flex justify-between mb-2">
-                                    <div class="font-bold text-gray-800">Living Room Paint</div>
-                                    <span class="text-xs text-gray-400">Jan 2024</span>
-                                </div>
-                                <div class="text-sm text-gray-500">Sherwin Williams - Agreeable Gray</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- CTA Section -->
-    <div class="bg-indigo-900 py-20">
-        <div class="max-w-4xl mx-auto px-4 text-center">
-            <h2 class="text-3xl md:text-4xl font-bold text-white mb-6">Ready to build your property pedigree?</h2>
-            <p class="text-indigo-200 text-lg mb-10">Join thousands of smart homeowners securing their property's history today.</p>
+    <div class="bg-sky-950 py-24 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 30px 30px;"></div>
+        <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
+            <h2 class="text-4xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">Ready to build your legacy?</h2>
+            <p class="text-sky-200 text-lg mb-10 font-light">Join thousands of smart homeowners securing their property's history today.</p>
             
-            <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto" action="/app" method="GET">
+            <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto" action="/app" method="GET">
                 <input 
                     type="email" 
                     name="email" 
                     required 
                     placeholder="Enter your email" 
-                    class="px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 flex-grow text-gray-900"
+                    class="px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 flex-grow text-slate-900 font-medium"
                 >
-                <button type="submit" class="px-8 py-4 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold transition shadow-lg">Get Started Free</button>
+                <button type="submit" class="px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold transition shadow-lg whitespace-nowrap">Get Started</button>
             </form>
-            <p class="mt-4 text-xs text-indigo-300">No credit card required. Free for single-family homes.</p>
+            <p class="mt-6 text-xs text-sky-400 font-medium tracking-wide uppercase">No credit card required • Free for single-family homes</p>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-900 border-t border-gray-800 pt-12 pb-8">
+    <footer class="bg-slate-900 border-t border-slate-800 pt-16 pb-8">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-            <div class="flex items-center mb-4 md:mb-0">
+            <div class="flex items-center mb-6 md:mb-0 gap-3">
+                <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#38bdf8" stroke-width="8" stroke-linejoin="round"/>
+                    <circle cx="50" cy="50" r="10" fill="#bae6fd"/>
+                    <rect x="46" y="55" width="8" height="25" rx="2" fill="#bae6fd"/>
+                </svg>
                 <span class="text-2xl font-bold text-white tracking-tight">HausKey</span>
             </div>
-            <div class="flex space-x-6 text-gray-400 text-sm">
-                <a href="/privacy_policy.html" class="hover:text-white">Privacy Policy</a>
-                <a href="#" class="hover:text-white">Terms of Service</a>
-                <a href="#" class="hover:text-white">Contact</a>
+            <div class="flex space-x-8 text-slate-400 text-sm font-medium">
+                <a href="/privacy_policy.html" class="hover:text-white transition">Privacy Policy</a>
+                <a href="#" class="hover:text-white transition">Terms of Service</a>
+                <a href="#" class="hover:text-white transition">Contact</a>
             </div>
         </div>
-        <div class="text-center text-gray-600 text-xs mt-8">
+        <div class="text-center text-slate-600 text-xs mt-12">
             &copy; 2024 HausKey Home Data, Inc. All rights reserved.
         </div>
     </footer>
