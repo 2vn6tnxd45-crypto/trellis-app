@@ -28,7 +28,7 @@ const firebaseConfig = {
 };
 
 const googleMapsApiKey = "AIzaSyC1gVI-IeB2mbLAlHgJDmrPKwcZTpVWPOw"; 
-const PUBLIC_COLLECTION_PATH = `/artifacts/${appId}/public/data/house_records`;
+// UPDATED: Removed PUBLIC_COLLECTION_PATH to enforce user-specific paths
 const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 
 // Initialize Firebase GLOBALLY
@@ -599,7 +599,8 @@ const RequestManager = ({ userId, propertyName }) => {
     const approveRequest = async (req) => {
         if (!confirm("Approve this record and add to your log?")) return;
         try {
-            await addDoc(collection(db, `/artifacts/${appId}/public/data/house_records`), {
+            // UPDATED: Save approved record to USER-SPECIFIC path
+            await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'house_records'), {
                 userId,
                 propertyLocation: propertyName,
                 category: req.category,
@@ -885,7 +886,8 @@ const AppContent = () => {
 
     useEffect(() => {
         if (isContractorMode || !isAuthReady || !userId || !propertyProfile) return;
-        const q = query(collection(db, PUBLIC_COLLECTION_PATH));
+        // UPDATED: Now queries a USER-SPECIFIC path
+        const q = query(collection(db, 'artifacts', appId, 'users', userId, 'house_records'));
         const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load"));
         return () => unsub();
     }, [isAuthReady, userId, propertyProfile?.name, isContractorMode]);
@@ -938,13 +940,57 @@ const AppContent = () => {
     const handleFileChange = useCallback((e) => { if (e.target.files[0]) setSelectedFile(e.target.files[0]); }, []);
     const handleEditClick = (record) => { setNewRecord(record); setEditingId(record.id); setActiveTab('Add Record'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const handleCancelEdit = () => { setNewRecord(initialRecordState); setEditingId(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
-    const saveRecord = useCallback(async (e) => { e.preventDefault(); if (!db || !userId || isSaving) return; if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } setIsSaving(true); setError(null); try { let finalImageUrl = ''; if (selectedFile) { if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); else throw new Error("Image too large (Max 1MB)"); } 
     
-    // Calculate Next Service Date
-    const nextServiceDate = calculateNextDate(newRecord.dateInstalled, newRecord.maintenanceFrequency);
+    // UPDATED: saveRecord uses USER-SPECIFIC path
+    const saveRecord = useCallback(async (e) => { 
+        e.preventDefault(); 
+        if (!db || !userId || isSaving) return; 
+        if (!newRecord.area || !newRecord.category || !newRecord.item) { setError("Missing fields."); return; } 
+        setIsSaving(true); 
+        setError(null); 
+        try { 
+            let finalImageUrl = ''; 
+            if (selectedFile) { 
+                if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); 
+                else throw new Error("Image too large (Max 1MB)"); 
+            } 
+            // Calculate Next Service Date
+            const nextServiceDate = calculateNextDate(newRecord.dateInstalled, newRecord.maintenanceFrequency);
 
-    const recordData = { ...newRecord, nextServiceDate, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), maintenanceTasks: newRecord.maintenanceTasks || [] }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
-    const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
+            const recordData = { 
+                ...newRecord, 
+                nextServiceDate, 
+                propertyLocation: propertyProfile?.name || 'My Property', 
+                imageUrl: finalImageUrl || newRecord.imageUrl, 
+                userId: currentUser.uid, 
+                timestamp: editingId ? newRecord.timestamp : serverTimestamp(), 
+                maintenanceTasks: newRecord.maintenanceTasks || [] 
+            }; 
+            
+            // UPDATED PATH
+            const userRecordsRef = collection(db, 'artifacts', appId, 'users', userId, 'house_records');
+
+            if (editingId) { 
+                await updateDoc(doc(userRecordsRef, editingId), recordData); 
+            } else { 
+                await addDoc(userRecordsRef, recordData); 
+            } 
+            setNewRecord(initialRecordState); 
+            setEditingId(null); 
+            setSelectedFile(null); 
+            if (fileInputRef.current) fileInputRef.current.value = ""; 
+            setActiveTab('View Records'); 
+        } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } 
+    }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId, userId]); 
+    
+    // UPDATED: Deletion logic uses USER-SPECIFIC path
+    const handleDeleteConfirmed = async () => { 
+        if(!db || !confirmDelete || !userId) return; 
+        try { 
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', userId, 'house_records', confirmDelete)); 
+            setConfirmDelete(null); 
+        } catch(e){ setError("Delete failed."); } 
+    };
     const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
     
     // --- NEW: Handle Task Completion ---
@@ -954,14 +1000,16 @@ const AppContent = () => {
             const today = new Date().toISOString().split('T')[0];
             const nextDate = calculateNextDate(today, task.maintenanceFrequency);
             
+            const userRecordsRef = collection(db, 'artifacts', appId, 'users', userId, 'house_records');
+
             // 1. Update the Active Record
-            await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, task.id), {
+            await updateDoc(doc(userRecordsRef, task.id), {
                 lastServiceDate: today,
                 nextServiceDate: nextDate
             });
 
             // 2. Create a Historical Log Entry
-            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), {
+            await addDoc(userRecordsRef, {
                 userId: currentUser.uid,
                 propertyLocation: propertyProfile?.name || 'My Property',
                 category: "Service & Repairs",
@@ -984,7 +1032,8 @@ const AppContent = () => {
         const today = new Date().toISOString().split('T')[0];
         const nextDate = calculateNextDate(today, stdItem.maintenanceFrequency);
         try {
-            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), {
+            // UPDATED PATH
+            await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'house_records'), {
                 userId: currentUser.uid,
                 propertyLocation: propertyProfile?.name || 'My Property',
                 category: stdItem.category,
