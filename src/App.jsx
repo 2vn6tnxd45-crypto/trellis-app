@@ -9,7 +9,7 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs, updateDoc, where
 } from 'firebase/firestore';
-// FIX: Updated import path from 'vertexai-preview' to 'vertexai'
+// Vertex AI import for Firebase v11+
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
 import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus } from 'lucide-react';
 
@@ -38,7 +38,7 @@ try {
     auth = getAuth(app);
     db = getFirestore(app);
     
-    // NEW: Start the AI engine
+    // Initialize Vertex AI
     try {
         const vertexAI = getVertexAI(app);
         window.geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
