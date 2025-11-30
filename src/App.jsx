@@ -9,9 +9,9 @@ import {
     getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, 
     doc, deleteDoc, setLogLevel, setDoc, getDoc, writeBatch, getDocs, updateDoc, where
 } from 'firebase/firestore';
-// FIX: Use the 'preview' path which is safer for build servers
-import { getVertexAI, getGenerativeModel } from "firebase/vertexai-preview";
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks } from 'lucide-react';
+// FIX: Updated import path from 'vertexai-preview' to 'vertexai'
+import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus } from 'lucide-react';
 
 // --- Global Config & Init ---
 
@@ -39,9 +39,12 @@ try {
     db = getFirestore(app);
     
     // NEW: Start the AI engine
-    const vertexAI = getVertexAI(app);
-    // FIX: Updated to Gemini 2.0 Flash because 1.5 is retired
-    window.geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
+    try {
+        const vertexAI = getVertexAI(app);
+        window.geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
+    } catch (aiError) {
+        console.warn("AI Initialization failed (optional feature):", aiError);
+    }
 
 } catch (e) {
     console.error("Firebase Init Error:", e);
@@ -133,6 +136,20 @@ const loadGoogleMapsScript = () => {
     return googleMapsScriptLoadingPromise;
 };
 
+// --- NEW: Standard Maintenance List ---
+const STANDARD_MAINTENANCE_ITEMS = [
+    { category: "HVAC & Systems", item: "Replace HVAC Filters", maintenanceFrequency: "quarterly", tasks: ["Check filter size", "Replace if dirty", "Mark installation date"] },
+    { category: "HVAC & Systems", item: "Clean AC Condenser Unit", maintenanceFrequency: "annual", tasks: ["Remove leaves/debris", "Spray down fins with water", "Check for damage"] },
+    { category: "Safety", item: "Test Smoke Detectors", maintenanceFrequency: "quarterly", tasks: ["Press test button", "Vacuum dust from cover"] },
+    { category: "Plumbing", item: "Flush Water Heater", maintenanceFrequency: "annual", tasks: ["Connect hose to drain valve", "Flush sediment until clear", "Check anode rod"] },
+    { category: "Appliances", item: "Clean Dryer Vent Duct", maintenanceFrequency: "annual", tasks: ["Disconnect duct", "Vacuum lint from hose and wall", "Check exterior flap"] },
+    { category: "Appliances", item: "Clean Refrigerator Coils", maintenanceFrequency: "annual", tasks: ["Vacuum coils at bottom/back", "Clean drip pan"] },
+    { category: "Roof & Exterior", item: "Clean Gutters", maintenanceFrequency: "semiannual", tasks: ["Remove debris", "Flush downspouts", "Check for leaks"] },
+    { category: "Roof & Exterior", item: "Inspect Roof", maintenanceFrequency: "annual", tasks: ["Check for missing shingles", "Inspect flashing", "Look for moss growth"] },
+    { category: "Plumbing", item: "Test Sump Pump", maintenanceFrequency: "semiannual", tasks: ["Pour water in pit", "Ensure float triggers pump", "Check discharge line"] },
+    { category: "Interior", item: "Inspect Caulking", maintenanceFrequency: "annual", tasks: ["Check tubs/showers", "Check sink seals", "Re-caulk if peeling"] }
+];
+
 // --- Date Helper for Maintenance ---
 const calculateNextDate = (startDate, frequency) => {
     if (!startDate || !frequency || frequency === 'none') return null;
@@ -160,7 +177,7 @@ const calculateNextDate = (startDate, frequency) => {
 
 
 // --- CATEGORY & ROOM DEFINITIONS ---
-const CATEGORIES = ["Paint & Finishes", "Appliances", "Flooring", "HVAC & Systems", "Plumbing", "Electrical", "Roof & Exterior", "Landscaping", "Service & Repairs", "Other"];
+const CATEGORIES = ["Paint & Finishes", "Appliances", "Flooring", "HVAC & Systems", "Plumbing", "Electrical", "Roof & Exterior", "Landscaping", "Service & Repairs", "Safety", "Interior", "Other"];
 const ROOMS = ["Kitchen", "Living Room", "Dining Room", "Master Bedroom", "Bedroom", "Master Bathroom", "Bathroom", "Office", "Laundry Room", "Garage", "Basement", "Attic", "Exterior", "Hallway", "Entryway", "Patio/Deck", "Other (Custom)"];
 const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];
@@ -178,7 +195,7 @@ const MAINTENANCE_FREQUENCIES = [
 const initialRecordState = {
     area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
     material: '', sheen: '', dateInstalled: '', contractor: '', contractorUrl: '',
-    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, maintenanceTasks: [] // NEW FIELD
+    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, lastServiceDate: null, maintenanceTasks: [] 
 };
 
 // --- Components ---
@@ -191,10 +208,12 @@ const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error:
 const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => { const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: '' }); const inputRef = useRef(null); useEffect(() => { window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); }; loadGoogleMapsScript().then(() => { if (inputRef.current && window.google && window.google.maps && window.google.maps.places) { try { const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] }); inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); }); auto.addListener('place_changed', () => { const place = auto.getPlace(); if (!place.geometry) return; let streetNum = '', route = '', city = '', state = '', zip = ''; if (place.address_components) { place.address_components.forEach(comp => { if (comp.types.includes('street_number')) streetNum = comp.long_name; if (comp.types.includes('route')) route = comp.long_name; if (comp.types.includes('locality')) city = comp.long_name; if (comp.types.includes('administrative_area_level_1')) state = comp.short_name; if (comp.types.includes('postal_code')) zip = comp.long_name; }); } setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() })); if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim(); }); } catch (e) { console.warn("Google Auto fail", e); } } }).catch(err => console.error("Maps load error", err)); }, []); const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); }; const handleSubmit = (e) => { e.preventDefault(); const formDataObj = new FormData(e.target); if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value); onSave(formDataObj); }; return (<div className="flex items-center justify-center min-h-[90vh] print:hidden"><div className="max-w-lg w-full bg-white p-8 rounded-2xl shadow-2xl border-t-4 border-indigo-600 text-center relative"><button onClick={onSignOut} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 flex items-center text-xs font-medium"><LogOut size={14} className="mr-1" /> Sign Out</button><div className="flex justify-center mb-6"><img src={logoSrc} alt="HausKey Logo" className="h-24 w-24 shadow-md rounded-xl" style={{height:'64px',width:'64px'}} /><h2 className="text-3xl font-extrabold text-indigo-900 mb-2">Property Setup</h2><p className="text-gray-500 mb-6 leading-relaxed text-sm">Start typing your address.</p></div><form onSubmit={handleSubmit} className="space-y-5 text-left relative"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="relative"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3 top-3.5 text-gray-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="w-full rounded-lg border-gray-300 shadow-sm p-3 pl-10 border"/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div><div><label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-3 border"/></div></div></div><div className="pt-4 border-t border-gray-100"><p className="text-xs text-indigo-600 font-semibold mb-3">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-lg border-gray-300 shadow-sm p-2 border text-sm"/></div></div></div><input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} /><button type="submit" disabled={isSaving} className="w-full py-3 px-4 rounded-lg shadow-lg text-white bg-indigo-600 hover:bg-indigo-700 font-bold text-lg disabled:opacity-70">{isSaving ? 'Saving...' : 'Create My Home Log'}</button></form></div></div>); };
 
 // --- NEW: Maintenance Dashboard Component ---
-const MaintenanceDashboard = ({ records }) => {
+const MaintenanceDashboard = ({ records, onCompleteTask, onAddStandardTask }) => {
     const [tasks, setTasks] = useState([]);
+    const [suggestions, setSuggestions] = useState([]);
 
     useEffect(() => {
+        // 1. Process Active Tasks from Records
         if (records) {
             const maintenanceTasks = records
                 .filter(r => r.maintenanceFrequency && r.maintenanceFrequency !== 'none' && r.nextServiceDate)
@@ -213,64 +232,87 @@ const MaintenanceDashboard = ({ records }) => {
                 .sort((a, b) => a.daysUntil - b.daysUntil);
             
             setTasks(maintenanceTasks);
+
+            // 2. Identify Missing Standard Tasks (Deduplication Logic)
+            const missing = STANDARD_MAINTENANCE_ITEMS.filter(std => {
+                // Check if we have a record with this name
+                const hasItem = records.some(r => r.item.toLowerCase().includes(std.item.toLowerCase()));
+                // Check if any record has this task listed in its AI suggestions
+                const hasTaskInAi = records.some(r => 
+                    r.maintenanceTasks && r.maintenanceTasks.some(t => t.toLowerCase().includes(std.item.toLowerCase()))
+                );
+                return !hasItem && !hasTaskInAi;
+            });
+            setSuggestions(missing);
         }
     }, [records]);
 
-    if (tasks.length === 0) {
-        return (
-            <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200">
-                <Wrench size={48} className="mx-auto text-indigo-400 mb-4"/>
-                <p className="text-gray-600 font-medium text-lg">No maintenance scheduled.</p>
-                <p className="text-gray-400 text-sm mt-2">Add maintenance frequency to your records to see upcoming tasks here.</p>
-            </div>
-        );
-    }
-
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
+            {/* Active Tasks Section */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100">
                  <h2 className="text-2xl font-bold text-indigo-900 mb-4 flex items-center">
-                    <Wrench className="mr-2 h-6 w-6 text-indigo-600" /> Maintenance Schedule
+                    <Wrench className="mr-2 h-6 w-6 text-indigo-600" /> Active Schedule
                 </h2>
-                <div className="grid gap-4">
-                    {tasks.map(task => (
-                        <div key={task.id} className={`p-4 rounded-lg border-l-4 shadow-sm bg-white ${
-                            task.status === 'overdue' ? 'border-red-500 bg-red-50' : 
-                            task.status === 'due-soon' ? 'border-yellow-500 bg-yellow-50' : 
-                            'border-green-500'
-                        }`}>
-                            <div className="flex justify-between items-center mb-2">
-                                <div>
+                {tasks.length === 0 ? (
+                    <p className="text-gray-500 italic">No scheduled maintenance found.</p>
+                ) : (
+                    <div className="grid gap-4">
+                        {tasks.map(task => (
+                            <div key={task.id} className={`p-4 rounded-lg border-l-4 shadow-sm bg-white flex flex-col md:flex-row justify-between items-start md:items-center ${
+                                task.status === 'overdue' ? 'border-red-500 bg-red-50' : 
+                                task.status === 'due-soon' ? 'border-yellow-500 bg-yellow-50' : 
+                                'border-green-500'
+                            }`}>
+                                <div className="mb-2 md:mb-0">
                                     <h4 className="font-bold text-gray-800">{task.item}</h4>
-                                    <p className="text-sm text-gray-600">{task.category} - {MAINTENANCE_FREQUENCIES.find(f => f.value === task.maintenanceFrequency)?.label}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className={`font-bold ${
+                                    <p className="text-sm text-gray-600">{task.category} • {MAINTENANCE_FREQUENCIES.find(f => f.value === task.maintenanceFrequency)?.label}</p>
+                                    <p className={`text-sm font-bold mt-1 ${
                                         task.status === 'overdue' ? 'text-red-600' : 
                                         task.status === 'due-soon' ? 'text-yellow-600' : 
                                         'text-green-600'
                                     }`}>
                                         {task.status === 'overdue' ? `Overdue by ${Math.abs(task.daysUntil)} days` : `Due in ${task.daysUntil} days`}
                                     </p>
-                                    <p className="text-xs text-gray-500">{new Date(task.nextServiceDate).toLocaleDateString()}</p>
                                 </div>
+                                <button 
+                                    onClick={() => onCompleteTask(task)}
+                                    className="px-4 py-2 bg-white border border-gray-200 text-indigo-600 rounded-lg shadow-sm hover:bg-indigo-50 hover:border-indigo-200 transition font-medium flex items-center text-sm"
+                                >
+                                    <CheckCircle size={16} className="mr-2 text-green-500"/> Mark Complete
+                                </button>
                             </div>
-                            
-                            {/* UPDATED: Show Tasks in Dashboard */}
-                            {task.maintenanceTasks && task.maintenanceTasks.length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-gray-200/50">
-                                    <p className="text-xs font-bold text-gray-500 mb-1 flex items-center">
-                                        <ListChecks size={12} className="mr-1"/> Recommended Tasks:
-                                    </p>
-                                    <ul className="text-xs text-gray-600 list-disc pl-4 space-y-0.5">
-                                        {task.maintenanceTasks.map((t, i) => <li key={i}>{t}</li>)}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
+
+            {/* Suggested Tasks Section */}
+            {suggestions.length > 0 && (
+                <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+                    <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center">
+                        <Zap className="mr-2 h-5 w-5 text-indigo-600"/> Suggested Maintenance
+                    </h3>
+                    <p className="text-sm text-indigo-700 mb-4">Based on standard home care, you might be missing these items.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {suggestions.map((suggestion, idx) => (
+                            <div key={idx} className="bg-white p-3 rounded-lg border border-indigo-100 shadow-sm flex justify-between items-center">
+                                <div>
+                                    <p className="font-bold text-gray-800 text-sm">{suggestion.item}</p>
+                                    <p className="text-xs text-gray-500">{suggestion.category} • {suggestion.maintenanceFrequency}</p>
+                                </div>
+                                <button 
+                                    onClick={() => onAddStandardTask(suggestion)}
+                                    className="p-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition"
+                                    title="Add to Log"
+                                >
+                                    <Plus size={16} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -812,6 +854,62 @@ const AppContent = () => {
     const recordData = { ...newRecord, nextServiceDate, propertyLocation: propertyProfile?.name || 'My Property', imageUrl: finalImageUrl || newRecord.imageUrl, userId: currentUser.uid, timestamp: editingId ? newRecord.timestamp : serverTimestamp(), maintenanceTasks: newRecord.maintenanceTasks || [] }; if (editingId) { await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, editingId), recordData); } else { await addDoc(collection(db, PUBLIC_COLLECTION_PATH), recordData); } setNewRecord(initialRecordState); setEditingId(null); setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; setActiveTab('View Records'); } catch (e) { setError("Save failed: " + e.message); } finally { setIsSaving(false); } }, [db, currentUser, isSaving, newRecord, selectedFile, propertyProfile, editingId]); 
     const handleDeleteConfirmed = async () => { if(!db || !confirmDelete) return; try { await deleteDoc(doc(db, PUBLIC_COLLECTION_PATH, confirmDelete)); setConfirmDelete(null); } catch(e){ setError("Delete failed."); } };
     const grouped = records.reduce((acc, r) => { const k = r.area || 'Uncategorized'; if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {});
+    
+    // --- NEW: Handle Task Completion ---
+    const handleCompleteTask = async (task) => {
+        if (!confirm(`Mark "${task.item}" as complete?`)) return;
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const nextDate = calculateNextDate(today, task.maintenanceFrequency);
+            
+            // 1. Update the Active Record
+            await updateDoc(doc(db, PUBLIC_COLLECTION_PATH, task.id), {
+                lastServiceDate: today,
+                nextServiceDate: nextDate
+            });
+
+            // 2. Create a Historical Log Entry
+            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), {
+                userId: currentUser.uid,
+                propertyLocation: propertyProfile?.name || 'My Property',
+                category: "Service & Repairs",
+                item: `Maintenance: ${task.item}`,
+                dateInstalled: today,
+                timestamp: serverTimestamp(),
+                notes: `Completed scheduled maintenance. Next due: ${nextDate}`,
+                area: task.area || 'General',
+                contractor: 'Self / Homeowner'
+            });
+            alert("Maintenance logged and schedule updated!");
+        } catch (e) {
+            console.error(e);
+            alert("Error updating task: " + e.message);
+        }
+    };
+
+    // --- NEW: Add Standard Task ---
+    const handleAddStandardTask = async (stdItem) => {
+        const today = new Date().toISOString().split('T')[0];
+        const nextDate = calculateNextDate(today, stdItem.maintenanceFrequency);
+        try {
+            await addDoc(collection(db, PUBLIC_COLLECTION_PATH), {
+                userId: currentUser.uid,
+                propertyLocation: propertyProfile?.name || 'My Property',
+                category: stdItem.category,
+                item: stdItem.item,
+                area: 'General', // Default area
+                maintenanceFrequency: stdItem.maintenanceFrequency,
+                maintenanceTasks: stdItem.tasks,
+                dateInstalled: today,
+                nextServiceDate: nextDate,
+                timestamp: serverTimestamp(),
+                notes: "Added from Standard Maintenance List"
+            });
+        } catch(e) {
+            alert("Error adding task: " + e.message);
+        }
+    };
+
 
     if (isContractorMode) return <ContractorView />; 
 
@@ -868,7 +966,7 @@ const AppContent = () => {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{grouped[area].map(r => <RecordCard key={r.id} record={r} onDeleteClick={setConfirmDelete} onEditClick={handleEditClick} />)}</div>
                         </section>
                     )) : <div className="text-center p-12 bg-white rounded-xl shadow-lg border-2 border-dashed border-indigo-200"><FileText size={48} className="mx-auto text-indigo-400 mb-4"/><p className="text-gray-600 font-medium text-lg">Log is Empty.</p></div>}</div>}
-                    {activeTab === 'Maintenance' && <MaintenanceDashboard records={records} />}
+                    {activeTab === 'Maintenance' && <MaintenanceDashboard records={records} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />}
                     {activeTab === 'Report' && <PedigreeReport propertyProfile={propertyProfile} records={records} />}
                     {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={propertyProfile} />}
                     {/* NEW Requests Tab */}
