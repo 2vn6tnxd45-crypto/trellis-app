@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 // Vertex AI import
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine, ListPlus } from 'lucide-react';
 
 // --- Global Config & Init ---
 
@@ -695,6 +695,10 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const [suggestedTasks, setSuggestedTasks] = useState([]); // NEW STATE
+    
+    // NEW: Scanned Items Array
+    const [scannedItems, setScannedItems] = useState([]);
+
     const smartScanInputRef = useRef(null);
 
     const suggestMaintenance = async () => {
@@ -759,23 +763,26 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
         if (!file) return;
 
         setIsScanning(true);
+        setScannedItems([]); // Reset previous scan
+        
         try {
             const base64Str = await fileToBase64(file);
             const base64Data = getBase64Data(base64Str);
 
             const prompt = `
-                Analyze this image. It is either a photo of a home appliance label, a building material, or a receipt.
-                Extract the following information into a JSON object:
+                Analyze this image. It is either a receipt, an invoice, or a product label.
+                
+                Identify all distinct line items or products.
+                For EACH item, extract:
+                - item: Name (e.g. "Kohler Faucet", "Behr Paint")
                 - category: Best guess from [Paint & Finishes, Appliances, Flooring, HVAC & Systems, Plumbing, Electrical, Roof & Exterior, Landscaping, Service & Repairs, Safety, Interior, Other]
-                - item: A short descriptive name (e.g. "Water Heater", "Drywall Screws")
-                - brand: Manufacturer name
-                - model: Model number
-                - serialNumber: Serial number (if applicable)
-                - dateInstalled: Date found on receipt or manufacture date (YYYY-MM-DD)
-                - contractor: Store name (if receipt) or "Unknown"
-                - notes: Any warranty info or specs found
+                - brand: Manufacturer
+                - model: Model # (if visible)
+                - contractor: Store name (if receipt)
+                - dateInstalled: Date on receipt (YYYY-MM-DD)
 
-                Return ONLY raw JSON.
+                Return a JSON object with a key "items" containing an array of these objects.
+                Example: { "items": [{ "item": "...", "category": "..." }, ...] }
             `;
 
             const result = await window.geminiModel.generateContent([
@@ -787,17 +794,16 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
             const text = response.text().replace(/```json|```/g, '').trim();
             const data = JSON.parse(text);
 
-            // Batch update state
-            if (data.category) onInputChange({ target: { name: 'category', value: data.category } });
-            if (data.item) onInputChange({ target: { name: 'item', value: data.item } });
-            if (data.brand) onInputChange({ target: { name: 'brand', value: data.brand } });
-            if (data.model) onInputChange({ target: { name: 'model', value: data.model } });
-            if (data.serialNumber) onInputChange({ target: { name: 'serialNumber', value: data.serialNumber } });
-            if (data.dateInstalled) onInputChange({ target: { name: 'dateInstalled', value: data.dateInstalled } });
-            if (data.contractor && data.contractor !== 'Unknown') onInputChange({ target: { name: 'contractor', value: data.contractor } });
-            if (data.notes) onInputChange({ target: { name: 'notes', value: data.notes } });
-
-            alert("Scan Complete! Please review the extracted data.");
+            if (data.items && Array.isArray(data.items) && data.items.length > 0) {
+                setScannedItems(data.items);
+                
+                // If only one item, auto-fill immediately
+                if (data.items.length === 1) {
+                    applyScannedItem(data.items[0]);
+                }
+            } else {
+                alert("No items detected in image.");
+            }
 
         } catch (error) {
             console.error("Scan Error:", error);
@@ -806,6 +812,15 @@ const AddRecordForm = ({ onSave, isSaving, newRecord, onInputChange, onFileChang
             setIsScanning(false);
             if (smartScanInputRef.current) smartScanInputRef.current.value = "";
         }
+    };
+
+    const applyScannedItem = (itemData) => {
+        if (itemData.category) onInputChange({ target: { name: 'category', value: itemData.category } });
+        if (itemData.item) onInputChange({ target: { name: 'item', value: itemData.item } });
+        if (itemData.brand) onInputChange({ target: { name: 'brand', value: itemData.brand } });
+        if (itemData.model) onInputChange({ target: { name: 'model', value: itemData.model } });
+        if (itemData.dateInstalled) onInputChange({ target: { name: 'dateInstalled', value: itemData.dateInstalled } });
+        if (itemData.contractor && itemData.contractor !== 'Unknown') onInputChange({ target: { name: 'contractor', value: itemData.contractor } });
     };
     // --------------------------------
 
@@ -827,6 +842,27 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
         </button>
         <input type="file" ref={smartScanInputRef} className="hidden" accept="image/*" onChange={handleSmartScan} />
     </div>
+
+    {/* NEW: DETECTED ITEMS LIST (For Receipts) */}
+    {scannedItems.length > 1 && (
+        <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mb-6 animate-in fade-in slide-in-from-top-2">
+            <p className="text-green-800 font-bold text-sm mb-2 flex items-center">
+                <ListPlus size={16} className="mr-2"/> Found {scannedItems.length} items on receipt. Click one to fill:
+            </p>
+            <div className="flex flex-wrap gap-2">
+                {scannedItems.map((item, idx) => (
+                    <button
+                        key={idx}
+                        type="button"
+                        onClick={() => applyScannedItem(item)}
+                        className="bg-white border border-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition shadow-sm"
+                    >
+                        {item.item} <span className="opacity-50 font-normal">({item.brand || 'Unknown'})</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    )}
 
     <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-2"> <h2 className="text-2xl font-bold text-slate-800">{isEditing ? 'Edit Record' : 'Manual Entry'}</h2> {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-slate-600 flex items-center font-bold uppercase tracking-wider"><X size={14} className="mr-1"/> Cancel</button>} </div> <div className="grid grid-cols-1 sm:grid-cols-2 gap-6"> <div> <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label> <div className="relative"><select name="category" value={safeRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white transition-colors appearance-none"><option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/></div> </div> <div> <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area/Room *</label> {!isCustomArea ? ( <div className="relative"><select name="area" value={ROOMS.includes(safeRecord.area) ? safeRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white transition-colors appearance-none"><option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option></select><ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/></div> ) : ( <div className="relative flex"><input type="text" name="area" value={safeRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-4 bg-slate-100 border border-l-0 border-slate-200 rounded-r-xl hover:bg-slate-200"><X size={18}/></button></div> )} </div> </div> <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Item Name *</label><input type="text" name="item" value={safeRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white transition-colors"/></div> <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100"> <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{brandLabel}</label><input type="text" name="brand" value={safeRecord.brand} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm"/></div> <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">{modelLabel}</label><input type="text" name="model" value={safeRecord.model} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm"/></div> {showSheen && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sheen</label><div className="relative"><select name="sheen" value={safeRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm appearance-none"><option value="" disabled>Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select><ChevronDown size={14} className="absolute right-2 top-3 text-slate-400 pointer-events-none"/></div></div>} {showSerial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Serial #</label><input type="text" name="serialNumber" value={safeRecord.serialNumber} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm"/></div>} {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><div className="relative"><select name="material" value={safeRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm appearance-none"><option value="" disabled>Select</option>{(safeRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select><ChevronDown size={14} className="absolute right-2 top-3 text-slate-400 pointer-events-none"/></div></div>} </div> <div className="grid grid-cols-1 sm:grid-cols-2 gap-6"> <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={safeRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div> <div className="space-y-2"> <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor</label><input type="text" name="contractor" value={safeRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div> <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Profile URL</label><input type="url" name="contractorUrl" value={safeRecord.contractorUrl} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm"/></div> </div> </div> 
     
