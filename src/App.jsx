@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 // Vertex AI import
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine, ListPlus, Save } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine, ListPlus, Save, XCircle } from 'lucide-react';
 
 // --- Global Config & Init ---
 
@@ -558,24 +558,24 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
     // --- NEW: AI Suggestion Logic (UPDATED) ---
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
-    const [suggestedTasks, setSuggestedTasks] = useState([]); // NEW STATE
-    
-    // NEW: Scanned Items Array
+    const [suggestedTasks, setSuggestedTasks] = useState([]); 
     const [scannedItems, setScannedItems] = useState([]);
-
+    const [scannedImagePreview, setScannedImagePreview] = useState(null);
     const smartScanInputRef = useRef(null);
+
+    // NEW: Global Fields for Bulk Update
+    const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
+    const [globalStore, setGlobalStore] = useState("");
 
     const suggestMaintenance = async () => {
         if (!newRecord.item && !newRecord.category) {
             alert("Please enter an Item Name or Category first.");
             return;
         }
-
         setIsSuggesting(true);
-        setSuggestedTasks([]); // Clear old suggestions
+        setSuggestedTasks([]); 
 
         try {
-            // Updated Prompt: Ask for JSON with tasks
             const prompt = `
                 I have a home maintenance record.
                 Category: ${newRecord.category || 'Unknown'}
@@ -591,29 +591,21 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
                   "tasks": ["Task 1", "Task 2", "Task 3"]
                 }
             `;
-
             const result = await window.geminiModel.generateContent(prompt);
             const response = result.response;
-            // Clean up code blocks if the model wraps the JSON in markdown
             const text = response.text().replace(/```json|```/g, '').trim(); 
-            
-            const data = JSON.parse(text); // Parse the JSON
+            const data = JSON.parse(text);
 
-            // Update Frequency
             if (data.frequency) {
                 const validFreqs = ["quarterly", "semiannual", "annual", "biennial", "quinquennial", "none"];
                 if (validFreqs.includes(data.frequency)) {
                     onInputChange({ target: { name: 'maintenanceFrequency', value: data.frequency } });
                 }
             }
-
-            // Update Tasks (and show them)
             if (data.tasks && Array.isArray(data.tasks)) {
                 setSuggestedTasks(data.tasks);
-                // Also update the parent state so it saves
                 onInputChange({ target: { name: 'maintenanceTasks', value: data.tasks } });
             }
-
         } catch (error) {
             console.error("AI Error:", error);
             alert("Could not fetch details. Please try again.");
@@ -626,8 +618,12 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
         const file = e.target.files[0];
         if (!file) return;
 
+        // Create local preview
+        const previewUrl = URL.createObjectURL(file);
+        setScannedImagePreview(previewUrl);
+
         setIsScanning(true);
-        setScannedItems([]); // Reset previous scan
+        setScannedItems([]);
         
         try {
             const base64Str = await fileToBase64(file);
@@ -652,7 +648,6 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
                 - dateInstalled: Date on receipt (YYYY-MM-DD).
 
                 Return a JSON object with a key "items" containing an array of these objects.
-                Example: { "items": [{ "item": "Glacier Bay 2-Handle Bath Faucet (Brushed Nickel)", "brand": "Glacier Bay", "category": "Plumbing" }, ...] }
             `;
 
             const result = await window.geminiModel.generateContent([
@@ -667,10 +662,12 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
             if (data.items && Array.isArray(data.items) && data.items.length > 0) {
                 setScannedItems(data.items);
                 
-                // If only one item, auto-fill immediately
-                if (data.items.length === 1) {
-                    applyScannedItem(data.items[0]);
-                }
+                // Set Global Defaults from first item if available
+                if (data.items[0].dateInstalled) setGlobalDate(data.items[0].dateInstalled);
+                if (data.items[0].contractor) setGlobalStore(toProperCase(data.items[0].contractor));
+                
+                // Auto-fill if single item
+                if (data.items.length === 1) applyScannedItem(data.items[0]);
             } else {
                 alert("No items detected in image.");
             }
@@ -685,20 +682,43 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
     };
 
     const applyScannedItem = (itemData) => {
-        // Use toProperCase for user-friendly text formatting
         if (itemData.category) onInputChange({ target: { name: 'category', value: itemData.category } });
         if (itemData.item) onInputChange({ target: { name: 'item', value: toProperCase(itemData.item) } });
         if (itemData.brand) onInputChange({ target: { name: 'brand', value: toProperCase(itemData.brand) } });
-        if (itemData.model) onInputChange({ target: { name: 'model', value: itemData.model } }); // Keep models as-is (usually alphanumeric)
+        if (itemData.model) onInputChange({ target: { name: 'model', value: itemData.model } });
         if (itemData.dateInstalled) onInputChange({ target: { name: 'dateInstalled', value: itemData.dateInstalled } });
         if (itemData.contractor && itemData.contractor !== 'Unknown') onInputChange({ target: { name: 'contractor', value: toProperCase(itemData.contractor) } });
     };
 
+    // Handle individual item updates in the review list
+    const updateScannedItem = (index, field, value) => {
+        const updated = [...scannedItems];
+        updated[index][field] = value;
+        setScannedItems(updated);
+    };
+
+    // Delete an item from the review list
+    const deleteScannedItem = (index) => {
+        const updated = scannedItems.filter((_, i) => i !== index);
+        setScannedItems(updated);
+    };
+
     const handleBatchSaveClick = async () => {
         if (scannedItems.length === 0) return;
-        if (confirm(`Are you sure you want to save all ${scannedItems.length} items to your log?`)) {
-           const success = await onBatchSave(scannedItems);
-           if (success) setScannedItems([]); // Clear list on success
+        
+        // Apply global fields to all items before saving
+        const finalItems = scannedItems.map(item => ({
+            ...item,
+            dateInstalled: globalDate || item.dateInstalled,
+            contractor: globalStore || item.contractor
+        }));
+
+        if (confirm(`Are you sure you want to save all ${finalItems.length} items to your log?`)) {
+           const success = await onBatchSave(finalItems);
+           if (success) {
+               setScannedItems([]);
+               setScannedImagePreview(null);
+           }
         }
     };
     // --------------------------------
@@ -722,35 +742,79 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
         <input type="file" ref={smartScanInputRef} className="hidden" accept="image/*" onChange={handleSmartScan} />
     </div>
 
-    {/* NEW: DETECTED ITEMS LIST (For Receipts) */}
-    {scannedItems.length > 1 && (
-        <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mb-6 animate-in fade-in slide-in-from-top-2">
-            <div className="flex justify-between items-center mb-3">
-                <p className="text-green-800 font-bold text-sm flex items-center">
-                    <ListPlus size={16} className="mr-2"/> Found {scannedItems.length} items.
-                </p>
-                <button 
-                    type="button" 
-                    onClick={handleBatchSaveClick}
-                    className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-700 flex items-center shadow-sm"
-                >
-                    <Save size={14} className="mr-1"/> Save All {scannedItems.length} Items
+    {/* NEW: INTERACTIVE REVIEW DECK */}
+    {scannedItems.length > 0 && (
+        <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 mb-8 animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-sky-600"/> Review Scan Results</h4>
+                <button type="button" onClick={handleBatchSaveClick} className="bg-sky-900 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-sky-800 shadow-lg shadow-sky-900/20 transition flex items-center">
+                    <Save className="mr-2 h-4 w-4"/> Save All Items
                 </button>
             </div>
-            
-            <div className="flex flex-wrap gap-2">
-                {scannedItems.map((item, idx) => (
-                    <button
-                        key={idx}
-                        type="button"
-                        onClick={() => applyScannedItem(item)}
-                        className="bg-white border border-green-200 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-green-100 transition shadow-sm"
-                    >
-                        {toProperCase(item.item)} <span className="opacity-50 font-normal">({toProperCase(item.brand) || 'Unknown'})</span>
-                    </button>
-                ))}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 1. IMAGE PREVIEW */}
+                <div className="lg:col-span-1">
+                    {scannedImagePreview && (
+                        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-full">
+                            <img src={scannedImagePreview} alt="Receipt" className="w-full h-64 lg:h-full object-cover object-top opacity-90 hover:opacity-100 transition-opacity" />
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. EDITABLE LIST */}
+                <div className="lg:col-span-2 space-y-4">
+                    {/* Global Settings */}
+                    <div className="bg-white p-4 rounded-xl border border-sky-100 shadow-sm flex flex-wrap gap-4 items-center">
+                        <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">Global Settings:</span>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Date</label>
+                            <input type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} className="bg-slate-50 border-none rounded-lg text-sm text-slate-700 font-medium focus:ring-0 p-1" />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Store / Contractor</label>
+                            <input type="text" value={globalStore} onChange={(e) => setGlobalStore(e.target.value)} placeholder="Store Name" className="bg-slate-50 border-none rounded-lg text-sm text-slate-700 font-medium focus:ring-0 p-1 w-32" />
+                        </div>
+                    </div>
+
+                    {/* Item Cards */}
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        {scannedItems.map((item, idx) => (
+                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-3 items-start group hover:border-sky-300 transition-colors">
+                                <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
+                                        <input 
+                                            type="text" 
+                                            value={item.item} 
+                                            onChange={(e) => updateScannedItem(idx, 'item', e.target.value)}
+                                            className="w-full text-sm font-bold text-slate-800 border-0 border-b border-slate-200 focus:border-sky-500 focus:ring-0 px-0 py-1 bg-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
+                                        <select 
+                                            value={item.category} 
+                                            onChange={(e) => updateScannedItem(idx, 'category', e.target.value)}
+                                            className="w-full text-xs font-medium text-slate-600 border-0 border-b border-slate-200 focus:border-sky-500 focus:ring-0 px-0 py-1 bg-transparent"
+                                        >
+                                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+                                <button 
+                                    type="button" 
+                                    onClick={() => deleteScannedItem(idx)}
+                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Remove Item"
+                                >
+                                    <XCircle size={20} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
-            <p className="text-[10px] text-green-600 mt-2 text-center">Click an item to edit individually, or "Save All" to finish.</p>
         </div>
     )}
 
