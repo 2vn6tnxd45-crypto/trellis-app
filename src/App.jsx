@@ -872,7 +872,7 @@ const AppContent = () => {
         if (isContractorMode || !isAuthReady || !userId || !propertyProfile) return;
         // UPDATED: Now queries a USER-SPECIFIC path
         const q = query(collection(db, 'artifacts', appId, 'users', userId, 'house_records'));
-        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N/A' }))); }, (err) => setError("Failed load"));
+        const unsub = onSnapshot(q, (snap) => { setRecords(snap.docs.map(d => ({ id: d.id, ...d.data(), timestamp: d.data().timestamp?.toDate ? d.data().timestamp.toDate().toLocaleDateString() : 'N.A' }))); }, (err) => setError("Failed load"));
         return () => unsub();
     }, [isAuthReady, userId, propertyProfile?.name, isContractorMode]);
 
@@ -1076,13 +1076,13 @@ const AppContent = () => {
                 {/* ... rest of render ... */}
                 {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-2xl mb-6 shadow-sm">{error}<span className="float-right cursor-pointer font-bold" onClick={()=>setError(null)}>×</span></div>}
                 
-                <nav className="flex justify-center mb-8 max-w-lg mx-auto print:hidden">
-                    <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-l-2xl border transition-all ${activeTab==='View Records'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>History</button>
-                    <button onClick={() => setActiveTab('Maintenance')} className={`flex-1 px-4 py-3 text-sm font-bold border-y transition-all ${activeTab==='Maintenance'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Maintenance</button>
-                    <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Add Record'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Add</button>
-                    <button onClick={() => setActiveTab('Requests')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Requests'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Request</button>
-                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Report'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Report</button>
-                    <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-r-2xl border border-l transition-all ${activeTab==='Insights'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Insights</button>
+                <nav className="flex overflow-x-auto sm:justify-center mb-8 w-full sm:max-w-lg mx-auto print:hidden pb-2 sm:pb-0 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <button onClick={() => setActiveTab('View Records')} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold rounded-l-2xl border transition-all ${activeTab==='View Records'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>History</button>
+                    <button onClick={() => setActiveTab('Maintenance')} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold border-y transition-all ${activeTab==='Maintenance'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Maintenance</button>
+                    <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Add Record'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Add</button>
+                    <button onClick={() => setActiveTab('Requests')} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Requests'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Request</button>
+                    <button onClick={() => setActiveTab('Report')} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Report'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Report</button>
+                    <button onClick={() => setActiveTab('Insights')} className={`flex-none sm:flex-1 whitespace-nowrap px-4 py-3 text-sm font-bold rounded-r-2xl border border-l transition-all ${activeTab==='Insights'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Insights</button>
                 </nav>
 
                 <main className="max-w-4xl mx-auto pb-20">
