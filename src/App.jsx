@@ -637,16 +637,22 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
                 Analyze this image. It is either a receipt, an invoice, or a product label.
                 
                 Identify all distinct line items or products.
+                
+                CRITICAL INSTRUCTION: Receipt text is often abbreviated and messy (e.g., "Gb 2-hand Bth Fauc"). 
+                You MUST convert this into professional, human-readable text.
+                - Expand abbreviations: "Bshd Nic" -> "Brushed Nickel", "Fauc" -> "Faucet", "Gb" -> "Glacier Bay".
+                - Reformat: Make it look like a product catalog title.
+                
                 For EACH item, extract:
-                - item: Name (e.g. "Kohler Faucet", "Behr Paint")
-                - category: Best guess from [Paint & Finishes, Appliances, Flooring, HVAC & Systems, Plumbing, Electrical, Roof & Exterior, Landscaping, Service & Repairs, Safety, Interior, Other]
-                - brand: Manufacturer
-                - model: Model # (if visible)
-                - contractor: Store name (if receipt)
-                - dateInstalled: Date on receipt (YYYY-MM-DD)
+                - item: The CLEAN, FULL product name (e.g., "Glacier Bay 2-Handle Bath Faucet, Brushed Nickel").
+                - category: Best guess from [Paint & Finishes, Appliances, Flooring, HVAC & Systems, Plumbing, Electrical, Roof & Exterior, Landscaping, Service & Repairs, Safety, Interior, Other].
+                - brand: Full Manufacturer Name (e.g. "Glacier Bay").
+                - model: Model # (if visible).
+                - contractor: Store name (if receipt).
+                - dateInstalled: Date on receipt (YYYY-MM-DD).
 
                 Return a JSON object with a key "items" containing an array of these objects.
-                Example: { "items": [{ "item": "...", "category": "..." }, ...] }
+                Example: { "items": [{ "item": "Glacier Bay 2-Handle Bath Faucet (Brushed Nickel)", "brand": "Glacier Bay", "category": "Plumbing" }, ...] }
             `;
 
             const result = await window.geminiModel.generateContent([
