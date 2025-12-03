@@ -102,6 +102,46 @@ const fileToBase64 = (file) => {
     });
 };
 
+// NEW: Image Compression Helper
+const compressImage = (file, maxWidth = 1024, quality = 0.7) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height *= maxWidth / width;
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxWidth) {
+                        width *= maxWidth / height;
+                        height = maxWidth;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Compress to JPEG
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+                resolve(compressedDataUrl);
+            };
+            img.onerror = (error) => reject(error);
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};
+
 const getBase64Data = (dataUrl) => {
     return dataUrl.split(',')[1];
 }
@@ -771,10 +811,11 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
         setScannedItems([]);
         
         try {
-            const base64Str = await fileToBase64(file);
+            // Use the new compression helper instead of fileToBase64
+            const base64Str = await compressImage(file);
             const base64Data = getBase64Data(base64Str);
             
-            setScannedImageBase64(base64Str); // Store full data URI for saving
+            setScannedImageBase64(base64Str); // Store compressed data URI for saving
 
             const prompt = `
                 Analyze this image. It is either a receipt, an invoice, or a product label.
@@ -799,7 +840,7 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
 
             const result = await window.geminiModel.generateContent([
                 prompt,
-                { inlineData: { data: base64Data, mimeType: file.type } }
+                { inlineData: { data: base64Data, mimeType: "image/jpeg" } } // Compress always returns jpeg
             ]);
             
             const response = result.response;
@@ -1152,8 +1193,8 @@ const AppContent = () => {
         try { 
             let finalImageUrl = ''; 
             if (selectedFile) { 
-                if (selectedFile.size < 1048576) finalImageUrl = await fileToBase64(selectedFile); 
-                else throw new Error("Image too large (Max 1MB)"); 
+                // Use compression for manually selected files too
+                finalImageUrl = await compressImage(selectedFile);
             } 
             // Calculate Next Service Date
             const nextServiceDate = calculateNextDate(newRecord.dateInstalled, newRecord.maintenanceFrequency);
@@ -1208,7 +1249,8 @@ const AppContent = () => {
                     nextServiceDate,
                     timestamp: serverTimestamp(),
                     maintenanceTasks: [],
-                    imageUrl: item.imageUrl || '' // Use item's image url
+                    // FIX: Read the image from the item itself
+                    imageUrl: item.imageUrl || '' 
                 };
                 const docRef = doc(userRecordsRef); 
                 batch.set(docRef, recordData);
