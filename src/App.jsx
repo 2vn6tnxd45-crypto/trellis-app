@@ -151,10 +151,10 @@ const toProperCase = (str) => {
     });
 };
 
-// --- UPDATED: CPSC Recall Checker ---
+// --- CPSC Recall Checker ---
 const checkRecalls = async (brand, model) => {
     if (!brand) return { status: 'error', message: 'Brand required' };
-    if (!model) return { status: 'missing_model', message: 'Model required' }; // Don't search without model
+    if (!model) return { status: 'missing_model', message: 'Model required' }; 
     
     const query = encodeURIComponent(`${brand} ${model}`.trim());
     const apiUrl = `https://www.saferproducts.gov/RestWebServices/Recall?format=json&RecallTitle=${query}`;
@@ -171,7 +171,6 @@ const checkRecalls = async (brand, model) => {
     } catch (error) {
         console.warn("Recall check failed or blocked:", error);
         // Simulate simple check for demo environment where CORS might block gov API
-        // STUB: Only flag if 'Kidde' AND 'Fire' are in text to reduce false positives
         if (brand.toLowerCase().includes("kidde") && model.includes("fire")) {
              return { status: 'warning', count: 1, url: 'https://www.cpsc.gov/Recalls' };
         }
@@ -255,7 +254,7 @@ const MAINTENANCE_FREQUENCIES = [
 const initialRecordState = {
     area: '', category: '', item: '', brand: '', model: '', serialNumber: '', 
     material: '', sheen: '', dateInstalled: '', contractor: '', contractorUrl: '',
-    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, lastServiceDate: null, maintenanceTasks: [] 
+    notes: '', purchaseLink: '', imageUrl: '', maintenanceFrequency: 'none', nextServiceDate: null, maintenanceTasks: [] 
 };
 
 // --- Components ---
@@ -610,151 +609,6 @@ const ContractorView = () => {
                         <Send className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform"/>
                     </button>
                 </form>
-            </div>
-        </div>
-    );
-};
-
-// Request Manager Component (Restored!)
-const RequestManager = ({ userId, propertyName }) => {
-    const [requests, setRequests] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [newRequestName, setNewRequestName] = useState('');
-
-    useEffect(() => {
-        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("userId", "==", userId));
-        const unsub = onSnapshot(q, (snap) => {
-            setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
-        return () => unsub();
-    }, [userId]);
-
-    const createRequest = async () => {
-        if (!newRequestName.trim()) {
-            alert("Please enter a contractor name or job description.");
-            return;
-        }
-        setLoading(true);
-        try {
-            await addDoc(collection(db, REQUESTS_COLLECTION_PATH), {
-                userId,
-                propertyName,
-                description: newRequestName, 
-                status: 'pending',
-                createdAt: serverTimestamp()
-            });
-            setNewRequestName(''); 
-        } catch (e) { alert("Error creating request"); } finally { setLoading(false); }
-    };
-
-    const approveRequest = async (req) => {
-        if (!confirm("Approve this record and add to your log?")) return;
-        try {
-            // Save approved record to USER-SPECIFIC path
-            await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'house_records'), {
-                userId,
-                propertyLocation: propertyName,
-                category: req.category,
-                item: req.item,
-                brand: req.brand || '',
-                model: req.model || '',
-                notes: req.notes || '',
-                contractor: req.contractor || '',
-                imageUrl: req.imageUrl || '',
-                dateInstalled: new Date().toISOString().split('T')[0], // Default to today
-                timestamp: serverTimestamp(),
-                maintenanceFrequency: req.maintenanceFrequency || 'none',
-                nextServiceDate: req.nextServiceDate || null // Import date from request
-            });
-            await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, req.id));
-        } catch(e) { alert("Approval failed: " + e.message); }
-    };
-
-    const copyLink = (id) => {
-        const baseUrl = window.location.href.split('?')[0];
-        const url = `${baseUrl}?requestId=${id}`;
-        navigator.clipboard.writeText(url);
-        alert("Link copied! Send this to your contractor.");
-    };
-
-    const sendEmail = (id, description) => {
-        const baseUrl = window.location.href.split('?')[0];
-        const url = `${baseUrl}?requestId=${id}`;
-        const subject = encodeURIComponent(`Contractor Request: ${description}`);
-        const body = encodeURIComponent(`Hello,\n\nPlease fill out the project details for ${description} here:\n\n${url}\n\nThanks!`);
-        window.open(`mailto:?subject=${subject}&body=${body}`);
-    };
-
-    const deleteRequest = async (id) => {
-        if(confirm("Delete this request?")) await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
-    }
-
-    const pending = requests.filter(r => r.status === 'pending');
-    const submitted = requests.filter(r => r.status === 'submitted');
-
-    return (
-        <div className="space-y-8">
-            <div className="bg-sky-50 p-8 rounded-[2rem] border border-sky-100 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                    <h3 className="text-xl font-bold text-sky-900">Request Links</h3>
-                    <p className="text-sm text-sky-600 font-medium mt-1">Generate a unique link for a contractor to fill out the record.</p>
-                </div>
-                <div className="flex w-full md:w-auto gap-3">
-                     <input 
-                        type="text" 
-                        placeholder="e.g. Kitchen Painter" 
-                        className="px-4 py-3 rounded-xl border border-sky-200 flex-grow focus:ring-sky-500"
-                        value={newRequestName}
-                        onChange={(e) => setNewRequestName(e.target.value)}
-                     />
-                    <button onClick={createRequest} disabled={loading} className="px-6 py-3 bg-sky-900 text-white rounded-xl font-bold shadow-lg hover:bg-sky-800 flex items-center whitespace-nowrap transition">
-                        <PlusCircle className="mr-2 h-5 w-5"/> Create
-                    </button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                    <h4 className="font-bold text-slate-700 mb-6 flex items-center"><Clock className="mr-2 h-5 w-5 text-slate-400"/> Pending ({pending.length})</h4>
-                    {pending.length === 0 ? <p className="text-sm text-slate-400 italic">No active links.</p> : (
-                        <ul className="space-y-4">
-                            {pending.map(r => (
-                                <li key={r.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <div className="flex flex-col">
-                                         <span className="text-sm font-bold text-slate-700">{r.description || "Untitled Request"}</span>
-                                         <span className="text-xs text-slate-400 font-mono mt-1">ID: {r.id.slice(0,6)}</span>
-                                    </div>
-                                    <div className="flex items-center">
-                                        <button onClick={() => copyLink(r.id)} className="text-sky-600 text-xs font-bold hover:underline flex items-center mr-4"><LinkIcon className="h-3 w-3 mr-1"/> Copy</button>
-                                        <button onClick={() => sendEmail(r.id, r.description)} className="text-sky-600 text-xs font-bold hover:underline flex items-center mr-4"><Mail className="h-3 w-3 mr-1"/> Email</button>
-                                        <button onClick={() => deleteRequest(r.id)} className="text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-                    <h4 className="font-bold text-green-700 mb-6 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/> Ready for Approval ({submitted.length})</h4>
-                     {submitted.length === 0 ? <p className="text-sm text-slate-400 italic">No new submissions.</p> : (
-                        <ul className="space-y-4">
-                            {submitted.map(r => (
-                                <li key={r.id} className="p-4 bg-green-50 border border-green-100 rounded-2xl">
-                                    <div className="flex justify-between mb-2">
-                                        <div>
-                                            <span className="block font-bold text-green-900">{r.item}</span>
-                                            <span className="text-xs text-green-800">For: {r.description}</span>
-                                        </div>
-                                        <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded-full font-bold self-start">{r.category}</span>
-                                    </div>
-                                    <p className="text-xs text-slate-600 mb-4 font-medium">By: {r.contractor}</p>
-                                    <button onClick={() => approveRequest(r)} className="w-full py-2.5 bg-green-600 text-white text-xs font-bold rounded-xl hover:bg-green-700 shadow-sm transition">Approve & Add to Log</button>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
             </div>
         </div>
     );
@@ -1199,6 +1053,151 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
     )}
 
     <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div> <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-sky-900/10 text-base font-bold text-white bg-sky-900 hover:bg-sky-800 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log New Item</>)} </button> </form> ); };
+
+// Request Manager Component (Restored!)
+const RequestManager = ({ userId, propertyName }) => {
+    const [requests, setRequests] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [newRequestName, setNewRequestName] = useState('');
+
+    useEffect(() => {
+        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("userId", "==", userId));
+        const unsub = onSnapshot(q, (snap) => {
+            setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
+        return () => unsub();
+    }, [userId]);
+
+    const createRequest = async () => {
+        if (!newRequestName.trim()) {
+            alert("Please enter a contractor name or job description.");
+            return;
+        }
+        setLoading(true);
+        try {
+            await addDoc(collection(db, REQUESTS_COLLECTION_PATH), {
+                userId,
+                propertyName,
+                description: newRequestName, 
+                status: 'pending',
+                createdAt: serverTimestamp()
+            });
+            setNewRequestName(''); 
+        } catch (e) { alert("Error creating request"); } finally { setLoading(false); }
+    };
+
+    const approveRequest = async (req) => {
+        if (!confirm("Approve this record and add to your log?")) return;
+        try {
+            // Save approved record to USER-SPECIFIC path
+            await addDoc(collection(db, 'artifacts', appId, 'users', userId, 'house_records'), {
+                userId,
+                propertyLocation: propertyName,
+                category: req.category,
+                item: req.item,
+                brand: req.brand || '',
+                model: req.model || '',
+                notes: req.notes || '',
+                contractor: req.contractor || '',
+                imageUrl: req.imageUrl || '',
+                dateInstalled: new Date().toISOString().split('T')[0], // Default to today
+                timestamp: serverTimestamp(),
+                maintenanceFrequency: req.maintenanceFrequency || 'none',
+                nextServiceDate: req.nextServiceDate || null // Import date from request
+            });
+            await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, req.id));
+        } catch(e) { alert("Approval failed: " + e.message); }
+    };
+
+    const copyLink = (id) => {
+        const baseUrl = window.location.href.split('?')[0];
+        const url = `${baseUrl}?requestId=${id}`;
+        navigator.clipboard.writeText(url);
+        alert("Link copied! Send this to your contractor.");
+    };
+
+    const sendEmail = (id, description) => {
+        const baseUrl = window.location.href.split('?')[0];
+        const url = `${baseUrl}?requestId=${id}`;
+        const subject = encodeURIComponent(`Contractor Request: ${description}`);
+        const body = encodeURIComponent(`Hello,\n\nPlease fill out the project details for ${description} here:\n\n${url}\n\nThanks!`);
+        window.open(`mailto:?subject=${subject}&body=${body}`);
+    };
+
+    const deleteRequest = async (id) => {
+        if(confirm("Delete this request?")) await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
+    }
+
+    const pending = requests.filter(r => r.status === 'pending');
+    const submitted = requests.filter(r => r.status === 'submitted');
+
+    return (
+        <div className="space-y-8">
+            <div className="bg-sky-50 p-8 rounded-[2rem] border border-sky-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                    <h3 className="text-xl font-bold text-sky-900">Request Links</h3>
+                    <p className="text-sm text-sky-600 font-medium mt-1">Generate a unique link for a contractor to fill out the record.</p>
+                </div>
+                <div className="flex w-full md:w-auto gap-3">
+                     <input 
+                        type="text" 
+                        placeholder="e.g. Kitchen Painter" 
+                        className="px-4 py-3 rounded-xl border border-sky-200 flex-grow focus:ring-sky-500"
+                        value={newRequestName}
+                        onChange={(e) => setNewRequestName(e.target.value)}
+                     />
+                    <button onClick={createRequest} disabled={loading} className="px-6 py-3 bg-sky-900 text-white rounded-xl font-bold shadow-lg hover:bg-sky-800 flex items-center whitespace-nowrap transition">
+                        <PlusCircle className="mr-2 h-5 w-5"/> Create
+                    </button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                    <h4 className="font-bold text-slate-700 mb-6 flex items-center"><Clock className="mr-2 h-5 w-5 text-slate-400"/> Pending ({pending.length})</h4>
+                    {pending.length === 0 ? <p className="text-sm text-slate-400 italic">No active links.</p> : (
+                        <ul className="space-y-4">
+                            {pending.map(r => (
+                                <li key={r.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div className="flex flex-col">
+                                         <span className="text-sm font-bold text-slate-700">{r.description || "Untitled Request"}</span>
+                                         <span className="text-xs text-slate-400 font-mono mt-1">ID: {r.id.slice(0,6)}</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                        <button onClick={() => copyLink(r.id)} className="text-sky-600 text-xs font-bold hover:underline flex items-center mr-4"><LinkIcon className="h-3 w-3 mr-1"/> Copy</button>
+                                        <button onClick={() => sendEmail(r.id, r.description)} className="text-sky-600 text-xs font-bold hover:underline flex items-center mr-4"><Mail className="h-3 w-3 mr-1"/> Email</button>
+                                        <button onClick={() => deleteRequest(r.id)} className="text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16}/></button>
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                    <h4 className="font-bold text-green-700 mb-6 flex items-center"><CheckCircle className="mr-2 h-5 w-5"/> Ready for Approval ({submitted.length})</h4>
+                     {submitted.length === 0 ? <p className="text-sm text-slate-400 italic">No new submissions.</p> : (
+                        <ul className="space-y-4">
+                            {submitted.map(r => (
+                                <li key={r.id} className="p-4 bg-green-50 border border-green-100 rounded-2xl">
+                                    <div className="flex justify-between mb-2">
+                                        <div>
+                                            <span className="block font-bold text-green-900">{r.item}</span>
+                                            <span className="text-xs text-green-800">For: {r.description}</span>
+                                        </div>
+                                        <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded-full font-bold self-start">{r.category}</span>
+                                    </div>
+                                    <p className="text-xs text-slate-600 mb-4 font-medium">By: {r.contractor}</p>
+                                    <button onClick={() => approveRequest(r)} className="w-full py-2.5 bg-green-600 text-white text-xs font-bold rounded-xl hover:bg-green-700 shadow-sm transition">Approve & Add to Log</button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
