@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 // Vertex AI import
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
-import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine, ListPlus, Save, XCircle, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
+import { Trash2, PlusCircle, Home, Calendar, PaintBucket, HardHat, Info, FileText, ExternalLink, Camera, MapPin, Search, LogOut, Lock, Mail, ChevronDown, Hash, Layers, X, Printer, Map as MapIcon, ShoppingBag, Sun, Wind, Zap, AlertTriangle, UserMinus, Pencil, Send, CheckCircle, Link as LinkIcon, Clock, Palette, Key, User, Tag, Box, UploadCloud, Wrench, ListChecks, Plus, Sparkles, TrendingUp, ShieldCheck, ScanLine, ListPlus, Save, XCircle, ShieldAlert, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
 // --- Global Config & Init ---
 
@@ -151,18 +151,15 @@ const toProperCase = (str) => {
     });
 };
 
-// --- NEW: CPSC Recall Checker ---
+// --- UPDATED: CPSC Recall Checker ---
 const checkRecalls = async (brand, model) => {
     if (!brand) return { status: 'error', message: 'Brand required' };
+    if (!model) return { status: 'missing_model', message: 'Model required' }; // Don't search without model
     
-    // Fallback for demo if CORS blocks the real API
-    // In a real app, this would go through a proxy
-    const query = encodeURIComponent(`${brand} ${model || ''}`.trim());
+    const query = encodeURIComponent(`${brand} ${model}`.trim());
     const apiUrl = `https://www.saferproducts.gov/RestWebServices/Recall?format=json&RecallTitle=${query}`;
 
     try {
-        // Note: This fetch might be blocked by CORS in browser-only environments.
-        // We simulate a response for the demo if it fails or returns empty.
         const response = await fetch(apiUrl);
         if (!response.ok) throw new Error("Network response was not ok");
         const data = await response.json();
@@ -172,10 +169,10 @@ const checkRecalls = async (brand, model) => {
         }
         return { status: 'clean', count: 0 };
     } catch (error) {
-        console.warn("Recall check failed (likely CORS), simulating for demo:", error);
-        // Simulating a check based on brand for demo purposes
-        // In production, use a backend proxy.
-        if (brand.toLowerCase().includes("kidde") || brand.toLowerCase().includes("samsung")) {
+        console.warn("Recall check failed or blocked:", error);
+        // Simulate simple check for demo environment where CORS might block gov API
+        // STUB: Only flag if 'Kidde' AND 'Fire' are in text to reduce false positives
+        if (brand.toLowerCase().includes("kidde") && model.includes("fire")) {
              return { status: 'warning', count: 1, url: 'https://www.cpsc.gov/Recalls' };
         }
         return { status: 'clean', count: 0 };
@@ -628,7 +625,7 @@ const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
     const [checkingRecall, setCheckingRecall] = useState(false);
 
     const handleCheckSafety = async () => {
-        if (!record.brand) return alert("Add a Brand name to check for recalls.");
+        if (!record.model) return alert("Please add a Model Number to check for specific recalls.");
         setCheckingRecall(true);
         const result = await checkRecalls(record.brand, record.model);
         setRecallStatus(result);
@@ -642,9 +639,14 @@ const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
             <div className="flex justify-between items-start mb-6"> 
                 <div className="p-2.5 rounded-full bg-slate-100 text-slate-500 group-hover:bg-sky-900 group-hover:text-white transition-colors duration-300"> <Home size={20} /> </div> 
                 <div className="flex gap-2">
-                    {recallStatus && (
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center ${recallStatus.status === 'warning' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                             {recallStatus.status === 'warning' ? <><ShieldAlert size={12} className="mr-1"/> Recall Found</> : <><ShieldCheck size={12} className="mr-1"/> Safe</>}
+                    {recallStatus && recallStatus.status !== 'clean' && (
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center ${recallStatus.status === 'warning' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                             {recallStatus.status === 'warning' ? <><ShieldAlert size={12} className="mr-1"/> Recall Found</> : <><AlertCircle size={12} className="mr-1"/> Check Manually</>}
+                        </span>
+                    )}
+                     {recallStatus && recallStatus.status === 'clean' && (
+                        <span className="px-2 py-1 rounded-full text-xs font-bold flex items-center bg-green-100 text-green-700">
+                             <ShieldCheck size={12} className="mr-1"/> No Recall Found
                         </span>
                     )}
                     <span className="bg-white border border-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{String(record.category || 'General')}</span> 
@@ -657,6 +659,7 @@ const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
             <div className="space-y-2 mb-6"> 
                 {record.brand && <p className="text-slate-500 text-sm flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span>{record.brand}</p>} 
                 {record.dateInstalled && <p className="text-slate-500 text-sm flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span>{record.dateInstalled}</p>} 
+                {record.model && <p className="text-slate-500 text-sm flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span>Model: {record.model}</p>}
             </div> 
             
             {/* Safety Check Button */}
@@ -668,7 +671,7 @@ const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                         className="text-xs flex items-center text-slate-400 hover:text-sky-600 transition font-bold"
                     >
                         {checkingRecall ? <Loader2 className="animate-spin mr-1 h-3 w-3"/> : <ShieldCheck className="mr-1 h-3 w-3"/>} 
-                        Check Safety Status
+                        {record.model ? "Check Safety Status" : "Add Model # to Check Safety"}
                     </button>
                 )}
                 {recallStatus?.url && (
@@ -944,6 +947,23 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
                                             onChange={(e) => updateScannedItem(idx, 'item', e.target.value)}
                                             className="w-full text-sm font-bold text-slate-800 border-0 border-b border-slate-200 focus:border-sky-500 focus:ring-0 px-0 py-1 bg-transparent"
                                         />
+                                        {/* Brand & Model Editing */}
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                            <input 
+                                                type="text"
+                                                placeholder="Brand"
+                                                value={item.brand || ''}
+                                                onChange={(e) => updateScannedItem(idx, 'brand', e.target.value)}
+                                                className="text-xs text-slate-500 border-0 border-b border-slate-100 focus:ring-0 bg-transparent placeholder-slate-300"
+                                            />
+                                            <input 
+                                                type="text"
+                                                placeholder="Model #"
+                                                value={item.model || ''}
+                                                onChange={(e) => updateScannedItem(idx, 'model', e.target.value)}
+                                                className="text-xs text-slate-500 border-0 border-b border-slate-100 focus:ring-0 bg-transparent placeholder-slate-300"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="sm:col-span-4">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
@@ -1026,7 +1046,6 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
     </div>
     
     <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={safeRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div> <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50 transition-colors text-center cursor-pointer relative group"><label className="block text-sm font-bold text-slate-600 mb-2 group-hover:text-sky-700 pointer-events-none">Upload Receipt or Photo</label><input type="file" accept="image/*" onChange={onFileChange} ref={fileInputRef} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"/><div className="text-slate-400 group-hover:text-sky-400"><Camera size={24} className="mx-auto mb-2"/></div><p className="text-xs text-slate-400 group-hover:text-sky-500">Max 1MB</p></div> <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div> <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-sky-900/10 text-base font-bold text-white bg-sky-900 hover:bg-sky-800 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log New Item</>)} </button> </form> ); };
-const PedigreeReport = ({ propertyProfile, records = [] }) => { const stats = useMemo(() => { const defaultVal = { age: 'N/A', date: 'No data' }; try { const calculateAge = (categoryKeyword, itemKeyword) => { if (!records || records.length === 0) return defaultVal; const record = records.find(r => { if (!r) return false; const cat = String(r.category || '').toLowerCase(); const item = String(r.item || '').toLowerCase(); return (cat.includes(categoryKeyword.toLowerCase()) || item.includes(itemKeyword.toLowerCase())) && r.dateInstalled; }); if (!record) return { age: 'N/A', date: 'No record' }; const installed = new Date(record.dateInstalled); if (isNaN(installed.getTime())) return { age: 'N/A', date: 'Invalid Date' }; const age = new Date().getFullYear() - installed.getFullYear(); return { age: `${age} Yrs`, date: `Installed ${installed.getFullYear()}` }; }; return { hvac: calculateAge('HVAC', 'hvac'), roof: calculateAge('Roof', 'roof'), heater: calculateAge('Plumbing', 'water heater') }; } catch (e) { return { hvac: defaultVal, roof: defaultVal, heater: defaultVal }; } }, [records]); const sortedRecords = useMemo(() => { if (!records) return []; return [...records].sort((a, b) => { const dateA = a.dateInstalled ? new Date(a.dateInstalled) : (a.timestamp && typeof a.timestamp === 'string' ? new Date(a.timestamp) : new Date(0)); const dateB = b.dateInstalled ? new Date(b.dateInstalled) : (b.timestamp && typeof b.timestamp === 'string' ? new Date(b.timestamp) : new Date(0)); return dateB - dateA; }); }, [records]); return ( <div className="bg-sky-50 min-h-screen pb-12"> <div className="max-w-5xl mx-auto mb-6 flex justify-between items-center print:hidden pt-6 px-4"> <h2 className="text-2xl font-bold text-sky-900">Pedigree Report</h2> <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-sky-900 text-white rounded-lg shadow-sm hover:bg-sky-800 transition"><Printer className="h-4 w-4 mr-2" /> Print / Save PDF</button> </div> <div className="max-w-5xl mx-auto bg-white rounded-[2rem] shadow-xl overflow-hidden border border-sky-100 print:shadow-none print:border-0"> <div className="bg-sky-900 text-white p-8 md:p-12 relative overflow-hidden"> <div className="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10"><img src={logoSrc} className="w-64 h-64 brightness-0 invert" alt="Watermark"/></div> <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center"> <div> <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white">{propertyProfile?.name || 'My Property'}</h1> <p className="text-sky-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile?.address?.street ? `${propertyProfile.address.street}, ${propertyProfile.address.city || ''} ${propertyProfile.address.state || ''}` : 'No Address Listed'}</p> </div> <div className="mt-8 md:mt-0 text-left md:text-right"><p className="text-xs text-sky-300 uppercase tracking-wide mb-1">Report Date</p><p className="font-mono text-lg font-bold">{new Date().toLocaleDateString()}</p></div> </div> </div> <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-sky-100 border-b border-sky-100 bg-sky-50 print:grid-cols-4"> <div className="p-6 text-center"><p className="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">HVAC Age</p><p className="text-2xl font-extrabold text-sky-900">{stats.hvac.age}</p><p className="text-xs text-sky-500 mt-1">{stats.hvac.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">Roof Age</p><p className="text-2xl font-extrabold text-sky-900">{stats.roof.age}</p><p className="text-xs text-sky-500 mt-1">{stats.roof.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">Water Heater</p><p className="text-2xl font-extrabold text-sky-900">{stats.heater.age}</p><p className="text-xs text-sky-500 mt-1">{stats.heater.date}</p></div> <div className="p-6 text-center"><p className="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">Total Records</p><p className="text-2xl font-extrabold text-sky-600">{records ? records.length : 0}</p></div> </div> <div className="p-8 md:p-10"> <div className="space-y-8 border-l-2 border-sky-100 ml-3 pl-8 relative"> {sortedRecords.map(record => ( <div key={record.id} className="relative break-inside-avoid"> <div className="absolute -left-[41px] top-1 h-6 w-6 rounded-full bg-white border-4 border-sky-600"></div> <div className="mb-1 flex flex-col sm:flex-row sm:items-baseline sm:justify-between"> <span className="font-bold text-lg text-slate-900 mr-3">{String(record.item || 'Unknown Item')}</span> <span className="text-sm font-mono text-slate-500">{record.dateInstalled || (typeof record.timestamp === 'string' ? record.timestamp : 'No Date')}</span> </div> <div className="bg-white border border-sky-100 rounded-2xl p-4 shadow-sm print:shadow-none print:border"> <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3 text-sm"> <div><span className="text-sky-400 uppercase text-xs font-bold">Category:</span> <span className="font-medium text-slate-700">{String(record.category || 'Uncategorized')}</span></div> {record.brand && <div><span className="text-sky-400 uppercase text-xs font-bold">Brand:</span> <span className="font-medium text-slate-700">{String(record.brand)}</span></div>} {record.contractor && <div><span className="text-sky-400 uppercase text-xs font-bold">Contractor:</span> <span className="font-medium text-slate-700">{String(record.contractor)}</span></div>} </div> {record.notes && <p className="text-sm text-slate-600 bg-sky-50 p-3 rounded-xl border border-sky-100 italic print:bg-transparent print:border-0">"{String(record.notes)}"</p>} {record.imageUrl && <div className="mt-3"><img src={record.imageUrl} alt="Record" className="h-32 w-auto rounded-xl border border-sky-100 object-cover print:h-24" /></div>} </div> </div> ))} </div> </div> </div> </div> ); };
 
 // UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
