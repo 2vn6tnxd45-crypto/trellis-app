@@ -561,11 +561,13 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
     const [suggestedTasks, setSuggestedTasks] = useState([]); 
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
+    const [scannedImageBase64, setScannedImageBase64] = useState(null); // NEW: Store base64 for batch save
     const smartScanInputRef = useRef(null);
 
     // NEW: Global Fields for Bulk Update
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
+    const [globalArea, setGlobalArea] = useState("General"); // NEW: Global Room
 
     const suggestMaintenance = async () => {
         if (!newRecord.item && !newRecord.category) {
@@ -618,7 +620,6 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
         const file = e.target.files[0];
         if (!file) return;
 
-        // Create local preview
         const previewUrl = URL.createObjectURL(file);
         setScannedImagePreview(previewUrl);
 
@@ -628,6 +629,8 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
         try {
             const base64Str = await fileToBase64(file);
             const base64Data = getBase64Data(base64Str);
+            
+            setScannedImageBase64(base64Str); // Store full data URI for saving
 
             const prompt = `
                 Analyze this image. It is either a receipt, an invoice, or a product label.
@@ -662,11 +665,9 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
             if (data.items && Array.isArray(data.items) && data.items.length > 0) {
                 setScannedItems(data.items);
                 
-                // Set Global Defaults from first item if available
                 if (data.items[0].dateInstalled) setGlobalDate(data.items[0].dateInstalled);
                 if (data.items[0].contractor) setGlobalStore(toProperCase(data.items[0].contractor));
                 
-                // Auto-fill if single item
                 if (data.items.length === 1) applyScannedItem(data.items[0]);
             } else {
                 alert("No items detected in image.");
@@ -688,16 +689,16 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
         if (itemData.model) onInputChange({ target: { name: 'model', value: itemData.model } });
         if (itemData.dateInstalled) onInputChange({ target: { name: 'dateInstalled', value: itemData.dateInstalled } });
         if (itemData.contractor && itemData.contractor !== 'Unknown') onInputChange({ target: { name: 'contractor', value: toProperCase(itemData.contractor) } });
+        // Auto-fill global room if set
+        if (globalArea) onInputChange({ target: { name: 'area', value: globalArea } });
     };
 
-    // Handle individual item updates in the review list
     const updateScannedItem = (index, field, value) => {
         const updated = [...scannedItems];
         updated[index][field] = value;
         setScannedItems(updated);
     };
 
-    // Delete an item from the review list
     const deleteScannedItem = (index) => {
         const updated = scannedItems.filter((_, i) => i !== index);
         setScannedItems(updated);
@@ -706,11 +707,13 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
     const handleBatchSaveClick = async () => {
         if (scannedItems.length === 0) return;
         
-        // Apply global fields to all items before saving
+        // Apply global fields and attach the image to all items
         const finalItems = scannedItems.map(item => ({
             ...item,
             dateInstalled: globalDate || item.dateInstalled,
-            contractor: globalStore || item.contractor
+            contractor: globalStore || item.contractor,
+            area: item.area || globalArea, // Use item specific area if set, else global
+            imageUrl: scannedImageBase64 // Attach the receipt image!
         }));
 
         if (confirm(`Are you sure you want to save all ${finalItems.length} items to your log?`)) {
@@ -718,6 +721,7 @@ const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange
            if (success) {
                setScannedItems([]);
                setScannedImagePreview(null);
+               setScannedImageBase64(null);
            }
         }
     };
@@ -756,8 +760,11 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
                 {/* 1. IMAGE PREVIEW */}
                 <div className="lg:col-span-1">
                     {scannedImagePreview && (
-                        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-full">
-                            <img src={scannedImagePreview} alt="Receipt" className="w-full h-64 lg:h-full object-cover object-top opacity-90 hover:opacity-100 transition-opacity" />
+                        <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm h-full max-h-96 lg:max-h-full relative group">
+                            <img src={scannedImagePreview} alt="Receipt" className="w-full h-full object-cover object-top" />
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <span className="text-white text-xs font-bold uppercase tracking-widest">Source Image</span>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -765,24 +772,35 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
                 {/* 2. EDITABLE LIST */}
                 <div className="lg:col-span-2 space-y-4">
                     {/* Global Settings */}
-                    <div className="bg-white p-4 rounded-xl border border-sky-100 shadow-sm flex flex-wrap gap-4 items-center">
-                        <span className="text-xs font-bold text-sky-700 uppercase tracking-wider">Global Settings:</span>
+                    <div className="bg-white p-4 rounded-xl border border-sky-100 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                        <div className="col-span-full sm:col-span-3 text-xs font-bold text-sky-700 uppercase tracking-wider border-b border-slate-100 pb-2 mb-1">Global Settings (Applies to All)</div>
+                        
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Date</label>
-                            <input type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} className="bg-slate-50 border-none rounded-lg text-sm text-slate-700 font-medium focus:ring-0 p-1" />
+                            <input type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:ring-sky-500 focus:border-sky-500 w-full p-2" />
                         </div>
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Store / Contractor</label>
-                            <input type="text" value={globalStore} onChange={(e) => setGlobalStore(e.target.value)} placeholder="Store Name" className="bg-slate-50 border-none rounded-lg text-sm text-slate-700 font-medium focus:ring-0 p-1 w-32" />
+                            <input type="text" value={globalStore} onChange={(e) => setGlobalStore(e.target.value)} placeholder="Store Name" className="bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:ring-sky-500 focus:border-sky-500 w-full p-2" />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Default Room</label>
+                            <div className="relative">
+                                <select value={globalArea} onChange={(e) => setGlobalArea(e.target.value)} className="bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:ring-sky-500 focus:border-sky-500 w-full p-2 appearance-none">
+                                    {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                    <option value="General">General</option>
+                                </select>
+                                <ChevronDown size={14} className="absolute right-2 top-3 text-slate-400 pointer-events-none"/>
+                            </div>
                         </div>
                     </div>
 
                     {/* Item Cards */}
                     <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                         {scannedItems.map((item, idx) => (
-                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-3 items-start group hover:border-sky-300 transition-colors">
-                                <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
+                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-3 items-start group hover:border-sky-300 transition-colors relative">
+                                <div className="flex-grow grid grid-cols-1 sm:grid-cols-12 gap-3 w-full">
+                                    <div className="sm:col-span-5">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
                                         <input 
                                             type="text" 
@@ -791,7 +809,7 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
                                             className="w-full text-sm font-bold text-slate-800 border-0 border-b border-slate-200 focus:border-sky-500 focus:ring-0 px-0 py-1 bg-transparent"
                                         />
                                     </div>
-                                    <div>
+                                    <div className="sm:col-span-4">
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
                                         <select 
                                             value={item.category} 
@@ -801,11 +819,22 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
                                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
+                                    <div className="sm:col-span-3">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Room Override</label>
+                                        <select 
+                                            value={item.area || ""} 
+                                            onChange={(e) => updateScannedItem(idx, 'area', e.target.value)}
+                                            className="w-full text-xs font-medium text-slate-500 border-0 border-b border-slate-200 focus:border-sky-500 focus:ring-0 px-0 py-1 bg-transparent"
+                                        >
+                                            <option value="">(Use Global)</option>
+                                            {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
                                 <button 
                                     type="button" 
                                     onClick={() => deleteScannedItem(idx)}
-                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors self-center"
                                     title="Remove Item"
                                 >
                                     <XCircle size={20} />
@@ -1030,12 +1059,12 @@ const AppContent = () => {
                     model: item.model || '', // Keep models as-is
                     contractor: toProperCase(item.contractor) || '',
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
-                    area: 'General', // Default to general unless AI is smarter
+                    area: item.area || globalArea, // NEW: Prioritize item area, then global
                     maintenanceFrequency: 'none', // Default, user can edit later
                     nextServiceDate,
                     timestamp: serverTimestamp(),
                     maintenanceTasks: [],
-                    imageUrl: '' // No image for individual line items from receipt
+                    imageUrl: scannedImageBase64 // NEW: Attach receipt image to all items
                 };
                 const docRef = doc(userRecordsRef); 
                 batch.set(docRef, recordData);
@@ -1163,13 +1192,16 @@ const AppContent = () => {
                 {/* ... rest of render ... */}
                 {error && <div className="max-w-4xl mx-auto bg-red-100 border border-red-400 text-red-700 px-6 py-4 rounded-2xl mb-6 shadow-sm">{error}<span className="float-right cursor-pointer font-bold" onClick={()=>setError(null)}>×</span></div>}
                 
-                <nav className="flex justify-center mb-8 max-w-lg mx-auto print:hidden">
-                    <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-l-2xl border transition-all ${activeTab==='View Records'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>History</button>
-                    <button onClick={() => setActiveTab('Maintenance')} className={`flex-1 px-4 py-3 text-sm font-bold border-y transition-all ${activeTab==='Maintenance'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Maintenance</button>
-                    <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Add Record'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Add</button>
-                    <button onClick={() => setActiveTab('Requests')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Requests'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Request</button>
-                    <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all ${activeTab==='Report'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Report</button>
-                    <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-r-2xl border border-l transition-all ${activeTab==='Insights'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Insights</button>
+                {/* UPDATED NAVIGATION FOR MOBILE: Overflow-X and No-Wrap */}
+                <nav className="flex justify-start md:justify-center mb-8 max-w-lg mx-auto print:hidden overflow-x-auto pb-2 px-2 md:px-0 snap-x no-scrollbar scroll-smooth">
+                    <div className="flex min-w-max gap-0">
+                        <button onClick={() => setActiveTab('View Records')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-l-2xl border transition-all whitespace-nowrap ${activeTab==='View Records'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>History</button>
+                        <button onClick={() => setActiveTab('Maintenance')} className={`flex-1 px-4 py-3 text-sm font-bold border-y transition-all whitespace-nowrap ${activeTab==='Maintenance'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Maintenance</button>
+                        <button onClick={() => { setActiveTab('Add Record'); handleCancelEdit(); }} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all whitespace-nowrap ${activeTab==='Add Record'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Add</button>
+                        <button onClick={() => setActiveTab('Requests')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all whitespace-nowrap ${activeTab==='Requests'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Request</button>
+                        <button onClick={() => setActiveTab('Report')} className={`flex-1 px-4 py-3 text-sm font-bold border-y border-l transition-all whitespace-nowrap ${activeTab==='Report'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20 z-10':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Report</button>
+                        <button onClick={() => setActiveTab('Insights')} className={`flex-1 px-4 py-3 text-sm font-bold rounded-r-2xl border border-l transition-all whitespace-nowrap ${activeTab==='Insights'?'bg-sky-900 text-white border-sky-900 shadow-lg shadow-sky-900/20':'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Insights</button>
+                    </div>
                 </nav>
 
                 <main className="max-w-4xl mx-auto pb-20">
