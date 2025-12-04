@@ -75,13 +75,16 @@ class ErrorBoundary extends React.Component {
 // --- HAUSKEY LOGO ---
 const logoHausKey = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- House Outline -->
   <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#0ea5e9" stroke-width="8" stroke-linejoin="round" fill="none"/>
   
+  <!-- Key Shape (Integrated) -->
   <circle cx="50" cy="50" r="10" fill="#0c4a6e"/>
   <rect x="46" y="55" width="8" height="25" rx="2" fill="#0c4a6e"/>
   <rect x="54" y="65" width="6" height="4" fill="#0c4a6e"/>
   <rect x="54" y="72" width="4" height="4" fill="#0c4a6e"/>
   
+  <!-- Key Hole Detail -->
   <circle cx="50" cy="50" r="3" fill="white"/>
 </svg>
 `)}`;
@@ -302,7 +305,7 @@ const WelcomeModal = ({ onClose }) => {
 const ReauthModal = ({ onConfirm, onCancel, isLoading }) => { const [password, setPassword] = useState(''); const [error, setError] = useState(null); const handleSubmit = (e) => { e.preventDefault(); setError(null); if (!password) { setError("Password is required."); return; } onConfirm(password).catch(err => setError(err.message || "Re-authentication failed.")); }; return (<div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden"><div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full"><h3 className="text-xl font-semibold text-red-800 mb-2">Security Check</h3><p className="text-gray-600 mb-4 text-sm">Please re-enter your password to confirm permanent account deletion.</p><form onSubmit={handleSubmit} className="space-y-4"><input type="password" placeholder="Current Password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-2 border border-gray-300 rounded-lg text-sm" required />{error && <p className="text-red-600 text-xs">{error}</p>}<div className="flex justify-end space-x-3 pt-2"><button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors">Cancel</button><button type="submit" disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-700 rounded-lg hover:bg-red-800 transition-colors disabled:opacity-50">{isLoading ? 'Deleting...' : 'Confirm Deletion'}</button></div></form></div></div>); };
 const CustomConfirm = ({ message, onConfirm, onCancel, type = 'delete' }) => (<div className="fixed inset-0 bg-gray-900 bg-opacity-70 flex items-center justify-center z-50 p-4 print:hidden"><div className="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full"><h3 className="text-xl font-semibold text-gray-800 mb-4">{type === 'account' ? 'Confirm Account Deletion' : 'Confirm Action'}</h3><p className="text-gray-600 mb-6">{message}</p><div className="flex justify-end space-x-3"><button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"><X size={16} className="mr-1"/>Cancel</button><button onClick={onConfirm} className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors ${type === 'account' ? 'bg-red-700 hover:bg-red-800' : 'bg-red-600 hover:bg-red-700'}`}>{type === 'account' ? 'Delete Permanently' : 'Delete'}</button></div></div></div>);
 const AuthScreen = ({ onLogin, onGoogleLogin, onAppleLogin, onGuestLogin, error: authError }) => { const [isSignUp, setIsSignUp] = useState(false); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [localError, setLocalError] = useState(null); const [isLoading, setIsLoading] = useState(false); useEffect(() => { const params = new URLSearchParams(window.location.search); if (params.get('email')) { setEmail(params.get('email')); setIsSignUp(true); } }, []); const handleSubmit = async (e) => { e.preventDefault(); setLocalError(null); setIsLoading(true); try { await onLogin(email, password, isSignUp); } catch (err) { setLocalError(err.message); setIsLoading(false); } }; return (<div className="min-h-screen bg-sky-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans print:hidden"><style>{`@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap'); body { font-family: 'Outfit', sans-serif; }`}</style><div className="sm:mx-auto sm:w-full sm:max-w-md text-center"><img className="mx-auto h-24 w-24 rounded-3xl shadow-lg bg-white p-2" src={logoSrc} alt="HausKey" /><h2 className="mt-6 text-4xl font-extrabold text-sky-900 tracking-tight">{isSignUp ? 'Create your Pedigree' : 'Sign in to HausKey'}</h2><p className="mt-2 text-base text-sky-600/80">The permanent record for your home.</p></div><div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"><div className="bg-white py-8 px-4 shadow-xl shadow-sky-100/50 rounded-2xl sm:px-10 border border-sky-100"><div className="grid grid-cols-2 gap-3 mb-6"><button onClick={onGoogleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-200 rounded-xl shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><GoogleIcon /></span> Google</button><button onClick={onAppleLogin} className="w-full inline-flex justify-center items-center py-2.5 px-4 border border-gray-200 rounded-xl shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"><span className="mr-2"><AppleIcon /></span> Apple</button></div><div className="relative mb-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-white text-gray-400">Or continue with email</span></div></div><form className="space-y-6" onSubmit={handleSubmit}><div><label className="block text-sm font-bold text-sky-900 mb-1">Email</label><div className="relative rounded-xl shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail size={18} className="text-gray-400" /></div><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-200 rounded-xl p-3 border focus:ring-sky-500 focus:border-sky-500" placeholder="you@example.com"/></div></div><div><label className="block text-sm font-bold text-sky-900 mb-1">Password</label><div className="relative rounded-xl shadow-sm"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock size={18} className="text-gray-400" /></div><input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 sm:text-sm border-gray-200 rounded-xl p-3 border focus:ring-sky-500 focus:border-sky-500" placeholder="••••••••"/></div></div>{(localError || authError) && <div className="text-red-600 text-sm bg-red-50 p-3 rounded-xl border border-red-100">{localError || authError}</div>}<button type="submit" disabled={isLoading} className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg shadow-sky-200 text-sm font-bold text-white bg-sky-900 hover:bg-sky-800 disabled:opacity-50 transition-all">{isLoading ? 'Processing...' : (isSignUp ? 'Create Account' : 'Sign In')}</button></form><div className="mt-6 text-center space-y-4"><button onClick={() => setIsSignUp(!isSignUp)} className="text-sm font-medium text-sky-600 hover:text-sky-800">{isSignUp ? 'Already have an account? Sign in' : 'Need an account? Create one'}</button><div className="border-t border-gray-100 pt-4"><button onClick={onGuestLogin} className="text-xs font-bold text-gray-400 hover:text-gray-600 uppercase tracking-wider">Try as a Guest</button></div></div></div></div></div>); };
-const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => { const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: '' }); const inputRef = useRef(null); useEffect(() => { window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); }; loadGoogleMapsScript().then(() => { if (inputRef.current && window.google && window.google.maps && window.google.maps.places) { try { const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] }); inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); }); auto.addListener('place_changed', () => { const place = auto.getPlace(); if (!place.geometry) return; let streetNum = '', route = '', city = '', state = '', zip = ''; if (place.address_components) { place.address_components.forEach(comp => { if (comp.types.includes('street_number')) streetNum = comp.long_name; if (comp.types.includes('route')) route = comp.long_name; if (comp.types.includes('locality')) city = comp.long_name; if (comp.types.includes('administrative_area_level_1')) state = comp.short_name; if (comp.types.includes('postal_code')) zip = comp.long_name; }); } setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() })); if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim(); }); } catch (e) { console.warn("Google Auto fail", e); } } }).catch(err => console.error("Maps load error", err)); }, []); const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); }; const handleSubmit = (e) => { e.preventDefault(); const formDataObj = new FormData(e.target); if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value); onSave(formDataObj); }; return (<div className="flex items-center justify-center min-h-[90vh] print:hidden"><div className="max-w-lg w-full bg-white p-10 rounded-3xl shadow-2xl shadow-sky-100 border border-sky-100 text-center relative"><button onClick={onSignOut} className="absolute top-6 right-6 text-gray-400 hover:text-red-500 flex items-center text-xs font-bold uppercase tracking-wider transition-colors"><LogOut size={14} className="mr-1" /> Sign Out</button><div className="flex flex-col items-center justify-center mb-8"><img src={logoSrc} alt="HausKey Logo" className="h-20 w-20 shadow-md rounded-2xl mb-4 bg-sky-50 p-2" /><h2 className="text-3xl font-extrabold text-sky-900 mb-1">Property Setup</h2><p className="text-sky-500/80 font-medium">Let's get your home logged.</p></div><form onSubmit={handleSubmit} className="space-y-6 text-left relative"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Property Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border focus:ring-sky-500 focus:bg-white transition-all"/></div><div className="relative"><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3.5 top-3.5 text-sky-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 pl-10 border focus:ring-sky-500 focus:bg-white transition-all"/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div></div></div><div className="pt-6 border-t border-gray-100"><p className="text-xs text-sky-400 font-bold uppercase tracking-widest mb-4">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div></div></div><input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} /><button type="submit" disabled={isSaving} className="w-full py-4 px-6 rounded-xl shadow-lg shadow-sky-900/20 text-white bg-sky-900 hover:bg-sky-800 font-bold text-lg disabled:opacity-70 transition-transform active:scale-[0.98]">{isSaving ? 'Saving...' : 'Create My Home Log'}</button></form></div></div>); };
+const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => { const [formData, setFormData] = useState({ propertyName: '', streetAddress: '', city: '', state: '', zip: '', lat: null, lon: null, yearBuilt: '', sqFt: '', lotSize: '' }); const inputRef = useRef(null); useEffect(() => { window.gm_authFailure = () => { console.error("Google Maps Auth Failure detected"); alert("Google Maps API Key Error."); }; loadGoogleMapsScript().then(() => { if (inputRef.current && window.google && window.google.maps && window.google.maps.places) { try { const auto = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'], fields: ['address_components', 'geometry', 'formatted_address'] }); inputRef.current.addEventListener('keydown', (e) => { if(e.key === 'Enter') e.preventDefault(); }); auto.addListener('place_changed', () => { const place = auto.getPlace(); if (!place.geometry) return; let streetNum = '', route = '', city = '', state = '', zip = ''; if (place.address_components) { place.address_components.forEach(comp => { if (comp.types.includes('street_number')) streetNum = comp.long_name; if (comp.types.includes('route')) route = comp.long_name; if (comp.types.includes('locality')) city = comp.long_name; if (comp.types.includes('administrative_area_level_1')) state = comp.short_name; if (comp.types.includes('postal_code')) zip = comp.long_name; }); } setFormData(prev => ({ ...prev, streetAddress: `${streetNum} ${route}`.trim(), city, state, zip, lat: place.geometry.location.lat(), lon: place.geometry.location.lng() })); if (inputRef.current) inputRef.current.value = `${streetNum} ${route}`.trim(); }); } catch (e) { console.warn("Google Auto fail", e); } } }).catch(err => console.error("Maps load error", err)); }, []); const handleChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); }; const handleSubmit = (e) => { e.preventDefault(); const formDataObj = new FormData(e.target); if (inputRef.current) formDataObj.set('streetAddress', inputRef.current.value); onSave(formDataObj); }; return (<div className="flex items-center justify-center min-h-[90vh] print:hidden"><div className="max-w-lg w-full bg-white p-10 rounded-3xl shadow-2xl shadow-sky-100 border border-sky-100 text-center relative"><button onClick={onSignOut} className="absolute top-6 right-6 text-gray-400 hover:text-red-500 flex items-center text-xs font-bold uppercase tracking-wider transition-colors"><LogOut size={14} className="mr-1" /> Sign Out</button><div className="flex flex-col items-center justify-center mb-8"><img src={logoSrc} alt="HausKey Logo" className="h-20 w-20 shadow-md rounded-2xl mb-4 bg-sky-50 p-2" /><h2 className="text-3xl font-extrabold text-sky-900 mb-1">Property Setup</h2><p className="text-sky-500/80 font-medium">Let's get your home logged.</p></div><form onSubmit={handleSubmit} className="space-y-6 text-left relative"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Property Nickname</label><input type="text" name="propertyName" value={formData.propertyName} onChange={handleChange} placeholder="e.g. The Lake House" className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border focus:ring-sky-500 focus:bg-white transition-all"/></div><div className="relative"><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Street Address</label><div className="relative"><MapPin className="absolute left-3.5 top-3.5 text-sky-400" size={18} /><input ref={inputRef} type="text" name="streetAddress" defaultValue={formData.streetAddress} autoComplete="new-password" placeholder="Start typing address..." className="block w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 pl-10 border focus:ring-sky-500 focus:bg-white transition-all"/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">City</label><input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div><div className="grid grid-cols-2 gap-2"><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">State</label><input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div><div><label className="block text-xs font-bold text-sky-900 uppercase tracking-wide mb-1">Zip</label><input type="text" name="zip" value={formData.zip} onChange={handleChange} className="w-full rounded-xl border-gray-200 bg-sky-50/50 p-3.5 border"/></div></div></div><div className="pt-6 border-t border-gray-100"><p className="text-xs text-sky-400 font-bold uppercase tracking-widest mb-4">Details (Optional)</p><div className="grid grid-cols-3 gap-3"><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Year Built</label><input type="number" name="yearBuilt" value={formData.yearBuilt} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Sq Ft</label><input type="number" name="sqFt" value={formData.sqFt} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div><div><label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Lot Size</label><input type="text" name="lotSize" value={formData.lotSize} onChange={handleChange} className="w-full rounded-xl border-gray-200 p-2.5 border text-sm"/></div></div></div><input type="hidden" name="lat" value={formData.lat || ''} /><input type="hidden" name="lon" value={formData.lon || ''} /><button type="submit" disabled={isSaving} className="w-full py-4 px-6 rounded-xl shadow-lg shadow-sky-900/20 text-white bg-sky-900 hover:bg-sky-800 font-bold text-lg disabled:opacity-70 transition-transform active:scale-[0.98]">{isSaving ? 'Saving...' : 'Create My Home Log'}</button></form></div></div>); };
 
 // --- NEW: Maintenance Dashboard Component ---
 const MaintenanceDashboard = ({ records, onCompleteTask, onAddStandardTask }) => {
@@ -610,7 +613,225 @@ const ContractorView = () => {
     );
 };
 
-// ... [EnvironmentalInsights, PropertyMap, PedigreeReport remain same] ...
+// --- Pedigree Report Component (MISSING DEFINITION) ---
+const PedigreeReport = ({ propertyProfile, records }) => {
+    
+    // Helper function to extract the year from a date string
+    const getYear = (dateString) => {
+        if (!dateString) return null;
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? null : date.getFullYear();
+    };
+
+    // Filter records into relevant categories for the dashboard summary
+    const categorizedRecords = records.reduce((acc, record) => {
+        if (record.category === "HVAC & Systems") {
+            acc.hvac.push(record);
+        } else if (record.category === "Roof & Exterior") {
+            if (record.item.toLowerCase().includes('roof')) {
+                acc.roof.push(record);
+            } else if (record.item.toLowerCase().includes('water heater') || record.item.toLowerCase().includes('wh')) {
+                acc.waterHeater.push(record);
+            }
+        } else if (record.category === "Plumbing" && (record.item.toLowerCase().includes('water heater') || record.item.toLowerCase().includes('wh'))) {
+            acc.waterHeater.push(record);
+        }
+        return acc;
+    }, { hvac: [], roof: [], waterHeater: [] });
+
+    // Find the most recent installation date and calculate age
+    const calculateAge = (recordList) => {
+        if (recordList.length === 0) return { age: 'N/A', year: 'N/A' };
+        
+        // Find the most recent dateInstalled
+        const latestRecord = recordList.reduce((latest, current) => {
+            const latestDate = latest.dateInstalled ? new Date(latest.dateInstalled) : new Date(0);
+            const currentDate = current.dateInstalled ? new Date(current.dateInstalled) : new Date(0);
+            
+            if (currentDate > latestDate) {
+                return current;
+            }
+            return latest;
+        }, recordList[0]);
+
+        const yearInstalled = getYear(latestRecord.dateInstalled);
+        const currentYear = new Date().getFullYear();
+        
+        if (yearInstalled) {
+            const age = currentYear - yearInstalled;
+            return { age: age > 0 ? age : '<1', year: yearInstalled };
+        }
+        return { age: 'N/A', year: 'N/A' };
+    };
+
+    const hvacAge = calculateAge(categorizedRecords.hvac);
+    const roofAge = calculateAge(categorizedRecords.roof);
+    const waterHeaterAge = calculateAge(categorizedRecords.waterHeater);
+    
+    // Prepare data for the timeline (sorted by date installed descending)
+    const timelineRecords = [...records]
+        .filter(r => r.dateInstalled)
+        .sort((a, b) => new Date(b.dateInstalled) - new Date(a.dateInstalled));
+
+    const propertyAddress = `${propertyProfile.address?.street}, ${propertyProfile.address?.city}, ${propertyProfile.address?.state} ${propertyProfile.address?.zip}`;
+
+    return (
+        <div className="space-y-8 print:p-0">
+             {/* Print Button and External Link */}
+             <div className="flex justify-between items-center mb-6 no-print">
+                <button 
+                    onClick={() => window.print()}
+                    className="flex items-center px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:bg-slate-50 text-sm font-bold text-slate-700 transition"
+                >
+                    <Printer className="h-4 w-4 mr-2" /> Print Report
+                </button>
+                <a 
+                    href="/pedigree_report.html" 
+                    target="_blank" 
+                    className="flex items-center text-sky-600 hover:text-sky-800 transition font-bold text-sm"
+                >
+                    View in Full-Screen Viewer <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+            </div>
+
+            {/* Report Header/Dashboard (Printable) */}
+            <div className="bg-sky-950 text-white p-8 md:p-12 rounded-[2rem] shadow-xl relative overflow-hidden print:rounded-none print:shadow-none print:bg-white print:text-slate-800 print:border-b-2 print:border-slate-200">
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center">
+                    <div>
+                        <div className="flex items-center mb-6 print:hidden">
+                            <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm mr-4 border border-white/20">
+                                <Key className="h-8 w-8 text-sky-200"/>
+                            </div>
+                            <span className="text-xl font-bold tracking-widest uppercase text-sky-200">Official Pedigree</span>
+                        </div>
+                        <h1 className="text-4xl md:text-5xl font-extrabold mb-2 tracking-tight text-white print:text-slate-900 print:text-4xl">
+                            {propertyProfile.name || propertyAddress}
+                        </h1>
+                        <p className="text-sky-200 text-lg flex items-center font-medium print:text-slate-500 print:text-base">
+                            <MapPin className="h-5 w-5 mr-2" /> {propertyAddress}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Key Systems Dashboard */}
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 border border-slate-100 rounded-[2rem] overflow-hidden bg-white shadow-lg print:border-none print:rounded-none print:shadow-none">
+                <div className="p-6 text-center">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Total Records</p>
+                    <p className="text-4xl font-extrabold text-sky-600">{records.length}</p>
+                </div>
+                <div className="p-6 text-center">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">HVAC Age</p>
+                    <p className="text-4xl font-extrabold text-sky-900">{hvacAge.age} <span className="text-lg font-medium text-slate-400">Yrs</span></p>
+                    {hvacAge.year !== 'N/A' && <p className="text-xs text-slate-400">({hvacAge.year})</p>}
+                </div>
+                <div className="p-6 text-center">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Roof Age</p>
+                    <p className="text-4xl font-extrabold text-slate-900">{roofAge.age} <span className="text-lg font-medium text-slate-400">Yrs</span></p>
+                    {roofAge.year !== 'N/A' && <p className="text-xs text-slate-400">({roofAge.year})</p>}
+                </div>
+                <div className="p-6 text-center">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Water Heater Age</p>
+                    <p className="text-4xl font-extrabold text-sky-900">{waterHeaterAge.age} <span className="text-lg font-medium text-slate-400">Yrs</span></p>
+                    {waterHeaterAge.year !== 'N/A' && <p className="text-xs text-slate-400">({waterHeaterAge.year})</p>}
+                </div>
+            </div>
+
+            {/* Detailed Timeline */}
+            <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 print:p-0 print:shadow-none print:border-none">
+                <div className="flex items-center justify-between mb-10 print:mt-8 print:p-8">
+                    <h2 className="text-2xl font-bold text-slate-900 flex items-center">
+                        <Wrench className="h-6 w-6 mr-3 text-sky-600"/> Detailed History Timeline
+                    </h2>
+                </div>
+
+                {timelineRecords.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 border border-dashed border-slate-200 rounded-xl m-8 print:m-0">
+                        No records found for this property.
+                    </div>
+                ) : (
+                    <div className="space-y-10 border-l-2 border-slate-100 ml-3 pl-10 relative print:border-slate-300">
+                        {timelineRecords.map((record, index) => (
+                            <div key={record.id} className="print-break relative group">
+                                <div className="absolute -left-[49px] top-1 h-5 w-5 rounded-full bg-sky-500 border-4 border-white shadow-sm ring-1 ring-slate-100 print:bg-slate-700 print:border-slate-50"></div>
+                                
+                                <div className="mb-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                                    <span className="font-bold text-xl text-slate-900">{record.item}</span>
+                                    <span className="text-sm font-mono text-slate-400">{record.dateInstalled}</span>
+                                </div>
+                                
+                                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm print:shadow-none print:border-slate-300">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
+                                        <div>
+                                            <p className="text-xs text-slate-400 uppercase font-bold mb-1">Category / Area</p>
+                                            <p className="font-bold text-slate-800 text-lg">{record.category}</p>
+                                            <p className="text-sm text-slate-500">{record.area}</p>
+                                        </div>
+                                        {record.contractor && <div>
+                                            <p className="text-xs text-slate-400 uppercase font-bold mb-1">Service Provider</p>
+                                            <p className="font-medium text-slate-800 flex items-center">
+                                                <HardHat className="h-3 w-3 mr-1.5 text-sky-500"/> {record.contractor}
+                                            </p>
+                                            {record.contractorUrl && <a href={record.contractorUrl} target="_blank" rel="noreferrer" className="text-sm text-sky-500 hover:underline flex items-center print:text-slate-500 print:font-normal"><ExternalLink className="h-3 w-3 mr-1.5"/> View Profile</a>}
+                                        </div>}
+                                    </div>
+
+                                    {(record.brand || record.model || record.serialNumber || record.material || record.sheen) && (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 pt-4 border-t border-slate-100">
+                                            {record.brand && <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Brand</p><p className="text-sm font-medium text-slate-800">{record.brand}</p></div>}
+                                            {record.model && <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Model/Code</p><p className="text-sm font-medium text-slate-800">{record.model}</p></div>}
+                                            {record.serialNumber && <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Serial</p><p className="text-sm font-medium text-slate-800">{record.serialNumber}</p></div>}
+                                            {(record.material || record.sheen) && <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Material/Finish</p><p className="text-sm font-medium text-slate-800">{record.material || record.sheen}</p></div>}
+                                        </div>
+                                    )}
+
+                                    {record.notes && <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-slate-600 text-sm leading-relaxed mb-4 italic print:bg-white print:border-dashed print:text-slate-700">
+                                        "{record.notes}"
+                                    </div>}
+
+                                    {record.imageUrl && (
+                                        <div className="mt-4">
+                                            <p className="text-xs text-slate-400 uppercase font-bold mb-1">Receipt / Photo</p>
+                                            <img src={record.imageUrl} alt={`Photo for ${record.item}`} className="max-h-64 w-auto rounded-lg border border-slate-200 object-cover print:max-h-40"/>
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-slate-100 print:border-slate-200">
+                                        {record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && (
+                                            <span className="inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold bg-sky-50 text-sky-700 border border-sky-100 print:bg-slate-100 print:text-slate-600">
+                                                <Clock className="h-3 w-3 mr-1.5"/> Maint: {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label}
+                                            </span>
+                                        )}
+                                        {record.nextServiceDate && (
+                                             <span className={`inline-flex items-center px-3 py-1 rounded-lg text-xs font-bold ${
+                                                new Date(record.nextServiceDate) < new Date() ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'
+                                            } print:bg-slate-100 print:text-slate-600`}>
+                                                <Calendar className="h-3 w-3 mr-1.5"/> Next Service: {record.nextServiceDate}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            
+            {/* Footer */}
+            <div className="bg-slate-50 p-8 text-center border-t border-slate-100 rounded-b-[2rem] print:rounded-none print:shadow-none print:p-4 print:border-none">
+                <p className="text-sm text-slate-500 flex items-center justify-center font-bold">
+                    <Lock className="h-4 w-4 mr-2 text-sky-600"/> Authenticated by HausKey Property Data
+                </p>
+                <p className="text-xs text-slate-400 mt-2 font-mono">
+                    Report ID: {Math.random().toString(36).substring(2, 10).toUpperCase()} • Generated {new Date().toLocaleDateString()}
+                </p>
+            </div>
+        </div>
+    );
+};
+
+
+// ... [EnvironmentalInsights, PropertyMap, RecordCard, AddRecordForm remain same] ...
 const EnvironmentalInsights = ({ propertyProfile }) => { const { coordinates } = propertyProfile || {}; const [airQuality, setAirQuality] = useState(null); const [solarData, setSolarData] = useState(null); const [loading, setLoading] = useState(false); useEffect(() => { if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return; const fetchData = async () => { setLoading(true); try { const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } }) }); if(aqRes.ok) { const aqData = await aqRes.json(); if (aqData.indexes?.[0]) setAirQuality(aqData.indexes[0]); } const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`); if (solarRes.ok) setSolarData(await solarRes.json()); } catch (err) { console.error("Env fetch failed", err); } finally { setLoading(false); } }; fetchData(); }, [coordinates]); if (!coordinates?.lat) return <div className="p-6 text-center text-gray-500">Location data missing.</div>; return (<div className="space-y-6"><h2 className="text-xl font-bold text-sky-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="bg-white p-6 rounded-2xl shadow-sm border border-sky-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (airQuality ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{airQuality.aqi}</span><span className="ml-2 text-sm font-medium text-gray-500">US AQI</span></div><p className="text-sky-600 font-medium mt-1">{airQuality.category}</p></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div><div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden"><div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>{loading ? <div className="animate-pulse h-8 w-24 bg-gray-200 rounded"></div> : (solarData ? (<div><div className="flex items-baseline"><span className="text-4xl font-extrabold text-gray-900">{Math.round(solarData?.solarPotential?.maxSunshineHoursPerYear || 0)}</span><span className="ml-2 text-sm font-medium text-gray-500">Sun Hours/Year</span></div></div>) : <p className="text-gray-500 text-sm">Data unavailable.</p>)}</div></div><PropertyMap propertyProfile={propertyProfile} /></div>); };
 const PropertyMap = ({ propertyProfile }) => { const address = propertyProfile?.address; const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : propertyProfile?.name || "Home"; const encodedQuery = encodeURIComponent(mapQuery); const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodedQuery}`; return (<div className="space-y-6"><div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100"><div className="w-full h-64 bg-gray-100 rounded-xl overflow-hidden relative"><iframe width="100%" height="100%" src={mapUrl} frameBorder="0" scrolling="no" title="Property Map" className="absolute inset-0"></iframe></div></div><div className="bg-sky-50 p-6 rounded-2xl border border-sky-100"><h3 className="text-lg font-bold text-sky-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3><div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-sky-100 hover:shadow-md transition text-sky-800 font-medium text-sm group">The Home Depot <ExternalLink size={14}/></a><a href="#" className="flex items-center justify-between p-3 bg-white rounded-lg border border-sky-100 hover:shadow-md transition text-sky-800 font-medium text-sm group">Lowe's <ExternalLink size={14}/></a></div></div></div>); };
 const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
@@ -1108,7 +1329,13 @@ const RequestManager = ({ userId, propertyName }) => {
 
     const copyLink = (id) => {
         const link = `${window.location.origin}/?requestId=${id}`;
-        navigator.clipboard.writeText(link);
+        // Use document.execCommand('copy') as navigator.clipboard.writeText() may not work due to iFrame restrictions.
+        const el = document.createElement('textarea');
+        el.value = link;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
         alert("Link copied to clipboard! Send this to your contractor.");
     };
 
