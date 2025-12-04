@@ -75,16 +75,13 @@ class ErrorBoundary extends React.Component {
 // --- HAUSKEY LOGO ---
 const logoHausKey = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <!-- House Outline -->
   <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#0ea5e9" stroke-width="8" stroke-linejoin="round" fill="none"/>
   
-  <!-- Key Shape (Integrated) -->
   <circle cx="50" cy="50" r="10" fill="#0c4a6e"/>
   <rect x="46" y="55" width="8" height="25" rx="2" fill="#0c4a6e"/>
   <rect x="54" y="65" width="6" height="4" fill="#0c4a6e"/>
   <rect x="54" y="72" width="4" height="4" fill="#0c4a6e"/>
   
-  <!-- Key Hole Detail -->
   <circle cx="50" cy="50" r="3" fill="white"/>
 </svg>
 `)}`;
@@ -1053,6 +1050,143 @@ return ( <form onSubmit={onSave} className="p-10 bg-white rounded-[2rem] shadow-
 
     <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={safeRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div> <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-sky-900/10 text-base font-bold text-white bg-sky-900 hover:bg-sky-800 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? (isEditing ? 'Updating...' : 'Saving...') : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log New Item</>)} </button> </form> ); };
 
+
+// --- NEW: Request Manager Component ---
+const RequestManager = ({ userId, propertyName }) => {
+    const [requests, setRequests] = useState([]);
+    const [newRequestDesc, setNewRequestDesc] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
+
+    useEffect(() => {
+        if (!userId) return;
+        // Query requests created by this user
+        const q = query(
+            collection(db, REQUESTS_COLLECTION_PATH),
+            where("createdBy", "==", userId)
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubscribe();
+    }, [userId]);
+
+    const handleCreateRequest = async (e) => {
+        e.preventDefault();
+        if (!newRequestDesc.trim()) return;
+        setIsCreating(true);
+        try {
+            await addDoc(collection(db, REQUESTS_COLLECTION_PATH), {
+                createdBy: userId,
+                propertyName: propertyName || "My Home",
+                description: newRequestDesc,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+                // Initialize empty fields for the contractor to fill
+                contractor: '',
+                category: '',
+                item: '',
+                cost: '',
+                notes: ''
+            });
+            setNewRequestDesc('');
+        } catch (error) {
+            console.error("Error creating request:", error);
+            alert("Failed to create request.");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Delete this request link?")) return;
+        try {
+            await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const copyLink = (id) => {
+        const link = `${window.location.origin}/?requestId=${id}`;
+        navigator.clipboard.writeText(link);
+        alert("Link copied to clipboard! Send this to your contractor.");
+    };
+
+    return (
+        <div className="space-y-8">
+            {/* Create Request Section */}
+            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-sky-100">
+                <h2 className="text-2xl font-bold text-sky-900 mb-6 flex items-center">
+                    <div className="bg-sky-100 p-2 rounded-lg mr-3">
+                        <LinkIcon className="h-6 w-6 text-sky-700" />
+                    </div>
+                    Contractor Requests
+                </h2>
+                <p className="text-slate-500 mb-6">Generate a secure link to send to your contractor. They can use it to upload details and photos directly to your log.</p>
+                
+                <form onSubmit={handleCreateRequest} className="flex gap-4 flex-col sm:flex-row">
+                    <input 
+                        type="text" 
+                        value={newRequestDesc}
+                        onChange={(e) => setNewRequestDesc(e.target.value)}
+                        placeholder="Project Description (e.g. Kitchen Faucet Replacement)"
+                        className="flex-grow p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-sky-500 outline-none"
+                    />
+                    <button 
+                        type="submit" 
+                        disabled={isCreating || !newRequestDesc}
+                        className="bg-sky-900 text-white px-6 py-4 sm:py-0 rounded-xl font-bold hover:bg-sky-800 disabled:opacity-50 whitespace-nowrap"
+                    >
+                        {isCreating ? 'Creating...' : 'Create Link'}
+                    </button>
+                </form>
+            </div>
+
+            {/* Active Requests List */}
+            <div className="grid gap-4">
+                {requests.length === 0 ? (
+                    <div className="text-center py-12 text-slate-400 bg-white rounded-[2rem] border border-dashed border-slate-200">
+                        No active requests. Create one above to get started.
+                    </div>
+                ) : (
+                    requests.map(req => (
+                        <div key={req.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 transition-all hover:border-sky-200">
+                            <div className="flex-grow w-full md:w-auto">
+                                <div className="flex items-center gap-3 mb-1">
+                                    <h3 className="font-bold text-slate-800 text-lg">{req.description}</h3>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
+                                        req.status === 'submitted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
+                                    }`}>
+                                        {req.status}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-400 font-mono">ID: {req.id}</p>
+                            </div>
+                            
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={() => copyLink(req.id)}
+                                    className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-sky-50 text-sky-700 rounded-lg font-bold text-sm hover:bg-sky-100 transition-colors"
+                                >
+                                    <LinkIcon className="h-4 w-4 mr-2" /> Copy Link
+                                </button>
+                                <button 
+                                    onClick={() => handleDelete(req.id)}
+                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete Request"
+                                >
+                                    <Trash2 className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
+
 // UPDATED MAIN APP COMPONENT to handle Routing
 const AppContent = () => {
     const [isAuthReady, setIsAuthReady] = useState(false);
@@ -1115,7 +1249,7 @@ const AppContent = () => {
     const handleAppleLogin = async () => { if(!auth) return; try { await signInWithPopup(auth, new OAuthProvider('apple.com')); } catch(e) { console.error(e); throw new Error("Apple sign-in failed."); } };
     const handleGuestLogin = async () => { if(!auth) return; await signInAnonymously(auth); };
     const handleSignOut = async () => { if(!auth) return; await signOut(auth); setCurrentUser(null); setUserId(null); setPropertyProfile(null); setRecords([]); };
-    const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, PUBLIC_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); };
+    const deleteUserData = async (uid) => { const batch = writeBatch(db); batch.delete(doc(db, 'artifacts', appId, 'users', uid, 'settings', 'profile')); const snap = await getDocs(query(collection(db, REQUESTS_COLLECTION_PATH))); snap.docs.forEach(d => { if (d.data().userId === uid) batch.delete(d.ref); }); return batch.commit(); };
     const handleDeleteAccount = async (password = null) => { const user = auth.currentUser; if (!user || !db) { alert("Error finding user."); return; } try { if (user.providerData.some(p => p.providerId === 'password') && password) await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password)); else if (user.providerData.some(p => p.providerId === 'password') && !password) { setShowReauth(true); return; } await deleteUserData(user.uid); await deleteUser(user); handleSignOut(); setError("Account deleted."); } catch (e) { setShowReauth(false); setError("Delete failed: " + e.message); } };
     const initiateAccountDeletion = () => { if (auth?.currentUser?.providerData.some(p => p.providerId === 'password')) setShowReauth(true); else setShowDeleteConfirm(true); };
     
