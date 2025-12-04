@@ -23,9 +23,18 @@ import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsight
 
 // Simple Error Boundary
 class ErrorBoundary extends React.Component {
-  constructor(props) { super(props); this.state = { hasError: false }; }
-  static getDerivedStateFromError(error) { return { hasError: true }; }
-  render() { if (this.state.hasError) return <div className="p-10 text-red-600">Something went wrong. Refresh.</div>; return this.props.children; }
+  constructor(props) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error) { return { hasError: true, error }; }
+  render() { 
+      if (this.state.hasError) return (
+        <div className="p-10 text-red-600">
+            <h2 className="font-bold">Something went wrong.</h2>
+            <p className="text-sm font-mono mt-2">{this.state.error?.toString()}</p>
+            <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-slate-200 rounded">Reload</button>
+        </div>
+      ); 
+      return this.props.children; 
+  }
 }
 
 const AppContent = () => {
@@ -45,24 +54,65 @@ const AppContent = () => {
 
     // 4. Auth & Data Listeners
     useEffect(() => {
+        let unsubRecords = null; // Store listener cleanup function
+
+        console.log("Initializing Auth Listener...");
+
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-            setUser(currentUser);
-            if (currentUser) {
-                // Fetch Profile
-                const profileSnap = await getDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile'));
-                if (profileSnap.exists()) setProfile(profileSnap.data());
-                
-                // Listen to Records
-                const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
-                const unsubRecords = onSnapshot(q, snap => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-                return () => unsubRecords();
-            } else {
-                setProfile(null);
-                setRecords([]);
+            console.log("Auth State Changed:", currentUser ? "User Logged In" : "No User");
+            
+            try {
+                setUser(currentUser);
+
+                if (currentUser) {
+                    if (!appId) {
+                        throw new Error("appId is missing in constants.js");
+                    }
+
+                    // Fetch Profile
+                    console.log("Fetching profile for:", currentUser.uid);
+                    const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
+                    const profileSnap = await getDoc(profileRef);
+                    
+                    if (profileSnap.exists()) {
+                        setProfile(profileSnap.data());
+                    } else {
+                        console.log("No profile found, redirecting to onboarding.");
+                        setProfile(null);
+                    }
+                    
+                    // Listen to Records
+                    // Clean up existing listener if any
+                    if (unsubRecords) unsubRecords();
+
+                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
+                    unsubRecords = onSnapshot(q, 
+                        (snap) => {
+                            setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                        },
+                        (error) => {
+                            console.error("Firestore Listener Error:", error);
+                        }
+                    );
+                } else {
+                    setProfile(null);
+                    setRecords([]);
+                    if (unsubRecords) unsubRecords();
+                }
+            } catch (error) {
+                console.error("Critical Data Loading Error:", error);
+                alert("Error loading data: " + error.message);
+            } finally {
+                console.log("Loading complete.");
+                setLoading(false);
             }
-            setLoading(false);
         });
-        return () => unsubAuth();
+
+        // Cleanup on unmount
+        return () => {
+            unsubAuth();
+            if (unsubRecords) unsubRecords();
+        };
     }, []);
 
     // 5. Handlers
@@ -84,7 +134,13 @@ const AppContent = () => {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-sky-600">Loading...</div>;
+    if (loading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center text-sky-600 bg-sky-50">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div>
+            <p className="font-medium animate-pulse">Initializing HausKey...</p>
+        </div>
+    );
+
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
     if (!profile) return <SetupPropertyForm onSave={handleSaveProfile} onSignOut={() => signOut(auth)} />;
 
