@@ -1,11 +1,32 @@
 // src/features/records/RecordCard.jsx
-import React from 'react';
-import { Home, ShieldAlert, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2, Paperclip, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+    ShieldAlert, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2, Paperclip, 
+    ChevronDown, ChevronUp, ExternalLink, Calendar,
+    Paintbrush, Plug, Grid, Fan, Droplet, Zap, Hammer, Sun, Wrench, Shield, Armchair, Box 
+} from 'lucide-react';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useRecalls } from '../../hooks/useRecalls';
 
+// Category Configuration: Colors & Icons
+const CATEGORY_CONFIG = {
+    "Paint & Finishes": { icon: Paintbrush, color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200", iconColor: "text-fuchsia-600" },
+    "Appliances": { icon: Plug, color: "bg-cyan-100 text-cyan-700 border-cyan-200", iconColor: "text-cyan-600" },
+    "Flooring": { icon: Grid, color: "bg-amber-100 text-amber-700 border-amber-200", iconColor: "text-amber-600" },
+    "HVAC & Systems": { icon: Fan, color: "bg-blue-100 text-blue-700 border-blue-200", iconColor: "text-blue-600" },
+    "Plumbing": { icon: Droplet, color: "bg-indigo-100 text-indigo-700 border-indigo-200", iconColor: "text-indigo-600" },
+    "Electrical": { icon: Zap, color: "bg-yellow-100 text-yellow-700 border-yellow-200", iconColor: "text-yellow-600" },
+    "Roof & Exterior": { icon: Hammer, color: "bg-stone-100 text-stone-700 border-stone-200", iconColor: "text-stone-600" },
+    "Landscaping": { icon: Sun, color: "bg-emerald-100 text-emerald-700 border-emerald-200", iconColor: "text-emerald-600" },
+    "Service & Repairs": { icon: Wrench, color: "bg-red-100 text-red-700 border-red-200", iconColor: "text-red-600" },
+    "Safety": { icon: Shield, color: "bg-orange-100 text-orange-700 border-orange-200", iconColor: "text-orange-600" },
+    "Interior": { icon: Armchair, color: "bg-violet-100 text-violet-700 border-violet-200", iconColor: "text-violet-600" },
+    "Other": { icon: Box, color: "bg-slate-100 text-slate-700 border-slate-200", iconColor: "text-slate-500" }
+};
+
 export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
     const { checkSafety, status: recallStatus, loading: checkingRecall } = useRecalls();
+    const [isExpanded, setIsExpanded] = useState(false);
 
     const handleCheckSafety = (e) => {
         e.stopPropagation();
@@ -13,59 +34,159 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
     };
 
     const docCount = record.attachments ? record.attachments.length : (record.imageUrl ? 1 : 0);
+    const hasDetails = record.model || record.notes || record.serialNumber || record.purchaseLink || docCount > 0;
+
+    // Get Style Config
+    const style = CATEGORY_CONFIG[record.category] || CATEGORY_CONFIG["Other"];
+    const CategoryIcon = style.icon;
 
     return (
-        <div onClick={() => onEditClick(record)} className="bg-white p-0 rounded-[1.5rem] shadow-sm border border-slate-100 transition-all hover:shadow-xl hover:-translate-y-0.5 hover:border-slate-200 duration-300 cursor-pointer group relative overflow-hidden"> 
-            {record.imageUrl && <div className="h-48 w-full bg-gray-100 relative group print:h-32 rounded-t-[1.5rem] -mt-0 -mx-0 mb-6"><img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/></div>} 
-            
-            <div className={`p-8 ${record.imageUrl ? 'pt-0' : ''} flex flex-col`}> 
-                <div className="flex justify-between items-start mb-6"> 
-                    <div className="p-2.5 rounded-full bg-slate-100 text-slate-500 group-hover:bg-sky-900 group-hover:text-white transition-colors duration-300"> <Home size={20} /> </div> 
-                    <div className="flex gap-2">
-                        {recallStatus && recallStatus.status !== 'clean' && (
-                            <span className={`px-2 py-1 rounded-full text-xs font-bold flex items-center ${recallStatus.status === 'warning' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                {recallStatus.status === 'warning' ? <><ShieldAlert size={12} className="mr-1"/> Recall Found</> : <><AlertCircle size={12} className="mr-1"/> Check Manually</>}
-                            </span>
-                        )}
-                        <span className="bg-white border border-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">{String(record.category || 'General')}</span> 
-                    </div>
-                </div> 
+        <div 
+            onClick={() => setIsExpanded(!isExpanded)} 
+            className="bg-white rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md cursor-pointer overflow-hidden group"
+        > 
+            {/* Main Compact Row */}
+            <div className="p-5 flex items-start gap-4">
                 
-                <div className="mb-4"> 
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1 group-hover:text-sky-500 transition-colors">Item</p> 
-                    <h2 className="text-2xl font-bold text-slate-800 group-hover:text-slate-900 leading-tight">{String(record.item || 'Unknown')}</h2> 
-                </div> 
-                
-                <div className="space-y-2 mb-6"> 
-                    {record.brand && <p className="text-slate-500 text-sm flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span>{record.brand}</p>} 
-                    {record.model && <p className="text-slate-500 text-sm flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-300 mr-2"></span>Model: {record.model}</p>}
-                    
-                    {/* Attachment Indicator */}
-                    {docCount > 0 && (
-                        <p className="text-sky-600 text-xs font-bold flex items-center mt-2 pt-2 border-t border-slate-50">
-                            <Paperclip size={12} className="mr-1"/> {docCount} Document{docCount !== 1 ? 's' : ''} Attached
-                        </p>
-                    )}
-                </div> 
-                
-                <div className="mb-4">
-                    {!recallStatus && (
-                        <button onClick={handleCheckSafety} disabled={checkingRecall} className="text-xs flex items-center text-slate-400 hover:text-sky-600 transition font-bold">
-                            {checkingRecall ? <Loader2 className="animate-spin mr-1 h-3 w-3"/> : <ShieldCheck className="mr-1 h-3 w-3"/>} 
-                            {record.model ? "Check Safety Status" : "Add Model # to Check Safety"}
-                        </button>
-                    )}
-                    {recallStatus?.url && <a href={recallStatus.url} target="_blank" rel="noreferrer" className="text-xs text-red-600 underline hover:text-red-800 font-bold" onClick={e => e.stopPropagation()}>View Recall Report</a>}
+                {/* Category Icon Box */}
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${style.color}`}>
+                    <CategoryIcon size={24} className={style.iconColor} />
                 </div>
 
-                <div className="flex justify-between items-center border-t border-slate-50 pt-4 mt-auto"> 
-                    <div className="flex gap-2"> 
-                        <button onClick={(e) => { e.stopPropagation(); onEditClick(record); }} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-sky-600 transition"><Pencil size={16}/></button> 
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteClick(record.id); }} className="p-2 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition"><Trash2 size={16}/></button> 
-                    </div> 
-                    {record.maintenanceFrequency !== 'none' && <span className="text-xs font-bold text-sky-600 bg-sky-50 px-2 py-1 rounded-md">{MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label}</span>} 
-                </div> 
-            </div> 
+                <div className="flex-grow min-w-0">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 leading-tight truncate pr-2">{record.item || 'Unknown Item'}</h3>
+                            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500 font-medium">
+                                <span>{record.brand || 'No Brand'}</span>
+                                {record.dateInstalled && (
+                                    <>
+                                        <span className="text-slate-300">•</span>
+                                        <span className="flex items-center"><Calendar size={12} className="mr-1"/> {record.dateInstalled}</span>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* Status Badges (Right Aligned) */}
+                        <div className="flex flex-col items-end gap-1">
+                            {/* Recall Warning - Always visible if dangerous */}
+                            {recallStatus && recallStatus.status === 'warning' && (
+                                <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase tracking-wide flex items-center animate-pulse">
+                                    <ShieldAlert size={10} className="mr-1"/> Recall
+                                </span>
+                            )}
+                            
+                            {/* Category Badge */}
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${style.color}`}>
+                                {record.category}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Expanded Details Section */}
+            {isExpanded && (
+                <div className="px-5 pb-5 pt-0 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="border-t border-slate-100 pt-4 mt-2 space-y-4">
+                        
+                        {/* Image Preview */}
+                        {record.imageUrl && (
+                            <div className="h-40 w-full bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                                <img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/>
+                            </div>
+                        )}
+
+                        {/* Details Grid */}
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                            {record.model && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Model</p>
+                                    <p className="font-medium text-slate-700">{record.model}</p>
+                                </div>
+                            )}
+                            {record.serialNumber && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Serial</p>
+                                    <p className="font-medium text-slate-700 font-mono">{record.serialNumber}</p>
+                                </div>
+                            )}
+                            {record.contractor && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Source / Pro</p>
+                                    <p className="font-medium text-slate-700">{record.contractor}</p>
+                                </div>
+                            )}
+                            {record.maintenanceFrequency !== 'none' && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Maintenance</p>
+                                    <p className="font-medium text-sky-600 bg-sky-50 inline-block px-2 py-0.5 rounded">
+                                        {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Notes */}
+                        {record.notes && (
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <p className="text-xs text-slate-500 italic">"{record.notes}"</p>
+                            </div>
+                        )}
+
+                        {/* Attachments List */}
+                        {record.attachments && record.attachments.length > 0 && (
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Documents</p>
+                                <div className="space-y-2">
+                                    {record.attachments.map((att, i) => (
+                                        <a key={i} href={att.url} target="_blank" rel="noreferrer" className="flex items-center p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition group/file" onClick={e => e.stopPropagation()}>
+                                            <Paperclip size={14} className="text-slate-400 mr-2 group-hover/file:text-sky-500"/>
+                                            <span className="text-xs font-bold text-slate-700 truncate flex-grow">{att.name}</span>
+                                            <ExternalLink size={12} className="text-slate-300"/>
+                                        </a>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Bar */}
+                        <div className="flex justify-between items-center pt-2">
+                            {/* Recall Check */}
+                            <div className="flex-grow">
+                                {!recallStatus ? (
+                                    <button onClick={handleCheckSafety} disabled={checkingRecall} className="text-xs flex items-center text-slate-400 hover:text-sky-600 transition font-bold px-2 py-1 -ml-2 rounded hover:bg-slate-50">
+                                        {checkingRecall ? <Loader2 className="animate-spin mr-1 h-3 w-3"/> : <ShieldCheck className="mr-1 h-3 w-3"/>} 
+                                        {record.model ? "Check Safety" : "Add Model to Check"}
+                                    </button>
+                                ) : recallStatus.url ? (
+                                    <a href={recallStatus.url} target="_blank" rel="noreferrer" className="text-xs text-red-600 underline hover:text-red-800 font-bold flex items-center" onClick={e => e.stopPropagation()}>
+                                        <ShieldAlert size={12} className="mr-1"/> View Official Recall
+                                    </a>
+                                ) : (
+                                    <span className="text-xs text-green-600 font-bold flex items-center"><ShieldCheck size={12} className="mr-1"/> No Recalls Found</span>
+                                )}
+                            </div>
+
+                            {/* Edit/Delete */}
+                            <div className="flex gap-2"> 
+                                <button onClick={(e) => { e.stopPropagation(); onEditClick(record); }} className="p-2 bg-slate-50 hover:bg-sky-50 text-slate-500 hover:text-sky-600 rounded-lg transition border border-slate-200 hover:border-sky-200">
+                                    <Pencil size={16}/>
+                                </button> 
+                                <button onClick={(e) => { e.stopPropagation(); onDeleteClick(record.id); }} className="p-2 bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-lg transition border border-slate-200 hover:border-red-200">
+                                    <Trash2 size={16}/>
+                                </button> 
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Collapse/Expand Indicator (Visual Hint) */}
+            {!isExpanded && (
+                <div className="h-1 bg-slate-50 group-hover:bg-sky-50 transition-colors mx-5 mb-2 rounded-full w-12 opacity-0 group-hover:opacity-100 mx-auto"></div>
+            )}
         </div> 
     );
 };
