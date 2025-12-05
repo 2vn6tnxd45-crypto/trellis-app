@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { LogOut, Home, Camera } from 'lucide-react'; // Added Home, Camera
+import { LogOut, Home, Camera, Search, Filter, XCircle } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
-import { appId, REQUESTS_COLLECTION_PATH } from './config/constants';
+import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage } from './lib/images';
 
@@ -38,7 +38,7 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// NEW: Empty State Component
+// Empty State Component
 const EmptyState = ({ onAddFirst, onScanReceipt }) => (
     <div className="text-center py-16 px-8">
         <div className="bg-sky-100 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
@@ -70,11 +70,15 @@ const AppContent = () => {
     // 2. Form/Edit State
     const [editingRecord, setEditingRecord] = useState(null);
 
-    // 3. Contractor Mode Check
+    // 3. Search & Filter State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategory, setFilterCategory] = useState('All');
+
+    // 4. Contractor Mode Check
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorView />;
 
-    // 4. Auth & Data Listeners
+    // 5. Auth & Data Listeners
     useEffect(() => {
         let unsubRecords = null;
 
@@ -135,7 +139,20 @@ const AppContent = () => {
         };
     }, []);
 
-    // 5. Handlers
+    // 6. Filter Logic
+    const filteredRecords = records.filter(r => {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+            (r.item || '').toLowerCase().includes(searchLower) || 
+            (r.brand || '').toLowerCase().includes(searchLower) || 
+            (r.model || '').toLowerCase().includes(searchLower);
+            
+        const matchesCategory = filterCategory === 'All' || r.category === filterCategory;
+        
+        return matchesSearch && matchesCategory;
+    });
+
+    // 7. Handlers
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     const handleSaveProfile = async (formData) => {
@@ -187,6 +204,9 @@ const AppContent = () => {
 
     // --- Request Import Handler ---
     const handleRequestImport = (request) => {
+        // Prepare record for the form:
+        // - Set id to null so it triggers an "Add" (not Update)
+        // - Keep originalRequestId to archive the source request later
         const recordToImport = {
             ...request,
             id: null,
@@ -236,13 +256,56 @@ const AppContent = () => {
             <main className="max-w-4xl mx-auto pb-20">
                 {activeTab === 'View Records' && (
                     <div className="space-y-6">
+                        {/* Search & Filter Bar */}
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 sticky top-4 z-30">
+                            <div className="relative flex-grow">
+                                <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
+                                <input 
+                                    type="text" 
+                                    placeholder="Search items, brands, or models..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none transition-all"
+                                />
+                                {searchTerm && (
+                                    <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600">
+                                        <XCircle className="h-5 w-5" />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative min-w-[200px]">
+                                <Filter className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
+                                <select 
+                                    value={filterCategory} 
+                                    onChange={(e) => setFilterCategory(e.target.value)}
+                                    className="w-full pl-10 pr-8 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none appearance-none cursor-pointer"
+                                >
+                                    <option value="All">All Categories</option>
+                                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* List Rendering */}
                         {records.length === 0 ? (
                             <EmptyState 
                                 onAddFirst={() => setActiveTab('Add Record')} 
                                 onScanReceipt={() => setActiveTab('Add Record')} 
                             />
+                        ) : filteredRecords.length === 0 ? (
+                            <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                <p>No records match your search.</p>
+                                <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-sky-600 font-bold hover:underline">Clear Filters</button>
+                            </div>
                         ) : (
-                            records.map(r => <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={r => { setEditingRecord(r); setActiveTab('Add Record'); }} />)
+                            filteredRecords.map(r => (
+                                <RecordCard 
+                                    key={r.id} 
+                                    record={r} 
+                                    onDeleteClick={handleDeleteRecord} 
+                                    onEditClick={r => { setEditingRecord(r); setActiveTab('Add Record'); }} 
+                                />
+                            ))
                         )}
                     </div>
                 )}
@@ -293,6 +356,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClearEdit
         let imageUrl = newRecord.imageUrl || '';
         if (file) imageUrl = await compressImage(file);
         
+        // Extract meta-fields
         const { originalRequestId, id, ...recordData } = newRecord;
 
         const data = { 
@@ -308,6 +372,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClearEdit
         } else {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...data, timestamp: serverTimestamp() });
             
+            // Archive the source request if this was an import
             if (originalRequestId) {
                 try {
                     await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' });
