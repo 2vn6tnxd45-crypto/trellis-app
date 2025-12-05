@@ -1,16 +1,17 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy } from 'firebase/firestore'; // Added limit, orderBy
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronDown as ChevronDownIcon } from 'lucide-react';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; // Added where
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // NEW: Storage Imports
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox } from 'lucide-react';
 
 // Config & Libs
-import { auth, db } from './config/firebase';
+import { auth, db, storage } from './config/firebase'; // Import storage
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
-import { compressImage, fileToBase64 } from './lib/images';
+import { compressImage } from './lib/images'; // We still use compressImage for optimization
 
-// Components
+// Components (Keep existing imports)
 import { Logo } from './components/common/Logo';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
@@ -22,7 +23,7 @@ import { ContractorView } from './features/requests/ContractorView';
 import { PedigreeReport } from './features/report/PedigreeReport';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
 
-// Simple Error Boundary
+// ... (Keep ErrorBoundary and EmptyState components as is) ...
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -38,7 +39,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// Empty State Component
 const EmptyState = ({ onAddFirst, onScanReceipt }) => (
     <div className="text-center py-16 px-8">
         <div className="bg-sky-100 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
@@ -58,6 +58,10 @@ const EmptyState = ({ onAddFirst, onScanReceipt }) => (
         </div>
     </div>
 );
+
+// ... (Keep AppContent component as is) ...
+// (I am omitting AppContent code block here to save space, as the changes are only in WrapperAddRecord below)
+// You should keep the entire AppContent from the previous step.
 
 const AppContent = () => {
     // 1. Global State
@@ -359,10 +363,8 @@ const AppContent = () => {
 
     return (
         <div className="min-h-screen bg-sky-50 font-sans pb-24 md:pb-0">
-            
-            {/* Header */}
+            {/* Header & Main Content (Keeping existing layout logic) */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
-                
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
@@ -374,18 +376,14 @@ const AppContent = () => {
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
                         </div>
                     </button>
-
+                    {/* ... Dropdown ... */}
                     {isSwitchingProp && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsSwitchingProp(false)}></div>
                             <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200">
                                 <p className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">My Properties</p>
                                 {properties.map(p => (
-                                    <button 
-                                        key={p.id} 
-                                        onClick={() => handleSwitchProperty(p.id)}
-                                        className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}
-                                    >
+                                    <button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}>
                                         <span className="flex items-center truncate"><Building size={16} className="mr-2 opacity-50"/> {p.name}</span>
                                         {activePropertyId === p.id && <Check size={16} className="text-sky-600"/>}
                                     </button>
@@ -413,11 +411,7 @@ const AppContent = () => {
                                         <h3 className="font-bold text-slate-800 mb-2 text-sm flex items-center"><Inbox size={14} className="mr-2 text-sky-600"/> Contractor Updates</h3>
                                         <div className="space-y-2">
                                             {newSubmissions.map(sub => (
-                                                <button 
-                                                    key={sub.id} 
-                                                    onClick={() => { setActiveTab('Requests'); setShowNotifications(false); }}
-                                                    className="w-full text-left p-3 bg-green-50 rounded-xl border border-green-100 hover:bg-green-100 transition"
-                                                >
+                                                <button key={sub.id} onClick={() => { setActiveTab('Requests'); setShowNotifications(false); }} className="w-full text-left p-3 bg-green-50 rounded-xl border border-green-100 hover:bg-green-100 transition">
                                                     <p className="font-bold text-green-800 text-xs">Submission Received</p>
                                                     <p className="text-xs text-green-700 truncate">{sub.contractor} - {sub.item || sub.description}</p>
                                                 </button>
@@ -425,7 +419,6 @@ const AppContent = () => {
                                         </div>
                                     </div>
                                 )}
-
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Upcoming Tasks ({dueTasks.length})</h3>
                                 {dueTasks.length === 0 && newSubmissions.length === 0 ? (
                                     <p className="text-xs text-slate-400">All caught up! No tasks due.</p>
@@ -451,7 +444,6 @@ const AppContent = () => {
                         )}
                         {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
                     </div>
-
                     <button onClick={() => signOut(auth)} className="p-2 text-slate-400 hover:text-red-500 transition"><LogOut size={20}/></button>
                 </div>
             </header>
@@ -486,7 +478,6 @@ const AppContent = () => {
                                 {filteredRecords.map(r => (
                                     <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
                                 ))}
-                                {/* Load More Button */}
                                 {records.length >= recordsLimit && (
                                     <button onClick={handleLoadMore} className="w-full py-4 text-sky-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50 transition shadow-sm mt-4">
                                         Load Older Records
@@ -496,7 +487,7 @@ const AppContent = () => {
                         )}
                     </div>
                 )}
-
+                {/* ... (Keep Maintenance, Requests, Insights tabs as is) ... */}
                 {activeTab === 'Maintenance' && <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />}
                 {activeTab === 'Requests' && (
                     <RequestManager 
@@ -595,7 +586,7 @@ const AppContent = () => {
     );
 };
 
-// Helper Wrapper
+// Helper Wrapper (UPDATED FOR STORAGE UPLOAD)
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
@@ -612,6 +603,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     };
 
     const handleAttachmentsChange = (newFiles) => {
+        // Create placeholders for UI
         const placeholders = newFiles.map(f => ({ name: f.name, size: f.size, type: 'Photo', fileRef: f }));
         setNewRecord(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...placeholders] }));
         setIsDirty(true);
@@ -626,18 +618,46 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         e.preventDefault();
         setSaving(true);
         
+        // --- UPDATED: STORAGE UPLOAD LOGIC ---
         const processedAttachments = [...(newRecord.attachments || [])];
         const processingPromises = processedAttachments.map(async (att) => {
             if (att.fileRef) {
-                let url = '';
-                if (att.fileRef.type.startsWith('image/')) url = await compressImage(att.fileRef);
-                else { url = await fileToBase64(att.fileRef); url = `data:${att.fileRef.type};base64,${url}`; }
-                return { name: att.name, size: att.size, type: att.type, url: url, dateAdded: new Date().toISOString() };
+                let downloadUrl = '';
+                try {
+                    // 1. Optimize Image (Optional but good)
+                    let fileToUpload = att.fileRef;
+                    if (att.fileRef.type.startsWith('image/')) {
+                        const compressedDataUrl = await compressImage(att.fileRef);
+                        // Convert DataURL back to Blob for upload
+                        const res = await fetch(compressedDataUrl);
+                        fileToUpload = await res.blob();
+                    }
+
+                    // 2. Upload to Firebase Storage
+                    const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
+                    await uploadBytes(fileRef, fileToUpload);
+                    
+                    // 3. Get URL
+                    downloadUrl = await getDownloadURL(fileRef);
+
+                } catch (err) {
+                    console.error("Upload failed", err);
+                    alert(`Failed to upload ${att.name}`);
+                    return null; 
+                }
+
+                return { 
+                    name: att.name, 
+                    size: att.size, 
+                    type: att.type, 
+                    url: downloadUrl, // Store URL only!
+                    dateAdded: new Date().toISOString() 
+                };
             }
             return att; 
         });
 
-        const finalAttachments = await Promise.all(processingPromises);
+        const finalAttachments = (await Promise.all(processingPromises)).filter(a => a !== null);
         const coverImage = finalAttachments.find(a => a.type === 'Photo')?.url || '';
 
         const { originalRequestId, id, ...recordData } = newRecord;
