@@ -1,8 +1,8 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell } from 'lucide-react';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -62,7 +62,7 @@ const EmptyState = ({ onAddFirst, onScanReceipt }) => (
 const AppContent = () => {
     // 1. Global State
     const [user, setUser] = useState(null);
-    const [profile, setProfile] = useState(null);
+    const [profile, setProfile] = useState(null); // Profile doc content
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     
@@ -72,6 +72,11 @@ const AppContent = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [dueTasks, setDueTasks] = useState([]);
     
+    // PROPERTY SWITCHING STATE
+    const [activePropertyId, setActivePropertyId] = useState(null);
+    const [isSwitchingProp, setIsSwitchingProp] = useState(false);
+    const [isAddingProperty, setIsAddingProperty] = useState(false); // Controls "Add Property" full-screen flow
+
     // 2. Form/Edit State
     const [editingRecord, setEditingRecord] = useState(null);
 
@@ -83,6 +88,19 @@ const AppContent = () => {
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorView />;
 
+    // Helper: Get Active Property Object
+    // Support legacy profiles (flat structure) vs new profiles (properties array)
+    const getPropertiesList = () => {
+        if (!profile) return [];
+        if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
+        // Legacy fallback
+        if (profile.name) return [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
+        return [];
+    };
+
+    const properties = getPropertiesList();
+    const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
+
     // 5. Auth & Data Listeners
     useEffect(() => {
         let unsubRecords = null;
@@ -91,31 +109,30 @@ const AppContent = () => {
                 setUser(currentUser);
                 if (currentUser) {
                     if (!appId) throw new Error("appId is missing in constants.js");
+                    
+                    // Fetch Profile
                     const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
                     const profileSnap = await getDoc(profileRef);
-                    if (profileSnap.exists()) setProfile(profileSnap.data());
-                    else setProfile(null);
                     
+                    if (profileSnap.exists()) {
+                        const data = profileSnap.data();
+                        setProfile(data);
+                        
+                        // Set Active Property
+                        if (data.activePropertyId) setActivePropertyId(data.activePropertyId);
+                        else if (data.properties && data.properties.length > 0) setActivePropertyId(data.properties[0].id);
+                        else setActivePropertyId('legacy'); // Fallback for old data
+                    } else {
+                        setProfile(null);
+                    }
+                    
+                    // Fetch Records
                     if (unsubRecords) unsubRecords();
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
                     unsubRecords = onSnapshot(q, 
                         (snap) => {
                             const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                             setRecords(data);
-                            
-                            // Check Notifications
-                            const now = new Date();
-                            const upcoming = data.filter(r => {
-                                if (!r.nextServiceDate) return false;
-                                const due = new Date(r.nextServiceDate);
-                                const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-                                return diffDays <= 30; // Due in 30 days or overdue
-                            }).map(r => {
-                                const due = new Date(r.nextServiceDate);
-                                const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-                                return { ...r, diffDays };
-                            }).sort((a,b) => a.diffDays - b.diffDays);
-                            setDueTasks(upcoming);
                         },
                         (error) => console.error("Firestore Listener Error:", error)
                     );
@@ -134,24 +151,105 @@ const AppContent = () => {
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); };
     }, []);
 
+    // Update Due Tasks when records or active property changes
+    useEffect(() => {
+        if (!activeProperty || records.length === 0) {
+            setDueTasks([]);
+            return;
+        }
+
+        const now = new Date();
+        // Filter records for CURRENT PROPERTY only
+        const propRecords = records.filter(r => 
+            r.propertyId === activeProperty.id || 
+            (!r.propertyId && activeProperty.id === 'legacy') // Backwards compat
+        );
+
+        const upcoming = propRecords.filter(r => {
+            if (!r.nextServiceDate) return false;
+            const due = new Date(r.nextServiceDate);
+            const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+            return diffDays <= 30; // Due in 30 days or overdue
+        }).map(r => {
+            const due = new Date(r.nextServiceDate);
+            const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+            return { ...r, diffDays };
+        }).sort((a,b) => a.diffDays - b.diffDays);
+        
+        setDueTasks(upcoming);
+    }, [records, activeProperty]);
+
+
     // 6. Logic & Handlers
+    
+    // Filter Records for View
     const filteredRecords = records.filter(r => {
+        // 1. Property Filter
+        const belongsToProperty = r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy');
+        if (!belongsToProperty) return false;
+
+        // 2. Search Filter
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (r.item || '').toLowerCase().includes(searchLower) || (r.brand || '').toLowerCase().includes(searchLower) || (r.model || '').toLowerCase().includes(searchLower);
+        
+        // 3. Category Filter
         const matchesCategory = filterCategory === 'All' || r.category === filterCategory;
+        
         return matchesSearch && matchesCategory;
     });
 
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
-    const handleSaveProfile = async (formData) => {
-        const data = { 
+    // HANDLE ADDING/SAVING PROPERTIES
+    const handleSaveProperty = async (formData) => {
+        const newProp = { 
+            id: crypto.randomUUID(),
             name: formData.get('propertyName'), 
             address: { street: formData.get('streetAddress'), city: formData.get('city'), state: formData.get('state'), zip: formData.get('zip') },
-            coordinates: { lat: parseFloat(formData.get('lat')), lon: parseFloat(formData.get('lon')) }
+            coordinates: { lat: parseFloat(formData.get('lat')), lon: parseFloat(formData.get('lon')) },
+            dateCreated: new Date().toISOString()
         };
-        await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), data);
-        setProfile(data);
+
+        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+
+        if (!profile) {
+            // First time setup (Legacy/Single prop structure for root, but with array)
+            const initialData = {
+                activePropertyId: newProp.id,
+                properties: [newProp]
+            };
+            await setDoc(profileRef, initialData);
+            setProfile(initialData);
+            setActivePropertyId(newProp.id);
+        } else {
+            // Adding subsequent property
+            // If profile is legacy structure, migrate it first
+            let updatedProperties = profile.properties || [];
+            if (!profile.properties && profile.name) {
+                updatedProperties = [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
+            }
+            
+            updatedProperties.push(newProp);
+            
+            await updateDoc(profileRef, {
+                properties: updatedProperties,
+                activePropertyId: newProp.id
+            });
+            
+            setProfile({ ...profile, properties: updatedProperties, activePropertyId: newProp.id });
+            setActivePropertyId(newProp.id);
+        }
+        
+        setIsAddingProperty(false);
+    };
+
+    const handleSwitchProperty = async (propId) => {
+        setActivePropertyId(propId);
+        setIsSwitchingProp(false);
+        // Persist preference
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { activePropertyId: propId });
+        } catch (e) { console.warn("Failed to save active prop", e); }
     };
 
     const handleDeleteRecord = async (id) => {
@@ -172,7 +270,13 @@ const AppContent = () => {
         const today = new Date().toISOString().split('T')[0];
         try {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), {
-                ...suggestion, userId: user.uid, propertyLocation: profile.name, dateInstalled: today, nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency), timestamp: serverTimestamp()
+                ...suggestion, 
+                userId: user.uid, 
+                propertyLocation: activeProperty?.name,
+                propertyId: activeProperty?.id, // LINK TO PROPERTY
+                dateInstalled: today, 
+                nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency), 
+                timestamp: serverTimestamp()
             });
         } catch (error) { console.error("Failed to add standard task:", error); }
     };
@@ -198,21 +302,65 @@ const AppContent = () => {
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center text-sky-600 bg-sky-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div></div>;
+    
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
-    if (!profile) return <SetupPropertyForm onSave={handleSaveProfile} onSignOut={() => signOut(auth)} />;
+    
+    // Show Setup Form if no profile OR explicitly adding a property
+    if (!profile && !loading) return <SetupPropertyForm onSave={handleSaveProperty} onSignOut={() => signOut(auth)} />;
+    if (isAddingProperty) return (
+        <div className="relative">
+            <button onClick={() => setIsAddingProperty(false)} className="absolute top-6 left-6 z-50 text-slate-500 font-bold flex items-center bg-white px-4 py-2 rounded-xl shadow-sm"><X className="mr-2 h-4 w-4"/> Cancel</button>
+            <SetupPropertyForm onSave={handleSaveProperty} onSignOut={() => {}} />
+        </div>
+    );
+
+    // Fallback if data is weird
+    if (!activeProperty) return <div className="p-10 text-center">Loading Property...</div>;
 
     return (
         <div className="min-h-screen bg-sky-50 font-sans pb-24 md:pb-0">
             
             {/* Header */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
-                <div className="flex items-center gap-3">
-                    <Logo className="h-10 w-10"/>
-                    <div className="hidden sm:block">
-                        <h1 className="text-xl font-bold text-sky-900 leading-none">Haus<span className="text-sky-500 font-normal">Key</span></h1>
-                        <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{profile.name}</p>
-                    </div>
+                
+                {/* Property Switcher */}
+                <div className="relative">
+                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors">
+                        <Logo className="h-10 w-10"/>
+                        <div>
+                            <h1 className="text-xl font-bold text-sky-900 leading-none flex items-center">
+                                Haus<span className="text-sky-500 font-normal">Key</span>
+                                <ChevronDown size={16} className="ml-1 text-slate-400"/>
+                            </h1>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
+                        </div>
+                    </button>
+
+                    {/* Dropdown */}
+                    {isSwitchingProp && (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsSwitchingProp(false)}></div>
+                            <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                                <p className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">My Properties</p>
+                                {properties.map(p => (
+                                    <button 
+                                        key={p.id} 
+                                        onClick={() => handleSwitchProperty(p.id)}
+                                        className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <span className="flex items-center truncate"><Building size={16} className="mr-2 opacity-50"/> {p.name}</span>
+                                        {activePropertyId === p.id && <Check size={16} className="text-sky-600"/>}
+                                    </button>
+                                ))}
+                                <div className="border-t border-slate-100 my-1"></div>
+                                <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-sky-600 hover:bg-sky-50 transition-colors">
+                                    <PlusCircle size={16} className="mr-2"/> Add New Property
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
+
                 <div className="flex items-center gap-3">
                     {/* Notification Bell */}
                     <div className="relative">
@@ -221,7 +369,6 @@ const AppContent = () => {
                             {dueTasks.length > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
                         </button>
                         
-                        {/* Notification Dropdown */}
                         {showNotifications && (
                             <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Upcoming Tasks ({dueTasks.length})</h3>
@@ -288,8 +435,8 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {activeTab === 'Maintenance' && <MaintenanceDashboard records={records} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />}
-                {activeTab === 'Requests' && <RequestManager userId={user.uid} propertyName={profile.name} onRequestImport={handleRequestImport}/>}
+                {activeTab === 'Maintenance' && <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />}
+                {activeTab === 'Requests' && <RequestManager userId={user.uid} propertyName={activeProperty.name} onRequestImport={handleRequestImport}/>}
                 
                 {activeTab === 'Insights' && (
                     <div className="space-y-8">
@@ -300,14 +447,14 @@ const AppContent = () => {
                             </div>
                             <button onClick={() => setActiveTab('ReportView')} className="px-6 py-3 bg-sky-50 text-sky-700 font-bold rounded-xl border border-sky-100 hover:bg-sky-100 transition"><FileText className="inline mr-2 h-5 w-5"/> View Report</button>
                         </div>
-                        <EnvironmentalInsights propertyProfile={profile} />
+                        <EnvironmentalInsights propertyProfile={activeProperty} />
                     </div>
                 )}
                 
                 {activeTab === 'ReportView' && (
                     <div>
                         <button onClick={() => setActiveTab('Insights')} className="mb-4 text-sm font-bold text-slate-500 hover:text-sky-600 flex items-center"><X className="mr-1 h-4 w-4"/> Close Report</button>
-                        <PedigreeReport propertyProfile={profile} records={records} />
+                        <PedigreeReport propertyProfile={activeProperty} records={filteredRecords} />
                     </div>
                 )}
             </main>
@@ -347,6 +494,7 @@ const AppContent = () => {
                             db={db} 
                             appId={appId} 
                             profile={profile}
+                            activeProperty={activeProperty}
                             editingRecord={editingRecord} 
                             onClose={closeAddModal}
                             onSuccess={closeAddModal}
@@ -358,8 +506,8 @@ const AppContent = () => {
     );
 };
 
-// Helper Wrapper with Multi-File Logic
-const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, onSuccess }) => {
+// Helper Wrapper
+const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [filesToProcess, setFilesToProcess] = useState([]);
@@ -377,14 +525,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
 
     const handleAttachmentsChange = (newFiles) => {
         setFilesToProcess(prev => [...prev, ...newFiles]);
-        // Also update local preview state if needed, but for now we process on save
-        // We add placeholders to newRecord.attachments so the UI shows something
-        const placeholders = newFiles.map(f => ({
-            name: f.name,
-            size: f.size,
-            type: 'Photo', // Default
-            fileRef: f // Keep ref to process later
-        }));
+        const placeholders = newFiles.map(f => ({ name: f.name, size: f.size, type: 'Photo', fileRef: f }));
         setNewRecord(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...placeholders] }));
         setIsDirty(true);
     };
@@ -398,35 +539,18 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
         e.preventDefault();
         setSaving(true);
         
-        // Process new attachments
         const processedAttachments = [...(newRecord.attachments || [])];
-        
-        // Find items that have a 'fileRef' (meaning they are new and need conversion)
         const processingPromises = processedAttachments.map(async (att) => {
             if (att.fileRef) {
-                // Convert to Base64
                 let url = '';
-                if (att.fileRef.type.startsWith('image/')) {
-                    url = await compressImage(att.fileRef);
-                } else {
-                    url = await fileToBase64(att.fileRef); // Basic b64 for non-images
-                    url = `data:${att.fileRef.type};base64,${url}`; // Ensure prefix
-                }
-                // Return clean object without fileRef
-                return { 
-                    name: att.name,
-                    size: att.size,
-                    type: att.type,
-                    url: url,
-                    dateAdded: new Date().toISOString()
-                };
+                if (att.fileRef.type.startsWith('image/')) url = await compressImage(att.fileRef);
+                else { url = await fileToBase64(att.fileRef); url = `data:${att.fileRef.type};base64,${url}`; }
+                return { name: att.name, size: att.size, type: att.type, url: url, dateAdded: new Date().toISOString() };
             }
-            return att; // Already processed/existing
+            return att; 
         });
 
         const finalAttachments = await Promise.all(processingPromises);
-        
-        // Set Cover Image (first photo found)
         const coverImage = finalAttachments.find(a => a.type === 'Photo')?.url || '';
 
         const { originalRequestId, id, ...recordData } = newRecord;
@@ -434,9 +558,10 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
         const data = { 
             ...recordData, 
             attachments: finalAttachments,
-            imageUrl: coverImage, // Backward compat
+            imageUrl: coverImage, 
             userId: user.uid, 
-            propertyLocation: profile.name,
+            propertyLocation: activeProperty.name, // Display name
+            propertyId: activeProperty.id,         // LINK TO PROPERTY
             nextServiceDate: calculateNextDate(recordData.dateInstalled, recordData.maintenanceFrequency) 
         };
 
@@ -456,7 +581,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
          const batch = writeBatch(db);
          items.forEach(item => {
              const docRef = doc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'));
-             batch.set(docRef, { ...item, userId: user.uid, propertyLocation: profile.name, timestamp: serverTimestamp(), nextServiceDate: calculateNextDate(item.dateInstalled, item.maintenanceFrequency) });
+             batch.set(docRef, { ...item, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, timestamp: serverTimestamp(), nextServiceDate: calculateNextDate(item.dateInstalled, item.maintenanceFrequency) });
          });
          await batch.commit();
          setIsDirty(false);
