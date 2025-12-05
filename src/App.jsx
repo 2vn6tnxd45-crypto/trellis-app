@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
@@ -134,6 +135,39 @@ const AppContent = () => {
         }
     };
 
+    // --- NEW: Maintenance Handlers ---
+    const handleCompleteTask = async (task) => {
+        const today = new Date().toISOString().split('T')[0];
+        const newNextDate = calculateNextDate(today, task.maintenanceFrequency);
+    
+        try {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.id), {
+                lastServiceDate: today, 
+                nextServiceDate: newNextDate
+            });
+        } catch (error) {
+            console.error("Failed to complete task:", error);
+        }
+    };
+    
+    const handleAddStandardTask = async (suggestion) => {
+        const today = new Date().toISOString().split('T')[0];
+        
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), {
+                ...suggestion,
+                userId: user.uid,
+                propertyLocation: profile.name,
+                dateInstalled: today, 
+                nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency),
+                timestamp: serverTimestamp()
+            });
+        } catch (error) {
+            console.error("Failed to add standard task:", error);
+        }
+    };
+    // --------------------------------
+
     if (loading) return (
         <div className="min-h-screen flex flex-col items-center justify-center text-sky-600 bg-sky-50">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div>
@@ -176,7 +210,13 @@ const AppContent = () => {
                         records.map(r => <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={r => { setEditingRecord(r); setActiveTab('Add Record'); }} />)}
                     </div>
                 )}
-                {activeTab === 'Maintenance' && <MaintenanceDashboard records={records} onCompleteTask={() => {}} onAddStandardTask={() => {}} />}
+                {activeTab === 'Maintenance' && (
+                    <MaintenanceDashboard 
+                        records={records} 
+                        onCompleteTask={handleCompleteTask} 
+                        onAddStandardTask={handleAddStandardTask} 
+                    />
+                )}
                 {activeTab === 'Add Record' && (
                     <WrapperAddRecord 
                         user={user} 
