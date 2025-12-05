@@ -159,10 +159,10 @@ const AppContent = () => {
                 </div>
             </header>
 
-            <nav className="flex justify-center mb-8 max-w-lg mx-auto overflow-x-auto pb-2">
+            <nav className="flex justify-center mb-8 w-full md:w-auto mx-auto overflow-x-auto pb-2 px-4 md:px-0">
                 <div className="flex min-w-max bg-white rounded-2xl shadow-sm border border-slate-100 p-1">
                     {['View Records', 'Maintenance', 'Add Record', 'Requests', 'Report', 'Insights'].map(tab => (
-                        <button key={tab} onClick={() => { setActiveTab(tab); if(tab !== 'Add Record') setEditingRecord(null); }} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab ? 'bg-sky-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
+                        <button key={tab} onClick={() => { setActiveTab(tab); if(tab !== 'Add Record') setEditingRecord(null); }} className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab ? 'bg-sky-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>
                             {tab}
                         </button>
                     ))}
