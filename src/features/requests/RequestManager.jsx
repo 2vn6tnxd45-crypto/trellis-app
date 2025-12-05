@@ -1,11 +1,11 @@
 // src/features/requests/RequestManager.jsx
 import React, { useState, useEffect } from 'react';
-import { Link as LinkIcon, Trash2 } from 'lucide-react';
+import { Link as LinkIcon, Trash2, ArrowDownToLine } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 
-export const RequestManager = ({ userId, propertyName }) => {
+export const RequestManager = ({ userId, propertyName, onRequestImport }) => {
     const [requests, setRequests] = useState([]);
     const [newRequestDesc, setNewRequestDesc] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -74,7 +74,19 @@ export const RequestManager = ({ userId, propertyName }) => {
                             <p className="text-xs text-slate-400 font-mono">ID: {req.id}</p>
                         </div>
                         <div className="flex gap-2 w-full md:w-auto">
-                            <button onClick={() => copyLink(req.id)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-sky-50 text-sky-700 rounded-lg font-bold text-sm hover:bg-sky-100 transition-colors"><LinkIcon className="h-4 w-4 mr-2" /> Copy Link</button>
+                            {/* NEW: Import Button */}
+                            {req.status === 'submitted' && (
+                                <button 
+                                    onClick={() => onRequestImport(req)} 
+                                    className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-green-50 text-green-700 rounded-lg font-bold text-sm hover:bg-green-100 transition-colors border border-green-200"
+                                >
+                                    <ArrowDownToLine className="h-4 w-4 mr-2" /> Review & Import
+                                </button>
+                            )}
+
+                            <button onClick={() => copyLink(req.id)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-sky-50 text-sky-700 rounded-lg font-bold text-sm hover:bg-sky-100 transition-colors">
+                                <LinkIcon className="h-4 w-4 mr-2" /> Copy Link
+                            </button>
                             <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="h-5 w-5" /></button>
                         </div>
                     </div>
