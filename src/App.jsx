@@ -1,12 +1,12 @@
 // src/App.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { LogOut } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
-import { appId } from './config/constants';
+import { appId, REQUESTS_COLLECTION_PATH } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage } from './lib/images';
 
@@ -135,7 +135,7 @@ const AppContent = () => {
         }
     };
 
-    // --- NEW: Maintenance Handlers ---
+    // --- Maintenance Handlers ---
     const handleCompleteTask = async (task) => {
         const today = new Date().toISOString().split('T')[0];
         const newNextDate = calculateNextDate(today, task.maintenanceFrequency);
@@ -152,7 +152,6 @@ const AppContent = () => {
     
     const handleAddStandardTask = async (suggestion) => {
         const today = new Date().toISOString().split('T')[0];
-        
         try {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), {
                 ...suggestion,
@@ -166,7 +165,23 @@ const AppContent = () => {
             console.error("Failed to add standard task:", error);
         }
     };
-    // --------------------------------
+
+    // --- NEW: Request Import Handler ---
+    const handleRequestImport = (request) => {
+        // Prepare record for the form:
+        // - Set id to null so it triggers an "Add" (not Update)
+        // - Keep originalRequestId to archive the source request later
+        const recordToImport = {
+            ...request,
+            id: null,
+            originalRequestId: request.id,
+            // Ensure defaults
+            dateInstalled: request.dateInstalled || new Date().toISOString().split('T')[0],
+            maintenanceFrequency: request.maintenanceFrequency || 'none'
+        };
+        setEditingRecord(recordToImport);
+        setActiveTab('Add Record');
+    };
 
     if (loading) return (
         <div className="min-h-screen flex flex-col items-center justify-center text-sky-600 bg-sky-50">
@@ -228,7 +243,13 @@ const AppContent = () => {
                         onSuccess={() => setActiveTab('View Records')}
                     />
                 )}
-                {activeTab === 'Requests' && <RequestManager userId={user.uid} propertyName={profile.name} />}
+                {activeTab === 'Requests' && (
+                    <RequestManager 
+                        userId={user.uid} 
+                        propertyName={profile.name}
+                        onRequestImport={handleRequestImport} // Pass the handler
+                    />
+                )}
                 {activeTab === 'Report' && <PedigreeReport propertyProfile={profile} records={records} />}
                 {activeTab === 'Insights' && <EnvironmentalInsights propertyProfile={profile} />}
             </main>
@@ -251,16 +272,32 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClearEdit
         let imageUrl = newRecord.imageUrl || '';
         if (file) imageUrl = await compressImage(file);
         
+        // Extract meta-fields
+        const { originalRequestId, id, ...recordData } = newRecord;
+
         const data = { 
-            ...newRecord, 
+            ...recordData, 
             imageUrl, 
             userId: user.uid, 
             propertyLocation: profile.name,
-            nextServiceDate: calculateNextDate(newRecord.dateInstalled, newRecord.maintenanceFrequency) 
+            nextServiceDate: calculateNextDate(recordData.dateInstalled, recordData.maintenanceFrequency) 
         };
 
-        if (editingRecord) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), data);
-        else await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...data, timestamp: serverTimestamp() });
+        // Check if we have an ID to decide Update vs Add
+        if (editingRecord && editingRecord.id) {
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), data);
+        } else {
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...data, timestamp: serverTimestamp() });
+            
+            // NEW: Archive the source request if this was an import
+            if (originalRequestId) {
+                try {
+                    await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' });
+                } catch (err) {
+                    console.error("Failed to archive request", err);
+                }
+            }
+        }
         
         setSaving(false);
         setNewRecord(initial);
