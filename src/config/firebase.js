@@ -1,7 +1,12 @@
 // src/config/firebase.js
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { 
+    initializeFirestore, 
+    persistentLocalCache, 
+    persistentMultipleTabManager 
+} from 'firebase/firestore';
+import { getStorage } from 'firebase/storage'; // NEW IMPORT
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
 
 const firebaseConfig = {
@@ -18,17 +23,26 @@ const firebaseConfig = {
 let app;
 let auth;
 let db;
+let storage; // NEW
 let geminiModel = null;
 
 try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
-    db = getFirestore(app);
+    
+    // Enable Offline Persistence
+    db = initializeFirestore(app, {
+        localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+        })
+    });
+    
+    // Initialize Storage
+    storage = getStorage(app); // NEW
     
     // Initialize Vertex AI
     try {
         const vertexAI = getVertexAI(app);
-        // Storing this in a variable instead of window.geminiModel
         geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
     } catch (aiError) {
         console.warn("AI Initialization failed (optional feature):", aiError);
@@ -39,4 +53,4 @@ try {
 }
 
 // Export these so other files can use them
-export { app, auth, db, geminiModel };
+export { app, auth, db, storage, geminiModel }; // Added storage to export
