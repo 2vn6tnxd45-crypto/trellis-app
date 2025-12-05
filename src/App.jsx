@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { LogOut } from 'lucide-react';
+import { LogOut, Home, Camera } from 'lucide-react'; // Added Home, Camera
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -38,6 +38,27 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// NEW: Empty State Component
+const EmptyState = ({ onAddFirst, onScanReceipt }) => (
+    <div className="text-center py-16 px-8">
+        <div className="bg-sky-100 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+            <Home className="h-12 w-12 text-sky-600" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800 mb-3">Welcome to HausKey!</h2>
+        <p className="text-slate-500 mb-8 max-w-md mx-auto">
+            Start building your home's digital pedigree. Add your first record manually or scan a receipt.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button onClick={onScanReceipt} className="px-6 py-3 bg-sky-900 text-white rounded-xl font-bold hover:bg-sky-800 transition shadow-lg shadow-sky-900/20">
+                <Camera className="inline mr-2 h-5 w-5" /> Scan a Receipt
+            </button>
+            <button onClick={onAddFirst} className="px-6 py-3 border border-sky-200 text-sky-700 rounded-xl font-bold hover:bg-sky-50 transition">
+                Add Manually
+            </button>
+        </div>
+    </div>
+);
+
 const AppContent = () => {
     // 1. Global State
     const [user, setUser] = useState(null);
@@ -55,7 +76,7 @@ const AppContent = () => {
 
     // 4. Auth & Data Listeners
     useEffect(() => {
-        let unsubRecords = null; // Store listener cleanup function
+        let unsubRecords = null;
 
         console.log("Initializing Auth Listener...");
 
@@ -83,7 +104,6 @@ const AppContent = () => {
                     }
                     
                     // Listen to Records
-                    // Clean up existing listener if any
                     if (unsubRecords) unsubRecords();
 
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
@@ -109,7 +129,6 @@ const AppContent = () => {
             }
         });
 
-        // Cleanup on unmount
         return () => {
             unsubAuth();
             if (unsubRecords) unsubRecords();
@@ -166,16 +185,12 @@ const AppContent = () => {
         }
     };
 
-    // --- NEW: Request Import Handler ---
+    // --- Request Import Handler ---
     const handleRequestImport = (request) => {
-        // Prepare record for the form:
-        // - Set id to null so it triggers an "Add" (not Update)
-        // - Keep originalRequestId to archive the source request later
         const recordToImport = {
             ...request,
             id: null,
             originalRequestId: request.id,
-            // Ensure defaults
             dateInstalled: request.dateInstalled || new Date().toISOString().split('T')[0],
             maintenanceFrequency: request.maintenanceFrequency || 'none'
         };
@@ -221,8 +236,14 @@ const AppContent = () => {
             <main className="max-w-4xl mx-auto pb-20">
                 {activeTab === 'View Records' && (
                     <div className="space-y-6">
-                        {records.length === 0 ? <div className="text-center p-10 text-slate-400">No records found.</div> : 
-                        records.map(r => <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={r => { setEditingRecord(r); setActiveTab('Add Record'); }} />)}
+                        {records.length === 0 ? (
+                            <EmptyState 
+                                onAddFirst={() => setActiveTab('Add Record')} 
+                                onScanReceipt={() => setActiveTab('Add Record')} 
+                            />
+                        ) : (
+                            records.map(r => <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={r => { setEditingRecord(r); setActiveTab('Add Record'); }} />)
+                        )}
                     </div>
                 )}
                 {activeTab === 'Maintenance' && (
@@ -247,7 +268,7 @@ const AppContent = () => {
                     <RequestManager 
                         userId={user.uid} 
                         propertyName={profile.name}
-                        onRequestImport={handleRequestImport} // Pass the handler
+                        onRequestImport={handleRequestImport}
                     />
                 )}
                 {activeTab === 'Report' && <PedigreeReport propertyProfile={profile} records={records} />}
@@ -272,7 +293,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClearEdit
         let imageUrl = newRecord.imageUrl || '';
         if (file) imageUrl = await compressImage(file);
         
-        // Extract meta-fields
         const { originalRequestId, id, ...recordData } = newRecord;
 
         const data = { 
@@ -283,13 +303,11 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClearEdit
             nextServiceDate: calculateNextDate(recordData.dateInstalled, recordData.maintenanceFrequency) 
         };
 
-        // Check if we have an ID to decide Update vs Add
         if (editingRecord && editingRecord.id) {
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), data);
         } else {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...data, timestamp: serverTimestamp() });
             
-            // NEW: Archive the source request if this was an import
             if (originalRequestId) {
                 try {
                     await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' });
