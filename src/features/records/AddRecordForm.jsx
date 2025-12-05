@@ -4,6 +4,7 @@ import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, Che
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
+import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary'; // NEW IMPORT
 
 const DOC_TYPES = ["Photo", "Receipt", "Warranty", "Manual", "Contract", "Other"];
 
@@ -12,14 +13,11 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const [suggestedTasks, setSuggestedTasks] = useState([]);
     const [isCustomArea, setIsCustomArea] = useState(false);
     const [isExpanded, setIsExpanded] = useState(!!isEditing);
-
-    // Local state for attachments to manage UI before lifting up
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
 
     useEffect(() => {
         if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true);
         else if (!newRecord.area) setIsCustomArea(false);
-        // Sync attachments if record changes
         if (newRecord.attachments) setLocalAttachments(newRecord.attachments);
     }, [newRecord]);
 
@@ -52,11 +50,10 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         setIsExpanded(true);
     };
 
-    // Attachment Handlers
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files.length > 0) {
             const newFiles = Array.from(e.target.files);
-            onAttachmentsChange(newFiles); // Pass raw files to parent wrapper
+            onAttachmentsChange(newFiles);
         }
     };
 
@@ -64,10 +61,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         const updated = [...localAttachments];
         updated.splice(index, 1);
         setLocalAttachments(updated);
-        // We'd need a way to tell parent to remove it from the "pending" list too, 
-        // but for simplicity in this architecture, we'll handle removals in the wrapper 
-        // or just accept that "Add" is additive only for the raw files.
-        // For existing (saved) attachments, we update the record state directly:
         onInputChange({ target: { name: 'attachments', value: updated } });
     };
 
@@ -84,7 +77,15 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
-            {!isEditing && <div className="p-10 pb-0"><SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} /></div>}
+            
+            {/* NEW: Feature Error Boundary around SmartScan */}
+            {!isEditing && (
+                <div className="p-10 pb-0">
+                    <FeatureErrorBoundary label="Smart Scan">
+                        <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
+                    </FeatureErrorBoundary>
+                </div>
+            )}
             
             <form onSubmit={onSave} className="p-10 pt-6 space-y-6">
                 <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-2"> 
@@ -92,7 +93,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-slate-600 flex items-center font-bold uppercase tracking-wider"><X size={14} className="mr-1"/> Cancel</button>} 
                 </div> 
 
-                {/* Quick Add Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label>
@@ -126,7 +126,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div>
                 </div>
 
-                {/* --- NEW: Attachments Section --- */}
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Documents & Photos</label>
@@ -147,11 +146,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                         <p className="text-sm font-bold text-slate-700 truncate">{att.name || "Untitled"}</p>
                                         <p className="text-xs text-slate-400">{Math.round((att.size || 0) / 1024)} KB</p>
                                     </div>
-                                    <select 
-                                        value={att.type} 
-                                        onChange={(e) => updateAttachmentType(idx, e.target.value)}
-                                        className="text-xs border-slate-200 rounded-lg p-1.5 bg-white focus:ring-0"
-                                    >
+                                    <select value={att.type} onChange={(e) => updateAttachmentType(idx, e.target.value)} className="text-xs border-slate-200 rounded-lg p-1.5 bg-white focus:ring-0">
                                         {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                     <button type="button" onClick={() => removeAttachment(idx)} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={16}/></button>
@@ -167,12 +162,10 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     )}
                 </div>
 
-                {/* Toggle Details */}
                 <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-sm font-bold text-sky-600 hover:text-sky-800 transition-colors w-full justify-center py-2 bg-sky-50/50 rounded-lg hover:bg-sky-50">
                     {isExpanded ? <><ChevronUp size={16} className="mr-1"/> Hide Details</> : <><ChevronRight size={16} className="mr-1"/> Add Details, Specs & Maintenance</>}
                 </button>
 
-                {/* Expanded Details */}
                 {isExpanded && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
