@@ -1,8 +1,8 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, where } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox } from 'lucide-react'; // Added Inbox
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy } from 'firebase/firestore'; // Added limit, orderBy
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronDown as ChevronDownIcon } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -71,14 +71,17 @@ const AppContent = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     
-    // Notifications State
+    // Notifications
     const [dueTasks, setDueTasks] = useState([]);
-    const [newSubmissions, setNewSubmissions] = useState([]); // NEW: Contractor Submissions
+    const [newSubmissions, setNewSubmissions] = useState([]);
     
-    // PROPERTY SWITCHING STATE
+    // PROPERTY SWITCHING
     const [activePropertyId, setActivePropertyId] = useState(null);
     const [isSwitchingProp, setIsSwitchingProp] = useState(false);
     const [isAddingProperty, setIsAddingProperty] = useState(false);
+
+    // PAGINATION STATE
+    const [recordsLimit, setRecordsLimit] = useState(50);
 
     // 2. Form/Edit State
     const [editingRecord, setEditingRecord] = useState(null);
@@ -102,7 +105,7 @@ const AppContent = () => {
     const properties = getPropertiesList();
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
 
-    // Helper: Get Records for Active Property (for Requests context)
+    // Helper: Get Records for Active Property
     const activePropertyRecords = records.filter(r => 
         r.propertyId === activeProperty?.id || 
         (!r.propertyId && activeProperty?.id === 'legacy')
@@ -111,7 +114,7 @@ const AppContent = () => {
     // 5. Auth & Data Listeners
     useEffect(() => {
         let unsubRecords = null;
-        let unsubRequests = null; // NEW Listener
+        let unsubRequests = null;
 
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
             try {
@@ -133,9 +136,14 @@ const AppContent = () => {
                         setProfile(null);
                     }
                     
-                    // 1. Fetch Records Listener
+                    // 1. Fetch Records Listener (Paginated)
                     if (unsubRecords) unsubRecords();
-                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
+                    const q = query(
+                        collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'),
+                        orderBy('dateInstalled', 'desc'), // Newest first
+                        limit(recordsLimit) // Pagination limit
+                    );
+                    
                     unsubRecords = onSnapshot(q, 
                         (snap) => {
                             const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -144,15 +152,14 @@ const AppContent = () => {
                         (error) => console.error("Firestore Listener Error:", error)
                     );
 
-                    // 2. NEW: Fetch Requests Listener (For Notifications)
+                    // 2. Requests Listener
                     if (unsubRequests) unsubRequests();
-                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid));
+                    // We only need the latest requests, maybe limit this too if it gets huge, but usually distinct count is low
+                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); // could limit(20)
                     unsubRequests = onSnapshot(qReq, 
                         (snap) => {
                             const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                            // Filter for 'submitted' status only
-                            const submitted = reqs.filter(r => r.status === 'submitted');
-                            setNewSubmissions(submitted);
+                            setNewSubmissions(reqs.filter(r => r.status === 'submitted'));
                         },
                         (error) => console.error("Requests Listener Error:", error)
                     );
@@ -176,15 +183,14 @@ const AppContent = () => {
             if (unsubRecords) unsubRecords(); 
             if (unsubRequests) unsubRequests(); 
         };
-    }, []);
+    }, [recordsLimit]); // Re-run if limit changes
 
-    // Update Due Tasks based on Records
+    // Update Due Tasks
     useEffect(() => {
         if (!activeProperty || records.length === 0) {
             setDueTasks([]);
             return;
         }
-
         const now = new Date();
         const upcoming = activePropertyRecords.filter(r => {
             if (!r.nextServiceDate) return false;
@@ -196,7 +202,6 @@ const AppContent = () => {
             const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
             return { ...r, diffDays };
         }).sort((a,b) => a.diffDays - b.diffDays);
-        
         setDueTasks(upcoming);
     }, [records, activeProperty, activePropertyRecords]);
 
@@ -208,6 +213,10 @@ const AppContent = () => {
         return matchesSearch && matchesCategory;
     });
 
+    const handleLoadMore = () => {
+        setRecordsLimit(prev => prev + 50);
+    };
+
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     const handleSaveProperty = async (formData) => {
@@ -218,9 +227,7 @@ const AppContent = () => {
             coordinates: { lat: parseFloat(formData.get('lat')), lon: parseFloat(formData.get('lon')) },
             dateCreated: new Date().toISOString()
         };
-
         const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
-
         if (!profile) {
             const initialData = { activePropertyId: newProp.id, properties: [newProp] };
             await setDoc(profileRef, initialData);
@@ -263,13 +270,7 @@ const AppContent = () => {
         const today = new Date().toISOString().split('T')[0];
         try {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), {
-                ...suggestion, 
-                userId: user.uid, 
-                propertyLocation: activeProperty?.name,
-                propertyId: activeProperty?.id,
-                dateInstalled: today, 
-                nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency), 
-                timestamp: serverTimestamp()
+                ...suggestion, userId: user.uid, propertyLocation: activeProperty?.name, propertyId: activeProperty?.id, dateInstalled: today, nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency), timestamp: serverTimestamp()
             });
         } catch (error) { console.error("Failed to add standard task:", error); }
     };
@@ -294,13 +295,11 @@ const AppContent = () => {
         setEditingRecord(null);
     };
 
-    // Export Data Handler
     const handleExport = (format) => {
         if (!activeProperty || filteredRecords.length === 0) {
             alert("No records to export.");
             return;
         }
-
         const dataToExport = filteredRecords.map(r => ({
             Date_Installed: r.dateInstalled || '',
             Category: r.category || '',
@@ -313,17 +312,14 @@ const AppContent = () => {
             Maintenance_Freq: r.maintenanceFrequency || '',
             Notes: r.notes || ''
         }));
-
         let content = '';
         let mimeType = '';
         let extension = '';
-
         if (format === 'json') {
             content = JSON.stringify(dataToExport, null, 2);
             mimeType = 'application/json';
             extension = 'json';
         } else {
-            // CSV
             const headers = Object.keys(dataToExport[0]);
             const csvRows = [
                 headers.join(','), 
@@ -336,7 +332,6 @@ const AppContent = () => {
             mimeType = 'text/csv';
             extension = 'csv';
         }
-
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -347,7 +342,6 @@ const AppContent = () => {
         document.body.removeChild(link);
     };
 
-    // Notification Helpers
     const totalNotifications = dueTasks.length + newSubmissions.length;
 
     if (loading) return <div className="min-h-screen flex items-center justify-center text-sky-600 bg-sky-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div></div>;
@@ -369,7 +363,6 @@ const AppContent = () => {
             {/* Header */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
                 
-                {/* Property Switcher */}
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
@@ -382,7 +375,6 @@ const AppContent = () => {
                         </div>
                     </button>
 
-                    {/* Dropdown */}
                     {isSwitchingProp && (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setIsSwitchingProp(false)}></div>
@@ -408,7 +400,6 @@ const AppContent = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* Unified Notification Bell */}
                     <div className="relative">
                         <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-400 hover:text-sky-600 relative">
                             <Bell size={20}/>
@@ -417,8 +408,6 @@ const AppContent = () => {
                         
                         {showNotifications && (
                             <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 overflow-hidden">
-                                
-                                {/* New Submissions Section */}
                                 {newSubmissions.length > 0 && (
                                     <div className="mb-4">
                                         <h3 className="font-bold text-slate-800 mb-2 text-sm flex items-center"><Inbox size={14} className="mr-2 text-sky-600"/> Contractor Updates</h3>
@@ -437,7 +426,6 @@ const AppContent = () => {
                                     </div>
                                 )}
 
-                                {/* Maintenance Tasks Section */}
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Upcoming Tasks ({dueTasks.length})</h3>
                                 {dueTasks.length === 0 && newSubmissions.length === 0 ? (
                                     <p className="text-xs text-slate-400">All caught up! No tasks due.</p>
@@ -456,7 +444,6 @@ const AppContent = () => {
                                         ))}
                                     </div>
                                 )}
-                                
                                 <div className="mt-3 pt-3 border-t border-slate-100">
                                     <button onClick={() => { setActiveTab('Maintenance'); setShowNotifications(false); }} className="w-full text-center text-xs font-bold text-sky-600 hover:text-sky-800">Go to Maintenance</button>
                                 </div>
@@ -472,7 +459,6 @@ const AppContent = () => {
             <main className="max-w-4xl mx-auto p-4 md:p-8">
                 {activeTab === 'Log' && (
                     <div className="space-y-6">
-                        {/* Search Bar */}
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
                             <div className="relative flex-grow">
                                 <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
@@ -496,9 +482,17 @@ const AppContent = () => {
                                 <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-sky-600 font-bold hover:underline">Clear Filters</button>
                             </div>
                         ) : (
-                            filteredRecords.map(r => (
-                                <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
-                            ))
+                            <>
+                                {filteredRecords.map(r => (
+                                    <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                ))}
+                                {/* Load More Button */}
+                                {records.length >= recordsLimit && (
+                                    <button onClick={handleLoadMore} className="w-full py-4 text-sky-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50 transition shadow-sm mt-4">
+                                        Load Older Records
+                                    </button>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -516,7 +510,6 @@ const AppContent = () => {
                 
                 {activeTab === 'Insights' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
-                        {/* Reports & Exports Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                                 <div>
