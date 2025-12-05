@@ -1,8 +1,8 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson } from 'lucide-react';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, where } from 'firebase/firestore';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox } from 'lucide-react'; // Added Inbox
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -70,7 +70,10 @@ const AppContent = () => {
     const [activeTab, setActiveTab] = useState('Log'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    
+    // Notifications State
     const [dueTasks, setDueTasks] = useState([]);
+    const [newSubmissions, setNewSubmissions] = useState([]); // NEW: Contractor Submissions
     
     // PROPERTY SWITCHING STATE
     const [activePropertyId, setActivePropertyId] = useState(null);
@@ -108,6 +111,8 @@ const AppContent = () => {
     // 5. Auth & Data Listeners
     useEffect(() => {
         let unsubRecords = null;
+        let unsubRequests = null; // NEW Listener
+
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
             try {
                 setUser(currentUser);
@@ -128,7 +133,7 @@ const AppContent = () => {
                         setProfile(null);
                     }
                     
-                    // Fetch Records
+                    // 1. Fetch Records Listener
                     if (unsubRecords) unsubRecords();
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
                     unsubRecords = onSnapshot(q, 
@@ -138,10 +143,26 @@ const AppContent = () => {
                         },
                         (error) => console.error("Firestore Listener Error:", error)
                     );
+
+                    // 2. NEW: Fetch Requests Listener (For Notifications)
+                    if (unsubRequests) unsubRequests();
+                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid));
+                    unsubRequests = onSnapshot(qReq, 
+                        (snap) => {
+                            const reqs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                            // Filter for 'submitted' status only
+                            const submitted = reqs.filter(r => r.status === 'submitted');
+                            setNewSubmissions(submitted);
+                        },
+                        (error) => console.error("Requests Listener Error:", error)
+                    );
+
                 } else {
                     setProfile(null);
                     setRecords([]);
+                    setNewSubmissions([]);
                     if (unsubRecords) unsubRecords();
+                    if (unsubRequests) unsubRequests();
                 }
             } catch (error) {
                 console.error("Critical Data Loading Error:", error);
@@ -150,10 +171,14 @@ const AppContent = () => {
                 setLoading(false);
             }
         });
-        return () => { unsubAuth(); if (unsubRecords) unsubRecords(); };
+        return () => { 
+            unsubAuth(); 
+            if (unsubRecords) unsubRecords(); 
+            if (unsubRequests) unsubRequests(); 
+        };
     }, []);
 
-    // Update Due Tasks
+    // Update Due Tasks based on Records
     useEffect(() => {
         if (!activeProperty || records.length === 0) {
             setDueTasks([]);
@@ -173,7 +198,7 @@ const AppContent = () => {
         }).sort((a,b) => a.diffDays - b.diffDays);
         
         setDueTasks(upcoming);
-    }, [records, activeProperty, activePropertyRecords]); // added activePropertyRecords to dependency
+    }, [records, activeProperty, activePropertyRecords]);
 
     // 6. Logic & Handlers
     const filteredRecords = activePropertyRecords.filter(r => {
@@ -322,6 +347,9 @@ const AppContent = () => {
         document.body.removeChild(link);
     };
 
+    // Notification Helpers
+    const totalNotifications = dueTasks.length + newSubmissions.length;
+
     if (loading) return <div className="min-h-screen flex items-center justify-center text-sky-600 bg-sky-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div></div>;
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
     
@@ -380,20 +408,41 @@ const AppContent = () => {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* Notification Bell */}
+                    {/* Unified Notification Bell */}
                     <div className="relative">
                         <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-400 hover:text-sky-600 relative">
                             <Bell size={20}/>
-                            {dueTasks.length > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                            {totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
                         </button>
                         
                         {showNotifications && (
-                            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
+                            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 overflow-hidden">
+                                
+                                {/* New Submissions Section */}
+                                {newSubmissions.length > 0 && (
+                                    <div className="mb-4">
+                                        <h3 className="font-bold text-slate-800 mb-2 text-sm flex items-center"><Inbox size={14} className="mr-2 text-sky-600"/> Contractor Updates</h3>
+                                        <div className="space-y-2">
+                                            {newSubmissions.map(sub => (
+                                                <button 
+                                                    key={sub.id} 
+                                                    onClick={() => { setActiveTab('Requests'); setShowNotifications(false); }}
+                                                    className="w-full text-left p-3 bg-green-50 rounded-xl border border-green-100 hover:bg-green-100 transition"
+                                                >
+                                                    <p className="font-bold text-green-800 text-xs">Submission Received</p>
+                                                    <p className="text-xs text-green-700 truncate">{sub.contractor} - {sub.item || sub.description}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Maintenance Tasks Section */}
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Upcoming Tasks ({dueTasks.length})</h3>
-                                {dueTasks.length === 0 ? (
+                                {dueTasks.length === 0 && newSubmissions.length === 0 ? (
                                     <p className="text-xs text-slate-400">All caught up! No tasks due.</p>
                                 ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
                                         {dueTasks.map(task => (
                                             <div key={task.id} className="text-xs p-3 bg-sky-50 rounded-xl border border-sky-100">
                                                 <div className="flex justify-between items-start">
@@ -407,8 +456,9 @@ const AppContent = () => {
                                         ))}
                                     </div>
                                 )}
+                                
                                 <div className="mt-3 pt-3 border-t border-slate-100">
-                                    <button onClick={() => setActiveTab('Maintenance')} className="w-full text-center text-xs font-bold text-sky-600 hover:text-sky-800">Go to Maintenance</button>
+                                    <button onClick={() => { setActiveTab('Maintenance'); setShowNotifications(false); }} className="w-full text-center text-xs font-bold text-sky-600 hover:text-sky-800">Go to Maintenance</button>
                                 </div>
                             </div>
                         )}
@@ -458,8 +508,8 @@ const AppContent = () => {
                     <RequestManager 
                         userId={user.uid} 
                         propertyName={activeProperty.name} 
-                        propertyAddress={activeProperty.address} // Shared Context
-                        records={activePropertyRecords}          // Shared Context
+                        propertyAddress={activeProperty.address}
+                        records={activePropertyRecords}
                         onRequestImport={handleRequestImport}
                     />
                 )}
