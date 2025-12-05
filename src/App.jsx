@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check } from 'lucide-react';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Download, FileJson, Table } from 'lucide-react'; // Added Download, FileJson, Table
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -75,7 +75,7 @@ const AppContent = () => {
     // PROPERTY SWITCHING STATE
     const [activePropertyId, setActivePropertyId] = useState(null);
     const [isSwitchingProp, setIsSwitchingProp] = useState(false);
-    const [isAddingProperty, setIsAddingProperty] = useState(false); // Controls "Add Property" full-screen flow
+    const [isAddingProperty, setIsAddingProperty] = useState(false);
 
     // 2. Form/Edit State
     const [editingRecord, setEditingRecord] = useState(null);
@@ -89,11 +89,9 @@ const AppContent = () => {
     if (isContractor) return <ContractorView />;
 
     // Helper: Get Active Property Object
-    // Support legacy profiles (flat structure) vs new profiles (properties array)
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
-        // Legacy fallback
         if (profile.name) return [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
         return [];
     };
@@ -117,11 +115,9 @@ const AppContent = () => {
                     if (profileSnap.exists()) {
                         const data = profileSnap.data();
                         setProfile(data);
-                        
-                        // Set Active Property
                         if (data.activePropertyId) setActivePropertyId(data.activePropertyId);
                         else if (data.properties && data.properties.length > 0) setActivePropertyId(data.properties[0].id);
-                        else setActivePropertyId('legacy'); // Fallback for old data
+                        else setActivePropertyId('legacy');
                     } else {
                         setProfile(null);
                     }
@@ -151,7 +147,7 @@ const AppContent = () => {
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); };
     }, []);
 
-    // Update Due Tasks when records or active property changes
+    // Update Due Tasks
     useEffect(() => {
         if (!activeProperty || records.length === 0) {
             setDueTasks([]);
@@ -159,17 +155,13 @@ const AppContent = () => {
         }
 
         const now = new Date();
-        // Filter records for CURRENT PROPERTY only
-        const propRecords = records.filter(r => 
-            r.propertyId === activeProperty.id || 
-            (!r.propertyId && activeProperty.id === 'legacy') // Backwards compat
-        );
+        const propRecords = records.filter(r => r.propertyId === activeProperty.id || (!r.propertyId && activeProperty.id === 'legacy'));
 
         const upcoming = propRecords.filter(r => {
             if (!r.nextServiceDate) return false;
             const due = new Date(r.nextServiceDate);
             const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
-            return diffDays <= 30; // Due in 30 days or overdue
+            return diffDays <= 30;
         }).map(r => {
             const due = new Date(r.nextServiceDate);
             const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
@@ -179,28 +171,19 @@ const AppContent = () => {
         setDueTasks(upcoming);
     }, [records, activeProperty]);
 
-
     // 6. Logic & Handlers
-    
-    // Filter Records for View
     const filteredRecords = records.filter(r => {
-        // 1. Property Filter
         const belongsToProperty = r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy');
         if (!belongsToProperty) return false;
 
-        // 2. Search Filter
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (r.item || '').toLowerCase().includes(searchLower) || (r.brand || '').toLowerCase().includes(searchLower) || (r.model || '').toLowerCase().includes(searchLower);
-        
-        // 3. Category Filter
         const matchesCategory = filterCategory === 'All' || r.category === filterCategory;
-        
         return matchesSearch && matchesCategory;
     });
 
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
-    // HANDLE ADDING/SAVING PROPERTIES
     const handleSaveProperty = async (formData) => {
         const newProp = { 
             id: crypto.randomUUID(),
@@ -213,43 +196,27 @@ const AppContent = () => {
         const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
 
         if (!profile) {
-            // First time setup (Legacy/Single prop structure for root, but with array)
-            const initialData = {
-                activePropertyId: newProp.id,
-                properties: [newProp]
-            };
+            const initialData = { activePropertyId: newProp.id, properties: [newProp] };
             await setDoc(profileRef, initialData);
             setProfile(initialData);
             setActivePropertyId(newProp.id);
         } else {
-            // Adding subsequent property
-            // If profile is legacy structure, migrate it first
             let updatedProperties = profile.properties || [];
             if (!profile.properties && profile.name) {
                 updatedProperties = [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
             }
-            
             updatedProperties.push(newProp);
-            
-            await updateDoc(profileRef, {
-                properties: updatedProperties,
-                activePropertyId: newProp.id
-            });
-            
+            await updateDoc(profileRef, { properties: updatedProperties, activePropertyId: newProp.id });
             setProfile({ ...profile, properties: updatedProperties, activePropertyId: newProp.id });
             setActivePropertyId(newProp.id);
         }
-        
         setIsAddingProperty(false);
     };
 
     const handleSwitchProperty = async (propId) => {
         setActivePropertyId(propId);
         setIsSwitchingProp(false);
-        // Persist preference
-        try {
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { activePropertyId: propId });
-        } catch (e) { console.warn("Failed to save active prop", e); }
+        try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { activePropertyId: propId }); } catch (e) { console.warn("Failed to save active prop", e); }
     };
 
     const handleDeleteRecord = async (id) => {
@@ -273,7 +240,7 @@ const AppContent = () => {
                 ...suggestion, 
                 userId: user.uid, 
                 propertyLocation: activeProperty?.name,
-                propertyId: activeProperty?.id, // LINK TO PROPERTY
+                propertyId: activeProperty?.id,
                 dateInstalled: today, 
                 nextServiceDate: calculateNextDate(today, suggestion.maintenanceFrequency), 
                 timestamp: serverTimestamp()
@@ -301,11 +268,62 @@ const AppContent = () => {
         setEditingRecord(null);
     };
 
+    // --- NEW: Export Data Handler ---
+    const handleExport = (format) => {
+        if (!activeProperty || filteredRecords.length === 0) {
+            alert("No records to export.");
+            return;
+        }
+
+        const dataToExport = filteredRecords.map(r => ({
+            Date_Installed: r.dateInstalled || '',
+            Category: r.category || '',
+            Item: r.item || '',
+            Brand: r.brand || '',
+            Model: r.model || '',
+            Serial_Number: r.serialNumber || '',
+            Area: r.area || '',
+            Contractor: r.contractor || '',
+            Maintenance_Freq: r.maintenanceFrequency || '',
+            Notes: r.notes || ''
+        }));
+
+        let content = '';
+        let mimeType = '';
+        let extension = '';
+
+        if (format === 'json') {
+            content = JSON.stringify(dataToExport, null, 2);
+            mimeType = 'application/json';
+            extension = 'json';
+        } else {
+            // CSV
+            const headers = Object.keys(dataToExport[0]);
+            const csvRows = [
+                headers.join(','), 
+                ...dataToExport.map(row => headers.map(fieldName => {
+                    const val = row[fieldName] ? String(row[fieldName]).replace(/"/g, '""') : '';
+                    return `"${val}"`;
+                }).join(','))
+            ];
+            content = csvRows.join('\n');
+            mimeType = 'text/csv';
+            extension = 'csv';
+        }
+
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `HausKey_Export_${activeProperty.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     if (loading) return <div className="min-h-screen flex items-center justify-center text-sky-600 bg-sky-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mb-4"></div></div>;
-    
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
     
-    // Show Setup Form if no profile OR explicitly adding a property
     if (!profile && !loading) return <SetupPropertyForm onSave={handleSaveProperty} onSignOut={() => signOut(auth)} />;
     if (isAddingProperty) return (
         <div className="relative">
@@ -314,7 +332,6 @@ const AppContent = () => {
         </div>
     );
 
-    // Fallback if data is weird
     if (!activeProperty) return <div className="p-10 text-center">Loading Property...</div>;
 
     return (
@@ -439,14 +456,37 @@ const AppContent = () => {
                 {activeTab === 'Requests' && <RequestManager userId={user.uid} propertyName={activeProperty.name} onRequestImport={handleRequestImport}/>}
                 
                 {activeTab === 'Insights' && (
-                    <div className="space-y-8">
-                        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
-                            <div>
-                                <h2 className="text-xl font-bold text-sky-900 mb-2">Pedigree Report</h2>
-                                <p className="text-slate-500 text-sm">Generate a printable PDF of your home's history.</p>
+                    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                        {/* Reports & Exports Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Report Card */}
+                            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <h2 className="text-xl font-bold text-sky-900 mb-2">Pedigree Report</h2>
+                                    <p className="text-slate-500 text-sm mb-6">Generate a printable PDF of your home's history.</p>
+                                </div>
+                                <button onClick={() => setActiveTab('ReportView')} className="w-full py-3 bg-sky-50 text-sky-700 font-bold rounded-xl border border-sky-100 hover:bg-sky-100 transition flex items-center justify-center">
+                                    <FileText className="mr-2 h-5 w-5"/> View Report
+                                </button>
                             </div>
-                            <button onClick={() => setActiveTab('ReportView')} className="px-6 py-3 bg-sky-50 text-sky-700 font-bold rounded-xl border border-sky-100 hover:bg-sky-100 transition"><FileText className="inline mr-2 h-5 w-5"/> View Report</button>
+
+                            {/* Export Data Card */}
+                            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
+                                <div>
+                                    <h2 className="text-xl font-bold text-sky-900 mb-2">Export Data</h2>
+                                    <p className="text-slate-500 text-sm mb-6">Download your records for backup or external analysis.</p>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button onClick={() => handleExport('csv')} className="flex-1 py-3 bg-white text-slate-700 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center">
+                                        <Table className="mr-2 h-5 w-5"/> CSV
+                                    </button>
+                                    <button onClick={() => handleExport('json')} className="flex-1 py-3 bg-white text-slate-700 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center">
+                                        <FileJson className="mr-2 h-5 w-5"/> JSON
+                                    </button>
+                                </div>
+                            </div>
                         </div>
+
                         <EnvironmentalInsights propertyProfile={activeProperty} />
                     </div>
                 )}
