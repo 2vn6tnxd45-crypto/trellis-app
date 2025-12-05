@@ -1,8 +1,8 @@
 // src/App.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, arrayUnion } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Download, FileJson, Table } from 'lucide-react'; // Added Download, FileJson, Table
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
@@ -62,7 +62,7 @@ const EmptyState = ({ onAddFirst, onScanReceipt }) => (
 const AppContent = () => {
     // 1. Global State
     const [user, setUser] = useState(null);
-    const [profile, setProfile] = useState(null); // Profile doc content
+    const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     
@@ -98,6 +98,12 @@ const AppContent = () => {
 
     const properties = getPropertiesList();
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
+
+    // Helper: Get Records for Active Property (for Requests context)
+    const activePropertyRecords = records.filter(r => 
+        r.propertyId === activeProperty?.id || 
+        (!r.propertyId && activeProperty?.id === 'legacy')
+    );
 
     // 5. Auth & Data Listeners
     useEffect(() => {
@@ -155,9 +161,7 @@ const AppContent = () => {
         }
 
         const now = new Date();
-        const propRecords = records.filter(r => r.propertyId === activeProperty.id || (!r.propertyId && activeProperty.id === 'legacy'));
-
-        const upcoming = propRecords.filter(r => {
+        const upcoming = activePropertyRecords.filter(r => {
             if (!r.nextServiceDate) return false;
             const due = new Date(r.nextServiceDate);
             const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
@@ -169,13 +173,10 @@ const AppContent = () => {
         }).sort((a,b) => a.diffDays - b.diffDays);
         
         setDueTasks(upcoming);
-    }, [records, activeProperty]);
+    }, [records, activeProperty, activePropertyRecords]); // added activePropertyRecords to dependency
 
     // 6. Logic & Handlers
-    const filteredRecords = records.filter(r => {
-        const belongsToProperty = r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy');
-        if (!belongsToProperty) return false;
-
+    const filteredRecords = activePropertyRecords.filter(r => {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = (r.item || '').toLowerCase().includes(searchLower) || (r.brand || '').toLowerCase().includes(searchLower) || (r.model || '').toLowerCase().includes(searchLower);
         const matchesCategory = filterCategory === 'All' || r.category === filterCategory;
@@ -268,7 +269,7 @@ const AppContent = () => {
         setEditingRecord(null);
     };
 
-    // --- NEW: Export Data Handler ---
+    // Export Data Handler
     const handleExport = (format) => {
         if (!activeProperty || filteredRecords.length === 0) {
             alert("No records to export.");
@@ -453,13 +454,20 @@ const AppContent = () => {
                 )}
 
                 {activeTab === 'Maintenance' && <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />}
-                {activeTab === 'Requests' && <RequestManager userId={user.uid} propertyName={activeProperty.name} onRequestImport={handleRequestImport}/>}
+                {activeTab === 'Requests' && (
+                    <RequestManager 
+                        userId={user.uid} 
+                        propertyName={activeProperty.name} 
+                        propertyAddress={activeProperty.address} // Shared Context
+                        records={activePropertyRecords}          // Shared Context
+                        onRequestImport={handleRequestImport}
+                    />
+                )}
                 
                 {activeTab === 'Insights' && (
                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
                         {/* Reports & Exports Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Report Card */}
                             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                                 <div>
                                     <h2 className="text-xl font-bold text-sky-900 mb-2">Pedigree Report</h2>
@@ -470,7 +478,6 @@ const AppContent = () => {
                                 </button>
                             </div>
 
-                            {/* Export Data Card */}
                             <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col justify-between">
                                 <div>
                                     <h2 className="text-xl font-bold text-sky-900 mb-2">Export Data</h2>
@@ -486,7 +493,6 @@ const AppContent = () => {
                                 </div>
                             </div>
                         </div>
-
                         <EnvironmentalInsights propertyProfile={activeProperty} />
                     </div>
                 )}
@@ -550,7 +556,6 @@ const AppContent = () => {
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
-    const [filesToProcess, setFilesToProcess] = useState([]);
     const [saving, setSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
@@ -564,7 +569,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     };
 
     const handleAttachmentsChange = (newFiles) => {
-        setFilesToProcess(prev => [...prev, ...newFiles]);
         const placeholders = newFiles.map(f => ({ name: f.name, size: f.size, type: 'Photo', fileRef: f }));
         setNewRecord(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...placeholders] }));
         setIsDirty(true);
@@ -600,8 +604,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             attachments: finalAttachments,
             imageUrl: coverImage, 
             userId: user.uid, 
-            propertyLocation: activeProperty.name, // Display name
-            propertyId: activeProperty.id,         // LINK TO PROPERTY
+            propertyLocation: activeProperty.name, 
+            propertyId: activeProperty.id,
             nextServiceDate: calculateNextDate(recordData.dateInstalled, recordData.maintenanceFrequency) 
         };
 
