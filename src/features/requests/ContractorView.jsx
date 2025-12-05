@@ -2,17 +2,16 @@
 import React, { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
-import { CheckCircle, AlertTriangle, User, Tag, Box, Calendar, Clock, ChevronDown, UploadCloud, Send, Briefcase, History, BadgeCheck, Mail, Save, MapPin, Wrench } from 'lucide-react'; // Added MapPin, Wrench
-import { db, auth } from '../../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'; // NEW
+import { CheckCircle, AlertTriangle, User, Tag, Box, Calendar, Clock, ChevronDown, UploadCloud, Send, Briefcase, History, BadgeCheck, Mail, Save, MapPin, Wrench } from 'lucide-react';
+import { db, auth, storage } from '../../config/firebase'; // Import storage
 import { REQUESTS_COLLECTION_PATH, CATEGORIES, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { compressImage } from '../../lib/images';
 import { calculateNextDate } from '../../lib/utils';
 import { Logo } from '../../components/common/Logo';
 
 export const ContractorView = () => {
-    // ... [Previous State & Effects unchanged] ...
-    // (Ensure you keep the existing state setup from the previous step)
-
+    // ... [Keep existing state setup] ...
     const [requestData, setRequestData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -24,6 +23,7 @@ export const ContractorView = () => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [rememberMe, setRememberMe] = useState(true);
 
+    // ... [Keep useEffect and handleFetchHistory] ...
     useEffect(() => {
         const init = async () => {
             const savedContractor = JSON.parse(localStorage.getItem('hauskey_contractor') || '{}');
@@ -62,19 +62,41 @@ export const ContractorView = () => {
         setSubmitting(true);
         try {
             let imageUrl = '';
-            if (selectedFile) imageUrl = await compressImage(selectedFile);
+            
+            // --- UPDATED: STORAGE UPLOAD ---
+            if (selectedFile) {
+                // 1. Compress
+                const compressedDataUrl = await compressImage(selectedFile);
+                const res = await fetch(compressedDataUrl);
+                const blob = await res.blob();
+
+                // 2. Upload (Use request ID path for cleanliness)
+                const fileRef = ref(storage, `artifacts/${REQUESTS_COLLECTION_PATH.split('/')[2]}/users/${requestData.createdBy}/uploads/requests/${requestData.id}/${selectedFile.name}`);
+                await uploadBytes(fileRef, blob);
+                
+                // 3. Get URL
+                imageUrl = await getDownloadURL(fileRef);
+            }
+            
             if (rememberMe) localStorage.setItem('hauskey_contractor', JSON.stringify({ name: formData.contractor, email: formData.email }));
+            
             await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, requestData.id), {
                 ...formData, contractorEmail: formData.email, imageUrl, nextServiceDate: calculateNextDate(formData.dateInstalled, formData.maintenanceFrequency), status: 'submitted', submittedAt: serverTimestamp()
             });
             setSubmitted(true);
-        } catch (e) { setError("Submission failed."); } finally { setSubmitting(false); }
+        } catch (e) { 
+            console.error(e);
+            setError("Submission failed. Please try again."); 
+        } finally { 
+            setSubmitting(false); 
+        }
     };
 
     if (loading) return <div className="min-h-screen flex items-center justify-center bg-sky-50 text-sky-600"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div></div>;
     if (submitted) return <div className="min-h-screen flex flex-col items-center justify-center bg-green-50 p-6 text-center"><div className="bg-white p-8 rounded-[2rem] shadow-xl border border-green-100 max-w-md w-full"><CheckCircle className="h-20 w-20 text-green-500 mx-auto mb-6"/><h1 className="text-3xl font-bold text-slate-800 mb-2">Sent Successfully!</h1><p className="text-slate-500 mb-8">The homeowner has been notified.</p><button onClick={() => window.close()} className="w-full py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200">Close Window</button></div></div>;
     if (error) return <div className="min-h-screen flex items-center justify-center bg-red-50 text-red-600 font-bold p-4"><AlertTriangle className="mr-2"/> {error}</div>;
 
+    // ... [Render JSX keeps the Context Card I added in the previous step] ...
     return (
         <div className="min-h-screen bg-sky-50 py-8 px-4 flex justify-center font-sans">
             <div className="max-w-2xl w-full bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-sky-100">
@@ -110,28 +132,19 @@ export const ContractorView = () => {
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                        
-                        {/* NEW: Context Card */}
                         {(requestData.propertyAddress || requestData.linkedContext) && (
                             <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100 space-y-3">
                                 <h3 className="text-xs font-bold text-orange-800 uppercase tracking-widest flex items-center"><Wrench size={14} className="mr-2"/> Job Context</h3>
                                 {requestData.propertyAddress && (
                                     <div className="flex items-start">
                                         <MapPin size={16} className="text-orange-400 mr-2 mt-0.5"/>
-                                        <div>
-                                            <p className="font-bold text-slate-700 text-sm">Site Address</p>
-                                            <p className="text-slate-600 text-sm">{requestData.propertyAddress.street}, {requestData.propertyAddress.city}</p>
-                                        </div>
+                                        <div><p className="font-bold text-slate-700 text-sm">Site Address</p><p className="text-slate-600 text-sm">{requestData.propertyAddress.street}, {requestData.propertyAddress.city}</p></div>
                                     </div>
                                 )}
                                 {requestData.linkedContext && (
                                     <div className="flex items-start pt-2 border-t border-orange-200/50">
                                         <Box size={16} className="text-orange-400 mr-2 mt-0.5"/>
-                                        <div>
-                                            <p className="font-bold text-slate-700 text-sm">Replacing / Servicing</p>
-                                            <p className="text-slate-600 text-sm">{requestData.linkedContext.item} ({requestData.linkedContext.brand || 'Generic'} - {requestData.linkedContext.year})</p>
-                                            <p className="text-xs text-slate-400">Model: {requestData.linkedContext.model || 'N/A'}</p>
-                                        </div>
+                                        <div><p className="font-bold text-slate-700 text-sm">Replacing / Servicing</p><p className="text-slate-600 text-sm">{requestData.linkedContext.item} ({requestData.linkedContext.brand || 'Generic'} - {requestData.linkedContext.year})</p></div>
                                     </div>
                                 )}
                             </div>
