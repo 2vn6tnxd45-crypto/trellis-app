@@ -1,14 +1,14 @@
 // src/App.jsx
-import React, { useState, useEffect, useRef } from 'react'; // Added useRef
+import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText } from 'lucide-react'; // Updated Icons
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell } from 'lucide-react';
 
 // Config & Libs
 import { auth, db } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
-import { compressImage } from './lib/images';
+import { compressImage, fileToBase64 } from './lib/images';
 
 // Components
 import { Logo } from './components/common/Logo';
@@ -66,9 +66,11 @@ const AppContent = () => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     
-    // NAVIGATION STATE
-    const [activeTab, setActiveTab] = useState('Log'); // 'Log', 'Maintenance', 'Requests', 'Insights'
+    // NAVIGATION & UI STATE
+    const [activeTab, setActiveTab] = useState('Log'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [dueTasks, setDueTasks] = useState([]);
     
     // 2. Form/Edit State
     const [editingRecord, setEditingRecord] = useState(null);
@@ -97,7 +99,24 @@ const AppContent = () => {
                     if (unsubRecords) unsubRecords();
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'));
                     unsubRecords = onSnapshot(q, 
-                        (snap) => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
+                        (snap) => {
+                            const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                            setRecords(data);
+                            
+                            // Check Notifications
+                            const now = new Date();
+                            const upcoming = data.filter(r => {
+                                if (!r.nextServiceDate) return false;
+                                const due = new Date(r.nextServiceDate);
+                                const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+                                return diffDays <= 30; // Due in 30 days or overdue
+                            }).map(r => {
+                                const due = new Date(r.nextServiceDate);
+                                const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+                                return { ...r, diffDays };
+                            }).sort((a,b) => a.diffDays - b.diffDays);
+                            setDueTasks(upcoming);
+                        },
                         (error) => console.error("Firestore Listener Error:", error)
                     );
                 } else {
@@ -165,10 +184,9 @@ const AppContent = () => {
             maintenanceFrequency: request.maintenanceFrequency || 'none'
         };
         setEditingRecord(recordToImport);
-        setIsAddModalOpen(true); // Open Modal
+        setIsAddModalOpen(true);
     };
 
-    // Open/Close Modal Handlers
     const openAddModal = (recordToEdit = null) => {
         setEditingRecord(recordToEdit);
         setIsAddModalOpen(true);
@@ -184,7 +202,7 @@ const AppContent = () => {
     if (!profile) return <SetupPropertyForm onSave={handleSaveProfile} onSignOut={() => signOut(auth)} />;
 
     return (
-        <div className="min-h-screen bg-sky-50 font-sans pb-24 md:pb-0"> {/* Added padding bottom for mobile nav */}
+        <div className="min-h-screen bg-sky-50 font-sans pb-24 md:pb-0">
             
             {/* Header */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
@@ -195,7 +213,45 @@ const AppContent = () => {
                         <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">{profile.name}</p>
                     </div>
                 </div>
-                <button onClick={() => signOut(auth)} className="p-2 text-slate-400 hover:text-red-500 transition"><LogOut size={20}/></button>
+                <div className="flex items-center gap-3">
+                    {/* Notification Bell */}
+                    <div className="relative">
+                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 text-slate-400 hover:text-sky-600 relative">
+                            <Bell size={20}/>
+                            {dueTasks.length > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                        </button>
+                        
+                        {/* Notification Dropdown */}
+                        {showNotifications && (
+                            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
+                                <h3 className="font-bold text-slate-800 mb-3 text-sm">Upcoming Tasks ({dueTasks.length})</h3>
+                                {dueTasks.length === 0 ? (
+                                    <p className="text-xs text-slate-400">All caught up! No tasks due.</p>
+                                ) : (
+                                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                                        {dueTasks.map(task => (
+                                            <div key={task.id} className="text-xs p-3 bg-sky-50 rounded-xl border border-sky-100">
+                                                <div className="flex justify-between items-start">
+                                                    <span className="font-bold text-slate-700">{task.item}</span>
+                                                    <span className={`font-bold ${task.diffDays < 0 ? 'text-red-500' : 'text-sky-600'}`}>
+                                                        {task.diffDays < 0 ? `${Math.abs(task.diffDays)}d overdue` : `${task.diffDays} days`}
+                                                    </span>
+                                                </div>
+                                                <p className="text-slate-400 mt-1">{task.category}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="mt-3 pt-3 border-t border-slate-100">
+                                    <button onClick={() => setActiveTab('Maintenance')} className="w-full text-center text-xs font-bold text-sky-600 hover:text-sky-800">Go to Maintenance</button>
+                                </div>
+                            </div>
+                        )}
+                        {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
+                    </div>
+
+                    <button onClick={() => signOut(auth)} className="p-2 text-slate-400 hover:text-red-500 transition"><LogOut size={20}/></button>
+                </div>
             </header>
 
             <main className="max-w-4xl mx-auto p-4 md:p-8">
@@ -217,7 +273,6 @@ const AppContent = () => {
                             </div>
                         </div>
 
-                        {/* Record List */}
                         {records.length === 0 ? (
                             <EmptyState onAddFirst={() => openAddModal()} onScanReceipt={() => openAddModal()} />
                         ) : filteredRecords.length === 0 ? (
@@ -249,7 +304,6 @@ const AppContent = () => {
                     </div>
                 )}
                 
-                {/* Hidden Tab for Report View */}
                 {activeTab === 'ReportView' && (
                     <div>
                         <button onClick={() => setActiveTab('Insights')} className="mb-4 text-sm font-bold text-slate-500 hover:text-sky-600 flex items-center"><X className="mr-1 h-4 w-4"/> Close Report</button>
@@ -258,7 +312,6 @@ const AppContent = () => {
                 )}
             </main>
 
-            {/* Mobile/Responsive Bottom Navigation */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
                 <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-sky-600' : 'text-slate-400 hover:text-slate-600'}`}>
                     <Home size={24} strokeWidth={activeTab === 'Log' ? 2.5 : 2} />
@@ -269,7 +322,6 @@ const AppContent = () => {
                     <span className="text-[10px] font-bold mt-1">Care</span>
                 </button>
                 
-                {/* Floating Add Button in Nav */}
                 <div className="relative -top-8">
                     <button onClick={() => openAddModal()} className="h-16 w-16 bg-sky-900 rounded-full flex items-center justify-center text-white shadow-lg shadow-sky-900/30 hover:scale-105 transition-transform active:scale-95">
                         <Plus size={32} />
@@ -286,10 +338,9 @@ const AppContent = () => {
                 </button>
             </nav>
 
-            {/* Add Record Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={() => { /* Click outside to close handled in Wrapper */ }}></div>
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={() => {}}></div>
                     <div className="relative w-full max-w-lg bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto h-[90vh] sm:h-auto overflow-y-auto">
                          <WrapperAddRecord 
                             user={user} 
@@ -307,11 +358,11 @@ const AppContent = () => {
     );
 };
 
-// Helper Wrapper to manage Form State & Logic
+// Helper Wrapper with Multi-File Logic
 const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, onSuccess }) => {
-    const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0] };
+    const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
-    const [file, setFile] = useState(null);
+    const [filesToProcess, setFilesToProcess] = useState([]);
     const [saving, setSaving] = useState(false);
     const [isDirty, setIsDirty] = useState(false);
 
@@ -324,32 +375,66 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
         setIsDirty(true);
     };
 
-    const handleFileChange = (e) => {
-        setFile(e.target.files[0]);
+    const handleAttachmentsChange = (newFiles) => {
+        setFilesToProcess(prev => [...prev, ...newFiles]);
+        // Also update local preview state if needed, but for now we process on save
+        // We add placeholders to newRecord.attachments so the UI shows something
+        const placeholders = newFiles.map(f => ({
+            name: f.name,
+            size: f.size,
+            type: 'Photo', // Default
+            fileRef: f // Keep ref to process later
+        }));
+        setNewRecord(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...placeholders] }));
         setIsDirty(true);
     };
 
     const handleCloseSafe = () => {
-        if (isDirty) {
-            if (confirm("You have unsaved changes. Are you sure you want to discard them?")) {
-                onClose();
-            }
-        } else {
-            onClose();
-        }
+        if (isDirty && confirm("You have unsaved changes. Discard?")) onClose();
+        else if (!isDirty) onClose();
     };
 
     const handleSave = async (e) => {
         e.preventDefault();
         setSaving(true);
-        let imageUrl = newRecord.imageUrl || '';
-        if (file) imageUrl = await compressImage(file);
         
+        // Process new attachments
+        const processedAttachments = [...(newRecord.attachments || [])];
+        
+        // Find items that have a 'fileRef' (meaning they are new and need conversion)
+        const processingPromises = processedAttachments.map(async (att) => {
+            if (att.fileRef) {
+                // Convert to Base64
+                let url = '';
+                if (att.fileRef.type.startsWith('image/')) {
+                    url = await compressImage(att.fileRef);
+                } else {
+                    url = await fileToBase64(att.fileRef); // Basic b64 for non-images
+                    url = `data:${att.fileRef.type};base64,${url}`; // Ensure prefix
+                }
+                // Return clean object without fileRef
+                return { 
+                    name: att.name,
+                    size: att.size,
+                    type: att.type,
+                    url: url,
+                    dateAdded: new Date().toISOString()
+                };
+            }
+            return att; // Already processed/existing
+        });
+
+        const finalAttachments = await Promise.all(processingPromises);
+        
+        // Set Cover Image (first photo found)
+        const coverImage = finalAttachments.find(a => a.type === 'Photo')?.url || '';
+
         const { originalRequestId, id, ...recordData } = newRecord;
 
         const data = { 
             ...recordData, 
-            imageUrl, 
+            attachments: finalAttachments,
+            imageUrl: coverImage, // Backward compat
             userId: user.uid, 
             propertyLocation: profile.name,
             nextServiceDate: calculateNextDate(recordData.dateInstalled, recordData.maintenanceFrequency) 
@@ -359,13 +444,11 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), data);
         } else {
             await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...data, timestamp: serverTimestamp() });
-            if (originalRequestId) {
-                try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch (e) { console.error(e); }
-            }
+            if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch (e) {}
         }
         
         setSaving(false);
-        setIsDirty(false); // Clear dirty flag before success
+        setIsDirty(false);
         onSuccess();
     };
 
@@ -382,20 +465,18 @@ const WrapperAddRecord = ({ user, db, appId, profile, editingRecord, onClose, on
 
     return (
         <div className="relative">
-             {/* Header for Modal */}
             <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white sticky top-0 z-10 rounded-t-[2rem]">
                 <h3 className="text-xl font-bold text-slate-800">{editingRecord ? 'Edit Record' : 'Add New Record'}</h3>
                 <button onClick={handleCloseSafe} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button>
             </div>
             
-            {/* The Form */}
             <AddRecordForm 
                 onSave={handleSave} 
                 onBatchSave={handleBatchSave} 
                 isSaving={saving} 
                 newRecord={newRecord} 
                 onInputChange={handleChange} 
-                onFileChange={handleFileChange} 
+                onAttachmentsChange={handleAttachmentsChange} 
                 isEditing={!!editingRecord} 
                 onCancelEdit={handleCloseSafe}
             />
