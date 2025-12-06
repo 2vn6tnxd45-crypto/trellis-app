@@ -1,193 +1,144 @@
 // src/features/dashboard/MaintenanceDashboard.jsx
-import React, { useState, useEffect } from 'react';
-import { Wrench, CheckCircle, Zap, Plus, CalendarCheck, Activity, TrendingUp, AlertTriangle } from 'lucide-react';
-import { STANDARD_MAINTENANCE_ITEMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import React, { useMemo, useState } from 'react';
+import { Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, Wrench, AlertTriangle, Sparkles, ListChecks } from 'lucide-react';
+import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
 import { EmptyState } from '../../components/common/EmptyState';
 
-// Sub-component for the Score Ring
-const ScoreRing = ({ score, label, color }) => {
-    const radius = 30;
-    const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (score / 100) * circumference;
-    
-    return (
-        <div className="flex flex-col items-center">
-            <div className="relative h-20 w-20">
-                <svg className="h-full w-full -rotate-90" viewBox="0 0 80 80">
-                    <circle cx="40" cy="40" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" className="text-slate-100" />
-                    <circle cx="40" cy="40" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" className={`transition-all duration-1000 ${color}`} />
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold text-slate-700">{Math.round(score)}%</span>
-                </div>
-            </div>
-            <span className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-wide">{label}</span>
-        </div>
-    );
+const getNextServiceDate = (record) => {
+    if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
+    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
+    if (!freq || freq.months === 0) return null;
+    const installed = new Date(record.dateInstalled);
+    const next = new Date(installed);
+    next.setMonth(next.getMonth() + freq.months);
+    while (next < new Date()) next.setMonth(next.getMonth() + freq.months);
+    return next;
 };
 
-export const MaintenanceDashboard = ({ records, onCompleteTask, onAddStandardTask }) => {
-    const [tasks, setTasks] = useState([]);
-    const [suggestions, setSuggestions] = useState([]);
-    const [healthStats, setHealthStats] = useState({ overall: 0, adherence: 0, coverage: 0, dataDepth: 0 });
+export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords }) => {
+    const [showSuggestions, setShowSuggestions] = useState(false);
 
-    useEffect(() => {
-        if (records) {
-            // 1. Calculate Tasks & Status
-            const maintenanceTasks = records
-                .filter(r => r.maintenanceFrequency && r.maintenanceFrequency !== 'none' && r.nextServiceDate)
-                .map(r => {
-                    const today = new Date();
-                    const serviceDate = new Date(r.nextServiceDate);
-                    const timeDiff = serviceDate.getTime() - today.getTime();
-                    const daysUntil = Math.ceil(timeDiff / (1000 * 3600 * 24));
-                    let status = 'upcoming';
-                    if (daysUntil < 0) status = 'overdue';
-                    else if (daysUntil <= 30) status = 'due-soon';
-                    return { ...r, daysUntil, status };
-                })
-                .sort((a, b) => a.daysUntil - b.daysUntil);
-            
-            setTasks(maintenanceTasks);
+    const { score, breakdown, upcomingTasks, overdueTasks } = useMemo(() => {
+        const now = new Date();
+        const upcoming = [];
+        const overdue = [];
+        let healthyCount = 0;
+        let totalTracked = 0;
 
-            // 2. Identify Missing Standard Items
-            const missing = STANDARD_MAINTENANCE_ITEMS.filter(std => {
-                const hasItem = records.some(r => r.item.toLowerCase().includes(std.item.toLowerCase()));
-                return !hasItem;
-            });
-            setSuggestions(missing);
-
-            // 3. Calculate Health Score
-            const totalRecords = records.length;
-            if (totalRecords === 0) {
-                setHealthStats({ overall: 0, adherence: 0, coverage: 0, dataDepth: 0 });
-                return;
+        records.forEach(record => {
+            const nextDate = getNextServiceDate(record);
+            if (nextDate) {
+                totalTracked++;
+                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                const task = { ...record, nextDate, daysUntil };
+                if (daysUntil < 0) overdue.push(task);
+                else if (daysUntil <= 90) upcoming.push(task);
+                else healthyCount++;
             }
+        });
 
-            // A. Adherence (Are tasks overdue?)
-            const overdueCount = maintenanceTasks.filter(t => t.status === 'overdue').length;
-            const adherenceScore = maintenanceTasks.length > 0 
-                ? Math.max(0, 100 - (overdueCount / maintenanceTasks.length * 100)) 
-                : 100; // No tasks = 100% adherence (technically)
+        const total = totalTracked || 1;
+        const overdueScore = Math.max(0, 100 - (overdue.length / total) * 100);
+        const upcomingScore = Math.max(0, 100 - (upcoming.length / total) * 50);
+        const coverageScore = Math.min(100, (totalTracked / Math.max(records.length, 5)) * 100);
+        const finalScore = Math.round((overdueScore * 0.5) + (upcomingScore * 0.3) + (coverageScore * 0.2));
 
-            // B. Coverage (% of items with a schedule)
-            const withSchedule = records.filter(r => r.maintenanceFrequency && r.maintenanceFrequency !== 'none').length;
-            const coverageScore = (withSchedule / totalRecords) * 100;
-
-            // C. Data Depth (% of items with Brand & Model for Recall checks)
-            const withData = records.filter(r => r.brand && r.model).length;
-            const dataDepthScore = (withData / totalRecords) * 100;
-
-            // Overall Weighted Score
-            // Adherence is most important (40%), then Coverage (30%), then Data (30%)
-            const overall = (adherenceScore * 0.4) + (coverageScore * 0.3) + (dataDepthScore * 0.3);
-
-            setHealthStats({
-                overall: Math.round(overall),
-                adherence: Math.round(adherenceScore),
-                coverage: Math.round(coverageScore),
-                dataDepth: Math.round(dataDepthScore)
-            });
-        }
+        return {
+            score: finalScore,
+            breakdown: { overdueScore: Math.round(overdueScore), upcomingScore: Math.round(upcomingScore), coverageScore: Math.round(coverageScore) },
+            upcomingTasks: upcoming.sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 5),
+            overdueTasks: overdue.sort((a, b) => a.daysUntil - b.daysUntil)
+        };
     }, [records]);
+
+    const suggestedItems = useMemo(() => {
+        const existingItems = new Set(records.map(r => r.item.toLowerCase()));
+        return STANDARD_MAINTENANCE_ITEMS.filter(item => !existingItems.has(item.item.toLowerCase()));
+    }, [records]);
+
+    const scoreColor = score >= 80 ? 'text-emerald-500' : score >= 50 ? 'text-yellow-500' : 'text-red-500';
+    const ringColor = score >= 80 ? 'stroke-emerald-500' : score >= 50 ? 'stroke-yellow-500' : 'stroke-red-500';
 
     return (
         <div className="space-y-8">
-            
-            {/* NEW: Home Health Score Card */}
-            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5">
-                    <Activity className="h-32 w-32 text-sky-900" />
-                </div>
-                
-                <div className="flex flex-col md:flex-row items-center justify-between gap-8 relative z-10">
-                    <div className="text-center md:text-left">
-                        <h2 className="text-2xl font-bold text-sky-900 mb-2 flex items-center justify-center md:justify-start">
-                            <Activity className="h-6 w-6 mr-3 text-sky-600"/> Home Health Score
-                        </h2>
-                        <p className="text-slate-500 max-w-sm">
-                            Keep your home in peak condition by adding details, setting schedules, and completing tasks on time.
-                        </p>
-                        {healthStats.overall < 50 && (
-                            <div className="mt-4 inline-flex items-center px-4 py-2 bg-red-50 text-red-700 text-sm font-bold rounded-xl border border-red-100">
-                                <AlertTriangle className="h-4 w-4 mr-2"/> Needs Attention
-                            </div>
-                        )}
-                        {healthStats.overall >= 80 && (
-                            <div className="mt-4 inline-flex items-center px-4 py-2 bg-green-50 text-green-700 text-sm font-bold rounded-xl border border-green-100">
-                                <TrendingUp className="h-4 w-4 mr-2"/> Excellent Condition
-                            </div>
-                        )}
+            {/* Score Card */}
+            <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
+                <div className="flex flex-col md:flex-row items-center gap-8">
+                    <div className="relative h-40 w-40 shrink-0">
+                        <svg className="transform -rotate-90 h-40 w-40">
+                            <circle cx="80" cy="80" r="70" stroke="#e2e8f0" strokeWidth="12" fill="none" />
+                            <circle cx="80" cy="80" r="70" className={ringColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={`${score * 4.4} 440`} />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                            <span className={`text-5xl font-extrabold ${scoreColor}`}>{score}</span>
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Health</span>
+                        </div>
                     </div>
-
-                    <div className="flex gap-6 sm:gap-10">
-                        <ScoreRing score={healthStats.adherence} label="On Time" color="text-emerald-500" />
-                        <ScoreRing score={healthStats.coverage} label="Protected" color="text-sky-500" />
-                        <ScoreRing score={healthStats.dataDepth} label="Verified" color="text-indigo-500" />
-                    </div>
-                    
-                    <div className="hidden md:block h-24 w-px bg-slate-100"></div>
-
-                    <div className="text-center min-w-[100px]">
-                        <span className="text-5xl font-extrabold text-slate-800">{healthStats.overall}</span>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Total Score</p>
+                    <div className="flex-grow text-center md:text-left">
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">Home Health Score</h2>
+                        <p className="text-slate-500 mb-4">Based on your maintenance tracking and schedules.</p>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-4">
+                            <div className="bg-slate-50 px-4 py-2 rounded-xl"><span className="text-xs text-slate-400 block">On Track</span><span className="font-bold text-emerald-600">{breakdown.overdueScore}%</span></div>
+                            <div className="bg-slate-50 px-4 py-2 rounded-xl"><span className="text-xs text-slate-400 block">Upcoming</span><span className="font-bold text-teal-600">{breakdown.upcomingScore}%</span></div>
+                            <div className="bg-slate-50 px-4 py-2 rounded-xl"><span className="text-xs text-slate-400 block">Coverage</span><span className="font-bold text-cyan-600">{breakdown.coverageScore}%</span></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
+            {/* Overdue Section */}
+            {overdueTasks.length > 0 && (
+                <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                    <h3 className="font-bold text-red-800 flex items-center mb-4"><AlertTriangle className="h-5 w-5 mr-2" /> Overdue Maintenance</h3>
+                    <div className="space-y-2">
+                        {overdueTasks.map(task => (
+                            <div key={task.id} className="bg-white p-4 rounded-xl border border-red-100 flex justify-between items-center">
+                                <div><p className="font-bold text-slate-800">{task.item}</p><p className="text-xs text-slate-500">{task.category} • {task.area}</p></div>
+                                <span className="text-red-600 font-bold text-sm">{Math.abs(task.daysUntil)} days overdue</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Active Schedule */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-sky-100">
-                 <h2 className="text-2xl font-bold text-sky-900 mb-6 flex items-center">
-                    <div className="bg-sky-100 p-2 rounded-lg mr-3"><Wrench className="h-6 w-6 text-sky-700" /></div> Active Schedule
-                </h2>
-                {tasks.length === 0 ? (
-                    <EmptyState 
-                        icon={CalendarCheck}
-                        title="No Maintenance Scheduled"
-                        description="You haven't set up any recurring maintenance tasks yet."
-                        actions={
-                            <button className="px-6 py-3 bg-sky-50 text-sky-700 rounded-xl font-bold border border-sky-100 hover:bg-sky-100 pointer-events-none">
-                                Check Suggestions Below
-                            </button>
-                        }
-                    />
+            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-slate-800 flex items-center"><Calendar className="h-5 w-5 mr-2 text-emerald-600" /> Active Schedule</h3>
+                    {upcomingTasks.length > 0 && <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">{upcomingTasks.length} upcoming</span>}
+                </div>
+                {upcomingTasks.length === 0 ? (
+                    <EmptyState icon={CheckCircle} title="All Clear!" description="No maintenance tasks due in the next 90 days." />
                 ) : (
-                    <div className="grid gap-4">
-                        {tasks.map(task => (
-                            <div key={task.id} className={`p-5 rounded-2xl border-l-4 shadow-sm bg-white flex flex-col md:flex-row justify-between items-start md:items-center transition-all hover:shadow-md ${
-                                task.status === 'overdue' ? 'border-red-500 bg-red-50/30' : 
-                                task.status === 'due-soon' ? 'border-yellow-500 bg-yellow-50/30' : 
-                                'border-green-500'
-                            }`}>
-                                <div className="mb-3 md:mb-0">
-                                    <h4 className="font-bold text-slate-800 text-lg">{task.item}</h4>
-                                    <p className="text-sm text-slate-500 font-medium">{task.category} • {MAINTENANCE_FREQUENCIES.find(f => f.value === task.maintenanceFrequency)?.label}</p>
-                                    <p className={`text-sm font-bold mt-1 ${task.status === 'overdue' ? 'text-red-600' : task.status === 'due-soon' ? 'text-yellow-600' : 'text-green-600'}`}>
-                                        {task.status === 'overdue' ? `Overdue by ${Math.abs(task.daysUntil)} days` : `Due in ${task.daysUntil} days`}
-                                    </p>
-                                </div>
-                                <button onClick={() => onCompleteTask(task)} className="px-5 py-2.5 bg-white border border-sky-200 text-sky-700 rounded-xl shadow-sm hover:bg-sky-50 hover:border-sky-300 transition font-bold flex items-center text-sm">
-                                    <CheckCircle size={18} className="mr-2 text-green-500"/> Mark Complete
-                                </button>
+                    <div className="space-y-3">
+                        {upcomingTasks.map(task => (
+                            <div key={task.id} className="flex items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-emerald-50 hover:border-emerald-100 transition-colors cursor-pointer" onClick={onNavigateToRecords}>
+                                <div className="bg-white h-10 w-10 rounded-lg flex items-center justify-center mr-4 border border-slate-200"><Wrench className="h-5 w-5 text-emerald-600" /></div>
+                                <div className="flex-grow"><p className="font-bold text-slate-800">{task.item}</p><p className="text-xs text-slate-500">{task.category}</p></div>
+                                <div className="text-right"><p className="font-bold text-emerald-700">{task.daysUntil} days</p><p className="text-xs text-slate-400">{task.nextDate.toLocaleDateString()}</p></div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
 
-            {/* Suggestions Section */}
-            {suggestions.length > 0 && (
-                <div className="bg-sky-50 p-8 rounded-[2rem] border border-sky-100">
-                    <h3 className="text-xl font-bold text-sky-900 mb-2 flex items-center"><Zap className="mr-2 h-6 w-6 text-sky-600"/> Suggested Maintenance</h3>
-                    <p className="text-sm text-sky-700/70 mb-6 font-medium">Based on standard home care, you might be missing these items.</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {suggestions.map((suggestion, idx) => (
-                            <div key={idx} className="bg-white p-4 rounded-2xl border border-sky-100 shadow-sm flex justify-between items-center hover:border-sky-300 transition-colors group">
-                                <div><p className="font-bold text-slate-800 text-sm group-hover:text-sky-900">{suggestion.item}</p><p className="text-xs text-slate-400 font-medium">{suggestion.category}</p></div>
-                                <button onClick={() => onAddStandardTask(suggestion)} className="p-2 bg-sky-100 text-sky-700 rounded-full hover:bg-sky-600 hover:text-white transition shadow-sm"><Plus size={18} /></button>
-                            </div>
-                        ))}
-                    </div>
+            {/* Suggestions */}
+            {suggestedItems.length > 0 && (
+                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                    <button onClick={() => setShowSuggestions(!showSuggestions)} className="w-full flex justify-between items-center">
+                        <h3 className="font-bold text-emerald-900 flex items-center"><Sparkles className="h-5 w-5 mr-2" /> Suggested for Your Home</h3>
+                        <ChevronRight className={`h-5 w-5 text-emerald-600 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} />
+                    </button>
+                    {showSuggestions && (
+                        <div className="mt-4 space-y-2">
+                            {suggestedItems.slice(0, 5).map((item, i) => (
+                                <div key={i} className="bg-white p-4 rounded-xl border border-emerald-100 flex justify-between items-center">
+                                    <div><p className="font-bold text-slate-800">{item.item}</p><p className="text-xs text-slate-500">{item.category}</p></div>
+                                    <button onClick={() => onAddRecord(item)} className="text-emerald-600 hover:text-emerald-700 font-bold text-sm flex items-center"><PlusCircle className="h-4 w-4 mr-1" /> Add</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
