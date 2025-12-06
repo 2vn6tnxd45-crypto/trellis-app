@@ -3,7 +3,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronRight } from 'lucide-react';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronRight, LayoutDashboard, Package, Users, MapPin } from 'lucide-react';
+
+// ============================================
+// 🍞 TOAST NOTIFICATIONS - Step 1
+// ============================================
+// We import the toast library and its container (Toaster)
+// Think of Toaster like a "notification inbox" that sits in the corner
+// and toast() like sending a message to that inbox
+import toast, { Toaster } from 'react-hot-toast';
 
 // Config & Libs
 import { auth, db, storage } from './config/firebase';
@@ -25,6 +33,8 @@ import { RequestManager } from './features/requests/RequestManager';
 import { ContractorView } from './features/requests/ContractorView';
 import { PedigreeReport } from './features/report/PedigreeReport';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
+// NEW: Import our welcome component for new users
+import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -46,8 +56,12 @@ const AppContent = () => {
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
-    // UX IMPROVEMENT: Default to 'Maintenance' (Dashboard) instead of 'Log'
-    const [activeTab, setActiveTab] = useState('Maintenance'); 
+    // ============================================
+    // 📍 NAVIGATION RENAME - Step 2
+    // ============================================
+    // Changed default from 'Maintenance' to 'Dashboard'
+    // This is just an internal name - we'll show friendlier labels in the UI
+    const [activeTab, setActiveTab] = useState('Dashboard'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [dueTasks, setDueTasks] = useState([]);
@@ -60,6 +74,11 @@ const AppContent = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('All');
     const [isSavingProperty, setIsSavingProperty] = useState(false);
+    
+    // ============================================
+    // 🆕 NEW STATE: Track if user dismissed welcome
+    // ============================================
+    const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorView />;
@@ -87,6 +106,8 @@ const AppContent = () => {
                     if (profileSnap.exists()) {
                         const data = profileSnap.data();
                         setProfile(data);
+                        // Check if user has seen welcome before
+                        if (data.hasSeenWelcome) setHasSeenWelcome(true);
                         if (data.activePropertyId) setActivePropertyId(data.activePropertyId);
                         else if (data.properties && data.properties.length > 0) setActivePropertyId(data.properties[0].id);
                         else setActivePropertyId('legacy');
@@ -103,7 +124,15 @@ const AppContent = () => {
                     setProfile(null); setRecords([]); setNewSubmissions([]);
                     if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests();
                 }
-            } catch (error) { console.error(error); alert("Error: " + error.message); } finally { setLoading(false); }
+            // ============================================
+            // 🍞 TOAST NOTIFICATIONS - Replace alert()
+            // ============================================
+            // Instead of: alert("Error: " + error.message);
+            // We now use: toast.error(error.message);
+            } catch (error) { 
+                console.error(error); 
+                toast.error("Something went wrong: " + error.message);
+            } finally { setLoading(false); }
         });
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
     }, [recordsLimit]);
@@ -151,23 +180,74 @@ const AppContent = () => {
             }, { merge: true });
             const snap = await getDoc(profileRef);
             if (snap.exists()) setProfile(snap.data());
+            // 🍞 Success toast instead of nothing
+            toast.success("Your Krib has been created!");
         } catch (error) {
             console.error("Error saving property:", error);
-            alert("Failed to create Krib: " + error.message);
+            // 🍞 Error toast instead of alert()
+            toast.error("Failed to create Krib: " + error.message);
         } finally {
             setIsSavingProperty(false);
             setIsAddingProperty(false);
         }
     }; 
 
-    const handleSwitchProperty = async (propId) => { setActivePropertyId(propId); setIsSwitchingProp(false); };
-    const handleDeleteRecord = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id)); };
+    const handleSwitchProperty = async (propId) => { 
+        setActivePropertyId(propId); 
+        setIsSwitchingProp(false);
+        // 🍞 Info toast to confirm the switch
+        const prop = properties.find(p => p.id === propId);
+        if (prop) toast.success(`Switched to ${prop.name}`);
+    };
+    
+    const handleDeleteRecord = async (id) => { 
+        // 🍞 Using a custom confirmation toast instead of confirm()
+        // This is a bit more advanced - we create a toast with buttons
+        toast((t) => (
+            <div className="flex flex-col gap-2">
+                <p className="font-medium">Delete this record?</p>
+                <p className="text-sm text-slate-500">This action cannot be undone.</p>
+                <div className="flex gap-2 mt-2">
+                    <button 
+                        onClick={() => {
+                            toast.dismiss(t.id);
+                            deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id))
+                                .then(() => toast.success("Record deleted"))
+                                .catch((e) => toast.error("Delete failed"));
+                        }}
+                        className="px-3 py-1.5 bg-red-500 text-white text-sm font-bold rounded-lg"
+                    >
+                        Delete
+                    </button>
+                    <button 
+                        onClick={() => toast.dismiss(t.id)}
+                        className="px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        ), { duration: 10000 });
+    };
+    
     const handleCompleteTask = async (task) => { /* ... */ };
     const handleAddStandardTask = async (suggestion) => { /* ... */ };
     const handleRequestImport = (req) => { setEditingRecord({...req, id: null, originalRequestId: req.id, dateInstalled: req.dateInstalled||'', maintenanceFrequency: req.maintenanceFrequency||'none'}); setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
     const handleExport = (format) => { /* ... */ };
+    
+    // ============================================
+    // 🆕 NEW: Handle welcome screen dismissal
+    // ============================================
+    const handleDismissWelcome = async () => {
+        setHasSeenWelcome(true);
+        // Save to profile so it doesn't show again
+        if (user) {
+            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+            await updateDoc(profileRef, { hasSeenWelcome: true });
+        }
+    };
 
     if (loading) return <AppShellSkeleton />;
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
@@ -176,8 +256,50 @@ const AppContent = () => {
     if (!activeProperty) return <div className="p-10 text-center">Loading Property...</div>;
 
     const totalNotifications = dueTasks.length + newSubmissions.length;
+    
+    // ============================================
+    // 🆕 EMPTY STATE CHECK - Step 3
+    // ============================================
+    // If user has no records AND hasn't dismissed welcome, show welcome screen
+    const isNewUser = records.length === 0 && !hasSeenWelcome;
 
     return (
+        // ============================================
+        // 🍞 TOASTER COMPONENT - This is the "inbox"
+        // ============================================
+        // We add <Toaster /> once at the top level
+        // It handles displaying all toast notifications
+        <>
+        <Toaster 
+            position="top-center"
+            toastOptions={{
+                // Default styles for all toasts
+                duration: 4000,
+                style: {
+                    background: '#1e293b',
+                    color: '#fff',
+                    borderRadius: '12px',
+                    padding: '12px 16px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                },
+                // Custom styles for success toasts
+                success: {
+                    iconTheme: {
+                        primary: '#10b981',
+                        secondary: '#fff',
+                    },
+                },
+                // Custom styles for error toasts
+                error: {
+                    iconTheme: {
+                        primary: '#ef4444',
+                        secondary: '#fff',
+                    },
+                },
+            }}
+        />
+        
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
                 <div className="relative">
@@ -190,7 +312,7 @@ const AppContent = () => {
                     </button>
                     {isSwitchingProp && (
                         <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-                            {properties.map(p => (<button key={p.id} onClick={() => { setActivePropertyId(p.id); setIsSwitchingProp(false); }} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>))}
+                            {properties.map(p => (<button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>))}
                             <div className="border-t border-slate-100 my-1"></div>
                             <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50"><PlusCircle size={16} className="mr-2"/> Add Property</button>
                         </div>
@@ -213,20 +335,39 @@ const AppContent = () => {
 
             <main className="max-w-4xl mx-auto p-4 md:p-8">
                 
-                {/* 1. MAINTENANCE (HOME) TAB */}
-                {activeTab === 'Maintenance' && (
-                    <FeatureErrorBoundary label="Maintenance">
-                        <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} onNavigateToRecords={() => setActiveTab('Log')} />
+                {/* ============================================
+                    🆕 WELCOME SCREEN FOR NEW USERS - Step 3
+                    ============================================
+                    If user has 0 records, show a friendly welcome
+                    instead of empty charts and "0" scores
+                */}
+                {isNewUser && activeTab === 'Dashboard' && (
+                    <WelcomeScreen 
+                        propertyName={activeProperty.name}
+                        onAddRecord={() => openAddModal()}
+                        onDismiss={handleDismissWelcome}
+                    />
+                )}
+                
+                {/* 1. DASHBOARD TAB (renamed from Maintenance) */}
+                {activeTab === 'Dashboard' && !isNewUser && (
+                    <FeatureErrorBoundary label="Dashboard">
+                        <MaintenanceDashboard 
+                            records={filteredRecords} 
+                            onCompleteTask={handleCompleteTask} 
+                            onAddStandardTask={handleAddStandardTask} 
+                            onNavigateToRecords={() => setActiveTab('Items')} 
+                        />
                     </FeatureErrorBoundary>
                 )}
 
-                {/* 2. LOG (RECORDS) TAB - NOW GROUPED */}
-                {activeTab === 'Log' && (
+                {/* 2. ITEMS TAB (renamed from Log/Records) */}
+                {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
                             <div className="relative flex-grow">
                                 <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                <input type="text" placeholder="Search records..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
+                                <input type="text" placeholder="Search items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
                                 {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}
                             </div>
                             <div className="relative min-w-[160px]">
@@ -240,28 +381,27 @@ const AppContent = () => {
 
                         {records.length === 0 ? (
                             <EmptyState 
-                                icon={Home}
-                                title="Welcome to Krib!"
-                                description="Start building your home's digital pedigree. Add your first record manually or scan a receipt."
+                                icon={Package}
+                                title="No items yet"
+                                description="Start building your home's inventory. Add appliances, paint colors, systems, and more."
                                 actions={
                                     <>
-                                        <button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition shadow-lg shadow-emerald-900/20 flex items-center justify-center">
+                                        <button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center">
                                             <Camera className="mr-2 h-5 w-5" /> Scan Receipt
                                         </button>
                                         <button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center">
-                                            <Plus className="mr-2 h-5 w-5" /> Manual Add
+                                            <Plus className="mr-2 h-5 w-5" /> Add Manually
                                         </button>
                                     </>
                                 }
                             />
                         ) : filteredRecords.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                                <p>No records match your search.</p>
+                                <p>No items match your search.</p>
                                 <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button>
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                {/* UX IMPROVEMENT: Grouped List */}
                                 {sortedCategories.map(category => (
                                     <details key={category} open className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                         <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition select-none list-none">
@@ -282,15 +422,16 @@ const AppContent = () => {
                                 ))}
                                 
                                 {records.length >= recordsLimit && (
-                                    <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load Older Records</button>
+                                    <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load More Items</button>
                                 )}
                             </div>
                         )}
                     </div>
                 )}
 
-                {activeTab === 'Requests' && (
-                    <FeatureErrorBoundary label="Requests">
+                {/* 3. CONTRACTORS TAB (renamed from Requests/Pros) */}
+                {activeTab === 'Contractors' && (
+                    <FeatureErrorBoundary label="Contractors">
                         <RequestManager 
                             userId={user.uid} 
                             propertyName={activeProperty.name} 
@@ -300,20 +441,45 @@ const AppContent = () => {
                         />
                     </FeatureErrorBoundary>
                 )}
-                {activeTab === 'Insights' && (
-                    <FeatureErrorBoundary label="Insights">
+                
+                {/* 4. PROPERTY TAB (renamed from Insights) */}
+                {activeTab === 'Property' && (
+                    <FeatureErrorBoundary label="Property">
                         <EnvironmentalInsights propertyProfile={activeProperty} />
                     </FeatureErrorBoundary>
                 )}
             </main>
 
+            {/* ============================================
+                📍 NAVIGATION - Step 2: Renamed Labels
+                ============================================
+                - Home → Dashboard (LayoutDashboard icon)
+                - Records → Items (Package icon)  
+                - Pros → Contractors (Users icon)
+                - Insights → Property (MapPin icon)
+            */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
-                {/* UPDATED NAVIGATION ICONS & LABELS */}
-                <button onClick={() => setActiveTab('Maintenance')} className={`flex flex-col items-center ${activeTab === 'Maintenance' ? 'text-emerald-600' : 'text-slate-400'}`}><Home size={24}/><span className="text-[10px] font-bold mt-1">Home</span></button>
-                <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-emerald-600' : 'text-slate-400'}`}><FileText size={24}/><span className="text-[10px] font-bold mt-1">Records</span></button>
-                <div className="relative -top-8"><button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={32}/></button></div>
-                <button onClick={() => setActiveTab('Requests')} className={`flex flex-col items-center ${activeTab === 'Requests' ? 'text-emerald-600' : 'text-slate-400'}`}><LinkIcon size={24}/><span className="text-[10px] font-bold mt-1">Pros</span></button>
-                <button onClick={() => setActiveTab('Insights')} className={`flex flex-col items-center ${activeTab === 'Insights' ? 'text-emerald-600' : 'text-slate-400'}`}><BarChart3 size={24}/><span className="text-[10px] font-bold mt-1">Insights</span></button>
+                <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <LayoutDashboard size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Dashboard</span>
+                </button>
+                <button onClick={() => setActiveTab('Items')} className={`flex flex-col items-center ${activeTab === 'Items' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <Package size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Items</span>
+                </button>
+                <div className="relative -top-8">
+                    <button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-colors active:scale-95">
+                        <Plus size={32}/>
+                    </button>
+                </div>
+                <button onClick={() => setActiveTab('Contractors')} className={`flex flex-col items-center ${activeTab === 'Contractors' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <Users size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Contractors</span>
+                </button>
+                <button onClick={() => setActiveTab('Property')} className={`flex flex-col items-center ${activeTab === 'Property' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <MapPin size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Property</span>
+                </button>
             </nav>
 
             {isAddModalOpen && (
@@ -334,6 +500,7 @@ const AppContent = () => {
                 </div>
             )}
         </div>
+        </>
     );
 };
 
@@ -345,7 +512,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     useEffect(() => { if (editingRecord) setNewRecord(editingRecord); }, [editingRecord]);
     const handleChange = (e) => setNewRecord({...newRecord, [e.target.name]: e.target.value});
     
-    // UPDATED: Correctly handle PDFs
     const handleAttachmentsChange = (files) => {
         const placeholders = files.map(f => ({ 
             name: f.name, 
@@ -356,12 +522,11 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
-    // UPDATED: Handle batch save from SmartScan
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         
         if (!activeProperty || !activeProperty.id) {
-            alert("Error: No active property selected. Cannot save.");
+            toast.error("No active property selected. Cannot save.");
             return;
         }
 
@@ -382,7 +547,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
 
-            // USE BATCH WRITE
             const batch = writeBatch(db);
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
 
@@ -398,7 +562,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     model: item.model || '',
                     area: item.area || '',
                     contractor: item.contractor || '',
-                    notes: item.notes || '', // Ensure notes are captured
+                    notes: item.notes || '',
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
                     nextServiceDate: null, 
@@ -416,17 +580,18 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
             await batch.commit();
             setSaving(false);
+            // 🍞 Success toast
+            toast.success(`${items.length} item${items.length > 1 ? 's' : ''} added to your Krib!`);
             onSuccess();
             
         } catch (error) {
             console.error("Batch Save Error:", error);
-            alert("Failed to save items: " + error.message);
+            toast.error("Failed to save items: " + error.message);
             setSaving(false);
             throw error; 
         }
     };
 
-    // UPDATED: Single record save logic
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
         
@@ -434,7 +599,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             if (att.fileRef) {
                 try {
                     let file = att.fileRef;
-                    // Only compress if it's an image
                     if (file.type.startsWith('image/')) { 
                         const c = await compressImage(file); 
                         const r = await fetch(c); 
@@ -445,7 +609,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
                     
-                    // Determine Type
                     const isPdf = att.fileRef.type.includes('pdf');
                     
                     return { 
@@ -457,7 +620,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     };
                 } catch(e){ 
                     console.error(e);
-                    alert("Upload failed for " + att.name);
+                    toast.error("Upload failed for " + att.name);
                     return null; 
                 }
             }
@@ -465,21 +628,23 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         }));
         
         const finalAtts = processed.filter(Boolean);
-        // Only set cover image if it's a photo
         const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
         
         const { originalRequestId, id, ...data } = newRecord;
         const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
         
         try {
-            if (editingRecord?.id) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload);
-            else {
+            if (editingRecord?.id) {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload);
+                toast.success("Record updated!");
+            } else {
                 await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
+                toast.success("Item added to your Krib!");
                 if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
             }
             onSuccess();
         } catch (e) {
-            alert("Save failed: " + e.message);
+            toast.error("Save failed: " + e.message);
         } finally {
             setSaving(false); 
         }
@@ -488,7 +653,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     return (
         <div className="relative">
             <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white sticky top-0 z-10 rounded-t-[2rem]">
-                <h3 className="text-xl font-bold text-slate-800">{editingRecord ? 'Edit Record' : 'Add New Record'}</h3>
+                <h3 className="text-xl font-bold text-slate-800">{editingRecord ? 'Edit Item' : 'Add New Item'}</h3>
                 <button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button>
             </div>
             <AddRecordForm 
