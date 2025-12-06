@@ -11,8 +11,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
-    // REMOVED: scannedImageBase64 (no longer needed for saving)
-    const [currentFile, setCurrentFile] = useState(null); // NEW: Hold raw file
+    // REMOVED: scannedImageBase64 state not needed for saving anymore
+    const [currentFile, setCurrentFile] = useState(null); 
     const [isPdf, setIsPdf] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     
@@ -25,7 +25,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        setCurrentFile(file); // Store file for later upload
+        setCurrentFile(file);
 
         let base64Str = "";
         if (file.type === "application/pdf") {
@@ -38,6 +38,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             base64Str = await compressImage(file);
         }
 
+        // We use base64 ONLY for the AI analysis now, not for saving
         const data = await scanReceipt(file, base64Str);
         
         if (data && data.items) {
@@ -78,7 +79,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const handleSaveAll = async () => {
         setIsSaving(true);
         try {
-            // Clean items - NO IMAGE DATA attached here
+            // FIXED: Removed 'imageUrl' from here. It was causing the freeze.
             const finalItems = scannedItems.map(item => ({
                 ...item,
                 dateInstalled: globalDate || item.dateInstalled,
@@ -87,10 +88,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 category: globalCategory || item.category
             }));
             
-            // Pass file as 2nd argument
+            // We pass the raw file separately once
             await onBatchSave(finalItems, currentFile);
             
-            // Clear state on success
             setScannedItems([]);
             setScannedImagePreview(null);
             setCurrentFile(null);
