@@ -4,7 +4,7 @@ import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, Che
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
-import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary'; // NEW IMPORT
+import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary';
 
 const DOC_TYPES = ["Photo", "Receipt", "Warranty", "Manual", "Contract", "Other"];
 
@@ -78,7 +78,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             
-            {/* NEW: Feature Error Boundary around SmartScan */}
             {!isEditing && (
                 <div className="p-10 pb-0">
                     <FeatureErrorBoundary label="Smart Scan">
@@ -97,7 +96,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label>
                         <div className="relative">
-                            <select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white appearance-none transition-colors">
+                            <select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white appearance-none transition-colors">
                                 <option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                             <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
@@ -107,14 +106,14 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area/Room *</label>
                         {!isCustomArea ? (
                             <div className="relative">
-                                <select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white appearance-none transition-colors">
+                                <select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white appearance-none transition-colors">
                                     <option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option>
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
                             </div>
                         ) : (
                             <div className="relative flex">
-                                <input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/>
+                                <input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
                                 <button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-4 bg-slate-100 border border-l-0 border-slate-200 rounded-r-xl hover:bg-slate-200"><X size={18}/></button>
                             </div>
                         )}
@@ -122,14 +121,14 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 focus:bg-white"/></div>
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div>
+                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white"/></div>
+                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
                 </div>
 
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Documents & Photos</label>
-                        <label className="cursor-pointer text-xs flex items-center bg-sky-50 text-sky-700 px-3 py-1.5 rounded-full border border-sky-100 hover:bg-sky-100 transition-colors font-bold uppercase tracking-wide">
+                        <label className="cursor-pointer text-xs flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-colors font-bold uppercase tracking-wide">
                             <PlusCircle size={12} className="mr-1"/> Add File
                             <input type="file" multiple onChange={handleFileSelect} className="hidden" />
                         </label>
@@ -162,7 +161,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     )}
                 </div>
 
-                <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-sm font-bold text-sky-600 hover:text-sky-800 transition-colors w-full justify-center py-2 bg-sky-50/50 rounded-lg hover:bg-sky-50">
+                <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-sm font-bold text-emerald-600 hover:text-emerald-800 transition-colors w-full justify-center py-2 bg-emerald-50/50 rounded-lg hover:bg-emerald-50">
                     {isExpanded ? <><ChevronUp size={16} className="mr-1"/> Hide Details</> : <><ChevronRight size={16} className="mr-1"/> Add Details, Specs & Maintenance</>}
                 </button>
 
@@ -176,30 +175,30 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
                         </div>
 
-                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor / Store</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div>
+                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor / Store</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
 
                         <div className="border-t border-slate-100 pt-4">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Maintenance Schedule</label>
-                                <button type="button" onClick={handleSuggest} disabled={isSuggesting} className="text-xs flex items-center bg-sky-50 text-sky-700 px-3 py-1.5 rounded-full border border-sky-100 hover:bg-sky-100 transition-colors font-bold uppercase tracking-wide">
-                                    {isSuggesting ? <span className="animate-pulse">Thinking...</span> : <><Zap size={12} className="mr-1 fill-sky-700"/> Auto-Suggest</>}
+                                <button type="button" onClick={handleSuggest} disabled={isSuggesting} className="text-xs flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-colors font-bold uppercase tracking-wide">
+                                    {isSuggesting ? <span className="animate-pulse">Thinking...</span> : <><Zap size={12} className="mr-1 fill-emerald-700"/> Auto-Suggest</>}
                                 </button>
                             </div>
                             <div className="relative">
-                                <select name="maintenanceFrequency" value={newRecord.maintenanceFrequency} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500 appearance-none">
+                                <select name="maintenanceFrequency" value={newRecord.maintenanceFrequency} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 appearance-none">
                                     {MAINTENANCE_FREQUENCIES.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
                             </div>
-                            {suggestedTasks.length > 0 && <div className="mt-4 p-4 bg-sky-50 rounded-xl border border-sky-100 text-sm"><p className="font-bold text-sky-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-sky-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
+                            {suggestedTasks.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
                         </div>
 
-                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-sky-500"/></div>
+                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
                         <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
                     </div>
                 )}
                 
-                <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-sky-900/10 text-base font-bold text-white bg-sky-900 hover:bg-sky-800 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? 'Saving...' : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log Item</>)} </button>
+                <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-emerald-600/10 text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? 'Saving...' : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log Item</>)} </button>
             </form>
         </div>
     );
