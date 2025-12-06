@@ -1,7 +1,8 @@
 // src/features/records/SmartScan.jsx
 import React, { useRef, useState } from 'react';
-import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle } from 'lucide-react';
-import { compressImage } from '../../lib/images';
+import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText } from 'lucide-react';
+// IMPORT fileToBase64 HERE
+import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
 import { CATEGORIES, ROOMS } from '../../config/constants';
 
@@ -12,6 +13,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
     const [scannedImageBase64, setScannedImageBase64] = useState(null);
+    const [isPdf, setIsPdf] = useState(false); // NEW STATE
     
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
@@ -21,8 +23,19 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         const file = e.target.files[0];
         if (!file) return;
 
-        setScannedImagePreview(URL.createObjectURL(file));
-        const base64Str = await compressImage(file);
+        let base64Str = "";
+
+        // CHECK IF PDF
+        if (file.type === "application/pdf") {
+            setIsPdf(true);
+            setScannedImagePreview(null); // No image preview for PDF
+            base64Str = await fileToBase64(file); // Don't compress PDF
+        } else {
+            setIsPdf(false);
+            setScannedImagePreview(URL.createObjectURL(file));
+            base64Str = await compressImage(file);
+        }
+
         setScannedImageBase64(base64Str);
 
         const data = await scanReceipt(file, base64Str);
@@ -47,11 +60,13 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             dateInstalled: globalDate || item.dateInstalled,
             contractor: globalStore || item.contractor,
             area: item.area || globalArea,
-            imageUrl: scannedImageBase64
+            imageUrl: scannedImageBase64 // Saves the PDF base64 if it was a PDF
         }));
         onBatchSave(finalItems);
         setScannedItems([]);
         setScannedImagePreview(null);
+        setScannedImageBase64(null);
+        setIsPdf(false);
     };
 
     const updateItem = (index, field, val) => {
@@ -65,12 +80,13 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div>
                     <h3 className="font-bold text-emerald-900 flex items-center"><ScanLine className="mr-2 h-5 w-5 text-emerald-600"/> Smart Scan</h3>
-                    <p className="text-xs text-emerald-600 mt-1">Take a photo of a label or receipt to auto-fill.</p>
+                    <p className="text-xs text-emerald-600 mt-1">Upload a receipt, invoice, or label (Image or PDF).</p>
                 </div>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="px-5 py-3 bg-white text-emerald-700 font-bold rounded-xl shadow-sm border border-emerald-200 hover:bg-emerald-50 transition flex items-center">
-                    {isScanning ? <span className="animate-pulse">Analyzing...</span> : <><Camera className="mr-2 h-4 w-4"/> Auto-Fill from Photo</>}
+                    {isScanning ? <span className="animate-pulse">Analyzing...</span> : <><Camera className="mr-2 h-4 w-4"/> Auto-Fill</>}
                 </button>
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleScan} />
+                {/* UPDATED ACCEPT ATTRIBUTE */}
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleScan} />
             </div>
 
             {scannedItems.length > 0 && (
@@ -84,7 +100,15 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1">
-                            {scannedImagePreview && <img src={scannedImagePreview} alt="Receipt" className="rounded-2xl border border-slate-200 shadow-sm w-full object-cover" />}
+                            {/* PREVIEW LOGIC: Show Image OR PDF Icon */}
+                            {scannedImagePreview ? (
+                                <img src={scannedImagePreview} alt="Receipt" className="rounded-2xl border border-slate-200 shadow-sm w-full object-cover" />
+                            ) : isPdf ? (
+                                <div className="aspect-[3/4] bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center text-slate-400">
+                                    <FileText className="h-16 w-16 mb-2 text-red-500" />
+                                    <span className="font-bold text-slate-600">PDF Uploaded</span>
+                                </div>
+                            ) : null}
                         </div>
                         <div className="lg:col-span-2 space-y-4">
                             {/* Global Settings */}
