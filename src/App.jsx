@@ -287,7 +287,6 @@ const AppContent = () => {
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
-                    {/* WIDER MODAL: max-w-5xl */}
                     <div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
                          <WrapperAddRecord 
                             user={user} 
@@ -318,6 +317,75 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
+    // NEW: Handle batch save from SmartScan
+    const handleBatchSave = async (items) => {
+        if (!items || items.length === 0) return;
+        setSaving(true);
+        try {
+            // 1. Upload the image once (if exists)
+            let sharedImageUrl = null;
+            let sharedFileType = 'Photo';
+            
+            // Find the first item with an image (they all share the same base64 from scan)
+            const firstWithImage = items.find(i => i.imageUrl);
+            
+            if (firstWithImage && firstWithImage.imageUrl) {
+                const response = await fetch(firstWithImage.imageUrl);
+                const blob = await response.blob();
+                
+                // Determine if it's PDF or Image
+                const isPdf = blob.type === 'application/pdf';
+                const ext = isPdf ? 'pdf' : 'jpg';
+                sharedFileType = isPdf ? 'Document' : 'Photo';
+                
+                const filename = `batch_scan_${Date.now()}.${ext}`;
+                const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
+                
+                await uploadBytes(storageRef, blob);
+                sharedImageUrl = await getDownloadURL(storageRef);
+            }
+
+            // 2. Create a record for each item
+            const promises = items.map(async (item) => {
+                 const docData = {
+                    userId: user.uid,
+                    propertyId: activeProperty.id,
+                    propertyLocation: activeProperty.name,
+                    category: item.category || 'Other',
+                    item: item.item || 'Unknown Item',
+                    brand: item.brand || '',
+                    model: item.model || '',
+                    area: item.area || '',
+                    contractor: item.contractor || '',
+                    notes: '',
+                    dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
+                    maintenanceFrequency: 'none',
+                    nextServiceDate: null, 
+                    // Only set main imageUrl if it's a photo, not PDF
+                    imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '',
+                    attachments: sharedImageUrl ? [{ 
+                        name: 'Scanned Document', 
+                        type: sharedFileType, 
+                        url: sharedImageUrl 
+                    }] : [],
+                    timestamp: serverTimestamp()
+                };
+                
+                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), docData);
+            });
+
+            await Promise.all(promises);
+            setSaving(false);
+            onSuccess();
+            
+        } catch (error) {
+            console.error("Batch Save Error:", error);
+            alert("Failed to save items: " + error.message);
+            setSaving(false);
+            throw error; // Let SmartScan know it failed
+        }
+    };
+
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
         const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
@@ -355,7 +423,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             </div>
             <AddRecordForm 
                 onSave={handleSave} 
-                onBatchSave={() => {}} 
+                onBatchSave={handleBatchSave} // WIRED UP HERE
                 isSaving={saving} 
                 newRecord={newRecord} 
                 onInputChange={handleChange} 
