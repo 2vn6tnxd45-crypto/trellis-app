@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { geminiModel } from '../config/firebase';
 import { getBase64Data } from '../lib/images';
 import { toProperCase } from '../lib/utils';
-// NEW: Import constants to teach the AI your specific options
 import { CATEGORIES, ROOMS } from '../config/constants';
 
 export const useGemini = () => {
@@ -51,33 +50,42 @@ export const useGemini = () => {
             const base64Data = getBase64Data(base64Str);
             const mimeType = file.type || "image/jpeg";
 
-            // NEW: Inject valid options into the prompt
             const categoriesStr = CATEGORIES.join(', ');
             const roomsStr = ROOMS.join(', ');
 
+            // UPDATED PROMPT: SMARTER PARSING
             const prompt = `
-                Analyze this document (receipt/invoice/label).
+                Analyze this document (receipt/invoice/proposal).
                 
                 VALID CATEGORIES: [${categoriesStr}]
                 VALID ROOMS: [${roomsStr}]
 
-                1. Identify the Store/Contractor name.
-                2. Identify the Date.
-                3. Determine the "primaryCategory" and "primaryArea" that best fits the MAJORITY of items (use the lists above).
-                4. Extract line items. For each item:
-                   - item: Clean name.
-                   - category: Choose the best fit from VALID CATEGORIES list.
-                   - area: Choose the best fit from VALID ROOMS list.
-                   - brand: Manufacturer.
-                   - model: Model #.
+                INSTRUCTIONS:
+                1. Identify the Store/Contractor name and Date.
+                2. Determine the "primaryCategory" and "primaryArea" for the project.
+                3. Extract PHYSICAL INSTALLED ITEMS only (e.g., Shingles, Faucets, Lumber).
+                
+                CRITICAL RULES:
+                - DO NOT create separate items for "Warranty", "Labor", "Installation", "Haul Away", or "Services".
+                - If a line says "50 Year Warranty", attach "50 Year Warranty" to the NOTES of the relevant product (e.g., the Shingles), do not list it as an item.
+                - Look for Brand/Model info anywhere in the text (e.g., "Material: California Cool Roof").
+                - Clean up Item Names: "Install 2x2 Drip Edge" -> "Drip Edge Metal".
+
+                For each item return:
+                   - item: Concise product name (max 5-6 words).
+                   - category: Best fit from list.
+                   - area: Best fit from list.
+                   - brand: Manufacturer (if found).
+                   - model: Model/Style/Color (if found).
+                   - notes: Combine warranties, dimensions, or specific installation details here.
                 
                 Return JSON: 
                 { 
-                  "store": "Home Depot",
-                  "date": "2023-10-25",
-                  "primaryCategory": "Plumbing", 
-                  "primaryArea": "Kitchen",
-                  "items": [{...}] 
+                  "store": "Contractor Name",
+                  "date": "YYYY-MM-DD",
+                  "primaryCategory": "Category", 
+                  "primaryArea": "Room",
+                  "items": [{ "item": "...", "brand": "...", "model": "...", "notes": "Includes 50yr warranty..." }] 
                 }
             `;
             
@@ -93,9 +101,9 @@ export const useGemini = () => {
                     ...item,
                     item: toProperCase(item.item),
                     brand: toProperCase(item.brand),
-                    // If AI didn't pick a valid category/area for a specific item, fallback to the primary one
                     category: item.category || data.primaryCategory || "",
-                    area: item.area || data.primaryArea || ""
+                    area: item.area || data.primaryArea || "",
+                    notes: item.notes || "" // Ensure notes are passed
                 }));
             }
             return data;
