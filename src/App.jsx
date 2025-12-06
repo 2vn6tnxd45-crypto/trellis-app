@@ -317,6 +317,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
+    // NEW: Handle batch save from SmartScan using BATCH WRITE
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         
@@ -343,7 +344,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
 
-            const promises = items.map(async (item) => {
+            // USE BATCH WRITE instead of Promise.all
+            const batch = writeBatch(db);
+            const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
+
+            items.forEach((item) => {
+                 const newDocRef = doc(collectionRef); // Generate ID automatically
                  const docData = {
                     userId: user.uid,
                     propertyId: activeProperty.id,
@@ -367,10 +373,10 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     timestamp: serverTimestamp()
                 };
                 
-                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), docData);
+                batch.set(newDocRef, docData);
             });
 
-            await Promise.all(promises);
+            await batch.commit(); // Single network request
             setSaving(false);
             onSuccess();
             
