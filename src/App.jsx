@@ -168,7 +168,8 @@ const AppContent = () => {
     const totalNotifications = dueTasks.length + newSubmissions.length;
 
     return (
-        <div className="min-h-screen bg-emerald-50 font-sans pb-24 md:pb-0">
+        // FIXED: pb-32 to clear the bottom nav on all devices
+        <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
@@ -366,7 +367,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     model: item.model || '',
                     area: item.area || '',
                     contractor: item.contractor || '',
-                    notes: '',
+                    notes: item.notes || '', // Ensure notes are captured
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
                     nextServiceDate: null, 
@@ -412,7 +413,17 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
-                    return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
+                    
+                    // Determine Type
+                    const isPdf = att.fileRef.type.includes('pdf');
+                    
+                    return { 
+                        name: att.name, 
+                        size: att.size, 
+                        type: isPdf ? 'Document' : 'Photo', 
+                        url, 
+                        dateAdded: new Date().toISOString() 
+                    };
                 } catch(e){ 
                     console.error(e);
                     alert("Upload failed for " + att.name);
