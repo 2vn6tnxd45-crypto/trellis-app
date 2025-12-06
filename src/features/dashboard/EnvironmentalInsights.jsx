@@ -5,16 +5,13 @@ import { googleMapsApiKey } from '../../config/constants';
 
 const PropertyMap = ({ address }) => {
     const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : "Home";
-    
-    // FIXED: Correct Google Maps Embed API URL
     const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(mapQuery)}`;
-    
-    // FIXED: Correct Google Maps Search URL
     const getSearchUrl = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query + " near " + mapQuery)}`;
 
     return (
         <div className="space-y-6">
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-sky-100 h-64 overflow-hidden">
+            {/* UPDATED: Border Emerald */}
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-emerald-100 h-64 overflow-hidden">
                 <iframe 
                     width="100%" 
                     height="100%" 
@@ -25,11 +22,12 @@ const PropertyMap = ({ address }) => {
                     loading="lazy"
                 ></iframe>
             </div>
-            <div className="bg-sky-50 p-6 rounded-2xl border border-sky-100">
-                <h3 className="text-lg font-bold text-sky-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3>
+            {/* UPDATED: BG Emerald */}
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                <h3 className="text-lg font-bold text-emerald-900 mb-3 flex items-center"><ShoppingBag className="mr-2 h-5 w-5" /> Nearby Suppliers</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <a href={getSearchUrl("The Home Depot")} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-sky-100 text-sm font-bold text-sky-800 hover:bg-sky-50 transition">The Home Depot <ExternalLink size={14}/></a>
-                    <a href={getSearchUrl("Lowe's Home Improvement")} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-sky-100 text-sm font-bold text-sky-800 hover:bg-sky-50 transition">Lowe's <ExternalLink size={14}/></a>
+                    <a href={getSearchUrl("The Home Depot")} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 hover:bg-emerald-50 transition">The Home Depot <ExternalLink size={14}/></a>
+                    <a href={getSearchUrl("Lowe's Home Improvement")} target="_blank" rel="noreferrer" className="flex items-center justify-between p-3 bg-white rounded-lg border border-emerald-100 text-sm font-bold text-emerald-800 hover:bg-emerald-50 transition">Lowe's <ExternalLink size={14}/></a>
                 </div>
             </div>
         </div>
@@ -49,7 +47,6 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
         const fetchData = async () => {
             setLoading(true);
             try {
-                // 1. Fetch Air Quality
                 const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -58,10 +55,9 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                 
                 if (aqRes.ok) {
                     const aqData = await aqRes.json();
-                    setAirQuality(aqData.indexes?.[0]); // USA EPA Index usually index 0
+                    setAirQuality(aqData.indexes?.[0]); 
                 }
 
-                // 2. Fetch Solar Potential
                 const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
                 
                 if (solarRes.ok) {
@@ -81,27 +77,27 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
 
     if (!address) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
 
-    // Helper to get Color for AQI
     const getAqiColor = (aqiCode) => {
         if (!aqiCode) return 'text-gray-500';
-        if (aqiCode === 'uq') return 'text-purple-600'; // Unknown/Good fallback
+        if (aqiCode === 'uq') return 'text-purple-600'; 
         const code = aqiCode.toLowerCase();
-        if (['good', 'low'].includes(code)) return 'text-green-600';
+        if (['good', 'low'].includes(code)) return 'text-emerald-600'; // Updated to Emerald
         if (['moderate', 'medium'].includes(code)) return 'text-yellow-600';
         return 'text-red-600';
     };
 
     return (
         <div className="space-y-6">
-            <h2 className="text-xl font-bold text-sky-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2>
+            {/* UPDATED: Text Emerald */}
+            <h2 className="text-xl font-bold text-emerald-900 mb-2 flex items-center"><MapIcon className="mr-2 h-5 w-5" /> Environmental Insights</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Air Quality Card */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-sky-100 relative overflow-hidden">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Wind className="h-24 w-24 text-blue-500" /></div>
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Air Quality (AQI)</h3>
                     
-                    {loading ? <Loader2 className="animate-spin text-sky-500"/> : airQuality ? (
+                    {loading ? <Loader2 className="animate-spin text-emerald-500"/> : airQuality ? (
                         <div>
                             <p className={`text-4xl font-extrabold ${getAqiColor(airQuality.category)}`}>
                                 {airQuality.aqi || '--'}
@@ -115,6 +111,7 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                 </div>
 
                 {/* Solar Potential Card */}
+                {/* Kept Indigo/Yellow for Sun distinction, but could change to Emerald if preferred */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Sun className="h-24 w-24 text-yellow-500" /></div>
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Solar Potential</h3>
