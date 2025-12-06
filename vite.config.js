@@ -1,6 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { resolve } from 'path'
+import { resolve, dirname } from 'path' // Import dirname
+import { fileURLToPath } from 'url'     // Import fileURLToPath
+
+// Define __dirname manually for ES Modules
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,10 +15,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         app: resolve(__dirname, 'app/index.html'),
-        report: resolve(__dirname, 'public/pedigree_report.html')
+        // report: resolve(__dirname, 'public/pedigree_report.html') // Remove this (see point 3)
       },
     },
   },
 })
-
-// Force rebuild for AI tools
