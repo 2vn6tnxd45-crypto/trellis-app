@@ -121,7 +121,8 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             {record.maintenanceFrequency !== 'none' && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Maintenance</p>
-                                    <p className="font-medium text-sky-600 bg-sky-50 inline-block px-2 py-0.5 rounded">
+                                    {/* UPDATED: Emerald Badge */}
+                                    <p className="font-medium text-emerald-600 bg-emerald-50 inline-block px-2 py-0.5 rounded">
                                         {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label}
                                     </p>
                                 </div>
@@ -141,8 +142,9 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Documents</p>
                                 <div className="space-y-2">
                                     {record.attachments.map((att, i) => (
-                                        <a key={i} href={att.url} target="_blank" rel="noreferrer" className="flex items-center p-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition group/file" onClick={e => e.stopPropagation()}>
-                                            <Paperclip size={14} className="text-slate-400 mr-2 group-hover/file:text-sky-500"/>
+                                        // UPDATED: Hover Emerald
+                                        <a key={i} href={att.url} target="_blank" rel="noreferrer" className="flex items-center p-2 bg-white border border-slate-200 rounded-lg hover:bg-emerald-50 transition group/file" onClick={e => e.stopPropagation()}>
+                                            <Paperclip size={14} className="text-slate-400 mr-2 group-hover/file:text-emerald-500"/>
                                             <span className="text-xs font-bold text-slate-700 truncate flex-grow">{att.name}</span>
                                             <ExternalLink size={12} className="text-slate-300"/>
                                         </a>
@@ -156,7 +158,8 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             {/* Recall Check */}
                             <div className="flex-grow">
                                 {!recallStatus ? (
-                                    <button onClick={handleCheckSafety} disabled={checkingRecall} className="text-xs flex items-center text-slate-400 hover:text-sky-600 transition font-bold px-2 py-1 -ml-2 rounded hover:bg-slate-50">
+                                    // UPDATED: Hover Emerald
+                                    <button onClick={handleCheckSafety} disabled={checkingRecall} className="text-xs flex items-center text-slate-400 hover:text-emerald-600 transition font-bold px-2 py-1 -ml-2 rounded hover:bg-emerald-50">
                                         {checkingRecall ? <Loader2 className="animate-spin mr-1 h-3 w-3"/> : <ShieldCheck className="mr-1 h-3 w-3"/>} 
                                         {record.model ? "Check Safety" : "Add Model to Check"}
                                     </button>
@@ -171,7 +174,8 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
 
                             {/* Edit/Delete */}
                             <div className="flex gap-2"> 
-                                <button onClick={(e) => { e.stopPropagation(); onEditClick(record); }} className="p-2 bg-slate-50 hover:bg-sky-50 text-slate-500 hover:text-sky-600 rounded-lg transition border border-slate-200 hover:border-sky-200">
+                                {/* UPDATED: Hover Emerald */}
+                                <button onClick={(e) => { e.stopPropagation(); onEditClick(record); }} className="p-2 bg-slate-50 hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 rounded-lg transition border border-slate-200 hover:border-emerald-200">
                                     <Pencil size={16}/>
                                 </button> 
                                 <button onClick={(e) => { e.stopPropagation(); onDeleteClick(record.id); }} className="p-2 bg-slate-50 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-lg transition border border-slate-200 hover:border-red-200">
@@ -183,9 +187,9 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                 </div>
             )}
 
-            {/* Collapse/Expand Indicator (Visual Hint) */}
+            {/* Collapse/Expand Indicator */}
             {!isExpanded && (
-                <div className="h-1 bg-slate-50 group-hover:bg-sky-50 transition-colors mx-5 mb-2 rounded-full w-12 opacity-0 group-hover:opacity-100 mx-auto"></div>
+                <div className="h-1 bg-slate-50 group-hover:bg-emerald-50 transition-colors mx-5 mb-2 rounded-full w-12 opacity-0 group-hover:opacity-100 mx-auto"></div>
             )}
         </div> 
     );
