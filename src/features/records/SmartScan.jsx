@@ -13,7 +13,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
     const [scannedImageBase64, setScannedImageBase64] = useState(null);
     
-    // Global batch fields
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
     const [globalArea, setGlobalArea] = useState("General");
@@ -32,10 +31,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             if (data.items[0]?.dateInstalled) setGlobalDate(data.items[0].dateInstalled);
             if (data.items[0]?.contractor) setGlobalStore(data.items[0].contractor);
             
-            // If only 1 item, just auto-fill the main form instead of showing the batch UI
             if (data.items.length === 1) {
                 onAutoFill(data.items[0]);
-                setScannedItems([]); // Clear batch UI
+                setScannedItems([]);
             }
         } else {
             alert("No items detected.");
@@ -64,12 +62,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
     return (
         <div className="mb-8">
-            <div className="bg-sky-50 rounded-2xl p-6 border border-sky-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+            <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div>
-                    <h3 className="font-bold text-sky-900 flex items-center"><ScanLine className="mr-2 h-5 w-5 text-sky-600"/> Smart Scan</h3>
-                    <p className="text-xs text-sky-600 mt-1">Take a photo of a label or receipt to auto-fill.</p>
+                    <h3 className="font-bold text-emerald-900 flex items-center"><ScanLine className="mr-2 h-5 w-5 text-emerald-600"/> Smart Scan</h3>
+                    <p className="text-xs text-emerald-600 mt-1">Take a photo of a label or receipt to auto-fill.</p>
                 </div>
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="px-5 py-3 bg-white text-sky-700 font-bold rounded-xl shadow-sm border border-sky-200 hover:bg-sky-50 transition flex items-center">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="px-5 py-3 bg-white text-emerald-700 font-bold rounded-xl shadow-sm border border-emerald-200 hover:bg-emerald-50 transition flex items-center">
                     {isScanning ? <span className="animate-pulse">Analyzing...</span> : <><Camera className="mr-2 h-4 w-4"/> Auto-Fill from Photo</>}
                 </button>
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleScan} />
@@ -78,8 +76,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             {scannedItems.length > 0 && (
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4">
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
-                        <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-sky-600"/> Review Scan Results</h4>
-                        <button type="button" onClick={handleSaveAll} className="bg-sky-900 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-sky-800 shadow-lg shadow-sky-900/20 transition flex items-center">
+                        <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Scan Results</h4>
+                        <button type="button" onClick={handleSaveAll} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center">
                             <Save className="mr-2 h-4 w-4"/> Save All Items
                         </button>
                     </div>
@@ -90,7 +88,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                         </div>
                         <div className="lg:col-span-2 space-y-4">
                             {/* Global Settings */}
-                            <div className="bg-white p-4 rounded-xl border border-sky-100 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Date</label><input type="date" value={globalDate} onChange={e=>setGlobalDate(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Store</label><input type="text" value={globalStore} onChange={e=>setGlobalStore(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Room</label><select value={globalArea} onChange={e=>setGlobalArea(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"><option value="General">General</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
