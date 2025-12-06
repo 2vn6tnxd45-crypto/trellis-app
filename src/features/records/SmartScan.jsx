@@ -37,13 +37,34 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedImageBase64(base64Str);
 
         const data = await scanReceipt(file, base64Str);
+        
         if (data && data.items) {
             setScannedItems(data.items);
-            if (data.items[0]?.dateInstalled) setGlobalDate(data.items[0].dateInstalled);
-            if (data.items[0]?.contractor) setGlobalStore(data.items[0].contractor);
             
+            // UPDATED: Pre-populate Globals from AI summary
+            if (data.date) setGlobalDate(data.date);
+            if (data.store) setGlobalStore(data.store);
+            
+            // If AI found a primary category (e.g., "Roof & Exterior"), set it globally
+            if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) {
+                setGlobalCategory(data.primaryCategory);
+            }
+            
+            // If AI found a primary area (e.g., "Exterior"), set it globally
+            if (data.primaryArea && ROOMS.includes(data.primaryArea)) {
+                setGlobalArea(data.primaryArea);
+            } else {
+                setGlobalArea("General"); // Default fallback
+            }
+
+            // If it's a single item scan, auto-fill the main form immediately
             if (data.items.length === 1) {
-                onAutoFill(data.items[0]);
+                onAutoFill({
+                    ...data.items[0],
+                    // Ensure the single item gets the globals if missing
+                    category: data.items[0].category || data.primaryCategory,
+                    area: data.items[0].area || data.primaryArea
+                });
                 setScannedItems([]);
             }
         } else {
@@ -67,11 +88,14 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             imageUrl: scannedImageBase64
         }));
         onBatchSave(finalItems);
+        // Reset state
         setScannedItems([]);
         setScannedImagePreview(null);
         setScannedImageBase64(null);
         setIsPdf(false);
         setGlobalCategory("");
+        setGlobalStore("");
+        setGlobalArea("General");
     };
 
     const updateItem = (index, field, val) => {
@@ -139,8 +163,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                                 </div>
                                             </div>
                                             <div>
-                                                <select value={item.category} onChange={e=>updateItem(idx,'category',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200 mb-2"><option>Select Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                                                <select value={item.area||''} onChange={e=>updateItem(idx,'area',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200"><option value="">(Global)</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select>
+                                                {/* Defaults to global category/area if set, otherwise item specific */}
+                                                <select value={item.category || globalCategory} onChange={e=>updateItem(idx,'category',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200 mb-2"><option>Select Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                                                <select value={item.area || globalArea} onChange={e=>updateItem(idx,'area',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200"><option value="">(Global)</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select>
                                             </div>
                                         </div>
                                         <button onClick={()=>setScannedItems(prev=>prev.filter((_,i)=>i!==idx))} className="text-slate-300 hover:text-red-500"><XCircle size={20}/></button>
