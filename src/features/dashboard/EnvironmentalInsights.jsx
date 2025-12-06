@@ -5,10 +5,11 @@ import { googleMapsApiKey } from '../../config/constants';
 
 const PropertyMap = ({ address }) => {
     const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : "Home";
-    // FIX: Use legitimate Google Maps Embed API
+    
+    // FIXED: Correct Google Maps Embed API URL
     const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(mapQuery)}`;
     
-    // FIX: Use legitimate Google Maps Search URLs
+    // FIXED: Correct Google Maps Search URL
     const getSearchUrl = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query + " near " + mapQuery)}`;
 
     return (
