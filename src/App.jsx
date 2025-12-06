@@ -305,6 +305,7 @@ const AppContent = () => {
     );
 };
 
+// WrapperAddRecord Helper
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
@@ -320,6 +321,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     // NEW: Handle batch save from SmartScan
     const handleBatchSave = async (items) => {
         if (!items || items.length === 0) return;
+        
+        if (!activeProperty || !activeProperty.id) {
+            alert("Error: No active property selected. Cannot save.");
+            return;
+        }
+
         setSaving(true);
         try {
             // 1. Upload the image once (if exists)
@@ -376,7 +383,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
             await Promise.all(promises);
             setSaving(false);
-            onSuccess();
+            onSuccess(); // CLOSE MODAL
             
         } catch (error) {
             console.error("Batch Save Error:", error);
@@ -423,7 +430,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             </div>
             <AddRecordForm 
                 onSave={handleSave} 
-                onBatchSave={handleBatchSave} // WIRED UP HERE
+                onBatchSave={handleBatchSave} // WIRED UP
                 isSaving={saving} 
                 newRecord={newRecord} 
                 onInputChange={handleChange} 
