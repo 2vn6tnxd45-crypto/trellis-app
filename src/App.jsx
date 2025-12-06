@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox } from 'lucide-react';
+import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronRight } from 'lucide-react';
 
 // Config & Libs
 import { auth, db, storage } from './config/firebase';
@@ -46,7 +46,8 @@ const AppContent = () => {
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('Log'); 
+    // UX IMPROVEMENT: Default to 'Maintenance' (Dashboard) instead of 'Log'
+    const [activeTab, setActiveTab] = useState('Maintenance'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [dueTasks, setDueTasks] = useState([]);
@@ -125,6 +126,15 @@ const AppContent = () => {
         return matchesSearch && matchesCategory;
     });
 
+    // UX: Group records by Category
+    const groupedRecords = filteredRecords.reduce((acc, record) => {
+        const cat = record.category || 'Other';
+        if (!acc[cat]) acc[cat] = [];
+        acc[cat].push(record);
+        return acc;
+    }, {});
+    const sortedCategories = Object.keys(groupedRecords).sort();
+
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     const handleSaveProperty = async (formData) => {
@@ -168,7 +178,6 @@ const AppContent = () => {
     const totalNotifications = dueTasks.length + newSubmissions.length;
 
     return (
-        // FIXED: pb-32 to clear the bottom nav on all devices
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
                 <div className="relative">
@@ -203,12 +212,21 @@ const AppContent = () => {
             </header>
 
             <main className="max-w-4xl mx-auto p-4 md:p-8">
+                
+                {/* 1. MAINTENANCE (HOME) TAB */}
+                {activeTab === 'Maintenance' && (
+                    <FeatureErrorBoundary label="Maintenance">
+                        <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} onNavigateToRecords={() => setActiveTab('Log')} />
+                    </FeatureErrorBoundary>
+                )}
+
+                {/* 2. LOG (RECORDS) TAB - NOW GROUPED */}
                 {activeTab === 'Log' && (
                     <div className="space-y-6">
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
                             <div className="relative flex-grow">
                                 <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
+                                <input type="text" placeholder="Search records..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
                                 {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}
                             </div>
                             <div className="relative min-w-[160px]">
@@ -242,23 +260,35 @@ const AppContent = () => {
                                 <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button>
                             </div>
                         ) : (
-                            <>
-                                {filteredRecords.map(r => (
-                                    <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                            <div className="space-y-6">
+                                {/* UX IMPROVEMENT: Grouped List */}
+                                {sortedCategories.map(category => (
+                                    <details key={category} open className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                        <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition select-none list-none">
+                                            <h3 className="font-bold text-emerald-950 flex items-center">
+                                                {category} 
+                                                <span className="ml-2 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                                    {groupedRecords[category].length}
+                                                </span>
+                                            </h3>
+                                            <ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" />
+                                        </summary>
+                                        <div className="p-4 pt-0 space-y-4 border-t border-slate-50">
+                                            {groupedRecords[category].map(r => (
+                                                <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                            ))}
+                                        </div>
+                                    </details>
                                 ))}
+                                
                                 {records.length >= recordsLimit && (
                                     <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load Older Records</button>
                                 )}
-                            </>
+                            </div>
                         )}
                     </div>
                 )}
 
-                {activeTab === 'Maintenance' && (
-                    <FeatureErrorBoundary label="Maintenance">
-                        <MaintenanceDashboard records={filteredRecords} onCompleteTask={handleCompleteTask} onAddStandardTask={handleAddStandardTask} />
-                    </FeatureErrorBoundary>
-                )}
                 {activeTab === 'Requests' && (
                     <FeatureErrorBoundary label="Requests">
                         <RequestManager 
@@ -278,8 +308,9 @@ const AppContent = () => {
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
-                <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-emerald-600' : 'text-slate-400'}`}><Home size={24}/><span className="text-[10px] font-bold mt-1">Log</span></button>
-                <button onClick={() => setActiveTab('Maintenance')} className={`flex flex-col items-center ${activeTab === 'Maintenance' ? 'text-emerald-600' : 'text-slate-400'}`}><Wrench size={24}/><span className="text-[10px] font-bold mt-1">Care</span></button>
+                {/* UPDATED NAVIGATION ICONS & LABELS */}
+                <button onClick={() => setActiveTab('Maintenance')} className={`flex flex-col items-center ${activeTab === 'Maintenance' ? 'text-emerald-600' : 'text-slate-400'}`}><Home size={24}/><span className="text-[10px] font-bold mt-1">Home</span></button>
+                <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-emerald-600' : 'text-slate-400'}`}><FileText size={24}/><span className="text-[10px] font-bold mt-1">Records</span></button>
                 <div className="relative -top-8"><button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={32}/></button></div>
                 <button onClick={() => setActiveTab('Requests')} className={`flex flex-col items-center ${activeTab === 'Requests' ? 'text-emerald-600' : 'text-slate-400'}`}><LinkIcon size={24}/><span className="text-[10px] font-bold mt-1">Pros</span></button>
                 <button onClick={() => setActiveTab('Insights')} className={`flex flex-col items-center ${activeTab === 'Insights' ? 'text-emerald-600' : 'text-slate-400'}`}><BarChart3 size={24}/><span className="text-[10px] font-bold mt-1">Insights</span></button>
