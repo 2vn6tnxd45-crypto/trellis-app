@@ -47,8 +47,11 @@ export const useGemini = () => {
         setIsScanning(true);
         try {
             const base64Data = getBase64Data(base64Str);
+            // UPDATED: Use the actual file type (e.g., 'application/pdf') or fallback to jpeg
+            const mimeType = file.type || "image/jpeg";
+
             const prompt = `
-                Analyze this image (receipt/invoice/label).
+                Analyze this document (receipt/invoice/label).
                 Identify all distinct line items.
                 Expand abbreviations (e.g., "Fauc" -> "Faucet").
                 For EACH item, extract:
@@ -60,14 +63,14 @@ export const useGemini = () => {
                 - dateInstalled: YYYY-MM-DD.
                 Return JSON: { "items": [{...}] }
             `;
+            
             const result = await geminiModel.generateContent([
                 prompt,
-                { inlineData: { data: base64Data, mimeType: "image/jpeg" } }
+                { inlineData: { data: base64Data, mimeType: mimeType } }
             ]);
             const text = result.response.text().replace(/```json|```/g, '').trim();
             const data = JSON.parse(text);
             
-            // Clean up the data immediately
             if (data.items) {
                 data.items = data.items.map(item => ({
                     ...item,
