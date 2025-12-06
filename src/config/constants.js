@@ -1,6 +1,6 @@
 // src/config/constants.js
 
-export const appId = 'trellis-home-log';
+export const appId = 'krib-app';
 export const googleMapsApiKey = "AIzaSyC1gVI-IeB2mbLAlHgJDmrPKwcZTpVWPOw"; 
 export const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 
