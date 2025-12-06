@@ -305,7 +305,6 @@ const AppContent = () => {
     );
 };
 
-// WrapperAddRecord Helper
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
@@ -318,8 +317,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
-    // NEW: Handle batch save from SmartScan
-    const handleBatchSave = async (items) => {
+    const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         
         if (!activeProperty || !activeProperty.id) {
@@ -329,30 +327,22 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
         setSaving(true);
         try {
-            // 1. Upload the image once (if exists)
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
-            
-            // Find the first item with an image (they all share the same base64 from scan)
-            const firstWithImage = items.find(i => i.imageUrl);
-            
-            if (firstWithImage && firstWithImage.imageUrl) {
-                const response = await fetch(firstWithImage.imageUrl);
-                const blob = await response.blob();
-                
-                // Determine if it's PDF or Image
-                const isPdf = blob.type === 'application/pdf';
-                const ext = isPdf ? 'pdf' : 'jpg';
+
+            // Upload raw file if exists
+            if (file) {
+                const isPdf = file.type === 'application/pdf';
+                const ext = isPdf ? 'pdf' : 'jpg'; 
                 sharedFileType = isPdf ? 'Document' : 'Photo';
                 
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
                 
-                await uploadBytes(storageRef, blob);
+                await uploadBytes(storageRef, file);
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
 
-            // 2. Create a record for each item
             const promises = items.map(async (item) => {
                  const docData = {
                     userId: user.uid,
@@ -368,7 +358,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
                     nextServiceDate: null, 
-                    // Only set main imageUrl if it's a photo, not PDF
                     imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '',
                     attachments: sharedImageUrl ? [{ 
                         name: 'Scanned Document', 
@@ -383,13 +372,13 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
             await Promise.all(promises);
             setSaving(false);
-            onSuccess(); // CLOSE MODAL
+            onSuccess();
             
         } catch (error) {
             console.error("Batch Save Error:", error);
             alert("Failed to save items: " + error.message);
             setSaving(false);
-            throw error; // Let SmartScan know it failed
+            throw error; 
         }
     };
 
@@ -430,7 +419,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             </div>
             <AddRecordForm 
                 onSave={handleSave} 
-                onBatchSave={handleBatchSave} // WIRED UP
+                onBatchSave={handleBatchSave} 
                 isSaving={saving} 
                 newRecord={newRecord} 
                 onInputChange={handleChange} 
