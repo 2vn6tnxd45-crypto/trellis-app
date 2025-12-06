@@ -1,11 +1,4 @@
 // src/features/onboarding/WelcomeScreen.jsx
-// ============================================
-// 🎉 WELCOME SCREEN FOR NEW USERS
-// ============================================
-// This shows when a user has 0 records.
-// Instead of showing an empty dashboard with "0" health score,
-// we show a friendly welcome with clear next steps.
-
 import React from 'react';
 import { 
     Camera, 
@@ -25,7 +18,6 @@ export const WelcomeScreen = ({ propertyName, onAddRecord, onDismiss }) => {
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Hero Welcome Card */}
             <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-[2rem] p-8 text-white relative overflow-hidden">
-                {/* Decorative background elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
                 
@@ -52,7 +44,6 @@ export const WelcomeScreen = ({ propertyName, onAddRecord, onDismiss }) => {
 
             {/* Quick Start Options */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Option 1: Scan a Receipt */}
                 <button 
                     onClick={onAddRecord}
                     className="bg-white p-6 rounded-2xl border-2 border-emerald-200 hover:border-emerald-400 hover:shadow-lg transition-all text-left group"
@@ -77,7 +68,6 @@ export const WelcomeScreen = ({ propertyName, onAddRecord, onDismiss }) => {
                     </div>
                 </button>
 
-                {/* Option 2: Add Manually */}
                 <button 
                     onClick={onAddRecord}
                     className="bg-white p-6 rounded-2xl border-2 border-slate-200 hover:border-emerald-400 hover:shadow-lg transition-all text-left group"
@@ -112,30 +102,10 @@ export const WelcomeScreen = ({ propertyName, onAddRecord, onDismiss }) => {
                 
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
-                        { 
-                            icon: "🌡️", 
-                            title: "HVAC System", 
-                            desc: "Furnace, AC, air handler",
-                            category: "HVAC & Systems"
-                        },
-                        { 
-                            icon: "🚰", 
-                            title: "Water Heater", 
-                            desc: "Tank or tankless",
-                            category: "Plumbing"
-                        },
-                        { 
-                            icon: "🎨", 
-                            title: "Interior Paint", 
-                            desc: "Wall colors & brands",
-                            category: "Paint & Finishes"
-                        },
-                        { 
-                            icon: "🏠", 
-                            title: "Roof", 
-                            desc: "Shingles, install date",
-                            category: "Roof & Exterior"
-                        },
+                        { icon: "🌡️", title: "HVAC System", desc: "Furnace, AC, air handler" },
+                        { icon: "🚰", title: "Water Heater", desc: "Tank or tankless" },
+                        { icon: "🎨", title: "Interior Paint", desc: "Wall colors & brands" },
+                        { icon: "🏠", title: "Roof", desc: "Shingles, install date" },
                     ].map((item, i) => (
                         <button 
                             key={i}
