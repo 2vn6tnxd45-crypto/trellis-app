@@ -11,9 +11,10 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
-    const [scannedImageBase64, setScannedImageBase64] = useState(null);
+    // REMOVED: scannedImageBase64 (no longer needed for saving)
+    const [currentFile, setCurrentFile] = useState(null); // NEW: Hold raw file
     const [isPdf, setIsPdf] = useState(false);
-    const [isSaving, setIsSaving] = useState(false); // NEW LOCAL LOADING STATE
+    const [isSaving, setIsSaving] = useState(false);
     
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
@@ -23,6 +24,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const handleScan = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        setCurrentFile(file); // Store file for later upload
 
         let base64Str = "";
         if (file.type === "application/pdf") {
@@ -34,8 +37,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             setScannedImagePreview(URL.createObjectURL(file));
             base64Str = await compressImage(file);
         }
-
-        setScannedImageBase64(base64Str);
 
         const data = await scanReceipt(file, base64Str);
         
@@ -75,32 +76,32 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     };
 
     const handleSaveAll = async () => {
-        setIsSaving(true); // START LOADING
+        setIsSaving(true);
         try {
+            // Clean items - NO IMAGE DATA attached here
             const finalItems = scannedItems.map(item => ({
                 ...item,
                 dateInstalled: globalDate || item.dateInstalled,
                 contractor: globalStore || item.contractor,
                 area: item.area || globalArea,
-                category: globalCategory || item.category,
-                imageUrl: scannedImageBase64
+                category: globalCategory || item.category
             }));
             
-            await onBatchSave(finalItems);
+            // Pass file as 2nd argument
+            await onBatchSave(finalItems, currentFile);
             
-            // Only clear if successful
+            // Clear state on success
             setScannedItems([]);
             setScannedImagePreview(null);
-            setScannedImageBase64(null);
+            setCurrentFile(null);
             setIsPdf(false);
             setGlobalCategory("");
             setGlobalStore("");
             setGlobalArea("General");
         } catch (e) {
             console.error("SmartScan Save Error:", e);
-            // We rely on App.jsx to alert the user, but we log it here too
         } finally {
-            setIsSaving(false); // STOP LOADING
+            setIsSaving(false);
         }
     };
 
@@ -127,7 +128,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4">
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
                         <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Scan Results</h4>
-                        {/* TOP SAVE BUTTON */}
                         <button type="button" onClick={handleSaveAll} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center disabled:opacity-50">
                             {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
                             {isSaving ? 'Saving...' : 'Save All Items'}
@@ -180,7 +180,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                 ))}
                             </div>
 
-                            {/* BOTTOM SAVE BUTTON */}
                             <div className="pt-4 border-t border-slate-200">
                                 <button type="button" onClick={handleSaveAll} disabled={isSaving} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center disabled:opacity-50">
                                     {isSaving ? <Loader2 className="animate-spin h-5 w-5 mr-2"/> : <Save className="mr-2 h-5 w-5"/>}
