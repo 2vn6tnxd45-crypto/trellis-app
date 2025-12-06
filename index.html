@@ -2,187 +2,150 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HausKey | The Property Pedigree</title>
-    
-    <!-- Favicon Link -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Krib — Your Home's Digital Twin</title>
+    <meta name="description" content="Krib is the smart way to track, maintain, and transfer your home's complete history. Your home's digital twin.">
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <!-- Updated Font: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Outfit', sans-serif; }
-        
-        .glass-nav {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid #f0f9ff;
-        }
-        
         .hero-pattern {
-            background-color: #f8fafc;
-            background-image: radial-gradient(#bae6fd 0.5px, transparent 0.5px), radial-gradient(#bae6fd 0.5px, #f8fafc 0.5px);
-            background-size: 24px 24px;
-            background-position: 0 0, 12px 12px;
-            opacity: 0.6;
+            background-color: #ecfdf5;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2310b981' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
-
-        /* Animations */
-        @keyframes fadeSlideUp {
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        .float-animation { animation: float 4s ease-in-out infinite; }
+        @keyframes fade-in-up {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-on-load {
-            opacity: 0;
-            animation: fadeSlideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        
-        .delay-1 { animation-delay: 0.1s; }
-        .delay-2 { animation-delay: 0.2s; }
-        .delay-3 { animation-delay: 0.3s; }
+        .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
+        .delay-100 { animation-delay: 0.1s; opacity: 0; }
+        .delay-200 { animation-delay: 0.2s; opacity: 0; }
+        .delay-300 { animation-delay: 0.3s; opacity: 0; }
     </style>
 </head>
-<body class="text-slate-800 antialiased bg-slate-50 selection:bg-sky-200">
+<body class="bg-white text-slate-800 antialiased">
 
-    <!-- Navbar -->
-    <nav class="fixed w-full z-50 top-0 glass-nav">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-20">
-                <div class="flex items-center gap-2">
-                    <!-- Inline Logo SVG for immediate load -->
-                    <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#0ea5e9" stroke-width="8" stroke-linejoin="round"/>
-                        <circle cx="50" cy="50" r="10" fill="#0c4a6e"/>
-                        <rect x="46" y="55" width="8" height="25" rx="2" fill="#0c4a6e"/>
-                        <rect x="54" y="65" width="6" height="4" fill="#0c4a6e"/>
-                        <rect x="54" y="72" width="4" height="4" fill="#0c4a6e"/>
-                        <circle cx="50" cy="50" r="3" fill="white"/>
-                    </svg>
-                    <span class="text-2xl font-extrabold text-sky-900 tracking-tight">Haus<span class="text-sky-500 font-normal">Key</span></span>
-                </div>
-                <div class="hidden md:flex space-x-8 items-center">
-                    <a href="#features" class="text-slate-500 hover:text-sky-600 font-medium text-sm transition">Features</a>
-                    <a href="#value" class="text-slate-500 hover:text-sky-600 font-medium text-sm transition">For Sellers</a>
-                    <a href="/app" class="text-sky-700 font-bold hover:text-sky-900 transition">Log In</a>
-                    <a href="/app" class="px-5 py-2.5 rounded-xl bg-sky-900 text-white font-bold hover:bg-sky-800 transition shadow-lg shadow-sky-900/20 text-sm">Start My Log</a>
-                </div>
+    <!-- Navigation -->
+    <nav class="glass-nav fixed top-0 left-0 right-0 z-50 border-b border-emerald-100">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="/" class="flex items-center space-x-2">
+                <svg class="h-9 w-9" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="15" y="42" width="70" height="50" rx="10" fill="#10b981"/>
+                    <polygon points="50,8 95,42 5,42" fill="#10b981"/>
+                    <rect x="32" y="54" width="36" height="26" rx="6" fill="white"/>
+                </svg>
+                <span class="text-2xl font-extrabold text-emerald-950">krib</span>
+            </a>
+            <div class="flex items-center space-x-3">
+                <a href="/app" class="text-sm font-semibold text-slate-600 hover:text-emerald-700 px-4 py-2">Log In</a>
+                <a href="/app" class="text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-full shadow-lg shadow-emerald-600/20 transition-all hover:scale-105">Get Started</a>
             </div>
         </div>
     </nav>
 
     <!-- Hero Section -->
-    <div class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        <div class="absolute inset-0 hero-pattern z-0"></div>
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-            <div class="inline-flex items-center px-4 py-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-700 text-xs font-bold uppercase tracking-widest mb-8 animate-on-load">
-                <span class="w-2 h-2 bg-sky-500 rounded-full mr-2 animate-pulse"></span> The New Standard for Homeowners
+    <header class="hero-pattern pt-32 pb-20 md:pt-44 md:pb-32">
+        <div class="max-w-6xl mx-auto px-6 text-center">
+            <div class="inline-block mb-6 animate-fade-in-up">
+                <span class="bg-emerald-100 text-emerald-700 text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-full">Now in Beta</span>
             </div>
-            <h1 class="text-5xl md:text-7xl font-extrabold text-slate-900 tracking-tight mb-6 leading-tight animate-on-load delay-1">
-                The <span class="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-400">Property Pedigree</span> <br> for your home.
+            <h1 class="text-5xl md:text-7xl font-extrabold text-emerald-950 leading-tight mb-6 animate-fade-in-up delay-100">
+                Your home's<br><span class="text-emerald-600">digital twin.</span>
             </h1>
-            <p class="mt-6 max-w-2xl mx-auto text-xl text-slate-500 animate-on-load delay-2 font-light leading-relaxed">
-                Stop digging through drawers for old receipts. HausKey creates a permanent, transferrable digital pedigree of your home's history, maintenance, and upgrades.
+            <p class="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-10 animate-fade-in-up delay-200">
+                Krib remembers everything about your home so you don't have to. Track maintenance, store records, and build a complete history that adds value.
             </p>
-            <div class="mt-10 flex flex-col sm:flex-row justify-center gap-4 animate-on-load delay-3">
-                <a href="/app" class="px-8 py-4 rounded-2xl bg-sky-900 text-white font-bold text-lg hover:bg-sky-800 transition shadow-xl shadow-sky-900/20 flex items-center justify-center">
-                    <i data-lucide="home" class="mr-2 h-5 w-5"></i> Claim Your Address
-                </a>
-                <a href="pedigree_report.html" class="px-8 py-4 rounded-2xl bg-white text-slate-700 font-bold text-lg border border-slate-200 hover:bg-slate-50 transition flex items-center justify-center">
-                    See Example Pedigree
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4 animate-fade-in-up delay-300">
+                <a href="/app" class="w-full sm:w-auto text-center font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-full text-lg shadow-xl shadow-emerald-600/30 transition-all hover:scale-105">
+                    Start Your Krib — It's Free
                 </a>
             </div>
-            
-            <p class="mt-8 text-xs text-slate-400 uppercase tracking-widest font-bold animate-on-load delay-3">Secure • Transferable • Private</p>
         </div>
-    </div>
+    </header>
 
-    <!-- Value Proposition Grid -->
-    <div id="features" class="py-24 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
-                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
-                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
-                        <i data-lucide="history" class="text-sky-600 h-7 w-7"></i>
+    <!-- Features Grid -->
+    <section class="py-20 md:py-28 bg-white">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-4xl font-extrabold text-emerald-950 mb-4">Everything your home needs, in one place.</h2>
+                <p class="text-slate-500 max-w-xl mx-auto">Krib is like a smart notebook for your house that learns and helps over time.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div class="bg-emerald-50 p-8 rounded-3xl border border-emerald-100 hover:shadow-xl hover:shadow-emerald-100/50 transition-shadow">
+                    <div class="bg-white h-14 w-14 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-emerald-100">
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-3">Permanent History</h3>
-                    <p class="text-slate-500 leading-relaxed">
-                        From the exact brand of paint in the living room to the date your HVAC was replaced. Build a complete pedigree of care.
-                    </p>
+                    <h3 class="text-xl font-bold text-emerald-950 mb-2">Total Recall</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Paint colors, appliance models, contractor contacts — Krib remembers every detail so you never have to dig through drawers again.</p>
                 </div>
-                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
-                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
-                        <i data-lucide="file-check" class="text-sky-600 h-7 w-7"></i>
+                <!-- Feature 2 -->
+                <div class="bg-emerald-50 p-8 rounded-3xl border border-emerald-100 hover:shadow-xl hover:shadow-emerald-100/50 transition-shadow">
+                    <div class="bg-white h-14 w-14 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-emerald-100">
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-3">Warranty Tracker</h3>
-                    <p class="text-slate-500 leading-relaxed">
-                        Upload photos of receipts and warranty cards. We keep them safe and searchable so you can file claims in seconds.
-                    </p>
+                    <h3 class="text-xl font-bold text-emerald-950 mb-2">Smart Reminders</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Get gentle nudges when it's time to replace filters, service the HVAC, or check smoke detectors. Stay ahead of costly repairs.</p>
                 </div>
-                <div class="p-8 rounded-[2rem] bg-slate-50 border border-slate-100 hover:shadow-lg transition duration-300">
-                    <div class="w-14 h-14 bg-sky-100 rounded-2xl flex items-center justify-center mb-6">
-                        <i data-lucide="arrow-right-left" class="text-sky-600 h-7 w-7"></i>
+                <!-- Feature 3 -->
+                <div class="bg-emerald-50 p-8 rounded-3xl border border-emerald-100 hover:shadow-xl hover:shadow-emerald-100/50 transition-shadow">
+                    <div class="bg-white h-14 w-14 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-emerald-100">
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-3">Transfer on Sale</h3>
-                    <p class="text-slate-500 leading-relaxed">
-                        Selling? Transfer the entire HausKey pedigree to the new owner. Prove the value of your upgrades instantly.
-                    </p>
+                    <h3 class="text-xl font-bold text-emerald-950 mb-2">Krib Report</h3>
+                    <p class="text-slate-600 text-sm leading-relaxed">Generate a beautiful, shareable report of your home's complete history. Perfect for selling, insurance, or just peace of mind.</p>
                 </div>
             </div>
         </div>
-    </div>
+    </section>
 
     <!-- CTA Section -->
-    <div class="bg-sky-950 py-24 relative overflow-hidden">
-        <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 30px 30px;"></div>
-        <div class="max-w-4xl mx-auto px-4 text-center relative z-10">
-            <h2 class="text-4xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">Ready to build your legacy?</h2>
-            <p class="text-sky-200 text-lg mb-10 font-light">Join thousands of smart homeowners securing their property's history today.</p>
-            
-            <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto" action="/app" method="GET">
-                <input 
-                    type="email" 
-                    name="email" 
-                    required 
-                    placeholder="Enter your email" 
-                    class="px-6 py-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-400 flex-grow text-slate-900 font-medium"
-                >
-                <button type="submit" class="px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-bold transition shadow-lg whitespace-nowrap">Get Started</button>
-            </form>
-            <p class="mt-6 text-xs text-sky-400 font-medium tracking-wide uppercase">No credit card required • Free for single-family homes</p>
+    <section class="py-20 bg-emerald-950 relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10">
+            <svg class="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none"><polygon points="0,100 100,0 100,100" fill="white"/></svg>
         </div>
-    </div>
+        <div class="max-w-4xl mx-auto px-6 text-center relative z-10">
+            <h2 class="text-3xl md:text-5xl font-extrabold text-white mb-6">Ready to know your home better?</h2>
+            <p class="text-emerald-200 text-lg mb-10 max-w-xl mx-auto">Join thousands of homeowners who use Krib to stay organized and protect their investment.</p>
+            <a href="/app" class="inline-block font-bold text-emerald-950 bg-white hover:bg-emerald-50 px-10 py-4 rounded-full text-lg shadow-xl transition-all hover:scale-105">
+                Create Your Free Krib
+            </a>
+        </div>
+    </section>
 
     <!-- Footer -->
-    <footer class="bg-slate-900 border-t border-slate-800 pt-16 pb-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-            <div class="flex items-center mb-6 md:mb-0 gap-3">
-                <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M50 10L15 40V90H85V40L50 10Z" stroke="#38bdf8" stroke-width="8" stroke-linejoin="round"/>
-                    <circle cx="50" cy="50" r="10" fill="#bae6fd"/>
-                    <rect x="46" y="55" width="8" height="25" rx="2" fill="#bae6fd"/>
-                </svg>
-                <span class="text-2xl font-bold text-white tracking-tight">HausKey</span>
+    <footer class="bg-slate-50 py-12 border-t border-slate-100">
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex items-center space-x-2">
+                    <svg class="h-7 w-7" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="15" y="42" width="70" height="50" rx="10" fill="#10b981"/>
+                        <polygon points="50,8 95,42 5,42" fill="#10b981"/>
+                        <rect x="32" y="54" width="36" height="26" rx="6" fill="white"/>
+                    </svg>
+                    <span class="text-xl font-extrabold text-emerald-950">krib</span>
+                </div>
+                <div class="flex items-center space-x-6 text-sm text-slate-500">
+                    <a href="/privacy_policy.html" class="hover:text-emerald-700">Privacy</a>
+                    <a href="mailto:hello@krib.io" class="hover:text-emerald-700">Contact</a>
+                    <span>© 2025 Krib, Inc.</span>
+                </div>
             </div>
-            <div class="flex space-x-8 text-slate-400 text-sm font-medium">
-                <a href="/privacy_policy.html" class="hover:text-white transition">Privacy Policy</a>
-                <a href="#" class="hover:text-white transition">Terms of Service</a>
-                <a href="#" class="hover:text-white transition">Contact</a>
-            </div>
-        </div>
-        <div class="text-center text-slate-600 text-xs mt-12">
-            &copy; 2024 HausKey Home Data, Inc. All rights reserved.
         </div>
     </footer>
 
-    <script>
-        lucide.createIcons();
-    </script>
 </body>
 </html>
