@@ -8,7 +8,6 @@ import {
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useRecalls } from '../../hooks/useRecalls';
 
-// Category Configuration: Colors & Icons
 const CATEGORY_CONFIG = {
     "Paint & Finishes": { icon: Paintbrush, color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200", iconColor: "text-fuchsia-600" },
     "Appliances": { icon: Plug, color: "bg-cyan-100 text-cyan-700 border-cyan-200", iconColor: "text-cyan-600" },
@@ -34,50 +33,43 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
     };
 
     const docCount = record.attachments ? record.attachments.length : (record.imageUrl ? 1 : 0);
-    const hasDetails = record.model || record.notes || record.serialNumber || record.purchaseLink || docCount > 0;
-
-    // Get Style Config
     const style = CATEGORY_CONFIG[record.category] || CATEGORY_CONFIG["Other"];
     const CategoryIcon = style.icon;
 
     return (
         <div 
             onClick={() => setIsExpanded(!isExpanded)} 
-            className="bg-white rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md cursor-pointer overflow-hidden group"
+            className="bg-white rounded-2xl shadow-sm border border-slate-100 transition-all hover:shadow-md cursor-pointer overflow-hidden group mb-4"
         > 
-            {/* Main Compact Row */}
             <div className="p-5 flex items-start gap-4">
-                
-                {/* Category Icon Box */}
                 <div className={`h-12 w-12 rounded-xl flex items-center justify-center shrink-0 ${style.color}`}>
                     <CategoryIcon size={24} className={style.iconColor} />
                 </div>
 
                 <div className="flex-grow min-w-0">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-800 leading-tight truncate pr-2">{record.item || 'Unknown Item'}</h3>
-                            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500 font-medium">
+                    <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                            {/* FIXED: Added truncate to prevent overflow */}
+                            <h3 className="text-lg font-bold text-slate-800 leading-tight truncate pr-2">
+                                {record.item || 'Unknown Item'}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1 text-sm text-slate-500 font-medium truncate">
                                 <span>{record.brand || 'No Brand'}</span>
                                 {record.dateInstalled && (
                                     <>
                                         <span className="text-slate-300">•</span>
-                                        <span className="flex items-center"><Calendar size={12} className="mr-1"/> {record.dateInstalled}</span>
+                                        <span className="flex items-center shrink-0"><Calendar size={12} className="mr-1"/> {record.dateInstalled}</span>
                                     </>
                                 )}
                             </div>
                         </div>
                         
-                        {/* Status Badges (Right Aligned) */}
-                        <div className="flex flex-col items-end gap-1">
-                            {/* Recall Warning - Always visible if dangerous */}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
                             {recallStatus && recallStatus.status === 'warning' && (
                                 <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase tracking-wide flex items-center animate-pulse">
                                     <ShieldAlert size={10} className="mr-1"/> Recall
                                 </span>
                             )}
-                            
-                            {/* Category Badge */}
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${style.color}`}>
                                 {record.category}
                             </span>
@@ -86,30 +78,21 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                 </div>
             </div>
 
-            {/* Expanded Details Section */}
             {isExpanded && (
                 <div className="px-5 pb-5 pt-0 animate-in fade-in slide-in-from-top-1 duration-200">
                     <div className="border-t border-slate-100 pt-4 mt-2 space-y-4">
                         
-                        {/* Image Preview */}
                         {record.imageUrl && (
                             <div className="h-40 w-full bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
                                 <img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/>
                             </div>
                         )}
 
-                        {/* Details Grid */}
                         <div className="grid grid-cols-2 gap-4 text-sm">
                             {record.model && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Model</p>
                                     <p className="font-medium text-slate-700">{record.model}</p>
-                                </div>
-                            )}
-                            {record.serialNumber && (
-                                <div>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Serial</p>
-                                    <p className="font-medium text-slate-700 font-mono">{record.serialNumber}</p>
                                 </div>
                             )}
                             {record.contractor && (
@@ -121,7 +104,6 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             {record.maintenanceFrequency !== 'none' && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Maintenance</p>
-                                    {/* UPDATED: Emerald Badge */}
                                     <p className="font-medium text-emerald-600 bg-emerald-50 inline-block px-2 py-0.5 rounded">
                                         {MAINTENANCE_FREQUENCIES.find(f=>f.value===record.maintenanceFrequency)?.label}
                                     </p>
@@ -129,20 +111,18 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             )}
                         </div>
 
-                        {/* Notes */}
                         {record.notes && (
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <p className="text-xs text-slate-500 italic">"{record.notes}"</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Notes & Warranty</p>
+                                <p className="text-xs text-slate-600 italic">"{record.notes}"</p>
                             </div>
                         )}
 
-                        {/* Attachments List */}
                         {record.attachments && record.attachments.length > 0 && (
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Documents</p>
                                 <div className="space-y-2">
                                     {record.attachments.map((att, i) => (
-                                        // UPDATED: Hover Emerald
                                         <a key={i} href={att.url} target="_blank" rel="noreferrer" className="flex items-center p-2 bg-white border border-slate-200 rounded-lg hover:bg-emerald-50 transition group/file" onClick={e => e.stopPropagation()}>
                                             <Paperclip size={14} className="text-slate-400 mr-2 group-hover/file:text-emerald-500"/>
                                             <span className="text-xs font-bold text-slate-700 truncate flex-grow">{att.name}</span>
@@ -153,12 +133,9 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             </div>
                         )}
 
-                        {/* Action Bar */}
                         <div className="flex justify-between items-center pt-2">
-                            {/* Recall Check */}
                             <div className="flex-grow">
                                 {!recallStatus ? (
-                                    // UPDATED: Hover Emerald
                                     <button onClick={handleCheckSafety} disabled={checkingRecall} className="text-xs flex items-center text-slate-400 hover:text-emerald-600 transition font-bold px-2 py-1 -ml-2 rounded hover:bg-emerald-50">
                                         {checkingRecall ? <Loader2 className="animate-spin mr-1 h-3 w-3"/> : <ShieldCheck className="mr-1 h-3 w-3"/>} 
                                         {record.model ? "Check Safety" : "Add Model to Check"}
@@ -172,9 +149,7 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                                 )}
                             </div>
 
-                            {/* Edit/Delete */}
                             <div className="flex gap-2"> 
-                                {/* UPDATED: Hover Emerald */}
                                 <button onClick={(e) => { e.stopPropagation(); onEditClick(record); }} className="p-2 bg-slate-50 hover:bg-emerald-50 text-slate-500 hover:text-emerald-600 rounded-lg transition border border-slate-200 hover:border-emerald-200">
                                     <Pencil size={16}/>
                                 </button> 
@@ -186,8 +161,7 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                     </div>
                 </div>
             )}
-
-            {/* Collapse/Expand Indicator */}
+            
             {!isExpanded && (
                 <div className="h-1 bg-slate-50 group-hover:bg-emerald-50 transition-colors mx-5 mb-2 rounded-full w-12 opacity-0 group-hover:opacity-100 mx-auto"></div>
             )}
