@@ -7,6 +7,7 @@ import { Logo } from '../../components/common/Logo';
 export const SetupPropertyForm = ({ onSave, isSaving }) => {
     const [name, setName] = useState('');
     const [address, setAddress] = useState({ street: '', city: '', state: '', zip: '', placeId: '' });
+    const [coordinates, setCoordinates] = useState(null); // NEW: Store coordinates
     const autocompleteRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -33,6 +34,15 @@ export const SetupPropertyForm = ({ onSave, isSaving }) => {
             autocompleteRef.current.addListener('place_changed', () => {
                 const place = autocompleteRef.current.getPlace();
                 if (!place.address_components) return;
+                
+                // NEW: Capture Coordinates
+                if (place.geometry && place.geometry.location) {
+                    setCoordinates({
+                        lat: place.geometry.location.lat(),
+                        lon: place.geometry.location.lng()
+                    });
+                }
+
                 const get = (type) => place.address_components.find(c => c.types.includes(type))?.short_name || '';
                 setAddress({
                     street: `${get('street_number')} ${get('route')}`.trim(),
@@ -49,7 +59,8 @@ export const SetupPropertyForm = ({ onSave, isSaving }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!address.street) { alert("Please select an address."); return; }
-        onSave({ name: name || `${address.street}`, address });
+        // Pass coordinates up to the parent
+        onSave({ name: name || `${address.street}`, address, coordinates });
     };
 
     return (
@@ -101,7 +112,8 @@ export const SetupPropertyForm = ({ onSave, isSaving }) => {
                         disabled={isSaving}
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 flex items-center justify-center"
                     >
-                        {isSaving ? <><Loader2 className="animate-spin h-5 w-5 mr-2" /> Creating...</> : 'Create My Krib'}
+                        {/* CHANGED TEXT HERE */}
+                        {isSaving ? <><Loader2 className="animate-spin h-5 w-5 mr-2" /> Creating...</> : 'Kreate My Krib'}
                     </button>
                 </form>
             </div>
