@@ -1,7 +1,6 @@
 // src/features/records/SmartScan.jsx
 import React, { useRef, useState } from 'react';
 import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText } from 'lucide-react';
-// IMPORT fileToBase64 HERE
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
 import { CATEGORIES, ROOMS } from '../../config/constants';
@@ -13,23 +12,22 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
     const [scannedImageBase64, setScannedImageBase64] = useState(null);
-    const [isPdf, setIsPdf] = useState(false); // NEW STATE
+    const [isPdf, setIsPdf] = useState(false);
     
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
     const [globalArea, setGlobalArea] = useState("General");
+    const [globalCategory, setGlobalCategory] = useState(""); // NEW STATE
 
     const handleScan = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         let base64Str = "";
-
-        // CHECK IF PDF
         if (file.type === "application/pdf") {
             setIsPdf(true);
-            setScannedImagePreview(null); // No image preview for PDF
-            base64Str = await fileToBase64(file); // Don't compress PDF
+            setScannedImagePreview(null);
+            base64Str = await fileToBase64(file);
         } else {
             setIsPdf(false);
             setScannedImagePreview(URL.createObjectURL(file));
@@ -54,19 +52,27 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
+    // NEW: Update all items when Global Category changes
+    const handleGlobalCategoryChange = (val) => {
+        setGlobalCategory(val);
+        setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
+    };
+
     const handleSaveAll = () => {
         const finalItems = scannedItems.map(item => ({
             ...item,
             dateInstalled: globalDate || item.dateInstalled,
             contractor: globalStore || item.contractor,
             area: item.area || globalArea,
-            imageUrl: scannedImageBase64 // Saves the PDF base64 if it was a PDF
+            category: globalCategory || item.category, // Fallback to item category if global is empty
+            imageUrl: scannedImageBase64
         }));
         onBatchSave(finalItems);
         setScannedItems([]);
         setScannedImagePreview(null);
         setScannedImageBase64(null);
         setIsPdf(false);
+        setGlobalCategory(""); // Reset global cat
     };
 
     const updateItem = (index, field, val) => {
@@ -85,7 +91,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="px-5 py-3 bg-white text-emerald-700 font-bold rounded-xl shadow-sm border border-emerald-200 hover:bg-emerald-50 transition flex items-center">
                     {isScanning ? <span className="animate-pulse">Analyzing...</span> : <><Camera className="mr-2 h-4 w-4"/> Auto-Fill</>}
                 </button>
-                {/* UPDATED ACCEPT ATTRIBUTE */}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleScan} />
             </div>
 
@@ -100,7 +105,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1">
-                            {/* PREVIEW LOGIC: Show Image OR PDF Icon */}
                             {scannedImagePreview ? (
                                 <img src={scannedImagePreview} alt="Receipt" className="rounded-2xl border border-slate-200 shadow-sm w-full object-cover" />
                             ) : isPdf ? (
@@ -111,11 +115,18 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                             ) : null}
                         </div>
                         <div className="lg:col-span-2 space-y-4">
-                            {/* Global Settings */}
-                            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {/* UPDATED: Added Category Dropdown */}
+                            <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Date</label><input type="date" value={globalDate} onChange={e=>setGlobalDate(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Store</label><input type="text" value={globalStore} onChange={e=>setGlobalStore(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Room</label><select value={globalArea} onChange={e=>setGlobalArea(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"><option value="General">General</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select></div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Category</label>
+                                    <select value={globalCategory} onChange={e=>handleGlobalCategoryChange(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg bg-emerald-50/50 text-emerald-900 font-bold">
+                                        <option value="">Set All...</option>
+                                        {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
                             </div>
                             
                             {/* Items List */}
@@ -138,6 +149,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                         <button onClick={()=>setScannedItems(prev=>prev.filter((_,i)=>i!==idx))} className="text-slate-300 hover:text-red-500"><XCircle size={20}/></button>
                                     </div>
                                 ))}
+                            </div>
+                            {/* NEW: Bottom Save Button */}
+                            <div className="pt-4 border-t border-slate-200">
+                                <button type="button" onClick={handleSaveAll} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center">
+                                    <Save className="mr-2 h-5 w-5"/> Save All Items
+                                </button>
                             </div>
                         </div>
                     </div>
