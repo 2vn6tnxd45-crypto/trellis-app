@@ -59,7 +59,7 @@ const AppContent = () => {
     const [editingRecord, setEditingRecord] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('All');
-    const [isSavingProperty, setIsSavingProperty] = useState(false); // NEW STATE
+    const [isSavingProperty, setIsSavingProperty] = useState(false);
 
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorView />;
@@ -130,7 +130,6 @@ const AppContent = () => {
 
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
-    // --- FIXED FUNCTION HERE ---
     const handleSaveProperty = async (formData) => {
         if (!user) return;
         setIsSavingProperty(true);
@@ -139,12 +138,11 @@ const AppContent = () => {
             await setDoc(profileRef, {
                 name: formData.name,
                 address: formData.address,
-                coordinates: formData.coordinates || null, // Save coordinates
+                coordinates: formData.coordinates || null,
                 activePropertyId: 'legacy',
                 createdAt: serverTimestamp()
             }, { merge: true });
             
-            // Re-fetch profile to trigger update immediately (though onSnapshot usually handles this)
             const snap = await getDoc(profileRef);
             if (snap.exists()) setProfile(snap.data());
             
@@ -171,7 +169,6 @@ const AppContent = () => {
 
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
     
-    // Pass isSavingProperty to SetupPropertyForm
     if (!profile && !loading) return <SetupPropertyForm onSave={handleSaveProperty} isSaving={isSavingProperty} onSignOut={() => signOut(auth)} />;
     
     if (isAddingProperty) return <div className="relative"><button onClick={() => setIsAddingProperty(false)} className="absolute top-6 left-6 z-50 text-slate-500 font-bold flex items-center bg-white px-4 py-2 rounded-xl shadow-sm"><X className="mr-2 h-4 w-4"/> Cancel</button><SetupPropertyForm onSave={handleSaveProperty} isSaving={isSavingProperty} onSignOut={() => {}} /></div>;
@@ -180,22 +177,23 @@ const AppContent = () => {
     const totalNotifications = dueTasks.length + newSubmissions.length;
 
     return (
-        <div className="min-h-screen bg-sky-50 font-sans pb-24 md:pb-0">
-            {/* ... (Keep Header) ... */}
+        <div className="min-h-screen bg-emerald-50 font-sans pb-24 md:pb-0">
+            {/* Header */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
                 <div className="relative">
-                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors">
+                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
                         <div>
-                            <h1 className="text-xl font-bold text-sky-900 leading-none flex items-center">Haus<span className="text-sky-500 font-normal">Key</span><ChevronDown size={16} className="ml-1 text-slate-400"/></h1>
+                            {/* REBRANDED LOGO */}
+                            <h1 className="text-2xl font-extrabold text-emerald-950 leading-none flex items-center">krib<ChevronDown size={16} className="ml-1 text-slate-400"/></h1>
                             <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
                         </div>
                     </button>
                     {isSwitchingProp && (
                         <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-                            {properties.map(p => (<button key={p.id} onClick={() => { setActivePropertyId(p.id); setIsSwitchingProp(false); }} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-sky-50 text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-sky-600"/>}</button>))}
+                            {properties.map(p => (<button key={p.id} onClick={() => { setActivePropertyId(p.id); setIsSwitchingProp(false); }} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>))}
                             <div className="border-t border-slate-100 my-1"></div>
-                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-sky-600 hover:bg-sky-50"><PlusCircle size={16} className="mr-2"/> Add Property</button>
+                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50"><PlusCircle size={16} className="mr-2"/> Add Property</button>
                         </div>
                     )}
                 </div>
@@ -217,15 +215,16 @@ const AppContent = () => {
             <main className="max-w-4xl mx-auto p-4 md:p-8">
                 {activeTab === 'Log' && (
                     <div className="space-y-6">
+                        {/* Search Bar - Emerald Theme */}
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
                             <div className="relative flex-grow">
                                 <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none transition-all"/>
+                                <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
                                 {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}
                             </div>
                             <div className="relative min-w-[160px]">
                                 <Filter className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-8 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-none appearance-none cursor-pointer">
+                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-8 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer">
                                     <option value="All">All Categories</option>
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
@@ -235,14 +234,16 @@ const AppContent = () => {
                         {records.length === 0 ? (
                             <EmptyState 
                                 icon={Home}
-                                title="Welcome to HausKey!"
+                                // REBRANDED WELCOME
+                                title="Welcome to Krib!"
                                 description="Start building your home's digital pedigree. Add your first record manually or scan a receipt."
                                 actions={
                                     <>
-                                        <button onClick={() => openAddModal()} className="px-6 py-3 bg-sky-900 text-white rounded-xl font-bold hover:bg-sky-800 transition shadow-lg shadow-sky-900/20 flex items-center justify-center">
+                                        {/* EMERALD BUTTONS */}
+                                        <button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-900 text-white rounded-xl font-bold hover:bg-emerald-800 transition shadow-lg shadow-emerald-900/20 flex items-center justify-center">
                                             <Camera className="mr-2 h-5 w-5" /> Scan Receipt
                                         </button>
-                                        <button onClick={() => openAddModal()} className="px-6 py-3 border border-sky-200 text-sky-700 rounded-xl font-bold hover:bg-sky-50 transition flex items-center justify-center">
+                                        <button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center">
                                             <Plus className="mr-2 h-5 w-5" /> Manual Add
                                         </button>
                                     </>
@@ -251,7 +252,7 @@ const AppContent = () => {
                         ) : filteredRecords.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
                                 <p>No records match your search.</p>
-                                <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-sky-600 font-bold hover:underline">Clear Filters</button>
+                                <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button>
                             </div>
                         ) : (
                             <>
@@ -259,7 +260,7 @@ const AppContent = () => {
                                     <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
                                 ))}
                                 {records.length >= recordsLimit && (
-                                    <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-sky-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load Older Records</button>
+                                    <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load Older Records</button>
                                 )}
                             </>
                         )}
@@ -290,11 +291,11 @@ const AppContent = () => {
             </main>
 
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
-                <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-sky-600' : 'text-slate-400'}`}><Home size={24}/><span className="text-[10px] font-bold mt-1">Log</span></button>
-                <button onClick={() => setActiveTab('Maintenance')} className={`flex flex-col items-center ${activeTab === 'Maintenance' ? 'text-sky-600' : 'text-slate-400'}`}><Wrench size={24}/><span className="text-[10px] font-bold mt-1">Care</span></button>
-                <div className="relative -top-8"><button onClick={() => openAddModal()} className="h-16 w-16 bg-sky-900 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={32}/></button></div>
-                <button onClick={() => setActiveTab('Requests')} className={`flex flex-col items-center ${activeTab === 'Requests' ? 'text-sky-600' : 'text-slate-400'}`}><LinkIcon size={24}/><span className="text-[10px] font-bold mt-1">Pros</span></button>
-                <button onClick={() => setActiveTab('Insights')} className={`flex flex-col items-center ${activeTab === 'Insights' ? 'text-sky-600' : 'text-slate-400'}`}><BarChart3 size={24}/><span className="text-[10px] font-bold mt-1">Insights</span></button>
+                <button onClick={() => setActiveTab('Log')} className={`flex flex-col items-center ${activeTab === 'Log' ? 'text-emerald-600' : 'text-slate-400'}`}><Home size={24}/><span className="text-[10px] font-bold mt-1">Log</span></button>
+                <button onClick={() => setActiveTab('Maintenance')} className={`flex flex-col items-center ${activeTab === 'Maintenance' ? 'text-emerald-600' : 'text-slate-400'}`}><Wrench size={24}/><span className="text-[10px] font-bold mt-1">Care</span></button>
+                <div className="relative -top-8"><button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg"><Plus size={32}/></button></div>
+                <button onClick={() => setActiveTab('Requests')} className={`flex flex-col items-center ${activeTab === 'Requests' ? 'text-emerald-600' : 'text-slate-400'}`}><LinkIcon size={24}/><span className="text-[10px] font-bold mt-1">Pros</span></button>
+                <button onClick={() => setActiveTab('Insights')} className={`flex flex-col items-center ${activeTab === 'Insights' ? 'text-emerald-600' : 'text-slate-400'}`}><BarChart3 size={24}/><span className="text-[10px] font-bold mt-1">Insights</span></button>
             </nav>
 
             {isAddModalOpen && (
