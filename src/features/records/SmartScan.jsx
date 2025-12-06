@@ -17,7 +17,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
     const [globalArea, setGlobalArea] = useState("General");
-    const [globalCategory, setGlobalCategory] = useState(""); // NEW STATE
+    const [globalCategory, setGlobalCategory] = useState("");
 
     const handleScan = async (e) => {
         const file = e.target.files[0];
@@ -52,7 +52,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    // NEW: Update all items when Global Category changes
     const handleGlobalCategoryChange = (val) => {
         setGlobalCategory(val);
         setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
@@ -64,7 +63,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             dateInstalled: globalDate || item.dateInstalled,
             contractor: globalStore || item.contractor,
             area: item.area || globalArea,
-            category: globalCategory || item.category, // Fallback to item category if global is empty
+            category: globalCategory || item.category,
             imageUrl: scannedImageBase64
         }));
         onBatchSave(finalItems);
@@ -72,7 +71,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedImagePreview(null);
         setScannedImageBase64(null);
         setIsPdf(false);
-        setGlobalCategory(""); // Reset global cat
+        setGlobalCategory("");
     };
 
     const updateItem = (index, field, val) => {
@@ -103,7 +102,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="lg:col-span-1">
                             {scannedImagePreview ? (
                                 <img src={scannedImagePreview} alt="Receipt" className="rounded-2xl border border-slate-200 shadow-sm w-full object-cover" />
@@ -115,7 +114,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                             ) : null}
                         </div>
                         <div className="lg:col-span-2 space-y-4">
-                            {/* UPDATED: Added Category Dropdown */}
                             <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Date</label><input type="date" value={globalDate} onChange={e=>setGlobalDate(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
                                 <div><label className="text-[10px] font-bold text-slate-400 uppercase">Store</label><input type="text" value={globalStore} onChange={e=>setGlobalStore(e.target.value)} className="w-full text-sm border-slate-200 rounded-lg"/></div>
@@ -129,28 +127,27 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                 </div>
                             </div>
                             
-                            {/* Items List */}
-                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                                 {scannedItems.map((item, idx) => (
                                     <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex gap-3 relative">
                                         <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             <div>
-                                                <input type="text" value={item.item} onChange={e=>updateItem(idx,'item',e.target.value)} className="w-full font-bold border-0 border-b border-slate-200 focus:ring-0 px-0 py-1"/>
+                                                <input type="text" value={item.item} onChange={e=>updateItem(idx,'item',e.target.value)} className="w-full font-bold border-0 border-b border-slate-200 focus:ring-0 px-0 py-1 placeholder-slate-300" placeholder="Item Name"/>
                                                 <div className="flex gap-2 mt-2">
                                                     <input type="text" placeholder="Brand" value={item.brand||''} onChange={e=>updateItem(idx,'brand',e.target.value)} className="w-1/2 text-xs border-0 border-b border-slate-100"/>
                                                     <input type="text" placeholder="Model" value={item.model||''} onChange={e=>updateItem(idx,'model',e.target.value)} className="w-1/2 text-xs border-0 border-b border-slate-100"/>
                                                 </div>
                                             </div>
                                             <div>
-                                                <select value={item.category} onChange={e=>updateItem(idx,'category',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200"><option>Select Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
-                                                <select value={item.area||''} onChange={e=>updateItem(idx,'area',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200 mt-2"><option value="">(Global)</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select>
+                                                <select value={item.category} onChange={e=>updateItem(idx,'category',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200 mb-2"><option>Select Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
+                                                <select value={item.area||''} onChange={e=>updateItem(idx,'area',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200"><option value="">(Global)</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select>
                                             </div>
                                         </div>
                                         <button onClick={()=>setScannedItems(prev=>prev.filter((_,i)=>i!==idx))} className="text-slate-300 hover:text-red-500"><XCircle size={20}/></button>
                                     </div>
                                 ))}
                             </div>
-                            {/* NEW: Bottom Save Button */}
+
                             <div className="pt-4 border-t border-slate-200">
                                 <button type="button" onClick={handleSaveAll} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center">
                                     <Save className="mr-2 h-5 w-5"/> Save All Items
