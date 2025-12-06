@@ -6,6 +6,7 @@ import { useGemini } from '../../hooks/useGemini';
 import { CATEGORIES, ROOMS } from '../../config/constants';
 
 export const SmartScan = ({ onBatchSave, onAutoFill }) => {
+    // ... (Imports and hooks same as before)
     const fileInputRef = useRef(null);
     const { scanReceipt, isScanning } = useGemini();
     
@@ -37,34 +38,17 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedImageBase64(base64Str);
 
         const data = await scanReceipt(file, base64Str);
-        
         if (data && data.items) {
             setScannedItems(data.items);
+            if (data.items[0]?.dateInstalled) setGlobalDate(data.items[0].dateInstalled);
+            if (data.items[0]?.contractor) setGlobalStore(data.items[0].contractor);
             
-            // UPDATED: Pre-populate Globals from AI summary
-            if (data.date) setGlobalDate(data.date);
-            if (data.store) setGlobalStore(data.store);
+            // Auto-set globals if AI detected them
+            if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) setGlobalCategory(data.primaryCategory);
+            if (data.primaryArea && ROOMS.includes(data.primaryArea)) setGlobalArea(data.primaryArea);
             
-            // If AI found a primary category (e.g., "Roof & Exterior"), set it globally
-            if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) {
-                setGlobalCategory(data.primaryCategory);
-            }
-            
-            // If AI found a primary area (e.g., "Exterior"), set it globally
-            if (data.primaryArea && ROOMS.includes(data.primaryArea)) {
-                setGlobalArea(data.primaryArea);
-            } else {
-                setGlobalArea("General"); // Default fallback
-            }
-
-            // If it's a single item scan, auto-fill the main form immediately
             if (data.items.length === 1) {
-                onAutoFill({
-                    ...data.items[0],
-                    // Ensure the single item gets the globals if missing
-                    category: data.items[0].category || data.primaryCategory,
-                    area: data.items[0].area || data.primaryArea
-                });
+                onAutoFill(data.items[0]);
                 setScannedItems([]);
             }
         } else {
@@ -78,24 +62,30 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
     };
 
-    const handleSaveAll = () => {
-        const finalItems = scannedItems.map(item => ({
-            ...item,
-            dateInstalled: globalDate || item.dateInstalled,
-            contractor: globalStore || item.contractor,
-            area: item.area || globalArea,
-            category: globalCategory || item.category,
-            imageUrl: scannedImageBase64
-        }));
-        onBatchSave(finalItems);
-        // Reset state
-        setScannedItems([]);
-        setScannedImagePreview(null);
-        setScannedImageBase64(null);
-        setIsPdf(false);
-        setGlobalCategory("");
-        setGlobalStore("");
-        setGlobalArea("General");
+    const handleSaveAll = async () => { // ASYNC
+        try {
+            const finalItems = scannedItems.map(item => ({
+                ...item,
+                dateInstalled: globalDate || item.dateInstalled,
+                contractor: globalStore || item.contractor,
+                area: item.area || globalArea,
+                category: globalCategory || item.category,
+                imageUrl: scannedImageBase64
+            }));
+            
+            await onBatchSave(finalItems); // WAIT FOR IT
+            
+            // Only clear if successful (no error thrown)
+            setScannedItems([]);
+            setScannedImagePreview(null);
+            setScannedImageBase64(null);
+            setIsPdf(false);
+            setGlobalCategory("");
+            setGlobalStore("");
+            setGlobalArea("General");
+        } catch (e) {
+            // Error handling is done in App.jsx via alert, so we just don't clear the list
+        }
     };
 
     const updateItem = (index, field, val) => {
@@ -104,8 +94,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedItems(newItems);
     };
 
+    // ... (Render logic same as previous, just ensure handleSaveAll is passed to button)
+    // ...
+    // ...
     return (
         <div className="mb-8">
+            {/* ... (Header same as before) ... */}
             <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div>
                     <h3 className="font-bold text-emerald-900 flex items-center"><ScanLine className="mr-2 h-5 w-5 text-emerald-600"/> Smart Scan</h3>
@@ -119,7 +113,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             {scannedItems.length > 0 && (
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4">
-                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
                         <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Scan Results</h4>
                         <button type="button" onClick={handleSaveAll} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center">
                             <Save className="mr-2 h-4 w-4"/> Save All Items
@@ -163,7 +157,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                                 </div>
                                             </div>
                                             <div>
-                                                {/* Defaults to global category/area if set, otherwise item specific */}
                                                 <select value={item.category || globalCategory} onChange={e=>updateItem(idx,'category',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200 mb-2"><option>Select Category</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select>
                                                 <select value={item.area || globalArea} onChange={e=>updateItem(idx,'area',e.target.value)} className="w-full text-xs border-0 border-b border-slate-200"><option value="">(Global)</option>{ROOMS.map(r=><option key={r} value={r}>{r}</option>)}</select>
                                             </div>
@@ -172,7 +165,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                     </div>
                                 ))}
                             </div>
-
                             <div className="pt-4 border-t border-slate-200">
                                 <button type="button" onClick={handleSaveAll} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center">
                                     <Save className="mr-2 h-5 w-5"/> Save All Items
