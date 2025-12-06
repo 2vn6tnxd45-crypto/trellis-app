@@ -1,12 +1,11 @@
 // src/features/records/SmartScan.jsx
 import React, { useRef, useState } from 'react';
-import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText } from 'lucide-react';
+import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText, Loader2 } from 'lucide-react';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
 import { CATEGORIES, ROOMS } from '../../config/constants';
 
 export const SmartScan = ({ onBatchSave, onAutoFill }) => {
-    // ... (Imports and hooks same as before)
     const fileInputRef = useRef(null);
     const { scanReceipt, isScanning } = useGemini();
     
@@ -14,6 +13,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
     const [scannedImageBase64, setScannedImageBase64] = useState(null);
     const [isPdf, setIsPdf] = useState(false);
+    const [isSaving, setIsSaving] = useState(false); // NEW LOCAL LOADING STATE
     
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
@@ -38,17 +38,29 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedImageBase64(base64Str);
 
         const data = await scanReceipt(file, base64Str);
+        
         if (data && data.items) {
             setScannedItems(data.items);
-            if (data.items[0]?.dateInstalled) setGlobalDate(data.items[0].dateInstalled);
-            if (data.items[0]?.contractor) setGlobalStore(data.items[0].contractor);
             
-            // Auto-set globals if AI detected them
-            if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) setGlobalCategory(data.primaryCategory);
-            if (data.primaryArea && ROOMS.includes(data.primaryArea)) setGlobalArea(data.primaryArea);
+            if (data.date) setGlobalDate(data.date);
+            if (data.store) setGlobalStore(data.store);
             
+            if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) {
+                setGlobalCategory(data.primaryCategory);
+            }
+            
+            if (data.primaryArea && ROOMS.includes(data.primaryArea)) {
+                setGlobalArea(data.primaryArea);
+            } else {
+                setGlobalArea("General"); 
+            }
+
             if (data.items.length === 1) {
-                onAutoFill(data.items[0]);
+                onAutoFill({
+                    ...data.items[0],
+                    category: data.items[0].category || data.primaryCategory,
+                    area: data.items[0].area || data.primaryArea
+                });
                 setScannedItems([]);
             }
         } else {
@@ -62,7 +74,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
     };
 
-    const handleSaveAll = async () => { // ASYNC
+    const handleSaveAll = async () => {
+        setIsSaving(true); // START LOADING
         try {
             const finalItems = scannedItems.map(item => ({
                 ...item,
@@ -73,9 +86,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 imageUrl: scannedImageBase64
             }));
             
-            await onBatchSave(finalItems); // WAIT FOR IT
+            await onBatchSave(finalItems);
             
-            // Only clear if successful (no error thrown)
+            // Only clear if successful
             setScannedItems([]);
             setScannedImagePreview(null);
             setScannedImageBase64(null);
@@ -84,7 +97,10 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             setGlobalStore("");
             setGlobalArea("General");
         } catch (e) {
-            // Error handling is done in App.jsx via alert, so we just don't clear the list
+            console.error("SmartScan Save Error:", e);
+            // We rely on App.jsx to alert the user, but we log it here too
+        } finally {
+            setIsSaving(false); // STOP LOADING
         }
     };
 
@@ -94,12 +110,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setScannedItems(newItems);
     };
 
-    // ... (Render logic same as previous, just ensure handleSaveAll is passed to button)
-    // ...
-    // ...
     return (
         <div className="mb-8">
-            {/* ... (Header same as before) ... */}
             <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
                 <div>
                     <h3 className="font-bold text-emerald-900 flex items-center"><ScanLine className="mr-2 h-5 w-5 text-emerald-600"/> Smart Scan</h3>
@@ -113,10 +125,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             {scannedItems.length > 0 && (
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4">
-                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
                         <h4 className="font-bold text-slate-800 flex items-center"><ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Scan Results</h4>
-                        <button type="button" onClick={handleSaveAll} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center">
-                            <Save className="mr-2 h-4 w-4"/> Save All Items
+                        {/* TOP SAVE BUTTON */}
+                        <button type="button" onClick={handleSaveAll} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center disabled:opacity-50">
+                            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
+                            {isSaving ? 'Saving...' : 'Save All Items'}
                         </button>
                     </div>
 
@@ -165,9 +179,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* BOTTOM SAVE BUTTON */}
                             <div className="pt-4 border-t border-slate-200">
-                                <button type="button" onClick={handleSaveAll} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center">
-                                    <Save className="mr-2 h-5 w-5"/> Save All Items
+                                <button type="button" onClick={handleSaveAll} disabled={isSaving} className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center disabled:opacity-50">
+                                    {isSaving ? <Loader2 className="animate-spin h-5 w-5 mr-2"/> : <Save className="mr-2 h-5 w-5"/>}
+                                    {isSaving ? 'Saving Items...' : 'Save All Items'}
                                 </button>
                             </div>
                         </div>
