@@ -287,8 +287,8 @@ const AppContent = () => {
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
-                    {/* FIXED HEIGHT HERE: max-h-[90vh] */}
-                    <div className="relative w-full max-w-lg bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
+                    {/* WIDER MODAL: max-w-5xl */}
+                    <div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
                          <WrapperAddRecord 
                             user={user} 
                             db={db} 
