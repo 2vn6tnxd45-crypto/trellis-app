@@ -312,12 +312,19 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
     useEffect(() => { if (editingRecord) setNewRecord(editingRecord); }, [editingRecord]);
     const handleChange = (e) => setNewRecord({...newRecord, [e.target.name]: e.target.value});
+    
+    // UPDATED: Correctly handle PDFs
     const handleAttachmentsChange = (files) => {
-        const placeholders = files.map(f => ({ name: f.name, size: f.size, type: 'Photo', fileRef: f }));
+        const placeholders = files.map(f => ({ 
+            name: f.name, 
+            size: f.size, 
+            type: f.type.includes('pdf') ? 'Document' : 'Photo', 
+            fileRef: f 
+        }));
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
-    // NEW: Handle batch save from SmartScan using BATCH WRITE
+    // UPDATED: Handle batch save from SmartScan
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         
@@ -331,7 +338,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
 
-            // Upload raw file if exists
             if (file) {
                 const isPdf = file.type === 'application/pdf';
                 const ext = isPdf ? 'pdf' : 'jpg'; 
@@ -344,12 +350,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
 
-            // USE BATCH WRITE instead of Promise.all
+            // USE BATCH WRITE
             const batch = writeBatch(db);
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
 
             items.forEach((item) => {
-                 const newDocRef = doc(collectionRef); // Generate ID automatically
+                 const newDocRef = doc(collectionRef);
                  const docData = {
                     userId: user.uid,
                     propertyId: activeProperty.id,
@@ -376,7 +382,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 batch.set(newDocRef, docData);
             });
 
-            await batch.commit(); // Single network request
+            await batch.commit();
             setSaving(false);
             onSuccess();
             
@@ -388,33 +394,53 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         }
     };
 
+    // UPDATED: Single record save logic
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
+        
         const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
             if (att.fileRef) {
                 try {
                     let file = att.fileRef;
-                    if (file.type.startsWith('image/')) { const c = await compressImage(file); const r = await fetch(c); file = await r.blob(); }
+                    // Only compress if it's an image
+                    if (file.type.startsWith('image/')) { 
+                        const c = await compressImage(file); 
+                        const r = await fetch(c); 
+                        file = await r.blob(); 
+                    }
+                    
                     const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
                     return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
-                } catch(e){ return null; }
+                } catch(e){ 
+                    console.error(e);
+                    alert("Upload failed for " + att.name);
+                    return null; 
+                }
             }
             return att;
         }));
         
         const finalAtts = processed.filter(Boolean);
+        // Only set cover image if it's a photo
         const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
+        
         const { originalRequestId, id, ...data } = newRecord;
         const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
         
-        if (editingRecord?.id) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload);
-        else {
-            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
-            if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
+        try {
+            if (editingRecord?.id) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload);
+            else {
+                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
+                if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
+            }
+            onSuccess();
+        } catch (e) {
+            alert("Save failed: " + e.message);
+        } finally {
+            setSaving(false); 
         }
-        setSaving(false); onSuccess();
     };
 
     return (
