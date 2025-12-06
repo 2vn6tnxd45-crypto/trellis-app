@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { geminiModel } from '../config/firebase';
 import { getBase64Data } from '../lib/images';
 import { toProperCase } from '../lib/utils';
+// NEW: Import constants to teach the AI your specific options
+import { CATEGORIES, ROOMS } from '../config/constants';
 
 export const useGemini = () => {
     const [isSuggesting, setIsSuggesting] = useState(false);
@@ -47,21 +49,36 @@ export const useGemini = () => {
         setIsScanning(true);
         try {
             const base64Data = getBase64Data(base64Str);
-            // UPDATED: Use the actual file type (e.g., 'application/pdf') or fallback to jpeg
             const mimeType = file.type || "image/jpeg";
+
+            // NEW: Inject valid options into the prompt
+            const categoriesStr = CATEGORIES.join(', ');
+            const roomsStr = ROOMS.join(', ');
 
             const prompt = `
                 Analyze this document (receipt/invoice/label).
-                Identify all distinct line items.
-                Expand abbreviations (e.g., "Fauc" -> "Faucet").
-                For EACH item, extract:
-                - item: CLEAN product name.
-                - category: Best guess category.
-                - brand: Manufacturer.
-                - model: Model #.
-                - contractor: Store name.
-                - dateInstalled: YYYY-MM-DD.
-                Return JSON: { "items": [{...}] }
+                
+                VALID CATEGORIES: [${categoriesStr}]
+                VALID ROOMS: [${roomsStr}]
+
+                1. Identify the Store/Contractor name.
+                2. Identify the Date.
+                3. Determine the "primaryCategory" and "primaryArea" that best fits the MAJORITY of items (use the lists above).
+                4. Extract line items. For each item:
+                   - item: Clean name.
+                   - category: Choose the best fit from VALID CATEGORIES list.
+                   - area: Choose the best fit from VALID ROOMS list.
+                   - brand: Manufacturer.
+                   - model: Model #.
+                
+                Return JSON: 
+                { 
+                  "store": "Home Depot",
+                  "date": "2023-10-25",
+                  "primaryCategory": "Plumbing", 
+                  "primaryArea": "Kitchen",
+                  "items": [{...}] 
+                }
             `;
             
             const result = await geminiModel.generateContent([
@@ -76,7 +93,9 @@ export const useGemini = () => {
                     ...item,
                     item: toProperCase(item.item),
                     brand: toProperCase(item.brand),
-                    contractor: toProperCase(item.contractor)
+                    // If AI didn't pick a valid category/area for a specific item, fallback to the primary one
+                    category: item.category || data.primaryCategory || "",
+                    area: item.area || data.primaryArea || ""
                 }));
             }
             return data;
