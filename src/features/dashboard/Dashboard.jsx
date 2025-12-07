@@ -430,7 +430,7 @@ export const Dashboard = ({ records, contractors = [], propertyName, onScanRecei
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-extrabold text-slate-800">{getGreeting()}!</h1>
-                <p className="text-slate-500 text-sm">Here's what's happening with {propertyName || 'your home'}</p>
+                <p className="text-slate-500 text-sm">Here's what's happening with your Krib</p>
             </div>
             
             <div>
