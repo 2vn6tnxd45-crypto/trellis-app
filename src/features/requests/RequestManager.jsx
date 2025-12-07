@@ -1,6 +1,6 @@
 // src/features/requests/RequestManager.jsx
 import React, { useState, useEffect } from 'react';
-import { Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, Send } from 'lucide-react';
+import { Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, Send, Phone, Mail, User, Hammer } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
@@ -8,6 +8,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 
 export const RequestManager = ({ userId, propertyName, propertyAddress, records, onRequestImport }) => {
     const [requests, setRequests] = useState([]);
+    const [view, setView] = useState('requests'); // 'requests' or 'pros'
     const [newRequestDesc, setNewRequestDesc] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [shareAddress, setShareAddress] = useState(false);
@@ -21,6 +22,26 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
         });
         return () => unsubscribe();
     }, [userId]);
+
+    // DERIVE CONTRACTORS FROM RECORDS
+    const contractors = Object.values(records.reduce((acc, r) => {
+        const name = r.contractor;
+        if (name && name.length > 2) {
+            if (!acc[name]) {
+                acc[name] = { 
+                    name, 
+                    phone: r.contractorPhone, 
+                    email: r.contractorEmail, 
+                    jobs: [] 
+                };
+            }
+            // Update contact info if found in newer record
+            if (r.contractorPhone) acc[name].phone = r.contractorPhone;
+            if (r.contractorEmail) acc[name].email = r.contractorEmail;
+            acc[name].jobs.push(r);
+        }
+        return acc;
+    }, {}));
 
     const handleCreateRequest = async (e) => {
         e.preventDefault();
@@ -43,8 +64,6 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
     };
 
     const handleDelete = async (id) => { if (confirm("Delete link?")) try { await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id)); } catch (e) {} };
-    
-    // UPDATED: Now uses origin + pathname to ensure we link to /app/
     const copyLink = (id) => { 
         const url = `${window.location.origin}${window.location.pathname}?requestId=${id}`;
         navigator.clipboard.writeText(url).then(() => alert("Link copied!")); 
@@ -52,61 +71,126 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
 
     return (
         <div className="space-y-8">
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-emerald-100">
-                <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
-                    <div className="bg-emerald-100 p-2 rounded-lg mr-3"><LinkIcon className="h-6 w-6 text-emerald-700" /></div> Contractor Requests
-                </h2>
-                <p className="text-slate-500 mb-6">Generate a secure link to send to your contractor.</p>
-                <form onSubmit={handleCreateRequest} className="space-y-4">
-                    <input type="text" value={newRequestDesc} onChange={(e) => setNewRequestDesc(e.target.value)} placeholder="Project Description (e.g. Replace HVAC)" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
-                             <input type="checkbox" id="shareAddr" checked={shareAddress} onChange={(e) => setShareAddress(e.target.checked)} className="mr-3 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500"/>
-                             <label htmlFor="shareAddr" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center"><MapPin size={16} className="mr-2 text-slate-400"/> Share Property Address</label>
-                        </div>
-                        <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
-                             <Link2 size={16} className="ml-2 mr-2 text-slate-400"/>
-                             <select value={linkedRecordId} onChange={(e) => setLinkedRecordId(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 w-full outline-none"><option value="">No Linked Item</option>{records && records.map(r => (<option key={r.id} value={r.id}>{r.item} ({r.brand || 'Generic'})</option>))}</select>
-                        </div>
-                    </div>
-                    <button type="submit" disabled={isCreating || !newRequestDesc} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 transition active:scale-[0.98]">{isCreating ? 'Creating...' : 'Create Secure Link'}</button>
-                </form>
+            {/* Tabs */}
+            <div className="flex space-x-4 border-b border-slate-200 pb-2">
+                <button 
+                    onClick={() => setView('requests')}
+                    className={`pb-2 px-1 text-sm font-bold ${view === 'requests' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    Project Requests
+                </button>
+                <button 
+                    onClick={() => setView('pros')}
+                    className={`pb-2 px-1 text-sm font-bold ${view === 'pros' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    My Contractors ({contractors.length})
+                </button>
             </div>
 
-            {requests.length === 0 ? (
-                <EmptyState 
-                    icon={Send}
-                    title="No Active Requests"
-                    description="Create a request link above to send to your contractor. When they submit details, they'll appear here."
-                />
-            ) : (
-                <div className="grid gap-4">
-                    {requests.map(req => (
-                        <div key={req.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex-grow w-full md:w-auto">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h3 className="font-bold text-slate-800 text-lg">{req.description}</h3>
-                                    <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${req.status === 'submitted' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>{req.status}</span>
+            {view === 'requests' && (
+                <>
+                    <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-emerald-100">
+                        <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+                            <div className="bg-emerald-100 p-2 rounded-lg mr-3"><LinkIcon className="h-6 w-6 text-emerald-700" /></div> Contractor Requests
+                        </h2>
+                        <p className="text-slate-500 mb-6">Generate a secure link to send to your contractor.</p>
+                        <form onSubmit={handleCreateRequest} className="space-y-4">
+                            <input type="text" value={newRequestDesc} onChange={(e) => setNewRequestDesc(e.target.value)} placeholder="Project Description (e.g. Replace HVAC)" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"/>
+                            
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
+                                     <input type="checkbox" id="shareAddr" checked={shareAddress} onChange={(e) => setShareAddress(e.target.checked)} className="mr-3 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500"/>
+                                     <label htmlFor="shareAddr" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center"><MapPin size={16} className="mr-2 text-slate-400"/> Share Property Address</label>
                                 </div>
-                                <div className="flex gap-4 text-xs text-slate-400 font-medium mt-1">
-                                    {req.propertyAddress && <span className="flex items-center"><MapPin size={12} className="mr-1"/> Address Shared</span>}
-                                    {req.linkedContext && <span className="flex items-center"><Link2 size={12} className="mr-1"/> Specs Shared</span>}
+                                <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
+                                     <Link2 size={16} className="ml-2 mr-2 text-slate-400"/>
+                                     <select value={linkedRecordId} onChange={(e) => setLinkedRecordId(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 w-full outline-none"><option value="">No Linked Item</option>{records && records.map(r => (<option key={r.id} value={r.id}>{r.item} ({r.brand || 'Generic'})</option>))}</select>
                                 </div>
                             </div>
-                            <div className="flex gap-2 w-full md:w-auto">
-                                {req.status === 'submitted' && (
-                                    <button onClick={() => onRequestImport(req)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors border border-emerald-200">
-                                        <ArrowDownToLine className="h-4 w-4 mr-2" /> Review & Import
-                                    </button>
-                                )}
-                                <button onClick={() => copyLink(req.id)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors">
-                                    <LinkIcon className="h-4 w-4 mr-2" /> Copy Link
-                                </button>
-                                <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="h-5 w-5" /></button>
-                            </div>
+                            <button type="submit" disabled={isCreating || !newRequestDesc} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 transition active:scale-[0.98]">{isCreating ? 'Creating...' : 'Create Secure Link'}</button>
+                        </form>
+                    </div>
+
+                    {requests.length === 0 ? (
+                        <EmptyState 
+                            icon={Send}
+                            title="No Active Requests"
+                            description="Create a request link above to send to your contractor. When they submit details, they'll appear here."
+                        />
+                    ) : (
+                        <div className="grid gap-4">
+                            {requests.map(req => (
+                                <div key={req.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                                    <div className="flex-grow w-full md:w-auto">
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <h3 className="font-bold text-slate-800 text-lg">{req.description}</h3>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${req.status === 'submitted' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>{req.status}</span>
+                                        </div>
+                                        <div className="flex gap-4 text-xs text-slate-400 font-medium mt-1">
+                                            {req.propertyAddress && <span className="flex items-center"><MapPin size={12} className="mr-1"/> Address Shared</span>}
+                                            {req.linkedContext && <span className="flex items-center"><Link2 size={12} className="mr-1"/> Specs Shared</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 w-full md:w-auto">
+                                        {req.status === 'submitted' && (
+                                            <button onClick={() => onRequestImport(req)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors border border-emerald-200">
+                                                <ArrowDownToLine className="h-4 w-4 mr-2" /> Review & Import
+                                            </button>
+                                        )}
+                                        <button onClick={() => copyLink(req.id)} className="flex-1 md:flex-none flex items-center justify-center px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg font-bold text-sm hover:bg-emerald-100 transition-colors">
+                                            <LinkIcon className="h-4 w-4 mr-2" /> Copy Link
+                                        </button>
+                                        <button onClick={() => handleDelete(req.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="h-5 w-5" /></button>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    )}
+                </>
+            )}
+
+            {view === 'pros' && (
+                <div className="space-y-4">
+                    {contractors.length === 0 ? (
+                        <EmptyState 
+                            icon={Hammer}
+                            title="No Contractors Yet"
+                            description="When you scan receipts or add items with contractor names, they will appear here automatically."
+                        />
+                    ) : (
+                        contractors.map((pro, idx) => (
+                            <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-12 w-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl">
+                                            {pro.name.charAt(0)}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-slate-800">{pro.name}</h3>
+                                            <div className="flex gap-4 mt-1 text-sm text-slate-500">
+                                                {pro.phone && <a href={`tel:${pro.phone}`} className="flex items-center hover:text-blue-600"><Phone size={14} className="mr-1"/> {pro.phone}</a>}
+                                                {pro.email && <a href={`mailto:${pro.email}`} className="flex items-center hover:text-blue-600"><Mail size={14} className="mr-1"/> {pro.email}</a>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">{pro.jobs.length} Jobs</span>
+                                    </div>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-slate-50">
+                                    <p className="text-xs font-bold text-slate-400 uppercase mb-2">Work History</p>
+                                    <div className="space-y-2">
+                                        {pro.jobs.map(job => (
+                                            <div key={job.id} className="flex justify-between text-sm">
+                                                <span className="text-slate-700 font-medium">{job.item}</span>
+                                                <span className="text-slate-400">{job.dateInstalled}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             )}
         </div>
