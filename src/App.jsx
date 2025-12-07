@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu } from 'lucide-react';
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu, CheckSquare } from 'lucide-react'; // Added CheckSquare
 
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -62,6 +62,10 @@ const AppContent = () => {
     const [filterCategory, setFilterCategory] = useState('All');
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+    
+    // NEW: Mass Delete State
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedRecords, setSelectedRecords] = useState(new Set());
 
     const getPropertiesList = () => {
         if (!profile) return [];
@@ -73,7 +77,6 @@ const AppContent = () => {
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
 
-    // DERIVE CONTRACTOR LIST FOR DASHBOARD
     const contractorsList = Object.values(activePropertyRecords.reduce((acc, r) => {
         if (r.contractor && r.contractor.length > 2) {
             acc[r.contractor] = { name: r.contractor, id: r.contractor };
@@ -178,6 +181,35 @@ const AppContent = () => {
         if (prop) toast.success(`Switched to ${prop.name}`);
     };
     
+    // NEW: Toggle record selection
+    const toggleRecordSelection = (id) => {
+        const newSet = new Set(selectedRecords);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedRecords(newSet);
+    };
+
+    // NEW: Batch Delete
+    const handleBatchDelete = async () => {
+        if (selectedRecords.size === 0) return;
+        if (!confirm(`Delete ${selectedRecords.size} items? This cannot be undone.`)) return;
+        
+        const batch = writeBatch(db);
+        selectedRecords.forEach(id => {
+            const ref = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id);
+            batch.delete(ref);
+        });
+
+        try {
+            await batch.commit();
+            toast.success("Items deleted.");
+            setSelectedRecords(new Set());
+            setIsSelectionMode(false);
+        } catch (e) {
+            toast.error("Failed to delete items.");
+        }
+    };
+
     const handleDeleteRecord = async (id) => { 
         toast((t) => (
             <div className="flex flex-col gap-2">
@@ -265,9 +297,19 @@ const AppContent = () => {
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
-                        <div>
-                            <h1 className="text-2xl font-extrabold text-emerald-950 leading-none flex items-center">krib<ChevronDown size={16} className="ml-1 text-slate-400"/></h1>
-                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">
+                                {activeProperty.name}
+                                <ChevronDown size={16} className="ml-1 text-slate-400"/>
+                            </h1>
+                            {activeProperty.address && (
+                                <div className="flex items-center text-slate-500 mt-1">
+                                    <MapPin size={10} className="mr-1" />
+                                    <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[200px]">
+                                        {activeProperty.address.street}, {activeProperty.address.city}, {activeProperty.address.state}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </button>
                     {isSwitchingProp && (
@@ -325,7 +367,6 @@ const AppContent = () => {
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
                 
-                {/* PROMINENT ADDRESS DISPLAY - MOVED HERE */}
                 {activeProperty.address && (
                     <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50 flex items-center justify-center text-center">
                         <MapPin size={16} className="text-emerald-600 mr-2" />
@@ -335,7 +376,6 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* Welcome screen for brand new users */}
                 {isNewUser && activeTab === 'Dashboard' && (
                     <WelcomeScreen 
                         propertyName={activeProperty.name}
@@ -344,7 +384,6 @@ const AppContent = () => {
                     />
                 )}
                 
-                {/* NEW DASHBOARD */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
                         <Dashboard 
@@ -359,7 +398,6 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
-                {/* Items Tab */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
@@ -375,7 +413,24 @@ const AppContent = () => {
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
+                            {/* Mass Delete Toggle */}
+                            <button 
+                                onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedRecords(new Set()); }}
+                                className={`px-4 rounded-xl font-bold flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
+                            >
+                                <CheckSquare size={20} className="mr-2"/> {isSelectionMode ? 'Cancel' : 'Select'}
+                            </button>
                         </div>
+
+                        {/* Batch Action Bar */}
+                        {isSelectionMode && selectedRecords.size > 0 && (
+                            <div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between items-center animate-in fade-in slide-in-from-top-4">
+                                <span className="font-bold text-slate-700">{selectedRecords.size} items selected</span>
+                                <button onClick={handleBatchDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center transition-colors">
+                                    <Trash2 size={16} className="mr-2"/> Delete Selected
+                                </button>
+                            </div>
+                        )}
 
                         {records.length === 0 ? (
                             <EmptyState 
@@ -413,7 +468,21 @@ const AppContent = () => {
                                         </summary>
                                         <div className="p-4 pt-0 space-y-4 border-t border-slate-50">
                                             {groupedRecords[category].map(r => (
-                                                <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                <div key={r.id} className="relative flex items-start gap-3">
+                                                    {isSelectionMode && (
+                                                        <div className="pt-6">
+                                                            <input 
+                                                                type="checkbox" 
+                                                                checked={selectedRecords.has(r.id)} 
+                                                                onChange={() => toggleRecordSelection(r.id)}
+                                                                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    <div className="flex-grow min-w-0">
+                                                        <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                    </div>
+                                                </div>
                                             ))}
                                         </div>
                                     </details>
@@ -427,7 +496,6 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* Contractors Tab */}
                 {activeTab === 'Contractors' && (
                     <FeatureErrorBoundary label="Contractors">
                         <RequestManager 
@@ -440,7 +508,6 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
                 
-                {/* Property Tab */}
                 {activeTab === 'Property' && (
                     <FeatureErrorBoundary label="Property">
                         <div className="space-y-8">
@@ -451,7 +518,6 @@ const AppContent = () => {
                 )}
             </main>
 
-            {/* Bottom Navigation */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
                 <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <LayoutDashboard size={24}/>
@@ -476,7 +542,6 @@ const AppContent = () => {
                 </button>
             </nav>
 
-            {/* Add/Edit Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
@@ -500,6 +565,8 @@ const AppContent = () => {
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
+    // ... (WrapperAddRecord code is identical to previous, keeping here for brevity as it was provided before) ...
+    // Note: Ensure WrapperAddRecord is included exactly as provided in previous steps
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
@@ -519,32 +586,25 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
-        
         if (!activeProperty || !activeProperty.id) {
             toast.error("No active property selected. Cannot save.");
             return;
         }
-
         setSaving(true);
         try {
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
-
             if (file) {
                 const isPdf = file.type === 'application/pdf';
                 const ext = isPdf ? 'pdf' : 'jpg'; 
                 sharedFileType = isPdf ? 'Document' : 'Photo';
-                
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
-                
                 await uploadBytes(storageRef, file);
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
-
             const batch = writeBatch(db);
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
-
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
                  const docData = {
@@ -557,8 +617,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     model: item.model || '',
                     area: item.area || '',
                     contractor: item.contractor || '',
-                    contractorPhone: item.contractorPhone || '', // Add phone
-                    contractorEmail: item.contractorEmail || '', // Add email
+                    contractorPhone: item.contractorPhone || '',
+                    contractorEmail: item.contractorEmail || '',
                     notes: item.notes || '',
                     cost: item.cost ? parseFloat(item.cost) : 0, 
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
@@ -572,15 +632,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     }] : [],
                     timestamp: serverTimestamp()
                 };
-                
                 batch.set(newDocRef, docData);
             });
-
             await batch.commit();
             setSaving(false);
             toast.success(`${items.length} item${items.length > 1 ? 's' : ''} added to your Krib!`);
             onSuccess();
-            
         } catch (error) {
             console.error("Batch Save Error:", error);
             toast.error("Failed to save items: " + error.message);
@@ -591,7 +648,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
-        
         const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
             if (att.fileRef) {
                 try {
@@ -601,13 +657,10 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                         const r = await fetch(c); 
                         file = await r.blob(); 
                     }
-                    
                     const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
-                    
                     const isPdf = att.fileRef.type.includes('pdf');
-                    
                     return { 
                         name: att.name, 
                         size: att.size, 
@@ -623,13 +676,10 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             }
             return att;
         }));
-        
         const finalAtts = processed.filter(Boolean);
         const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
-        
         const { originalRequestId, id, ...data } = newRecord;
         const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
-        
         try {
             if (editingRecord?.id) {
                 await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload);
