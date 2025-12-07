@@ -1,12 +1,6 @@
 // src/features/records/SmartScan.jsx
-// ============================================
-// 📸 SMART SCAN - AI Receipt Scanning
-// ============================================
-// This component uses AI to extract items from receipts/invoices.
-// Updated to use toast notifications.
-
 import React, { useRef, useState } from 'react';
-import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText, Loader2, Sparkles, CheckCircle } from 'lucide-react';
+import { ScanLine, Camera, ListChecks, Save, ChevronDown, XCircle, FileText, Loader2, Sparkles, CheckCircle, DollarSign } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
@@ -34,7 +28,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setCurrentFile(file);
         
         // Show loading toast
-        const loadingToast = toast.loading('Analyzing document...');
+        const loadingToast = toast.loading('Analyzing document for costs & items...');
 
         let base64Str = "";
         if (file.type === "application/pdf") {
@@ -73,16 +67,17 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 onAutoFill({
                     ...data.items[0],
                     category: data.items[0].category || data.primaryCategory,
-                    area: data.items[0].area || data.primaryArea
+                    area: data.items[0].area || data.primaryArea,
+                    cost: data.items[0].cost || ''
                 });
                 setScannedItems([]);
-                toast.success('Item detected! Details filled in below.', {
+                toast.success('Item & Cost detected! Details filled in below.', {
                     icon: '✨',
                     duration: 3000,
                 });
             } else {
                 // Multiple items found
-                toast.success(`Found ${data.items.length} items! Review them below.`, {
+                toast.success(`Found ${data.items.length} items with costs! Review them below.`, {
                     icon: '🎉',
                     duration: 4000,
                 });
@@ -104,7 +99,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const handleSaveAll = async () => {
         setIsSaving(true);
         
-        // Show saving toast
         const savingToast = toast.loading(`Saving ${scannedItems.length} items...`);
         
         try {
@@ -114,6 +108,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 contractor: globalStore || item.contractor,
                 area: item.area || globalArea,
                 category: globalCategory || item.category
+                // Cost is already in item.cost
             }));
             
             await onBatchSave(finalItems, currentFile);
@@ -127,9 +122,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
             setGlobalStore("");
             setGlobalArea("General");
             
-            // Dismiss loading and show success
             toast.dismiss(savingToast);
-            // Note: success toast is shown by the parent component
             
         } catch (e) {
             console.error("SmartScan Save Error:", e);
@@ -155,6 +148,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         });
     };
 
+    // Calculate total extracted value for quick check
+    const totalExtractedValue = scannedItems.reduce((acc, item) => acc + (parseFloat(item.cost) || 0), 0);
+
     return (
         <div className="mb-8">
             {/* Scan Trigger Area */}
@@ -164,11 +160,11 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                         <ScanLine className="mr-2 h-5 w-5 text-emerald-600"/> 
                         Smart Scan
                         <span className="ml-2 text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase">
-                            AI
+                            AI Cost Extraction
                         </span>
                     </h3>
                     <p className="text-xs text-emerald-600 mt-1">
-                        Upload a receipt, invoice, or label — we'll extract the details.
+                        Upload a receipt, invoice, or label — we'll extract items and costs.
                     </p>
                 </div>
                 <button 
@@ -180,12 +176,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                     {isScanning ? (
                         <>
                             <Loader2 className="animate-spin mr-2 h-4 w-4" />
-                            Analyzing...
+                            Reading Receipt...
                         </>
                     ) : (
                         <>
                             <Camera className="mr-2 h-4 w-4" /> 
-                            Scan Document
+                            Scan Receipt
                         </>
                     )}
                 </button>
@@ -203,24 +199,27 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
-                        <h4 className="font-bold text-slate-800 flex items-center">
-                            <ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> 
-                            Review Scanned Items
-                            <span className="ml-2 bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                                {scannedItems.length} found
-                            </span>
-                        </h4>
+                        <div>
+                            <h4 className="font-bold text-slate-800 flex items-center">
+                                <ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> 
+                                Review Items
+                                <span className="ml-2 bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                    {scannedItems.length} found
+                                </span>
+                            </h4>
+                            {totalExtractedValue > 0 && (
+                                <p className="text-xs text-slate-500 mt-1 ml-7">
+                                    Total Detected: <span className="font-bold text-emerald-600">${totalExtractedValue.toFixed(2)}</span>
+                                </p>
+                            )}
+                        </div>
                         <button 
                             type="button" 
                             onClick={handleSaveAll} 
                             disabled={isSaving} 
                             className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center disabled:opacity-50"
                         >
-                            {isSaving ? (
-                                <Loader2 className="animate-spin h-4 w-4 mr-2"/>
-                            ) : (
-                                <Save className="mr-2 h-4 w-4"/>
-                            )}
+                            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
                             {isSaving ? 'Saving...' : 'Save All'}
                         </button>
                     </div>
@@ -298,8 +297,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                 {scannedItems.map((item, idx) => (
                                     <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm relative group">
                                         <div className="flex gap-3">
-                                            <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <div>
+                                            <div className="flex-grow grid grid-cols-1 sm:grid-cols-12 gap-3">
+                                                {/* Item Name (5 cols) */}
+                                                <div className="sm:col-span-5">
                                                     <input 
                                                         type="text" 
                                                         value={item.item} 
@@ -324,7 +324,24 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                                         />
                                                     </div>
                                                 </div>
-                                                <div>
+                                                
+                                                {/* Cost (2 cols) - NEW FIELD */}
+                                                <div className="sm:col-span-3">
+                                                    <div className="relative">
+                                                        <span className="absolute left-0 top-1 text-slate-400 text-sm">$</span>
+                                                        <input 
+                                                            type="number" 
+                                                            value={item.cost} 
+                                                            onChange={e => updateItem(idx, 'cost', e.target.value)} 
+                                                            className="w-full text-sm font-bold text-emerald-600 border-0 border-b border-emerald-200 focus:ring-0 pl-3 py-1 placeholder-slate-300" 
+                                                            placeholder="0.00"
+                                                        />
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 mt-2">Cost</p>
+                                                </div>
+
+                                                {/* Category/Area (4 cols) */}
+                                                <div className="sm:col-span-4">
                                                     <select 
                                                         value={item.category || globalCategory} 
                                                         onChange={e => updateItem(idx, 'category', e.target.value)} 
@@ -369,11 +386,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                     disabled={isSaving} 
                                     className="w-full bg-emerald-600 text-white px-4 py-4 rounded-xl text-base font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 transition flex items-center justify-center disabled:opacity-50"
                                 >
-                                    {isSaving ? (
-                                        <Loader2 className="animate-spin h-5 w-5 mr-2"/>
-                                    ) : (
-                                        <Save className="mr-2 h-5 w-5"/>
-                                    )}
+                                    {isSaving ? <Loader2 className="animate-spin h-5 w-5 mr-2"/> : <Save className="mr-2 h-5 w-5"/>}
                                     {isSaving ? 'Saving Items...' : `Save All ${scannedItems.length} Items`}
                                 </button>
                             </div>
