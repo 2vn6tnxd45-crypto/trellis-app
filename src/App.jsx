@@ -25,6 +25,7 @@ import { Dashboard } from './features/dashboard/Dashboard';
 import { RequestManager } from './features/requests/RequestManager';
 import { ContractorView } from './features/requests/ContractorView';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
+import { CountyData } from './features/dashboard/CountyData'; // NEW IMPORT
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -399,7 +400,10 @@ const AppContent = () => {
                 {/* Property Tab */}
                 {activeTab === 'Property' && (
                     <FeatureErrorBoundary label="Property">
-                        <EnvironmentalInsights propertyProfile={activeProperty} />
+                        <div className="space-y-8">
+                            <EnvironmentalInsights propertyProfile={activeProperty} />
+                            <CountyData propertyProfile={activeProperty} />
+                        </div>
                     </FeatureErrorBoundary>
                 )}
             </main>
