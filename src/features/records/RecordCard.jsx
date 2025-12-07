@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
     ShieldAlert, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2, Paperclip, 
-    ChevronDown, ChevronUp, ExternalLink, Calendar,
+    ChevronDown, ChevronUp, ExternalLink, Calendar, DollarSign, // Added DollarSign
     Paintbrush, Plug, Grid, Fan, Droplet, Zap, Hammer, Sun, Wrench, Shield, Armchair, Box 
 } from 'lucide-react';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
@@ -32,6 +32,11 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
         checkSafety(record.brand, record.model);
     };
 
+    const formatCost = (amount) => {
+        if (!amount) return null;
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    };
+
     const docCount = record.attachments ? record.attachments.length : (record.imageUrl ? 1 : 0);
     const style = CATEGORY_CONFIG[record.category] || CATEGORY_CONFIG["Other"];
     const CategoryIcon = style.icon;
@@ -49,12 +54,22 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                 <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start gap-2">
                         <div className="min-w-0 flex-1">
-                            {/* FIXED: Added truncate to prevent overflow */}
                             <h3 className="text-lg font-bold text-slate-800 leading-tight truncate pr-2">
                                 {record.item || 'Unknown Item'}
                             </h3>
                             <div className="flex items-center gap-2 mt-1 text-sm text-slate-500 font-medium truncate">
                                 <span>{record.brand || 'No Brand'}</span>
+                                
+                                {/* NEW: Cost Display */}
+                                {record.cost > 0 && (
+                                    <>
+                                        <span className="text-slate-300">•</span>
+                                        <span className="text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded text-xs">
+                                            {formatCost(record.cost)}
+                                        </span>
+                                    </>
+                                )}
+
                                 {record.dateInstalled && (
                                     <>
                                         <span className="text-slate-300">•</span>
@@ -93,6 +108,12 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Model</p>
                                     <p className="font-medium text-slate-700">{record.model}</p>
+                                </div>
+                            )}
+                            {record.cost > 0 && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Cost</p>
+                                    <p className="font-bold text-emerald-600">{formatCost(record.cost)}</p>
                                 </div>
                             )}
                             {record.contractor && (
