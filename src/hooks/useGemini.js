@@ -45,7 +45,7 @@ export const useGemini = () => {
         }
     };
 
-    // 2. RECEIPT SCANNER (Updated for Contractor Info)
+    // 2. RECEIPT SCANNER
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) return null;
         setIsScanning(true);
@@ -123,7 +123,7 @@ export const useGemini = () => {
         }
     };
 
-    // 3. ROOM SCANNER (New Feature)
+    // 3. ROOM SCANNER (Updated for "Reverse Image Search" logic)
     const scanRoom = async (file, base64Str) => {
         if (!geminiModel || !file) return null;
         setIsScanning(true);
@@ -133,18 +133,25 @@ export const useGemini = () => {
             const categoriesStr = CATEGORIES.join(', ');
 
             const prompt = `
-                Analyze this photo of a room. 
-                Identify major appliances, furniture, fixtures, and systems visible.
+                Act as a visual search engine for home inventory. Analyze this photo.
                 
-                For each item found:
-                1. Name: A descriptive name (e.g. "Samsung French Door Fridge").
-                2. Category: Choose best from [${categoriesStr}].
-                3. Brand: Estimate brand if visible, otherwise "Unknown".
+                GOAL: Identify major appliances, furniture, flooring, and fixtures.
+                
+                SPECIFICITY RULES:
+                1. Do not just say "Tiles". Use visual cues to estimate "Travertine Tile" or "Ceramic Subway Tile".
+                2. Do not just say "Chair". Try to identify the style (e.g. "Eames Style Lounge Chair", "Mid-Century Modern Sofa").
+                3. MODEL IDENTIFICATION: If you see an appliance, try to identify the specific series or model based on its visual features (e.g. "Samsung Bespoke Series Fridge" instead of just "Fridge").
                 
                 Return JSON only:
                 {
                     "items": [
-                        { "item": "Name", "category": "Category", "brand": "Brand", "notes": "Visual description" }
+                        { 
+                            "item": "Specific Product Name", 
+                            "category": "Best fit from: ${categoriesStr}", 
+                            "brand": "Estimated Brand", 
+                            "model": "Estimated Series/Model (if visible)",
+                            "notes": "Visual description (color, material, condition)" 
+                        }
                     ]
                 }
             `;
