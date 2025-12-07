@@ -1,6 +1,6 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2, Save, ListChecks } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2, Save, ListChecks, Tag, Info } from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
@@ -17,7 +17,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const [isExpanded, setIsExpanded] = useState(!!isEditing);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
     
-    // NEW: Room Scan Review State
+    // Room Scan State
     const [roomScanResults, setRoomScanResults] = useState([]);
     const [roomScanFile, setRoomScanFile] = useState(null);
     const roomInputRef = useRef(null);
@@ -40,7 +40,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
             const data = await scanRoom(file, base64Str);
             
             if (data && data.items) {
-                // STOP: Don't save yet. Show review UI.
                 setRoomScanResults(data.items);
                 toast.success(`Identified ${data.items.length} items! Review them below.`);
             } else {
@@ -58,7 +57,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const handleSaveRoomItems = async () => {
         if (roomScanResults.length === 0) return;
         await onBatchSave(roomScanResults, roomScanFile);
-        setRoomScanResults([]); // Clear after save
+        setRoomScanResults([]); 
         setRoomScanFile(null);
     };
 
@@ -74,7 +73,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         setRoomScanResults(updated);
     };
 
-    // ... (rest of standard handlers like handleSuggest, handleAutoFill etc. - keeping them same) ...
+    // Standard handlers...
     const handleRoomChange = (e) => {
         if (e.target.value === "Other (Custom)") {
             setIsCustomArea(true);
@@ -132,50 +131,78 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             
-            {/* NEW: Room Scan Review UI */}
+            {/* NEW: Improved Room Scan Review UI */}
             {roomScanResults.length > 0 && (
-                <div className="p-6 bg-indigo-50 border-b border-indigo-100 animate-in fade-in slide-in-from-top-4">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold text-indigo-900 flex items-center">
-                            <ListChecks className="mr-2 h-5 w-5"/> Review Room Items ({roomScanResults.length})
-                        </h3>
+                <div className="p-6 bg-slate-50 border-b border-slate-200 animate-in fade-in slide-in-from-top-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center">
+                                <ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Items ({roomScanResults.length})
+                            </h3>
+                            <p className="text-sm text-slate-500">Edit the details before saving.</p>
+                        </div>
                         <button 
                             onClick={handleSaveRoomItems}
                             disabled={isSaving}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md flex items-center"
+                            className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center justify-center transition-transform active:scale-95"
                         >
                             {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
                             Save All Items
                         </button>
                     </div>
                     
-                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 pb-4">
                         {roomScanResults.map((item, idx) => (
-                            <div key={idx} className="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm flex gap-3 items-start">
-                                <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    <input 
-                                        value={item.item} 
-                                        onChange={(e) => updateRoomItem(idx, 'item', e.target.value)}
-                                        className="font-bold text-slate-800 border-b border-slate-200 focus:ring-0 w-full text-sm"
-                                        placeholder="Item Name"
-                                    />
-                                    <div className="flex gap-2">
+                            <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-emerald-300 transition-colors">
+                                {/* Delete Button */}
+                                <button 
+                                    onClick={() => removeRoomItem(idx)} 
+                                    className="absolute top-4 right-4 text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-all"
+                                >
+                                    <X size={20}/>
+                                </button>
+
+                                <div className="grid grid-cols-1 gap-4 pr-10">
+                                    {/* Main Title Input */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
                                         <input 
-                                            value={item.brand || ''} 
-                                            onChange={(e) => updateRoomItem(idx, 'brand', e.target.value)}
-                                            className="text-xs text-slate-500 border-b border-slate-200 w-1/2"
-                                            placeholder="Brand"
-                                        />
-                                        <input 
-                                            value={item.model || ''} 
-                                            onChange={(e) => updateRoomItem(idx, 'model', e.target.value)}
-                                            className="text-xs text-slate-500 border-b border-slate-200 w-1/2"
-                                            placeholder="Model"
+                                            value={item.item} 
+                                            onChange={(e) => updateRoomItem(idx, 'item', e.target.value)}
+                                            className="font-bold text-slate-800 border border-slate-200 rounded-lg p-3 w-full focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-slate-50 focus:bg-white transition-all"
+                                            placeholder="e.g. Modern Vanity"
                                         />
                                     </div>
-                                    {item.notes && <p className="text-[10px] text-slate-400 col-span-2 italic truncate">{item.notes}</p>}
+
+                                    {/* Details Grid */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center"><Tag size={10} className="mr-1"/> Brand</label>
+                                            <input 
+                                                value={item.brand || ''} 
+                                                onChange={(e) => updateRoomItem(idx, 'brand', e.target.value)}
+                                                className="text-sm text-slate-600 border border-slate-200 rounded-lg p-2.5 w-full focus:ring-emerald-500 outline-none"
+                                                placeholder="Unknown"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center"><Info size={10} className="mr-1"/> Model/Style</label>
+                                            <input 
+                                                value={item.model || ''} 
+                                                onChange={(e) => updateRoomItem(idx, 'model', e.target.value)}
+                                                className="text-sm text-slate-600 border border-slate-200 rounded-lg p-2.5 w-full focus:ring-emerald-500 outline-none"
+                                                placeholder="Style/Series"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Notes */}
+                                    {item.notes && (
+                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                            <p className="text-xs text-slate-500 italic">"{item.notes}"</p>
+                                        </div>
+                                    )}
                                 </div>
-                                <button onClick={() => removeRoomItem(idx)} className="text-slate-300 hover:text-red-500"><X size={16}/></button>
                             </div>
                         ))}
                     </div>
@@ -184,18 +211,16 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
             {!isEditing && roomScanResults.length === 0 && (
                 <div className="p-10 pb-0 space-y-6">
-                    {/* Two Scan Options */}
                     <div className="grid grid-cols-2 gap-4">
                         <FeatureErrorBoundary label="Smart Scan">
                             <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
                         </FeatureErrorBoundary>
                         
-                        {/* Room Scanner Button */}
                         <div className="h-full">
                             <button 
                                 onClick={() => roomInputRef.current?.click()}
                                 disabled={isScanning}
-                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group"
+                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group shadow-sm hover:shadow-md"
                             >
                                 {isScanning ? <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-2"/> : <Armchair className="h-8 w-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform"/>}
                                 <span className="font-bold text-indigo-900 block">Room Scan</span>
@@ -213,7 +238,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-slate-600 flex items-center font-bold uppercase tracking-wider"><X size={14} className="mr-1"/> Cancel</button>} 
                 </div> 
 
-                {/* ... (Standard Inputs - Category, Area, Item, Date - Kept same as previous) ... */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label>
@@ -247,7 +271,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
                 </div>
 
-                {/* File Upload Section */}
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Documents & Photos</label>
@@ -297,7 +320,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
                         </div>
 
-                        {/* Cost & Contractor */}
                         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Purchase & Contractor Info</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
