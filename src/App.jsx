@@ -43,6 +43,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppContent = () => {
+    // 1. HOOKS FIRST (Fixes the crash)
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
@@ -62,9 +63,7 @@ const AppContent = () => {
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
-    const isContractor = new URLSearchParams(window.location.search).get('requestId');
-    if (isContractor) return <ContractorView />;
-
+    // 2. Helper functions and derived state
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
@@ -75,6 +74,7 @@ const AppContent = () => {
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
 
+    // 3. Effects
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -211,6 +211,11 @@ const AppContent = () => {
             await updateDoc(profileRef, { hasSeenWelcome: true });
         }
     };
+
+    // 4. CHECK URL PARAMS AFTER HOOKS
+    // We move this check to the end so it doesn't violate React's Rules of Hooks
+    const isContractor = new URLSearchParams(window.location.search).get('requestId');
+    if (isContractor) return <ContractorView />;
 
     if (loading) return <AppShellSkeleton />;
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
@@ -402,8 +407,7 @@ const AppContent = () => {
                     <FeatureErrorBoundary label="Property">
                         <div className="space-y-8">
                             <EnvironmentalInsights propertyProfile={activeProperty} />
-                            {/* NEW: Display County Data below environment data */}
-                            <CountyData propertyProfile={activeProperty} />
+                            <CountyData propertyProfile={activeProperty} /> {/* NEW COMPONENT */}
                         </div>
                     </FeatureErrorBoundary>
                 )}
@@ -516,7 +520,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     area: item.area || '',
                     contractor: item.contractor || '',
                     notes: item.notes || '',
-                    // NEW: Persist cost data from SmartScan so Money Tracker works
+                    // NEW: Save cost field from scan so Money Tracker works!
                     cost: item.cost ? parseFloat(item.cost) : 0, 
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
