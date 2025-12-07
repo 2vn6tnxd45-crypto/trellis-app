@@ -43,7 +43,12 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
     };
 
     const handleDelete = async (id) => { if (confirm("Delete link?")) try { await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id)); } catch (e) {} };
-    const copyLink = (id) => { navigator.clipboard.writeText(`${window.location.origin}/?requestId=${id}`).then(() => alert("Link copied!")); };
+    
+    // UPDATED: Now uses origin + pathname to ensure we link to /app/
+    const copyLink = (id) => { 
+        const url = `${window.location.origin}${window.location.pathname}?requestId=${id}`;
+        navigator.clipboard.writeText(url).then(() => alert("Link copied!")); 
+    };
 
     return (
         <div className="space-y-8">
