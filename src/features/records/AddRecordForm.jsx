@@ -1,19 +1,22 @@
 // src/features/records/AddRecordForm.jsx
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign } from 'lucide-react'; 
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2 } from 'lucide-react'; 
+import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
 import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary';
+import { compressImage, fileToBase64 } from '../../lib/images';
 
 const DOC_TYPES = ["Photo", "Receipt", "Warranty", "Manual", "Contract", "Other"];
 
 export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange, onAttachmentsChange, isEditing, onCancelEdit }) => {
-    const { suggestMaintenance, isSuggesting } = useGemini();
+    const { suggestMaintenance, scanRoom, isSuggesting, isScanning } = useGemini();
     const [suggestedTasks, setSuggestedTasks] = useState([]);
     const [isCustomArea, setIsCustomArea] = useState(false);
     const [isExpanded, setIsExpanded] = useState(!!isEditing);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
+    const roomInputRef = useRef(null);
 
     useEffect(() => {
         if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true);
@@ -40,6 +43,31 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                 setSuggestedTasks(result.tasks);
                 onInputChange({ target: { name: 'maintenanceTasks', value: result.tasks } });
             }
+        }
+    };
+
+    const handleRoomScan = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const loadingToast = toast.loading("Analyzing room photo...");
+        try {
+            const base64Str = await compressImage(file);
+            const data = await scanRoom(file, base64Str);
+            
+            if (data && data.items) {
+                // We utilize the batch save logic from the parent
+                await onBatchSave(data.items, file); 
+                toast.success(`Found ${data.items.length} items in the room!`);
+            } else {
+                toast.error("Could not identify items.");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Room scan failed.");
+        } finally {
+            toast.dismiss(loadingToast);
+            if (roomInputRef.current) roomInputRef.current.value = "";
         }
     };
 
@@ -79,10 +107,27 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             
             {!isEditing && (
-                <div className="p-10 pb-0">
-                    <FeatureErrorBoundary label="Smart Scan">
-                        <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
-                    </FeatureErrorBoundary>
+                <div className="p-10 pb-0 space-y-6">
+                    {/* Two Scan Options */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <FeatureErrorBoundary label="Smart Scan">
+                            <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
+                        </FeatureErrorBoundary>
+                        
+                        {/* Room Scanner Button */}
+                        <div className="h-full">
+                            <button 
+                                onClick={() => roomInputRef.current?.click()}
+                                disabled={isScanning}
+                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center"
+                            >
+                                {isScanning ? <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-2"/> : <Armchair className="h-8 w-8 text-indigo-600 mb-2"/>}
+                                <span className="font-bold text-indigo-900 block">Room Scan</span>
+                                <span className="text-[10px] text-indigo-600 uppercase font-bold tracking-wide mt-1">Photo to Inventory</span>
+                            </button>
+                            <input ref={roomInputRef} type="file" accept="image/*" className="hidden" onChange={handleRoomScan} />
+                        </div>
+                    </div>
                 </div>
             )}
             
@@ -175,17 +220,28 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
                         </div>
 
-                        {/* NEW: Cost and Contractor Row */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor / Store</label>
-                                <input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Cost / Price</label>
-                                <div className="relative">
-                                    <span className="absolute left-4 top-3.5 text-slate-400 font-bold">$</span>
-                                    <input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-8 rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
+                        {/* Cost & Contractor Info */}
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Purchase & Contractor Info</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor / Store</label>
+                                    <input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost</label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-3 text-slate-400 font-bold">$</span>
+                                        <input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-6 rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Phone</label>
+                                    <input type="tel" name="contractorPhone" value={newRecord.contractorPhone} onChange={onInputChange} placeholder="(555) 123-4567" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Email</label>
+                                    <input type="email" name="contractorEmail" value={newRecord.contractorEmail} onChange={onInputChange} placeholder="pro@company.com" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
                                 </div>
                             </div>
                         </div>
