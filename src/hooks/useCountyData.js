@@ -11,11 +11,10 @@ export const useCountyData = (coordinates, address) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [serviceUrl, setServiceUrl] = useState(null);
-    
-    // NEW: Store the location we detected, even if we fail to get data
     const [detectedLocation, setDetectedLocation] = useState(null);
 
     useEffect(() => {
+        // Need at least a city/street OR coordinates to start
         if (!address?.city && !coordinates) return;
 
         const fetchCountyData = async () => {
@@ -24,14 +23,16 @@ export const useCountyData = (coordinates, address) => {
             
             let currentCounty = "";
             let currentState = address?.state || "";
+            let targetCoords = coordinates;
 
             try {
-                let targetCoords = coordinates;
-
-                // 1. Resolve Coordinates & County Name
+                // ---------------------------------------------------------
+                // STEP 1: RESOLVE LOCATION (Geocode or Reverse Geocode)
+                // ---------------------------------------------------------
                 const geocodeUrl = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer';
                 
                 if (!targetCoords || !targetCoords.lat) {
+                    // Scenario A: Address -> Coordinates (Legacy users)
                     const findUrl = `${geocodeUrl}/findAddressCandidates`;
                     const params = new URLSearchParams({
                         SingleLine: `${address.street}, ${address.city}, ${address.state}`,
@@ -51,6 +52,7 @@ export const useCountyData = (coordinates, address) => {
                         currentState = attr.Region || currentState;
                     }
                 } else {
+                    // Scenario B: Coordinates -> County Name (New users)
                     const reverseUrl = `${geocodeUrl}/reverseGeocode`;
                     const params = new URLSearchParams({
                         f: 'json',
@@ -65,18 +67,24 @@ export const useCountyData = (coordinates, address) => {
                             currentCounty = revData.address.Subregion || "";
                             currentState = revData.address.Region || currentState;
                         }
-                    } catch (e) { console.warn("Reverse lookup failed"); }
+                    } catch (e) { console.warn("Reverse lookup warning:", e); }
                 }
 
-                // SAVE WHAT WE KNOW
+                // Update state with what we found (even if data pull fails later)
                 setDetectedLocation({ county: currentCounty, state: currentState });
 
-                // 2. Try to find the actual data (The hard part)
-                const countyTerm = cleanName(currentCounty || address.city);
+                // ---------------------------------------------------------
+                // STEP 2: FIND PARCEL DATA (The "County-First" Strategy)
+                // ---------------------------------------------------------
+                const countyTerm = cleanName(currentCounty || address.county || address.city);
                 const stateTerm = currentState;
 
                 const searchQueries = [
+                    // Best: County + State + "Parcel"
                     `title:"${countyTerm}" AND title:"${stateTerm}" AND (title:"parcel" OR title:"assessor") type:"Feature Service"`,
+                    // Fallback: County + "Land"
+                    `title:"${countyTerm}" AND (title:"parcel" OR title:"land") type:"Feature Service"`,
+                    // Last Resort: State + "Parcel" (The "Shotgun" approach)
                     `title:"${stateTerm}" AND (title:"parcel" OR title:"assessor") type:"Feature Service"`
                 ];
 
@@ -86,12 +94,21 @@ export const useCountyData = (coordinates, address) => {
 
                 for (const query of searchQueries) {
                     if (foundData) break;
-                    const searchParams = new URLSearchParams({ q: query, f: 'json', num: 5, sortField: 'numViews', sortOrder: 'desc' });
+
+                    const searchParams = new URLSearchParams({
+                        q: query,
+                        f: 'json',
+                        num: 5,
+                        sortField: 'numViews',
+                        sortOrder: 'desc'
+                    });
+
                     const searchRes = await fetch(`${portalUrl}?${searchParams.toString()}`);
                     const searchData = await searchRes.json();
 
                     if (!searchData.results) continue;
 
+                    // Test candidates
                     for (const result of searchData.results) {
                         if (foundData) break;
                         try {
@@ -106,16 +123,22 @@ export const useCountyData = (coordinates, address) => {
                                 inSR: 4326
                             });
                             
+                            // Timeout to prevent hanging on dead servers
                             const controller = new AbortController();
-                            const id = setTimeout(() => controller.abort(), 3000);
+                            const id = setTimeout(() => controller.abort(), 3500);
+                            
                             const pRes = await fetch(`${qUrl}?${qParams.toString()}`, { signal: controller.signal });
                             clearTimeout(id);
                             
                             if (pRes.ok) {
                                 const pJson = await pRes.json();
                                 if (pJson.features?.length > 0) {
-                                    foundData = pJson.features[0].attributes;
-                                    usedUrl = result.url;
+                                    const attrs = pJson.features[0].attributes;
+                                    // Verify it has useful data
+                                    if (attrs.OWNER || attrs.Owner || attrs.APN || attrs.PARCEL_ID || attrs.AssessValue) {
+                                        foundData = attrs;
+                                        usedUrl = result.url;
+                                    }
                                 }
                             }
                         } catch (e) { continue; }
@@ -123,12 +146,15 @@ export const useCountyData = (coordinates, address) => {
                 }
 
                 if (foundData) {
-                    // ... (Normalization logic remains the same as previous)
                     setParcelData({
-                        owner: foundData.OWNER || foundData.Owner || "Unknown",
-                        apn: foundData.APN || foundData.PARCEL_ID || "Unknown",
-                        assessedValue: foundData.TOTAL_VALUE || foundData.AssessedValue || null,
-                        // ... add other fields as needed
+                        owner: foundData.OWNER || foundData.Owner || foundData.OWNER_NAME || foundData.OwnerName || "Unknown",
+                        apn: foundData.APN || foundData.PARCEL_ID || foundData.PIN || foundData.ParcelID || "Unknown",
+                        address: foundData.SITUS || foundData.SiteAddress || foundData.ADDRESS || "Unknown",
+                        assessedValue: foundData.TOTAL_VALUE || foundData.AssessedValue || foundData.TOTAL_ASSED || foundData.TotalValue || null,
+                        landValue: foundData.LAND_VALUE || foundData.LandValue || null,
+                        improvementValue: foundData.IMPROVEMENT_VALUE || foundData.ImpValue || null,
+                        legalDesc: foundData.LEGAL_DESC || foundData.LegalDescription || "N/A",
+                        raw: foundData
                     });
                     setServiceUrl(usedUrl);
                 } else {
@@ -138,7 +164,6 @@ export const useCountyData = (coordinates, address) => {
             } catch (err) {
                 console.warn("County Data Error:", err);
                 setError(err.message);
-                // Note: detectedLocation is still set, so the UI can use it!
             } finally {
                 setLoading(false);
             }
