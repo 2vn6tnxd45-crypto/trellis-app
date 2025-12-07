@@ -1,40 +1,30 @@
 // src/App.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Home, Camera, Search, Filter, XCircle, Wrench, Link as LinkIcon, BarChart3, Plus, X, FileText, Bell, ChevronDown, Building, PlusCircle, Check, Table, FileJson, Inbox, ChevronRight, LayoutDashboard, Package, Users, MapPin } from 'lucide-react';
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin } from 'lucide-react';
 
-// ============================================
-// 🍞 TOAST NOTIFICATIONS - Step 1
-// ============================================
-// We import the toast library and its container (Toaster)
-// Think of Toaster like a "notification inbox" that sits in the corner
-// and toast() like sending a message to that inbox
 import toast, { Toaster } from 'react-hot-toast';
 
-// Config & Libs
 import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
 
-// Components
 import { Logo } from './components/common/Logo';
 import { FeatureErrorBoundary } from './components/common/FeatureErrorBoundary';
 import { EmptyState } from './components/common/EmptyState';
-import { AppShellSkeleton, RecordCardSkeleton } from './components/common/Skeletons';
+import { AppShellSkeleton } from './components/common/Skeletons';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
+import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 import { RecordCard } from './features/records/RecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
-import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard';
+import { Dashboard } from './features/dashboard/Dashboard';
 import { RequestManager } from './features/requests/RequestManager';
 import { ContractorView } from './features/requests/ContractorView';
-import { PedigreeReport } from './features/report/PedigreeReport';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
-// NEW: Import our welcome component for new users
-import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -56,11 +46,6 @@ const AppContent = () => {
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
-    // ============================================
-    // 📍 NAVIGATION RENAME - Step 2
-    // ============================================
-    // Changed default from 'Maintenance' to 'Dashboard'
-    // This is just an internal name - we'll show friendlier labels in the UI
     const [activeTab, setActiveTab] = useState('Dashboard'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -74,10 +59,6 @@ const AppContent = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('All');
     const [isSavingProperty, setIsSavingProperty] = useState(false);
-    
-    // ============================================
-    // 🆕 NEW STATE: Track if user dismissed welcome
-    // ============================================
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
@@ -106,7 +87,6 @@ const AppContent = () => {
                     if (profileSnap.exists()) {
                         const data = profileSnap.data();
                         setProfile(data);
-                        // Check if user has seen welcome before
                         if (data.hasSeenWelcome) setHasSeenWelcome(true);
                         if (data.activePropertyId) setActivePropertyId(data.activePropertyId);
                         else if (data.properties && data.properties.length > 0) setActivePropertyId(data.properties[0].id);
@@ -124,11 +104,6 @@ const AppContent = () => {
                     setProfile(null); setRecords([]); setNewSubmissions([]);
                     if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests();
                 }
-            // ============================================
-            // 🍞 TOAST NOTIFICATIONS - Replace alert()
-            // ============================================
-            // Instead of: alert("Error: " + error.message);
-            // We now use: toast.error(error.message);
             } catch (error) { 
                 console.error(error); 
                 toast.error("Something went wrong: " + error.message);
@@ -155,7 +130,6 @@ const AppContent = () => {
         return matchesSearch && matchesCategory;
     });
 
-    // UX: Group records by Category
     const groupedRecords = filteredRecords.reduce((acc, record) => {
         const cat = record.category || 'Other';
         if (!acc[cat]) acc[cat] = [];
@@ -180,11 +154,9 @@ const AppContent = () => {
             }, { merge: true });
             const snap = await getDoc(profileRef);
             if (snap.exists()) setProfile(snap.data());
-            // 🍞 Success toast instead of nothing
             toast.success("Your Krib has been created!");
         } catch (error) {
             console.error("Error saving property:", error);
-            // 🍞 Error toast instead of alert()
             toast.error("Failed to create Krib: " + error.message);
         } finally {
             setIsSavingProperty(false);
@@ -195,14 +167,11 @@ const AppContent = () => {
     const handleSwitchProperty = async (propId) => { 
         setActivePropertyId(propId); 
         setIsSwitchingProp(false);
-        // 🍞 Info toast to confirm the switch
         const prop = properties.find(p => p.id === propId);
         if (prop) toast.success(`Switched to ${prop.name}`);
     };
     
     const handleDeleteRecord = async (id) => { 
-        // 🍞 Using a custom confirmation toast instead of confirm()
-        // This is a bit more advanced - we create a toast with buttons
         toast((t) => (
             <div className="flex flex-col gap-2">
                 <p className="font-medium">Delete this record?</p>
@@ -230,19 +199,12 @@ const AppContent = () => {
         ), { duration: 10000 });
     };
     
-    const handleCompleteTask = async (task) => { /* ... */ };
-    const handleAddStandardTask = async (suggestion) => { /* ... */ };
     const handleRequestImport = (req) => { setEditingRecord({...req, id: null, originalRequestId: req.id, dateInstalled: req.dateInstalled||'', maintenanceFrequency: req.maintenanceFrequency||'none'}); setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
-    const handleExport = (format) => { /* ... */ };
     
-    // ============================================
-    // 🆕 NEW: Handle welcome screen dismissal
-    // ============================================
     const handleDismissWelcome = async () => {
         setHasSeenWelcome(true);
-        // Save to profile so it doesn't show again
         if (user) {
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
             await updateDoc(profileRef, { hasSeenWelcome: true });
@@ -256,24 +218,13 @@ const AppContent = () => {
     if (!activeProperty) return <div className="p-10 text-center">Loading Property...</div>;
 
     const totalNotifications = dueTasks.length + newSubmissions.length;
-    
-    // ============================================
-    // 🆕 EMPTY STATE CHECK - Step 3
-    // ============================================
-    // If user has no records AND hasn't dismissed welcome, show welcome screen
     const isNewUser = records.length === 0 && !hasSeenWelcome;
 
     return (
-        // ============================================
-        // 🍞 TOASTER COMPONENT - This is the "inbox"
-        // ============================================
-        // We add <Toaster /> once at the top level
-        // It handles displaying all toast notifications
         <>
         <Toaster 
             position="top-center"
             toastOptions={{
-                // Default styles for all toasts
                 duration: 4000,
                 style: {
                     background: '#1e293b',
@@ -283,20 +234,8 @@ const AppContent = () => {
                     fontSize: '14px',
                     fontWeight: '500',
                 },
-                // Custom styles for success toasts
-                success: {
-                    iconTheme: {
-                        primary: '#10b981',
-                        secondary: '#fff',
-                    },
-                },
-                // Custom styles for error toasts
-                error: {
-                    iconTheme: {
-                        primary: '#ef4444',
-                        secondary: '#fff',
-                    },
-                },
+                success: { iconTheme: { primary: '#10b981', secondary: '#fff' } },
+                error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } },
             }}
         />
         
@@ -324,7 +263,24 @@ const AppContent = () => {
                         {showNotifications && (
                             <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Notifications</h3>
-                                {totalNotifications === 0 && <p className="text-xs text-slate-400">No new notifications.</p>}
+                                {totalNotifications === 0 ? (
+                                    <p className="text-xs text-slate-400">No new notifications.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {dueTasks.slice(0, 3).map(task => (
+                                            <div key={task.id} className="p-2 bg-amber-50 rounded-lg text-xs">
+                                                <p className="font-bold text-amber-800">{task.item}</p>
+                                                <p className="text-amber-600">Due in {task.diffDays} days</p>
+                                            </div>
+                                        ))}
+                                        {newSubmissions.slice(0, 2).map(sub => (
+                                            <div key={sub.id} className="p-2 bg-emerald-50 rounded-lg text-xs">
+                                                <p className="font-bold text-emerald-800">New submission</p>
+                                                <p className="text-emerald-600">{sub.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                         {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
@@ -335,12 +291,7 @@ const AppContent = () => {
 
             <main className="max-w-4xl mx-auto p-4 md:p-8">
                 
-                {/* ============================================
-                    🆕 WELCOME SCREEN FOR NEW USERS - Step 3
-                    ============================================
-                    If user has 0 records, show a friendly welcome
-                    instead of empty charts and "0" scores
-                */}
+                {/* Welcome screen for brand new users */}
                 {isNewUser && activeTab === 'Dashboard' && (
                     <WelcomeScreen 
                         propertyName={activeProperty.name}
@@ -349,19 +300,22 @@ const AppContent = () => {
                     />
                 )}
                 
-                {/* 1. DASHBOARD TAB (renamed from Maintenance) */}
+                {/* NEW DASHBOARD */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
-                        <MaintenanceDashboard 
-                            records={filteredRecords} 
-                            onCompleteTask={handleCompleteTask} 
-                            onAddStandardTask={handleAddStandardTask} 
-                            onNavigateToRecords={() => setActiveTab('Items')} 
+                        <Dashboard 
+                            records={activePropertyRecords}
+                            contractors={[]} 
+                            propertyName={activeProperty.name}
+                            onScanReceipt={() => openAddModal()}
+                            onNavigateToItems={() => setActiveTab('Items')}
+                            onNavigateToContractors={() => setActiveTab('Contractors')}
+                            onCreateContractorLink={() => setActiveTab('Contractors')}
                         />
                     </FeatureErrorBoundary>
                 )}
 
-                {/* 2. ITEMS TAB (renamed from Log/Records) */}
+                {/* Items Tab */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
@@ -429,7 +383,7 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* 3. CONTRACTORS TAB (renamed from Requests/Pros) */}
+                {/* Contractors Tab */}
                 {activeTab === 'Contractors' && (
                     <FeatureErrorBoundary label="Contractors">
                         <RequestManager 
@@ -442,7 +396,7 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
                 
-                {/* 4. PROPERTY TAB (renamed from Insights) */}
+                {/* Property Tab */}
                 {activeTab === 'Property' && (
                     <FeatureErrorBoundary label="Property">
                         <EnvironmentalInsights propertyProfile={activeProperty} />
@@ -450,14 +404,7 @@ const AppContent = () => {
                 )}
             </main>
 
-            {/* ============================================
-                📍 NAVIGATION - Step 2: Renamed Labels
-                ============================================
-                - Home → Dashboard (LayoutDashboard icon)
-                - Records → Items (Package icon)  
-                - Pros → Contractors (Users icon)
-                - Insights → Property (MapPin icon)
-            */}
+            {/* Bottom Navigation */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
                 <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <LayoutDashboard size={24}/>
@@ -482,6 +429,7 @@ const AppContent = () => {
                 </button>
             </nav>
 
+            {/* Add/Edit Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
@@ -580,7 +528,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
 
             await batch.commit();
             setSaving(false);
-            // 🍞 Success toast
             toast.success(`${items.length} item${items.length > 1 ? 's' : ''} added to your Krib!`);
             onSuccess();
             
