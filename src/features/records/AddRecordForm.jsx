@@ -1,6 +1,6 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2 } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2, Save, ListChecks } from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
@@ -16,6 +16,10 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const [isCustomArea, setIsCustomArea] = useState(false);
     const [isExpanded, setIsExpanded] = useState(!!isEditing);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
+    
+    // NEW: Room Scan Review State
+    const [roomScanResults, setRoomScanResults] = useState([]);
+    const [roomScanFile, setRoomScanFile] = useState(null);
     const roomInputRef = useRef(null);
 
     useEffect(() => {
@@ -24,6 +28,53 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (newRecord.attachments) setLocalAttachments(newRecord.attachments);
     }, [newRecord]);
 
+    const handleRoomScan = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        setRoomScanFile(file);
+        const loadingToast = toast.loading("AI is analyzing room & identifying products...");
+        
+        try {
+            const base64Str = await compressImage(file);
+            const data = await scanRoom(file, base64Str);
+            
+            if (data && data.items) {
+                // STOP: Don't save yet. Show review UI.
+                setRoomScanResults(data.items);
+                toast.success(`Identified ${data.items.length} items! Review them below.`);
+            } else {
+                toast.error("Could not identify items.");
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("Room scan failed.");
+        } finally {
+            toast.dismiss(loadingToast);
+            if (roomInputRef.current) roomInputRef.current.value = "";
+        }
+    };
+
+    const handleSaveRoomItems = async () => {
+        if (roomScanResults.length === 0) return;
+        await onBatchSave(roomScanResults, roomScanFile);
+        setRoomScanResults([]); // Clear after save
+        setRoomScanFile(null);
+    };
+
+    const updateRoomItem = (index, field, val) => {
+        const updated = [...roomScanResults];
+        updated[index][field] = val;
+        setRoomScanResults(updated);
+    };
+
+    const removeRoomItem = (index) => {
+        const updated = [...roomScanResults];
+        updated.splice(index, 1);
+        setRoomScanResults(updated);
+    };
+
+    // ... (rest of standard handlers like handleSuggest, handleAutoFill etc. - keeping them same) ...
     const handleRoomChange = (e) => {
         if (e.target.value === "Other (Custom)") {
             setIsCustomArea(true);
@@ -43,31 +94,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                 setSuggestedTasks(result.tasks);
                 onInputChange({ target: { name: 'maintenanceTasks', value: result.tasks } });
             }
-        }
-    };
-
-    const handleRoomScan = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const loadingToast = toast.loading("Analyzing room photo...");
-        try {
-            const base64Str = await compressImage(file);
-            const data = await scanRoom(file, base64Str);
-            
-            if (data && data.items) {
-                // We utilize the batch save logic from the parent
-                await onBatchSave(data.items, file); 
-                toast.success(`Found ${data.items.length} items in the room!`);
-            } else {
-                toast.error("Could not identify items.");
-            }
-        } catch (err) {
-            console.error(err);
-            toast.error("Room scan failed.");
-        } finally {
-            toast.dismiss(loadingToast);
-            if (roomInputRef.current) roomInputRef.current.value = "";
         }
     };
 
@@ -106,7 +132,57 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             
-            {!isEditing && (
+            {/* NEW: Room Scan Review UI */}
+            {roomScanResults.length > 0 && (
+                <div className="p-6 bg-indigo-50 border-b border-indigo-100 animate-in fade-in slide-in-from-top-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="font-bold text-indigo-900 flex items-center">
+                            <ListChecks className="mr-2 h-5 w-5"/> Review Room Items ({roomScanResults.length})
+                        </h3>
+                        <button 
+                            onClick={handleSaveRoomItems}
+                            disabled={isSaving}
+                            className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700 shadow-md flex items-center"
+                        >
+                            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
+                            Save All Items
+                        </button>
+                    </div>
+                    
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        {roomScanResults.map((item, idx) => (
+                            <div key={idx} className="bg-white p-3 rounded-xl border border-indigo-100 shadow-sm flex gap-3 items-start">
+                                <div className="flex-grow grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input 
+                                        value={item.item} 
+                                        onChange={(e) => updateRoomItem(idx, 'item', e.target.value)}
+                                        className="font-bold text-slate-800 border-b border-slate-200 focus:ring-0 w-full text-sm"
+                                        placeholder="Item Name"
+                                    />
+                                    <div className="flex gap-2">
+                                        <input 
+                                            value={item.brand || ''} 
+                                            onChange={(e) => updateRoomItem(idx, 'brand', e.target.value)}
+                                            className="text-xs text-slate-500 border-b border-slate-200 w-1/2"
+                                            placeholder="Brand"
+                                        />
+                                        <input 
+                                            value={item.model || ''} 
+                                            onChange={(e) => updateRoomItem(idx, 'model', e.target.value)}
+                                            className="text-xs text-slate-500 border-b border-slate-200 w-1/2"
+                                            placeholder="Model"
+                                        />
+                                    </div>
+                                    {item.notes && <p className="text-[10px] text-slate-400 col-span-2 italic truncate">{item.notes}</p>}
+                                </div>
+                                <button onClick={() => removeRoomItem(idx)} className="text-slate-300 hover:text-red-500"><X size={16}/></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {!isEditing && roomScanResults.length === 0 && (
                 <div className="p-10 pb-0 space-y-6">
                     {/* Two Scan Options */}
                     <div className="grid grid-cols-2 gap-4">
@@ -119,9 +195,9 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             <button 
                                 onClick={() => roomInputRef.current?.click()}
                                 disabled={isScanning}
-                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center"
+                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group"
                             >
-                                {isScanning ? <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-2"/> : <Armchair className="h-8 w-8 text-indigo-600 mb-2"/>}
+                                {isScanning ? <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-2"/> : <Armchair className="h-8 w-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform"/>}
                                 <span className="font-bold text-indigo-900 block">Room Scan</span>
                                 <span className="text-[10px] text-indigo-600 uppercase font-bold tracking-wide mt-1">Photo to Inventory</span>
                             </button>
@@ -137,6 +213,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-slate-600 flex items-center font-bold uppercase tracking-wider"><X size={14} className="mr-1"/> Cancel</button>} 
                 </div> 
 
+                {/* ... (Standard Inputs - Category, Area, Item, Date - Kept same as previous) ... */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label>
@@ -170,6 +247,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
                 </div>
 
+                {/* File Upload Section */}
                 <div>
                     <div className="flex justify-between items-center mb-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Documents & Photos</label>
@@ -178,7 +256,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             <input type="file" multiple onChange={handleFileSelect} className="hidden" />
                         </label>
                     </div>
-                    
                     {localAttachments.length > 0 ? (
                         <div className="space-y-2 mb-4">
                             {localAttachments.map((att, idx) => (
@@ -220,29 +297,14 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
                         </div>
 
-                        {/* Cost & Contractor Info */}
+                        {/* Cost & Contractor */}
                         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
                             <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Purchase & Contractor Info</h4>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor / Store</label>
-                                    <input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost</label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-3 text-slate-400 font-bold">$</span>
-                                        <input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-6 rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Phone</label>
-                                    <input type="tel" name="contractorPhone" value={newRecord.contractorPhone} onChange={onInputChange} placeholder="(555) 123-4567" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Email</label>
-                                    <input type="email" name="contractorEmail" value={newRecord.contractorEmail} onChange={onInputChange} placeholder="pro@company.com" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/>
-                                </div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor / Store</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost</label><div className="relative"><span className="absolute left-3 top-3 text-slate-400 font-bold">$</span><input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-6 rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div></div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Phone</label><input type="tel" name="contractorPhone" value={newRecord.contractorPhone} onChange={onInputChange} placeholder="(555) 123-4567" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
+                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Email</label><input type="email" name="contractorEmail" value={newRecord.contractorEmail} onChange={onInputChange} placeholder="pro@company.com" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
                             </div>
                         </div>
 
