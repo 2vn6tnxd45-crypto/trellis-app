@@ -1,9 +1,9 @@
 // src/App.jsx
 import React, { useState, useEffect } from 'react';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin } from 'lucide-react';
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu } from 'lucide-react';
 
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -50,6 +50,7 @@ const AppContent = () => {
     const [activeTab, setActiveTab] = useState('Dashboard'); 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
     const [dueTasks, setDueTasks] = useState([]);
     const [newSubmissions, setNewSubmissions] = useState([]);
     const [activePropertyId, setActivePropertyId] = useState(null);
@@ -71,6 +72,14 @@ const AppContent = () => {
     const properties = getPropertiesList();
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
+
+    // DERIVE CONTRACTOR LIST FOR DASHBOARD
+    const contractorsList = Object.values(activePropertyRecords.reduce((acc, r) => {
+        if (r.contractor && r.contractor.length > 2) {
+            acc[r.contractor] = { name: r.contractor, id: r.contractor };
+        }
+        return acc;
+    }, {}));
 
     useEffect(() => {
         let unsubRecords = null;
@@ -196,6 +205,17 @@ const AppContent = () => {
             </div>
         ), { duration: 10000 });
     };
+
+    const handleDeleteAccount = async () => {
+        if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return;
+        try {
+            await deleteUser(user);
+            toast.success("Account deleted.");
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to delete account. You may need to sign in again first.");
+        }
+    };
     
     const handleRequestImport = (req) => { setEditingRecord({...req, id: null, originalRequestId: req.id, dateInstalled: req.dateInstalled||'', maintenanceFrequency: req.maintenanceFrequency||'none'}); setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
@@ -245,19 +265,9 @@ const AppContent = () => {
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
-                        <div className="flex flex-col">
-                            <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">
-                                {activeProperty.name}
-                                <ChevronDown size={16} className="ml-1 text-slate-400"/>
-                            </h1>
-                            {activeProperty.address && (
-                                <div className="flex items-center text-slate-500 mt-1">
-                                    <MapPin size={10} className="mr-1" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[200px]">
-                                        {activeProperty.address.street}, {activeProperty.address.city}
-                                    </span>
-                                </div>
-                            )}
+                        <div>
+                            <h1 className="text-2xl font-extrabold text-emerald-950 leading-none flex items-center">krib<ChevronDown size={16} className="ml-1 text-slate-400"/></h1>
+                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
                         </div>
                     </button>
                     {isSwitchingProp && (
@@ -296,12 +306,35 @@ const AppContent = () => {
                         )}
                         {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
                     </div>
-                    <button onClick={() => signOut(auth)} className="p-2"><LogOut size={20} className="text-slate-400"/></button>
+                    
+                    <div className="relative">
+                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2"><Menu size={20} className="text-slate-400"/></button>
+                        {showUserMenu && (
+                            <>
+                                <div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+                                    <button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl flex items-center"><LogOut size={16} className="mr-2"/> Sign Out</button>
+                                    <div className="border-t border-slate-100 my-1"></div>
+                                    <button onClick={handleDeleteAccount} className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl flex items-center"><Trash2 size={16} className="mr-2"/> Delete Account</button>
+                                </div>
+                                <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-4xl mx-auto p-4 md:p-8">
+            <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
                 
+                {/* PROMINENT ADDRESS DISPLAY - MOVED HERE */}
+                {activeProperty.address && (
+                    <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50 flex items-center justify-center text-center">
+                        <MapPin size={16} className="text-emerald-600 mr-2" />
+                        <span className="font-bold text-emerald-900 text-lg">
+                            {activeProperty.address.street}, {activeProperty.address.city}, {activeProperty.address.state}
+                        </span>
+                    </div>
+                )}
+
                 {/* Welcome screen for brand new users */}
                 {isNewUser && activeTab === 'Dashboard' && (
                     <WelcomeScreen 
@@ -316,7 +349,7 @@ const AppContent = () => {
                     <FeatureErrorBoundary label="Dashboard">
                         <Dashboard 
                             records={activePropertyRecords}
-                            contractors={[]} 
+                            contractors={contractorsList} 
                             propertyName={activeProperty.name}
                             onScanReceipt={() => openAddModal()}
                             onNavigateToItems={() => setActiveTab('Items')}
@@ -524,6 +557,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     model: item.model || '',
                     area: item.area || '',
                     contractor: item.contractor || '',
+                    contractorPhone: item.contractorPhone || '', // Add phone
+                    contractorEmail: item.contractorEmail || '', // Add email
                     notes: item.notes || '',
                     cost: item.cost ? parseFloat(item.cost) : 0, 
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
