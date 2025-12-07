@@ -8,8 +8,9 @@ import { CATEGORIES, ROOMS } from '../config/constants';
 export const useGemini = () => {
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
-    const [isSearching, setIsSearching] = useState(false); // <--- This was likely missing
+    const [isSearching, setIsSearching] = useState(false);
 
+    // 1. MAINTENANCE SUGGESTIONS
     const suggestMaintenance = async (record) => {
         if (!geminiModel) return null;
         if (!record.item && !record.category) {
@@ -44,6 +45,7 @@ export const useGemini = () => {
         }
     };
 
+    // 2. RECEIPT SCANNER (Updated for Contractor Info)
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) return null;
         setIsScanning(true);
@@ -60,8 +62,9 @@ export const useGemini = () => {
                 VALID ROOMS: [${roomsStr}]
 
                 STEP 1: GLOBAL CONTEXT
-                - Look for a "Material" or "System" summary.
-                - Identify the Store/Contractor and Date.
+                - Identify the Store/Contractor Name.
+                - Look for Contractor Contact Info: Phone Number and Email Address if present.
+                - Identify the Date.
 
                 STEP 2: ITEM EXTRACTION RULES
                 - Extract PHYSICAL installed items only.
@@ -74,6 +77,8 @@ export const useGemini = () => {
                 Return JSON: 
                 { 
                   "store": "Contractor Name",
+                  "phone": "555-0199 (if found)",
+                  "email": "contact@company.com (if found)",
                   "date": "YYYY-MM-DD",
                   "primaryCategory": "Category", 
                   "primaryArea": "Room",
@@ -118,17 +123,53 @@ export const useGemini = () => {
         }
     };
 
+    // 3. ROOM SCANNER (New Feature)
+    const scanRoom = async (file, base64Str) => {
+        if (!geminiModel || !file) return null;
+        setIsScanning(true);
+        try {
+            const base64Data = getBase64Data(base64Str);
+            const mimeType = file.type || "image/jpeg";
+            const categoriesStr = CATEGORIES.join(', ');
+
+            const prompt = `
+                Analyze this photo of a room. 
+                Identify major appliances, furniture, fixtures, and systems visible.
+                
+                For each item found:
+                1. Name: A descriptive name (e.g. "Samsung French Door Fridge").
+                2. Category: Choose best from [${categoriesStr}].
+                3. Brand: Estimate brand if visible, otherwise "Unknown".
+                
+                Return JSON only:
+                {
+                    "items": [
+                        { "item": "Name", "category": "Category", "brand": "Brand", "notes": "Visual description" }
+                    ]
+                }
+            `;
+
+            const result = await geminiModel.generateContent([
+                prompt,
+                { inlineData: { data: base64Data, mimeType: mimeType } }
+            ]);
+            const text = result.response.text().replace(/```json|```/g, '').trim();
+            return JSON.parse(text);
+        } catch (error) {
+            console.error("Room Scan Error:", error);
+            return null;
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    // 4. COUNTY RECORDS GUIDE
     const getCountyRecordGuide = async (county, state) => {
         if (!geminiModel) return null;
         setIsSearching(true);
         try {
             const prompt = `
                 I need to find property tax or assessor records for: ${county}, ${state}.
-                
-                1. What is the official name of the department (e.g. "Orange County Property Appraiser")?
-                2. What is the likely URL for their property search tool?
-                3. Are there any specific tips for searching (e.g. "Search by address not name")?
-                
                 Return JSON only:
                 {
                     "department": "Name of Dept",
@@ -147,5 +188,5 @@ export const useGemini = () => {
         }
     };
 
-    return { suggestMaintenance, scanReceipt, getCountyRecordGuide, isSuggesting, isScanning, isSearching };
+    return { suggestMaintenance, scanReceipt, scanRoom, getCountyRecordGuide, isSuggesting, isScanning, isSearching };
 };
