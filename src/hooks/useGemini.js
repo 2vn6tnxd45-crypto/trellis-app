@@ -10,7 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // 1. MAINTENANCE SUGGESTIONS
+    // ... (suggestMaintenance and scanReceipt remain the same) ...
     const suggestMaintenance = async (record) => {
         if (!geminiModel) return null;
         if (!record.item && !record.category) {
@@ -45,7 +45,6 @@ export const useGemini = () => {
         }
     };
 
-    // 2. RECEIPT SCANNER
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) return null;
         setIsScanning(true);
@@ -123,7 +122,7 @@ export const useGemini = () => {
         }
     };
 
-    // 3. ROOM SCANNER (Updated for "Reverse Image Search" logic)
+    // 3. ROOM SCANNER (UPDATED PROMPT)
     const scanRoom = async (file, base64Str) => {
         if (!geminiModel || !file) return null;
         setIsScanning(true);
@@ -133,24 +132,30 @@ export const useGemini = () => {
             const categoriesStr = CATEGORIES.join(', ');
 
             const prompt = `
-                Act as a visual search engine for home inventory. Analyze this photo.
+                Act as a specialized Home Inventory App. Analyze this photo of a room.
+                Identify the distinct fixtures, appliances, and major furniture visible.
+
+                RULES FOR IDENTIFICATION:
+                1. **NO "UNKNOWN"**: If you can't see the brand, describe the item visually. 
+                   - BAD: "Unknown"
+                   - GOOD: "Modern Floating Vanity", "Matte Black Faucet", "Double-Hung Vinyl Window".
                 
-                GOAL: Identify major appliances, furniture, flooring, and fixtures.
-                
-                SPECIFICITY RULES:
-                1. Do not just say "Tiles". Use visual cues to estimate "Travertine Tile" or "Ceramic Subway Tile".
-                2. Do not just say "Chair". Try to identify the style (e.g. "Eames Style Lounge Chair", "Mid-Century Modern Sofa").
-                3. MODEL IDENTIFICATION: If you see an appliance, try to identify the specific series or model based on its visual features (e.g. "Samsung Bespoke Series Fridge" instead of just "Fridge").
-                
+                2. **GUESS THE STYLE/MODEL**: 
+                   - If it looks like a specific popular product (e.g. IKEA Godmorgon, Kohler Highline), suggest it in the 'model' field as "Likely [Product Name]".
+                   - If you can read a logo, use it for 'brand'.
+                   - If not, guess the 'brand' based on style (e.g. "Modern Style", "Contractor Grade").
+
+                3. **CATEGORY**: Pick the best fit from: [${categoriesStr}].
+
                 Return JSON only:
                 {
                     "items": [
                         { 
-                            "item": "Specific Product Name", 
-                            "category": "Best fit from: ${categoriesStr}", 
-                            "brand": "Estimated Brand", 
-                            "model": "Estimated Series/Model (if visible)",
-                            "notes": "Visual description (color, material, condition)" 
+                            "item": "Descriptive Name (e.g. '3-Light Vanity Fixture')", 
+                            "category": "Category", 
+                            "brand": "Brand or Style", 
+                            "model": "Estimated Series/Model",
+                            "notes": "Color, finish, and condition notes." 
                         }
                     ]
                 }
@@ -170,7 +175,7 @@ export const useGemini = () => {
         }
     };
 
-    // 4. COUNTY RECORDS GUIDE
+    // ... (getCountyRecordGuide remains the same) ...
     const getCountyRecordGuide = async (county, state) => {
         if (!geminiModel) return null;
         setIsSearching(true);
