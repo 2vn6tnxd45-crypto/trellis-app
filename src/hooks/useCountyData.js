@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 
 // Common stop words to clean up county names for better searching
 const cleanCountyName = (name) => {
+    if (!name) return '';
     return name.replace(' County', '').replace(' Parish', '').replace(' Borough', '').trim();
 };
 
@@ -13,37 +14,60 @@ export const useCountyData = (coordinates, address) => {
     const [countyServiceUrl, setCountyServiceUrl] = useState(null);
 
     useEffect(() => {
-        if (!coordinates || !address?.city) return;
+        // We need at least an address to work with
+        if (!address?.street && !address?.city) return;
 
         const fetchCountyData = async () => {
             setLoading(true);
             setError(null);
             
             try {
-                // 1. Identify County
-                // We use the address data. If administrative_area_level_2 isn't available, 
-                // we rely on the search.
-                // Assuming address object has: street, city, state, zip. 
-                // We really need the County name for this to work well.
-                // Since SetupPropertyForm might not save "County" explicitly, we can try to guess or use City+State.
-                
-                // Construct a search query for ArcGIS Portal
-                // We look for "Parcel" or "Assessor" feature services in the specific area.
-                
-                const countyName = cleanCountyName(address.county || address.city); // Fallback to city if county missing
+                let targetCoords = coordinates;
+
+                // ---------------------------------------------------------
+                // STEP 1: SELF-REPAIR (Geocoding Fallback)
+                // If we don't have saved coordinates (Legacy users), fetch them now.
+                // ---------------------------------------------------------
+                if (!targetCoords || !targetCoords.lat) {
+                    // Use ArcGIS World Geocoding Service (Public/Free for low volume)
+                    const geocodeUrl = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
+                    const fullAddress = `${address.street}, ${address.city}, ${address.state}`;
+                    
+                    const geoParams = new URLSearchParams({
+                        SingleLine: fullAddress,
+                        f: 'json',
+                        maxLocations: 1,
+                        outFields: '*'
+                    });
+
+                    const geoRes = await fetch(`${geocodeUrl}?${geoParams.toString()}`);
+                    const geoData = await geoRes.json();
+
+                    if (geoData.candidates && geoData.candidates.length > 0) {
+                        const location = geoData.candidates[0].location;
+                        targetCoords = { lat: location.y, lon: location.x };
+                        // Optional: You could infer the county name here from geoData attributes if needed
+                    } else {
+                        throw new Error("Could not locate this address on the map.");
+                    }
+                }
+
+                // ---------------------------------------------------------
+                // STEP 2: FIND COUNTY SERVER
+                // ---------------------------------------------------------
+                const countyName = cleanCountyName(address.county || address.city); 
                 const stateName = address.state;
 
                 const portalUrl = 'https://www.arcgis.com/sharing/rest/search';
                 
-                // Strategy: Search for a public Feature Service matching the location tags
-                // We prioritize "Parcel" and "Cadastral" layers.
-                const query = `(title:"parcels" OR title:"assessor" OR title:"cadastral") AND (title:"${countyName}" OR tags:"${countyName}") AND (title:"${stateName}" OR tags:"${stateName}") AND type:"Feature Service"`;
+                // Broader search query to catch more counties
+                const query = `(title:"parcels" OR title:"assessor" OR title:"cadastral" OR title:"landbase") AND (title:"${stateName}") AND type:"Feature Service"`;
                 
                 const searchParams = new URLSearchParams({
                     q: query,
                     f: 'json',
-                    num: 5,
-                    sortField: 'numViews', // Get popular/official ones first
+                    num: 20, // Fetch more candidates
+                    sortField: 'numViews',
                     sortOrder: 'desc'
                 });
 
@@ -54,64 +78,77 @@ export const useCountyData = (coordinates, address) => {
                     throw new Error("Could not find a public county record service.");
                 }
 
-                // 2. Find a queryable layer
-                // We take the top result URL
-                const serviceUrl = searchData.results[0].url;
-                setCountyServiceUrl(serviceUrl);
+                // ---------------------------------------------------------
+                // STEP 3: QUERY LAYERS (Try multiple candidates)
+                // ---------------------------------------------------------
+                let foundData = null;
+                let usedUrl = null;
 
-                // 3. Query the Feature Service for the specific point
-                // Usually Layer 0 is the main parcel layer, but we can try 0, 1, or search layers.
-                // We'll default to Layer 0.
-                const queryLayerUrl = `${serviceUrl}/0/query`;
-                
-                const queryParams = new URLSearchParams({
-                    f: 'json',
-                    geometry: `${coordinates.lon},${coordinates.lat}`,
-                    geometryType: 'esriGeometryPoint',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    outFields: '*', // Get all fields
-                    returnGeometry: false,
-                    inSR: 4326 // Input Spatial Reference (WGS84)
-                });
+                // Try the top 3 most popular services found for this state
+                // This is a "shotgun approach" because we can't be sure which one is the *specific* county 
+                // without complex spatial queries, but usually the local county server will respond to the coordinate.
+                for (const result of searchData.results.slice(0, 3)) {
+                    if (foundData) break;
 
-                const parcelRes = await fetch(`${queryLayerUrl}?${queryParams.toString()}`);
-                const parcelJson = await parcelRes.json();
+                    try {
+                        const serviceUrl = result.url;
+                        // Try Layer 0 (most common)
+                        const queryLayerUrl = `${serviceUrl}/0/query`;
+                        
+                        const queryParams = new URLSearchParams({
+                            f: 'json',
+                            geometry: `${targetCoords.lon},${targetCoords.lat}`,
+                            geometryType: 'esriGeometryPoint',
+                            spatialRel: 'esriSpatialRelIntersects',
+                            outFields: '*', 
+                            returnGeometry: false,
+                            inSR: 4326
+                        });
 
-                if (parcelJson.features && parcelJson.features.length > 0) {
-                    const attributes = parcelJson.features[0].attributes;
-                    
-                    // Normalize data (different counties use different field names)
+                        // Set a timeout so we don't hang on dead servers
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 sec timeout
+
+                        const parcelRes = await fetch(`${queryLayerUrl}?${queryParams.toString()}`, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        
+                        if (!parcelRes.ok) continue; 
+                        
+                        const parcelJson = await parcelRes.json();
+
+                        if (parcelJson.features && parcelJson.features.length > 0) {
+                            const attributes = parcelJson.features[0].attributes;
+                            
+                            // Basic validation: Does it look like a parcel?
+                            if (attributes.APN || attributes.PARCEL_ID || attributes.OWNER || attributes.Owner) {
+                                foundData = attributes;
+                                usedUrl = serviceUrl;
+                            }
+                        }
+                    } catch (e) {
+                        // Continue to next candidate if this one fails
+                        continue;
+                    }
+                }
+
+                if (foundData) {
+                    // Normalize data
                     const normalized = {
-                        owner: attributes.OWNER || attributes.Owner || attributes.OWNER_NAME || attributes.OwnerName || "Unknown",
-                        apn: attributes.APN || attributes.PARCEL_ID || attributes.PIN || attributes.ParcelID || "Unknown",
-                        address: attributes.SITUS || attributes.SiteAddress || attributes.ADDRESS || attributes.Location || "Unknown",
-                        assessedValue: attributes.TOTAL_VALUE || attributes.AssessedValue || attributes.TOTAL_ASSED || attributes.TotalValue || null,
-                        landValue: attributes.LAND_VALUE || attributes.LandValue || null,
-                        improvementValue: attributes.IMPROVEMENT_VALUE || attributes.ImpValue || null,
-                        yearBuilt: attributes.YEAR_BUILT || attributes.YearBuilt || attributes.EFF_YEAR_BUILT || null,
-                        legalDesc: attributes.LEGAL_DESC || attributes.LegalDescription || "N/A",
-                        raw: attributes // Keep raw for debugging/extra fields
+                        owner: foundData.OWNER || foundData.Owner || foundData.OWNER_NAME || foundData.OwnerName || "Unknown",
+                        apn: foundData.APN || foundData.PARCEL_ID || foundData.PIN || foundData.ParcelID || foundData.APN_D || "Unknown",
+                        address: foundData.SITUS || foundData.SiteAddress || foundData.ADDRESS || foundData.Location || "Unknown",
+                        assessedValue: foundData.TOTAL_VALUE || foundData.AssessedValue || foundData.TOTAL_ASSED || foundData.TotalValue || foundData.NET_VALUE || null,
+                        landValue: foundData.LAND_VALUE || foundData.LandValue || null,
+                        improvementValue: foundData.IMPROVEMENT_VALUE || foundData.ImpValue || null,
+                        yearBuilt: foundData.YEAR_BUILT || foundData.YearBuilt || foundData.EFF_YEAR_BUILT || null,
+                        legalDesc: foundData.LEGAL_DESC || foundData.LegalDescription || "N/A",
+                        raw: foundData
                     };
                     
                     setParcelData(normalized);
+                    setCountyServiceUrl(usedUrl);
                 } else {
-                    // Try searching layer 1 if layer 0 failed (common in some map services)
-                     const queryLayerUrl1 = `${serviceUrl}/1/query`;
-                     const parcelRes1 = await fetch(`${queryLayerUrl1}?${queryParams.toString()}`);
-                     const parcelJson1 = await parcelRes1.json();
-                     
-                     if (parcelJson1.features && parcelJson1.features.length > 0) {
-                         // ... (Duplicate logic for brevity, ideally refactor)
-                         const attributes = parcelJson1.features[0].attributes;
-                         setParcelData({
-                            owner: attributes.OWNER || attributes.OwnerName || "Unknown",
-                            apn: attributes.APN || attributes.ParcelID || "Unknown",
-                             // ... simplistic mapping
-                            raw: attributes
-                         });
-                     } else {
-                        throw new Error("Location found, but no parcel record at this coordinate.");
-                     }
+                    throw new Error("Location found, but no public parcel record could be linked.");
                 }
 
             } catch (err) {
@@ -123,7 +160,7 @@ export const useCountyData = (coordinates, address) => {
         };
 
         fetchCountyData();
-    }, [coordinates, address]);
+    }, [coordinates, address]); // Re-run if address changes
 
     return { parcelData, loading, error, serviceUrl: countyServiceUrl };
 };
