@@ -1,6 +1,6 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign } from 'lucide-react'; 
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
@@ -175,7 +175,20 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
                         </div>
 
-                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor / Store</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
+                        {/* NEW: Cost and Contractor Row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Contractor / Store</label>
+                                <input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Cost / Price</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-3.5 text-slate-400 font-bold">$</span>
+                                    <input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-8 rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
+                                </div>
+                            </div>
+                        </div>
 
                         <div className="border-t border-slate-100 pt-4">
                             <div className="flex justify-between items-center mb-2">
