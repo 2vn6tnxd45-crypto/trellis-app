@@ -25,7 +25,7 @@ import { Dashboard } from './features/dashboard/Dashboard';
 import { RequestManager } from './features/requests/RequestManager';
 import { ContractorView } from './features/requests/ContractorView';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
-import { CountyData } from './features/dashboard/CountyData'; // NEW IMPORT
+import { CountyData } from './features/dashboard/CountyData';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -43,7 +43,6 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppContent = () => {
-    // 1. HOOKS FIRST (Fixes the crash)
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
@@ -63,7 +62,6 @@ const AppContent = () => {
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
 
-    // 2. Helper functions and derived state
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
@@ -74,7 +72,6 @@ const AppContent = () => {
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
 
-    // 3. Effects
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -212,8 +209,6 @@ const AppContent = () => {
         }
     };
 
-    // 4. CHECK URL PARAMS AFTER HOOKS
-    // We move this check to the end so it doesn't violate React's Rules of Hooks
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorView />;
 
@@ -250,9 +245,19 @@ const AppContent = () => {
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
-                        <div>
-                            <h1 className="text-2xl font-extrabold text-emerald-950 leading-none flex items-center">krib<ChevronDown size={16} className="ml-1 text-slate-400"/></h1>
-                            <p className="text-xs text-slate-500 font-bold uppercase tracking-wider max-w-[150px] truncate">{activeProperty.name}</p>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">
+                                {activeProperty.name}
+                                <ChevronDown size={16} className="ml-1 text-slate-400"/>
+                            </h1>
+                            {activeProperty.address && (
+                                <div className="flex items-center text-slate-500 mt-1">
+                                    <MapPin size={10} className="mr-1" />
+                                    <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[200px]">
+                                        {activeProperty.address.street}, {activeProperty.address.city}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </button>
                     {isSwitchingProp && (
@@ -407,7 +412,7 @@ const AppContent = () => {
                     <FeatureErrorBoundary label="Property">
                         <div className="space-y-8">
                             <EnvironmentalInsights propertyProfile={activeProperty} />
-                            <CountyData propertyProfile={activeProperty} /> {/* NEW COMPONENT */}
+                            <CountyData propertyProfile={activeProperty} />
                         </div>
                     </FeatureErrorBoundary>
                 )}
@@ -520,7 +525,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     area: item.area || '',
                     contractor: item.contractor || '',
                     notes: item.notes || '',
-                    // NEW: Save cost field from scan so Money Tracker works!
                     cost: item.cost ? parseFloat(item.cost) : 0, 
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
