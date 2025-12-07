@@ -402,6 +402,7 @@ const AppContent = () => {
                     <FeatureErrorBoundary label="Property">
                         <div className="space-y-8">
                             <EnvironmentalInsights propertyProfile={activeProperty} />
+                            {/* NEW: Display County Data below environment data */}
                             <CountyData propertyProfile={activeProperty} />
                         </div>
                     </FeatureErrorBoundary>
@@ -515,6 +516,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     area: item.area || '',
                     contractor: item.contractor || '',
                     notes: item.notes || '',
+                    // NEW: Persist cost data from SmartScan so Money Tracker works
+                    cost: item.cost ? parseFloat(item.cost) : 0, 
                     dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0],
                     maintenanceFrequency: 'none',
                     nextServiceDate: null, 
