@@ -1,10 +1,11 @@
 // src/features/records/RecordCard.jsx
 import React, { useState } from 'react';
 import { 
-    ShieldAlert, ShieldCheck, AlertCircle, Loader2, Pencil, Trash2, Paperclip, 
-    ChevronDown, ChevronUp, ExternalLink, Calendar, DollarSign, // Added DollarSign
-    Paintbrush, Plug, Grid, Fan, Droplet, Zap, Hammer, Sun, Wrench, Shield, Armchair, Box 
+    ShieldAlert, ShieldCheck, Loader2, Pencil, Trash2, Paperclip, 
+    ExternalLink, Calendar, Paintbrush, Plug, Grid, Fan, Droplet, 
+    Zap, Hammer, Sun, Wrench, Shield, Armchair, Box, Crop 
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useRecalls } from '../../hooks/useRecalls';
 
@@ -26,10 +27,22 @@ const CATEGORY_CONFIG = {
 export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
     const { checkSafety, status: recallStatus, loading: checkingRecall } = useRecalls();
     const [isExpanded, setIsExpanded] = useState(false);
+    
+    // New state for image positioning
+    const [imagePosition, setImagePosition] = useState('center'); // center, top, bottom
 
     const handleCheckSafety = (e) => {
         e.stopPropagation();
         checkSafety(record.brand, record.model);
+    };
+
+    const toggleCrop = (e) => {
+        e.stopPropagation();
+        const positions = ['center', 'top', 'bottom'];
+        const currentIdx = positions.indexOf(imagePosition);
+        const nextPos = positions[(currentIdx + 1) % positions.length];
+        setImagePosition(nextPos);
+        toast(`Image Focus: ${nextPos.charAt(0).toUpperCase() + nextPos.slice(1)}`, { icon: '🖼️', duration: 1000 });
     };
 
     const formatCost = (amount) => {
@@ -37,7 +50,6 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     };
 
-    const docCount = record.attachments ? record.attachments.length : (record.imageUrl ? 1 : 0);
     const style = CATEGORY_CONFIG[record.category] || CATEGORY_CONFIG["Other"];
     const CategoryIcon = style.icon;
 
@@ -60,7 +72,6 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             <div className="flex items-center gap-2 mt-1 text-sm text-slate-500 font-medium truncate">
                                 <span>{record.brand || 'No Brand'}</span>
                                 
-                                {/* NEW: Cost Display */}
                                 {record.cost > 0 && (
                                     <>
                                         <span className="text-slate-300">•</span>
@@ -97,9 +108,24 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                 <div className="px-5 pb-5 pt-0 animate-in fade-in slide-in-from-top-1 duration-200">
                     <div className="border-t border-slate-100 pt-4 mt-2 space-y-4">
                         
+                        {/* UPDATED IMAGE COMPONENT WITH CROP TOGGLE */}
                         {record.imageUrl && (
-                            <div className="h-40 w-full bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
-                                <img src={record.imageUrl} alt={record.item} className="w-full h-full object-cover"/>
+                            <div className="relative group/image">
+                                <div className="h-40 w-full bg-slate-50 rounded-xl overflow-hidden border border-slate-100">
+                                    <img 
+                                        src={record.imageUrl} 
+                                        alt={record.item} 
+                                        className={`w-full h-full object-cover object-${imagePosition} transition-all duration-500`}
+                                    />
+                                </div>
+                                <button 
+                                    onClick={toggleCrop}
+                                    className="absolute bottom-2 right-2 bg-black/60 text-white p-1.5 rounded-lg opacity-0 group-hover/image:opacity-100 transition-opacity hover:bg-black/80 flex items-center gap-1 text-xs font-bold backdrop-blur-sm"
+                                    title="Change Focus Position"
+                                >
+                                    <Crop size={14} /> 
+                                    <span className="uppercase text-[10px]">{imagePosition}</span>
+                                </button>
                             </div>
                         )}
 
