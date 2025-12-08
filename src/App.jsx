@@ -1,9 +1,9 @@
 // src/App.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu, CheckSquare } from 'lucide-react'; // Added CheckSquare
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu, CheckSquare, DoorOpen } from 'lucide-react'; 
 
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -83,6 +83,19 @@ const AppContent = () => {
         }
         return acc;
     }, {}));
+
+    // NEW: Calculate Rooms Data for "Rooms" View
+    const roomsViewData = useMemo(() => {
+        const rooms = {};
+        activePropertyRecords.forEach(r => {
+            const roomName = r.area || 'General';
+            if (!rooms[roomName]) rooms[roomName] = { name: roomName, itemCount: 0, items: [], value: 0 };
+            rooms[roomName].items.push(r);
+            rooms[roomName].itemCount++;
+            rooms[roomName].value += (parseFloat(r.cost) || 0);
+        });
+        return Object.values(rooms).sort((a,b) => b.value - a.value);
+    }, [activePropertyRecords]);
 
     useEffect(() => {
         let unsubRecords = null;
@@ -302,14 +315,7 @@ const AppContent = () => {
                                 {activeProperty.name}
                                 <ChevronDown size={16} className="ml-1 text-slate-400"/>
                             </h1>
-                            {activeProperty.address && (
-                                <div className="flex items-center text-slate-500 mt-1">
-                                    <MapPin size={10} className="mr-1" />
-                                    <span className="text-[10px] font-bold uppercase tracking-wide truncate max-w-[200px]">
-                                        {activeProperty.address.street}, {activeProperty.address.city}, {activeProperty.address.state}
-                                    </span>
-                                </div>
-                            )}
+                            {/* REMOVED ADDRESS FROM HEADER AS REQUESTED */}
                         </div>
                     </button>
                     {isSwitchingProp && (
@@ -367,7 +373,8 @@ const AppContent = () => {
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
                 
-                {activeProperty.address && (
+                {/* NEW: Address moved here for prominence (for non-dashboard views) */}
+                {activeTab !== 'Dashboard' && activeProperty.address && (
                     <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50 flex items-center justify-center text-center">
                         <MapPin size={16} className="text-emerald-600 mr-2" />
                         <span className="font-bold text-emerald-900 text-lg">
@@ -389,6 +396,7 @@ const AppContent = () => {
                         <Dashboard 
                             records={activePropertyRecords}
                             contractors={contractorsList} 
+                            activeProperty={activeProperty}
                             propertyName={activeProperty.name}
                             onScanReceipt={() => openAddModal()}
                             onNavigateToItems={() => setActiveTab('Items')}
@@ -396,6 +404,58 @@ const AppContent = () => {
                             onCreateContractorLink={() => setActiveTab('Contractors')}
                         />
                     </FeatureErrorBoundary>
+                )}
+
+                {/* NEW: ROOMS VIEW */}
+                {activeTab === 'Rooms' && (
+                     <div className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-bold text-emerald-950">My Rooms</h2>
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">{roomsViewData.length} Areas</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {roomsViewData.map(room => (
+                                <details key={room.name} className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                    <summary className="flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition select-none list-none">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-12 w-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                                <DoorOpen size={24} />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-800 text-lg">{room.name}</h3>
+                                                <p className="text-xs text-slate-500 font-medium">{room.itemCount} items • ${(room.value || 0).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                        <ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" />
+                                    </summary>
+                                    <div className="p-4 pt-0 border-t border-slate-50 bg-slate-50/50">
+                                        <div className="space-y-3 mt-4">
+                                            {room.items.map(r => (
+                                                <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                            ))}
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingRecord({ area: room.name }); // Pre-fill room
+                                                    setIsAddModalOpen(true);
+                                                }}
+                                                className="w-full py-3 text-sm font-bold text-indigo-600 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-center"
+                                            >
+                                                <Plus size={16} className="mr-2"/> Add Item to {room.name}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </details>
+                            ))}
+                        </div>
+                        {roomsViewData.length === 0 && (
+                            <EmptyState 
+                                icon={DoorOpen}
+                                title="No Rooms Yet"
+                                description="Items you add will automatically be grouped into rooms here."
+                            />
+                        )}
+                     </div>
                 )}
 
                 {activeTab === 'Items' && (
@@ -518,23 +578,24 @@ const AppContent = () => {
                 )}
             </main>
 
+            {/* UPDATED NAV BAR WITH ROOMS */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
                 <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <LayoutDashboard size={24}/>
                     <span className="text-[10px] font-bold mt-1">Dashboard</span>
                 </button>
-                <button onClick={() => setActiveTab('Items')} className={`flex flex-col items-center ${activeTab === 'Items' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <Package size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Items</span>
+                 <button onClick={() => setActiveTab('Rooms')} className={`flex flex-col items-center ${activeTab === 'Rooms' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <DoorOpen size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Rooms</span>
                 </button>
                 <div className="relative -top-8">
                     <button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-colors active:scale-95">
                         <Plus size={32}/>
                     </button>
                 </div>
-                <button onClick={() => setActiveTab('Contractors')} className={`flex flex-col items-center ${activeTab === 'Contractors' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <Users size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Contractors</span>
+                <button onClick={() => setActiveTab('Items')} className={`flex flex-col items-center ${activeTab === 'Items' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                    <Package size={24}/>
+                    <span className="text-[10px] font-bold mt-1">Items</span>
                 </button>
                 <button onClick={() => setActiveTab('Property')} className={`flex flex-col items-center ${activeTab === 'Property' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <MapPin size={24}/>
@@ -565,8 +626,7 @@ const AppContent = () => {
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
-    // ... (WrapperAddRecord code is identical to previous, keeping here for brevity as it was provided before) ...
-    // Note: Ensure WrapperAddRecord is included exactly as provided in previous steps
+    // ... (WrapperAddRecord code remains identical to original) ...
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
