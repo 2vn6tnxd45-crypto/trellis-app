@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { 
     ShieldAlert, ShieldCheck, Loader2, Pencil, Trash2, Paperclip, 
     ExternalLink, Calendar, Paintbrush, Plug, Grid, Fan, Droplet, 
-    Zap, Hammer, Sun, Wrench, Shield, Armchair, Box, Crop 
+    Zap, Hammer, Sun, Wrench, Shield, Armchair, Box, Crop, Bug
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
@@ -21,6 +21,7 @@ const CATEGORY_CONFIG = {
     "Service & Repairs": { icon: Wrench, color: "bg-red-100 text-red-700 border-red-200", iconColor: "text-red-600" },
     "Safety": { icon: Shield, color: "bg-orange-100 text-orange-700 border-orange-200", iconColor: "text-orange-600" },
     "Interior": { icon: Armchair, color: "bg-violet-100 text-violet-700 border-violet-200", iconColor: "text-violet-600" },
+    "Pest Control": { icon: Bug, color: "bg-rose-100 text-rose-700 border-rose-200", iconColor: "text-rose-600" }, // Added Pest Control
     "Other": { icon: Box, color: "bg-slate-100 text-slate-700 border-slate-200", iconColor: "text-slate-500" }
 };
 
