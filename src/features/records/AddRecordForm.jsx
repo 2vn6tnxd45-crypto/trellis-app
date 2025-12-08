@@ -1,12 +1,12 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, DollarSign, Armchair, Loader2, Save, ListChecks, Tag, Info } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info } from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
 import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary';
-import { compressImage, fileToBase64 } from '../../lib/images';
+import { compressImage } from '../../lib/images';
 
 const DOC_TYPES = ["Photo", "Receipt", "Warranty", "Manual", "Contract", "Other"];
 
@@ -17,7 +17,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const [isExpanded, setIsExpanded] = useState(!!isEditing);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
     
-    // Room Scan State
+    // Room/Area Scan State
     const [roomScanResults, setRoomScanResults] = useState([]);
     const [roomScanFile, setRoomScanFile] = useState(null);
     const roomInputRef = useRef(null);
@@ -33,7 +33,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (!file) return;
         
         setRoomScanFile(file);
-        const loadingToast = toast.loading("AI is analyzing room & identifying products...");
+        const loadingToast = toast.loading("AI is analyzing area & identifying products...");
         
         try {
             const base64Str = await compressImage(file);
@@ -47,7 +47,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
             }
         } catch (err) {
             console.error(err);
-            toast.error("Room scan failed.");
+            toast.error("Area scan failed.");
         } finally {
             toast.dismiss(loadingToast);
             if (roomInputRef.current) roomInputRef.current.value = "";
@@ -131,7 +131,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
             
-            {/* NEW: Improved Room Scan Review UI */}
+            {/* Improved Scan Review UI */}
             {roomScanResults.length > 0 && (
                 <div className="p-6 bg-slate-50 border-b border-slate-200 animate-in fade-in slide-in-from-top-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -154,7 +154,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 pb-4">
                         {roomScanResults.map((item, idx) => (
                             <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-emerald-300 transition-colors">
-                                {/* Delete Button */}
                                 <button 
                                     onClick={() => removeRoomItem(idx)} 
                                     className="absolute top-4 right-4 text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-all"
@@ -163,7 +162,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 </button>
 
                                 <div className="grid grid-cols-1 gap-4 pr-10">
-                                    {/* Main Title Input */}
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
                                         <input 
@@ -174,7 +172,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                         />
                                     </div>
 
-                                    {/* Details Grid */}
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center"><Tag size={10} className="mr-1"/> Brand</label>
@@ -196,7 +193,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                         </div>
                                     </div>
 
-                                    {/* Notes */}
                                     {item.notes && (
                                         <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                                             <p className="text-xs text-slate-500 italic">"{item.notes}"</p>
@@ -211,20 +207,24 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
             {!isEditing && roomScanResults.length === 0 && (
                 <div className="p-10 pb-0 space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                        <FeatureErrorBoundary label="Smart Scan">
-                            <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
-                        </FeatureErrorBoundary>
-                        
+                    {/* LAYOUT FIX: Added items-stretch to align heights */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                         <div className="h-full">
+                            <FeatureErrorBoundary label="Smart Scan">
+                                <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
+                            </FeatureErrorBoundary>
+                        </div>
+                        
+                        {/* TERMINOLOGY FIX: 'Room Scan' -> 'Area Scan' */}
+                        <div className="h-full flex flex-col pb-8">
                             <button 
                                 onClick={() => roomInputRef.current?.click()}
                                 disabled={isScanning}
-                                className="w-full h-full bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group shadow-sm hover:shadow-md"
+                                className="w-full flex-grow bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group shadow-sm hover:shadow-md min-h-[200px]"
                             >
-                                {isScanning ? <Loader2 className="h-8 w-8 text-indigo-600 animate-spin mb-2"/> : <Armchair className="h-8 w-8 text-indigo-600 mb-2 group-hover:scale-110 transition-transform"/>}
-                                <span className="font-bold text-indigo-900 block">Room Scan</span>
-                                <span className="text-[10px] text-indigo-600 uppercase font-bold tracking-wide mt-1">Photo to Inventory</span>
+                                {isScanning ? <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mb-3"/> : <Armchair className="h-10 w-10 text-indigo-600 mb-3 group-hover:scale-110 transition-transform"/>}
+                                <span className="font-bold text-indigo-900 text-lg block">Area Scan</span>
+                                <span className="text-xs text-indigo-600 uppercase font-bold tracking-wide mt-2">Photo to Inventory</span>
                             </button>
                             <input ref={roomInputRef} type="file" accept="image/*" className="hidden" onChange={handleRoomScan} />
                         </div>
@@ -249,7 +249,8 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area/Room *</label>
+                        {/* TERMINOLOGY FIX: Area/Room label */}
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area *</label>
                         {!isCustomArea ? (
                             <div className="relative">
                                 <select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white appearance-none transition-colors">
@@ -343,7 +344,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
                             </div>
-                            {suggestedTasks.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
+                            {suggestedItems.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
                         </div>
 
                         <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
