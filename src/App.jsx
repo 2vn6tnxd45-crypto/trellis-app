@@ -63,6 +63,9 @@ const AppContent = () => {
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
     
+    // NEW: Accordion State for Areas
+    const [openAreaId, setOpenAreaId] = useState(null);
+
     // NEW: Mass Delete State
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
@@ -84,17 +87,17 @@ const AppContent = () => {
         return acc;
     }, {}));
 
-    // NEW: Calculate Rooms Data for "Rooms" View
-    const roomsViewData = useMemo(() => {
-        const rooms = {};
+    // Calculate "Areas" Data (Formerly Rooms)
+    const areasViewData = useMemo(() => {
+        const areas = {};
         activePropertyRecords.forEach(r => {
-            const roomName = r.area || 'General';
-            if (!rooms[roomName]) rooms[roomName] = { name: roomName, itemCount: 0, items: [], value: 0 };
-            rooms[roomName].items.push(r);
-            rooms[roomName].itemCount++;
-            rooms[roomName].value += (parseFloat(r.cost) || 0);
+            const areaName = r.area || 'General';
+            if (!areas[areaName]) areas[areaName] = { name: areaName, itemCount: 0, items: [], value: 0 };
+            areas[areaName].items.push(r);
+            areas[areaName].itemCount++;
+            areas[areaName].value += (parseFloat(r.cost) || 0);
         });
-        return Object.values(rooms).sort((a,b) => b.value - a.value);
+        return Object.values(areas).sort((a,b) => b.value - a.value);
     }, [activePropertyRecords]);
 
     useEffect(() => {
@@ -194,7 +197,7 @@ const AppContent = () => {
         if (prop) toast.success(`Switched to ${prop.name}`);
     };
     
-    // NEW: Toggle record selection
+    // Toggle record selection
     const toggleRecordSelection = (id) => {
         const newSet = new Set(selectedRecords);
         if (newSet.has(id)) newSet.delete(id);
@@ -202,7 +205,12 @@ const AppContent = () => {
         setSelectedRecords(newSet);
     };
 
-    // NEW: Batch Delete
+    // Toggle Area Accordion
+    const toggleArea = (areaName) => {
+        setOpenAreaId(prev => prev === areaName ? null : areaName);
+    };
+
+    // Batch Delete
     const handleBatchDelete = async () => {
         if (selectedRecords.size === 0) return;
         if (!confirm(`Delete ${selectedRecords.size} items? This cannot be undone.`)) return;
@@ -315,7 +323,6 @@ const AppContent = () => {
                                 {activeProperty.name}
                                 <ChevronDown size={16} className="ml-1 text-slate-400"/>
                             </h1>
-                            {/* REMOVED ADDRESS FROM HEADER AS REQUESTED */}
                         </div>
                     </button>
                     {isSwitchingProp && (
@@ -373,7 +380,6 @@ const AppContent = () => {
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
                 
-                {/* NEW: Address moved here for prominence (for non-dashboard views) */}
                 {activeTab !== 'Dashboard' && activeProperty.address && (
                     <div className="bg-white/50 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100/50 flex items-center justify-center text-center">
                         <MapPin size={16} className="text-emerald-600 mr-2" />
@@ -406,53 +412,60 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
-                {/* NEW: ROOMS VIEW */}
-                {activeTab === 'Rooms' && (
+                {/* NEW: AREAS VIEW (Formerly Rooms) */}
+                {activeTab === 'Areas' && (
                      <div className="space-y-6">
                         <div className="flex items-center justify-between">
-                            <h2 className="text-2xl font-bold text-emerald-950">My Rooms</h2>
-                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">{roomsViewData.length} Areas</span>
+                            <h2 className="text-2xl font-bold text-emerald-950">My Areas</h2>
+                            <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">{areasViewData.length} Areas</span>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {roomsViewData.map(room => (
-                                <details key={room.name} className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                    <summary className="flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition select-none list-none">
+                            {areasViewData.map(area => (
+                                <div key={area.name} className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                                    <button 
+                                        onClick={() => toggleArea(area.name)}
+                                        className="w-full flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition select-none text-left"
+                                    >
                                         <div className="flex items-center gap-4">
                                             <div className="h-12 w-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
                                                 <DoorOpen size={24} />
                                             </div>
                                             <div>
-                                                <h3 className="font-bold text-slate-800 text-lg">{room.name}</h3>
-                                                <p className="text-xs text-slate-500 font-medium">{room.itemCount} items • ${(room.value || 0).toLocaleString()}</p>
+                                                <h3 className="font-bold text-slate-800 text-lg">{area.name}</h3>
+                                                <p className="text-xs text-slate-500 font-medium">{area.itemCount} items • ${(area.value || 0).toLocaleString()}</p>
                                             </div>
                                         </div>
-                                        <ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" />
-                                    </summary>
-                                    <div className="p-4 pt-0 border-t border-slate-50 bg-slate-50/50">
-                                        <div className="space-y-3 mt-4">
-                                            {room.items.map(r => (
-                                                <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
-                                            ))}
-                                            <button 
-                                                onClick={() => {
-                                                    setEditingRecord({ area: room.name }); // Pre-fill room
-                                                    setIsAddModalOpen(true);
-                                                }}
-                                                className="w-full py-3 text-sm font-bold text-indigo-600 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-center"
-                                            >
-                                                <Plus size={16} className="mr-2"/> Add Item to {room.name}
-                                            </button>
+                                        <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${openAreaId === area.name ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    
+                                    {/* Controlled Content Display */}
+                                    {openAreaId === area.name && (
+                                        <div className="p-4 pt-0 border-t border-slate-50 bg-slate-50/50 animate-in fade-in slide-in-from-top-2">
+                                            <div className="space-y-3 mt-4">
+                                                {area.items.map(r => (
+                                                    <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                ))}
+                                                <button 
+                                                    onClick={() => {
+                                                        setEditingRecord({ area: area.name }); // Pre-fill area
+                                                        setIsAddModalOpen(true);
+                                                    }}
+                                                    className="w-full py-3 text-sm font-bold text-indigo-600 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-center"
+                                                >
+                                                    <Plus size={16} className="mr-2"/> Add Item to {area.name}
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                </details>
+                                    )}
+                                </div>
                             ))}
                         </div>
-                        {roomsViewData.length === 0 && (
+                        {areasViewData.length === 0 && (
                             <EmptyState 
                                 icon={DoorOpen}
-                                title="No Rooms Yet"
-                                description="Items you add will automatically be grouped into rooms here."
+                                title="No Areas Yet"
+                                description="Items you add will automatically be grouped into areas here."
                             />
                         )}
                      </div>
@@ -578,15 +591,14 @@ const AppContent = () => {
                 )}
             </main>
 
-            {/* UPDATED NAV BAR WITH ROOMS */}
             <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
                 <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <LayoutDashboard size={24}/>
                     <span className="text-[10px] font-bold mt-1">Dashboard</span>
                 </button>
-                 <button onClick={() => setActiveTab('Rooms')} className={`flex flex-col items-center ${activeTab === 'Rooms' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                 <button onClick={() => setActiveTab('Areas')} className={`flex flex-col items-center ${activeTab === 'Areas' ? 'text-emerald-600' : 'text-slate-400'}`}>
                     <DoorOpen size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Rooms</span>
+                    <span className="text-[10px] font-bold mt-1">Areas</span>
                 </button>
                 <div className="relative -top-8">
                     <button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-colors active:scale-95">
@@ -626,7 +638,6 @@ const AppContent = () => {
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
-    // ... (WrapperAddRecord code remains identical to original) ...
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
