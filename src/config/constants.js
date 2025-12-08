@@ -17,7 +17,9 @@ export const STANDARD_MAINTENANCE_ITEMS = [
     { category: "Interior", item: "Inspect Caulking", maintenanceFrequency: "annual", tasks: ["Check tubs/showers", "Check sink seals", "Re-caulk if peeling"] }
 ];
 
-export const CATEGORIES = ["Paint & Finishes", "Appliances", "Flooring", "HVAC & Systems", "Plumbing", "Electrical", "Roof & Exterior", "Landscaping", "Service & Repairs", "Safety", "Interior", "Other"];
+// Added "Pest Control" to the list
+export const CATEGORIES = ["Paint & Finishes", "Appliances", "Flooring", "HVAC & Systems", "Plumbing", "Electrical", "Roof & Exterior", "Landscaping", "Service & Repairs", "Safety", "Pest Control", "Interior", "Other"];
+
 export const ROOMS = ["Kitchen", "Living Room", "Dining Room", "Master Bedroom", "Bedroom", "Master Bathroom", "Bathroom", "Office", "Laundry Room", "Garage", "Basement", "Attic", "Exterior", "Hallway", "Entryway", "Patio/Deck", "Other (Custom)"];
 export const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 export const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];
