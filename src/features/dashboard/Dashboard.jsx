@@ -9,8 +9,10 @@ import {
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { HomeSnapshot } from './HomeSnapshot';
+import { useCountyData } from '../../hooks/useCountyData';
 
-// Helper functions
+// ... (Helper functions: getNextServiceDate, getCurrentSeason, getSeasonIcon, formatCurrency, getCategoryIcon, SEASONAL_CHECKLISTS) ...
+// [Note: These helper functions are unchanged, keeping them implied for brevity]
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
@@ -138,7 +140,7 @@ const MoneyTracker = ({ records, onAddExpense }) => {
     );
 };
 
-// Updated QuickActions: Removed SOS, added Share
+// Updated QuickActions
 const QuickActions = ({ onScanReceipt, onCreateContractorLink, onMarkTaskDone, onShareHome }) => (
     <div className="grid grid-cols-4 gap-3">
         <button onClick={onScanReceipt} className="flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all group">
@@ -160,6 +162,7 @@ const QuickActions = ({ onScanReceipt, onCreateContractorLink, onMarkTaskDone, o
     </div>
 );
 
+// NeedsAttentionCard & SeasonalChecklist & SmartSuggestion remain unchanged
 const NeedsAttentionCard = ({ task, onDone, onSnooze }) => {
     const isOverdue = task.daysUntil < 0;
     const isUrgent = task.daysUntil <= 7 && task.daysUntil >= 0;
@@ -274,8 +277,18 @@ const SmartSuggestion = ({ records }) => {
     );
 };
 
-// Main Dashboard
-export const Dashboard = ({ records, contractors = [], activeProperty, onScanReceipt, onNavigateToItems, onNavigateToContractors, onCreateContractorLink }) => {
+// Main Dashboard Component
+export const Dashboard = ({ 
+    records, 
+    contractors = [], 
+    activeProperty, 
+    onScanReceipt, 
+    onNavigateToItems, 
+    onNavigateToContractors, 
+    onCreateContractorLink,
+    onNavigateToReports 
+}) => {
+    const { parcelData } = useCountyData(activeProperty?.coordinates, activeProperty?.address);
     const [completedSeasonalTasks, setCompletedSeasonalTasks] = useState(() => {
         const saved = localStorage.getItem('krib_seasonal_tasks');
         return saved ? JSON.parse(saved) : [];
@@ -304,13 +317,13 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
     const handleSnoozeTask = () => toast('Snoozed for 1 week', { icon: '😴' });
     const handleMarkTaskDone = () => needsAttention.length > 0 ? handleTaskDone(needsAttention[0]) : toast('No pending tasks!', { icon: '✨' });
     
+    // Updated: Now navigates to Reports tab
     const handleShareHome = () => {
-        if (activeProperty?.address) {
-            const text = `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state} ${activeProperty.address.zip}`;
-            navigator.clipboard.writeText(text);
-            toast.success("Address copied to clipboard!");
+        if (onNavigateToReports) {
+            onNavigateToReports();
+            toast.success("Opening Shareable Report");
         } else {
-            toast.error("No address available to share.");
+            toast.error("Reporting feature unavailable");
         }
     };
 
@@ -322,7 +335,7 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
     return (
         <div className="space-y-6">
             
-            {/* 1. Centered Header & Home Info Stats */}
+            {/* 1. Header & Home Info Stats */}
             <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-[2rem] p-6 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
                 
