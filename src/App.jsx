@@ -39,6 +39,9 @@ import { Dashboard } from './features/dashboard/Dashboard';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
 import { CountyData } from './features/dashboard/CountyData';
 
+// NEW IMPORT
+import { PedigreeReport } from './features/report/PedigreeReport';
+
 // Requests & Contractors
 import { RequestManager } from './features/requests/RequestManager';
 import { ProConnect } from './features/requests/ProConnect';
@@ -61,6 +64,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppContent = () => {
+    // ... (Keep existing state: user, profile, records, etc.) ...
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
@@ -81,22 +85,12 @@ const AppContent = () => {
     const [filterCategory, setFilterCategory] = useState('All');
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
-    
-    // NEW: Accordion State for Areas
     const [openAreaId, setOpenAreaId] = useState(null);
-
-    // NEW: Mass Delete State
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
-
-    // NEW: Quick Service Request Modal State
     const [quickServiceRecord, setQuickServiceRecord] = useState(null);
     const [showQuickService, setShowQuickService] = useState(false);
-
-    // NEW: Guided Onboarding State
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
-
-    // NEW: Use Enhanced Record Cards toggle
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
 
     const getPropertiesList = () => {
@@ -116,7 +110,6 @@ const AppContent = () => {
         return acc;
     }, {}));
 
-    // Calculate "Areas" Data (Formerly Rooms)
     const areasViewData = useMemo(() => {
         const areas = {};
         activePropertyRecords.forEach(r => {
@@ -178,8 +171,6 @@ const AppContent = () => {
         setDueTasks(upcoming);
     }, [records, activeProperty]);
 
-    // ... (Previous logic for handlers remains the same)
-    
     // Handlers
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     const handleSaveProperty = async (formData) => {
@@ -242,6 +233,7 @@ const AppContent = () => {
         
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
+                {/* ... (Keep existing header content: Logo, Property Switcher, Notifications, User Menu) ... */}
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
@@ -307,10 +299,22 @@ const AppContent = () => {
                             onNavigateToItems={() => setActiveTab('Items')}
                             onNavigateToContractors={() => setActiveTab('Contractors')}
                             onCreateContractorLink={() => handleOpenQuickService(null)}
+                            onNavigateToReports={() => setActiveTab('Reports')} // Passed for the Share button
                         />
                     </FeatureErrorBoundary>
                 )}
 
+                {/* Reports Tab (NOW IMPLEMENTED) */}
+                {activeTab === 'Reports' && (
+                    <FeatureErrorBoundary label="Reports">
+                        <PedigreeReport 
+                            propertyProfile={activeProperty} 
+                            records={activePropertyRecords} 
+                        />
+                    </FeatureErrorBoundary>
+                )}
+
+                {/* ... (Keep other tabs: Areas, Items, Contractors, Property, Settings, Help) ... */}
                 {/* Areas View */}
                 {activeTab === 'Areas' && (
                      <div className="space-y-6">
@@ -420,10 +424,6 @@ const AppContent = () => {
                     <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Help & Support</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><p className="text-slate-600">Need help? Contact us at support@krib.io</p></div></div>
                 )}
 
-                {/* Reports Tab */}
-                {activeTab === 'Reports' && (
-                    <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Reports</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><p className="text-slate-600">Generate home reports coming soon!</p></div></div>
-                )}
             </main>
 
             {/* Navigation & Modals */}
