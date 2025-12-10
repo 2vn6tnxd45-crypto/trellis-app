@@ -207,7 +207,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
             {!isEditing && roomScanResults.length === 0 && (
                 <div className="p-10 pb-0 space-y-6">
-                    {/* LAYOUT FIX: Added items-stretch to align heights */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
                         <div className="h-full">
                             <FeatureErrorBoundary label="Smart Scan">
@@ -215,7 +214,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             </FeatureErrorBoundary>
                         </div>
                         
-                        {/* TERMINOLOGY FIX: 'Room Scan' -> 'Area Scan' */}
                         <div className="h-full flex flex-col pb-8">
                             <button 
                                 onClick={() => roomInputRef.current?.click()}
@@ -249,7 +247,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         </div>
                     </div>
                     <div>
-                        {/* TERMINOLOGY FIX: Area/Room label */}
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area *</label>
                         {!isCustomArea ? (
                             <div className="relative">
@@ -344,7 +341,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 </select>
                                 <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
                             </div>
-                            {suggestedItems.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
+                            {suggestedTasks.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
                         </div>
 
                         <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
