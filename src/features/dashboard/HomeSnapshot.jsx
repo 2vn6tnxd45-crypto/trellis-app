@@ -1,16 +1,8 @@
 // src/features/dashboard/HomeSnapshot.jsx
-// ============================================
-// 🏠 HOME SNAPSHOT
-// ============================================
-// Provides INSTANT value to users by showing property intelligence
-// even before they add a single item. This is the "magic moment"
-// that converts signups into engaged users.
-
 import React, { useState } from 'react';
 import { 
-    MapPin, CloudRain, Wifi, Sun, Building2, Calendar, 
-    Share2, Download, ChevronRight, Shield, AlertTriangle,
-    CheckCircle2, Zap, ExternalLink, Copy, Check
+    CloudRain, Wifi, Sun, Share2, 
+    Shield, AlertTriangle, CheckCircle2, Zap, ExternalLink, Check, Flame
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
@@ -33,148 +25,35 @@ const RiskBadge = ({ level, label }) => {
     );
 };
 
-const StatCard = ({ icon: Icon, label, value, subtext, color = "emerald" }) => (
-    <div className={`bg-${color}-50 rounded-xl p-4 border border-${color}-100`}>
-        <div className="flex items-start justify-between">
-            <div>
-                <p className={`text-xs font-bold text-${color}-600 uppercase tracking-wide mb-1`}>{label}</p>
-                <p className={`text-2xl font-extrabold text-${color}-900`}>{value}</p>
-                {subtext && <p className={`text-xs text-${color}-600 mt-1`}>{subtext}</p>}
-            </div>
-            <div className={`bg-white p-2 rounded-lg shadow-sm border border-${color}-100`}>
-                <Icon className={`h-5 w-5 text-${color}-600`} />
-            </div>
-        </div>
-    </div>
-);
-
-export const HomeSnapshot = ({ propertyProfile, recordCount = 0, onAddFirstItem }) => {
-    const { coordinates, address, name } = propertyProfile || {};
-    const { flood, broadband, loading: neighborhoodLoading } = useNeighborhoodData(coordinates);
-    const { parcelData, loading: countyLoading, detectedLocation } = useCountyData(coordinates, address);
-    const [copied, setCopied] = useState(false);
+export const HomeSnapshot = ({ propertyProfile }) => {
+    const { coordinates, address } = propertyProfile || {};
+    const { flood, broadband, wildfire, loading: neighborhoodLoading } = useNeighborhoodData(coordinates);
+    const { parcelData, detectedLocation } = useCountyData(coordinates, address);
     
-    const loading = neighborhoodLoading || countyLoading;
-    
-    // Calculate home age if we have county data
-    const homeAge = parcelData?.yearBuilt 
-        ? new Date().getFullYear() - parcelData.yearBuilt 
-        : null;
-    
-    // Generate shareable summary
-    const generateShareText = () => {
-        let text = `🏠 ${name || 'My Home'}\n`;
-        text += `📍 ${address?.street}, ${address?.city}, ${address?.state}\n\n`;
-        
-        if (flood) {
-            text += `🌊 Flood Risk: Zone ${flood.zone} (${flood.isHighRisk ? 'High Risk' : 'Low Risk'})\n`;
-        }
-        if (broadband) {
-            text += `📡 Internet: Up to ${broadband.maxSpeed} Mbps${broadband.hasFiber ? ' (Fiber!)' : ''}\n`;
-        }
-        if (parcelData?.assessedValue) {
-            text += `💰 Assessed Value: $${parcelData.assessedValue.toLocaleString()}\n`;
-        }
-        
-        text += `\n📱 Powered by Krib - krib.io`;
-        return text;
-    };
-    
-    const handleCopySnapshot = () => {
-        navigator.clipboard.writeText(generateShareText());
-        setCopied(true);
-        toast.success('Snapshot copied to clipboard!');
-        setTimeout(() => setCopied(false), 2000);
-    };
-    
-    const handleShare = async () => {
-        const shareData = {
-            title: `${name || 'Home'} Snapshot`,
-            text: generateShareText(),
-        };
-        
-        if (navigator.share) {
-            try {
-                await navigator.share(shareData);
-            } catch (err) {
-                handleCopySnapshot();
-            }
-        } else {
-            handleCopySnapshot();
-        }
-    };
+    // We only need loading state for the insights now
+    const loading = neighborhoodLoading;
 
     return (
-        <div className="bg-white rounded-[2rem] shadow-lg border border-slate-100 overflow-hidden">
-            {/* Header */}
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-6 text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-                <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-                
-                <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
-                                <Building2 className="h-4 w-4" />
-                            </div>
-                            <span className="text-emerald-100 font-bold text-xs uppercase tracking-wider">Home Snapshot</span>
-                        </div>
-                        <button 
-                            onClick={handleShare}
-                            className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors backdrop-blur-sm"
-                        >
-                            {copied ? <Check size={14} /> : <Share2 size={14} />}
-                            {copied ? 'Copied!' : 'Share'}
-                        </button>
-                    </div>
-                    
-                    <h2 className="text-2xl font-extrabold mb-1">{name || 'My Home'}</h2>
-                    {address && (
-                        <p className="text-emerald-100 flex items-center text-sm">
-                            <MapPin size={14} className="mr-1.5" />
-                            {address.street}, {address.city}, {address.state} {address.zip}
-                        </p>
-                    )}
-                </div>
+        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-50">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center">
+                    <Shield className="h-5 w-5 mr-2 text-emerald-600" />
+                    Property & Risk Insights
+                </h2>
             </div>
             
-            {/* Quick Stats Row */}
-            <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100 bg-slate-50">
-                <div className="p-4 text-center">
-                    <p className="text-2xl font-extrabold text-slate-800">{recordCount}</p>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">Items Tracked</p>
-                </div>
-                <div className="p-4 text-center">
-                    <p className="text-2xl font-extrabold text-slate-800">
-                        {homeAge !== null ? homeAge : '—'}
-                    </p>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">Years Old</p>
-                </div>
-                <div className="p-4 text-center">
-                    <p className="text-2xl font-extrabold text-emerald-600">
-                        {parcelData?.assessedValue 
-                            ? `$${Math.round(parcelData.assessedValue / 1000)}k`
-                            : '—'
-                        }
-                    </p>
-                    <p className="text-[10px] font-bold text-slate-500 uppercase">Assessed</p>
-                </div>
-            </div>
-            
-            {/* Main Content */}
             <div className="p-6 space-y-6">
                 
                 {/* Risk Assessment */}
                 <div>
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-                        <Shield size={12} className="mr-1.5" />
-                        Risk Assessment
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+                        Natural Hazards
                     </h3>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Flood Risk */}
-                        <div className={`p-4 rounded-xl border ${flood?.isHighRisk ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                        <div className={`p-4 rounded-xl border ${flood?.isHighRisk ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
                             <div className="flex items-start justify-between mb-2">
-                                <CloudRain className={`h-5 w-5 ${flood?.isHighRisk ? 'text-red-600' : 'text-emerald-600'}`} />
+                                <CloudRain className={`h-5 w-5 ${flood?.isHighRisk ? 'text-red-600' : 'text-slate-400'}`} />
                                 {loading ? (
                                     <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
                                 ) : (
@@ -186,24 +65,26 @@ export const HomeSnapshot = ({ propertyProfile, recordCount = 0, onAddFirstItem 
                             </div>
                             <p className="font-bold text-slate-800 text-sm">Flood Risk</p>
                             {flood && (
-                                <p className="text-xs text-slate-500 mt-1">Zone {flood.zone}</p>
+                                <p className="text-xs text-slate-500 mt-1">Zone {flood.zone} • {flood.subtype}</p>
                             )}
                         </div>
                         
-                        {/* Wildfire - Link to external */}
-                        <a 
-                            href={`https://wildfirerisk.org/explore/${address?.zip || ''}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-4 rounded-xl border bg-orange-50 border-orange-100 hover:border-orange-200 transition-colors group"
-                        >
+                        {/* Wildfire Risk (UPDATED) */}
+                        <div className={`p-4 rounded-xl border ${wildfire?.isHighRisk ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
                             <div className="flex items-start justify-between mb-2">
-                                <AlertTriangle className="h-5 w-5 text-orange-600" />
-                                <ExternalLink size={14} className="text-orange-400 group-hover:text-orange-600 transition-colors" />
+                                <Flame className={`h-5 w-5 ${wildfire?.isHighRisk ? 'text-orange-600' : 'text-slate-400'}`} />
+                                {loading ? (
+                                    <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
+                                ) : (
+                                    <RiskBadge 
+                                        level={wildfire?.isHighRisk ? 'high' : wildfire?.riskLevel === 'Moderate' ? 'medium' : 'low'} 
+                                        label={wildfire?.riskLevel || 'Unknown'} 
+                                    />
+                                )}
                             </div>
                             <p className="font-bold text-slate-800 text-sm">Wildfire Risk</p>
-                            <p className="text-xs text-slate-500 mt-1">Check USDA Map →</p>
-                        </a>
+                            <p className="text-xs text-slate-500 mt-1">USDA Score: {wildfire?.score ? Math.round(wildfire.score) : '--'}/100</p>
+                        </div>
                     </div>
                 </div>
                 
@@ -238,24 +119,8 @@ export const HomeSnapshot = ({ propertyProfile, recordCount = 0, onAddFirstItem 
                                 <Zap className={`h-8 w-8 ${broadband.hasFiber ? 'text-blue-400' : 'text-slate-300'}`} />
                             </div>
                         ) : (
-                            <p className="text-sm text-slate-400">Broadband data unavailable</p>
+                            <p className="text-sm text-slate-400">Broadband data unavailable for this location.</p>
                         )}
-                    </div>
-                </div>
-                
-                {/* Solar Potential Teaser */}
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-100">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-white p-2 rounded-lg shadow-sm border border-amber-100">
-                                <Sun className="h-5 w-5 text-amber-600" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-slate-800 text-sm">Solar Potential</p>
-                                <p className="text-xs text-slate-500">See full analysis in Property tab</p>
-                            </div>
-                        </div>
-                        <ChevronRight className="h-5 w-5 text-amber-400" />
                     </div>
                 </div>
                 
@@ -268,36 +133,16 @@ export const HomeSnapshot = ({ propertyProfile, recordCount = 0, onAddFirstItem 
                                     {detectedLocation.county}, {detectedLocation.state}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                    {parcelData?.apn ? `Parcel: ${parcelData.apn}` : 'County records available'}
+                                    {parcelData?.apn ? `Parcel: ${parcelData.apn}` : 'County records detected'}
                                 </p>
                             </div>
-                            <a 
-                                href="#"
-                                onClick={(e) => { e.preventDefault(); /* Navigate to Property tab */ }}
-                                className="text-xs font-bold text-emerald-600 hover:text-emerald-700"
-                            >
-                                View Details →
-                            </a>
+                            <span className="text-xs font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-slate-200">
+                                {parcelData?.yearBuilt ? `Built ${parcelData.yearBuilt}` : 'Public Data'}
+                            </span>
                         </div>
                     </div>
                 )}
             </div>
-            
-            {/* CTA Footer */}
-            {recordCount === 0 && (
-                <div className="p-6 pt-0">
-                    <button
-                        onClick={onAddFirstItem}
-                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Zap size={18} />
-                        Add Your First Item
-                    </button>
-                    <p className="text-center text-xs text-slate-400 mt-3">
-                        Start with your HVAC, water heater, or roof
-                    </p>
-                </div>
-            )}
         </div>
     );
 };
