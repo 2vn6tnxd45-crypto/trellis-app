@@ -1,17 +1,16 @@
 // src/features/dashboard/Dashboard.jsx
 import React, { useState, useMemo } from 'react';
 import { 
-    Camera, CheckCircle2, AlertCircle, Clock, ChevronRight,
+    Camera, CheckCircle2, Clock, ChevronRight,
     ChevronDown, ChevronUp, Sparkles, Calendar, DollarSign, Wrench,
-    Leaf, Sun, Bell, MapPin, Package, Shield, Link as LinkIcon, 
-    PiggyBank, Receipt, Plus
+    Leaf, Sun, Bell, MapPin, Package, Link as LinkIcon, 
+    Plus, Share2, AlertTriangle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { HomeSnapshot } from './HomeSnapshot';
-import { useCountyData } from '../../hooks/useCountyData';
 
-// Helper functions (kept same as before)
+// Helper functions
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
@@ -45,10 +44,6 @@ const getCategoryIcon = (category) => {
     const icons = { 'HVAC & Systems': '🌡️', 'Plumbing': '🚰', 'Electrical': '⚡', 'Roof & Exterior': '🏠', 'Appliances': '🔌', 'Paint & Finishes': '🎨', 'Flooring': '🪵', 'Landscaping': '🌳', 'Safety & Security': '🔒', 'Other': '📦' };
     return icons[category] || '📦';
 };
-
-// ... [Keep SEASONAL_CHECKLISTS, MoneyTracker, QuickActions, NeedsAttentionCard, SeasonalChecklist, SmartSuggestion components exactly as they were in the original file] ...
-// (I will omit re-writing them here to save space, but ensure they are included in the final file. 
-//  They do not need modification, just the Dashboard component below.)
 
 const SEASONAL_CHECKLISTS = {
     spring: [
@@ -143,7 +138,8 @@ const MoneyTracker = ({ records, onAddExpense }) => {
     );
 };
 
-const QuickActions = ({ onScanReceipt, onCreateContractorLink, onMarkTaskDone }) => (
+// Updated QuickActions: Removed SOS, added Share
+const QuickActions = ({ onScanReceipt, onCreateContractorLink, onMarkTaskDone, onShareHome }) => (
     <div className="grid grid-cols-4 gap-3">
         <button onClick={onScanReceipt} className="flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all group">
             <div className="h-12 w-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-emerald-200 transition-colors"><Camera className="h-6 w-6 text-emerald-700" /></div>
@@ -157,9 +153,9 @@ const QuickActions = ({ onScanReceipt, onCreateContractorLink, onMarkTaskDone })
             <div className="h-12 w-12 bg-purple-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-purple-200 transition-colors"><LinkIcon className="h-6 w-6 text-purple-700" /></div>
             <span className="text-xs font-bold text-slate-600">Pro Link</span>
         </button>
-        <button onClick={() => toast('Emergency guide coming soon!', { icon: '🆘' })} className="flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-100 hover:border-red-300 hover:bg-red-50 transition-all group">
-            <div className="h-12 w-12 bg-red-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-red-200 transition-colors"><AlertCircle className="h-6 w-6 text-red-700" /></div>
-            <span className="text-xs font-bold text-slate-600">SOS</span>
+        <button onClick={onShareHome} className="flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50 transition-all group">
+            <div className="h-12 w-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-2 group-hover:bg-emerald-200 transition-colors"><Share2 className="h-6 w-6 text-emerald-700" /></div>
+            <span className="text-xs font-bold text-slate-600">Share</span>
         </button>
     </div>
 );
@@ -245,14 +241,33 @@ const SeasonalChecklist = ({ completedTasks, onToggleTask }) => {
 };
 
 const SmartSuggestion = ({ records }) => {
-    // ... [Keep existing logic]
+    const suggestion = useMemo(() => {
+        if (records.length === 0) return { icon: <Sparkles className="h-5 w-5 text-purple-600" />, title: "Get started with Smart Suggestions", message: "Add a few items to your home inventory and we'll start providing personalized tips." };
+        
+        const recordsWithCosts = records.filter(r => r.cost && r.cost > 0);
+        if (recordsWithCosts.length >= 3) {
+            const plumbingCosts = recordsWithCosts.filter(r => r.category === 'Plumbing').reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
+            if (plumbingCosts > 500) return { icon: <PiggyBank className="h-5 w-5 text-blue-600" />, title: `You've spent ${formatCurrency(plumbingCosts)} on plumbing`, message: "Multiple repairs might indicate an underlying issue. Consider a whole-home pipe inspection." };
+        }
+        
+        const waterHeaters = records.filter(r => r.item?.toLowerCase().includes('water heater'));
+        if (waterHeaters.length > 0) {
+            const oldest = waterHeaters.reduce((a, b) => new Date(a.dateInstalled) < new Date(b.dateInstalled) ? a : b);
+            const age = Math.floor((new Date() - new Date(oldest.dateInstalled)) / (365.25 * 24 * 60 * 60 * 1000));
+            if (age >= 8) return { icon: <AlertCircle className="h-5 w-5 text-amber-600" />, title: `Your water heater is ${age} years old`, message: `Average lifespan is 10-12 years. Consider budgeting $1,200-$1,800 for replacement.` };
+        }
+        
+        const seasonTips = { spring: "Spring is the perfect time to service your AC before summer.", summer: "Running your AC? Replace filters monthly for best efficiency.", fall: "Schedule a furnace tune-up before the winter rush.", winter: "Check your pipe insulation to prevent freezing." };
+        return { icon: <Sparkles className="h-5 w-5 text-purple-600" />, title: "Seasonal Tip", message: seasonTips[getCurrentSeason()] };
+    }, [records]);
+    
     return (
-         <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-4 border border-purple-100">
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl p-4 border border-purple-100">
             <div className="flex items-start gap-3">
-                <div className="bg-white p-2 rounded-xl shadow-sm"><Sparkles className="h-5 w-5 text-purple-600"/></div>
+                <div className="bg-white p-2 rounded-xl shadow-sm">{suggestion.icon}</div>
                 <div className="flex-grow">
-                    <h4 className="font-bold text-slate-800 text-sm">Smart Suggestion</h4>
-                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">Add a few more items to unlock personalized maintenance tips.</p>
+                    <h4 className="font-bold text-slate-800 text-sm">{suggestion.title}</h4>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">{suggestion.message}</p>
                 </div>
             </div>
         </div>
@@ -261,7 +276,6 @@ const SmartSuggestion = ({ records }) => {
 
 // Main Dashboard
 export const Dashboard = ({ records, contractors = [], activeProperty, onScanReceipt, onNavigateToItems, onNavigateToContractors, onCreateContractorLink }) => {
-    const { parcelData } = useCountyData(activeProperty?.coordinates, activeProperty?.address);
     const [completedSeasonalTasks, setCompletedSeasonalTasks] = useState(() => {
         const saved = localStorage.getItem('krib_seasonal_tasks');
         return saved ? JSON.parse(saved) : [];
@@ -290,6 +304,16 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
     const handleSnoozeTask = () => toast('Snoozed for 1 week', { icon: '😴' });
     const handleMarkTaskDone = () => needsAttention.length > 0 ? handleTaskDone(needsAttention[0]) : toast('No pending tasks!', { icon: '✨' });
     
+    const handleShareHome = () => {
+        if (activeProperty?.address) {
+            const text = `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state} ${activeProperty.address.zip}`;
+            navigator.clipboard.writeText(text);
+            toast.success("Address copied to clipboard!");
+        } else {
+            toast.error("No address available to share.");
+        }
+    };
+
     const getGreeting = () => {
         const hour = new Date().getHours();
         return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -298,41 +322,46 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
     return (
         <div className="space-y-6">
             
-            {/* 1. Header & Home Info Stats (Moved to Top) */}
+            {/* 1. Centered Header & Home Info Stats */}
             <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 rounded-[2rem] p-6 text-white shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none" />
                 
-                <div className="relative z-10">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <p className="text-emerald-100 font-medium text-sm mb-1">{getGreeting()}</p>
-                            <h2 className="text-2xl font-extrabold">{activeProperty?.name || 'My Home'}</h2>
-                            {activeProperty?.address && (
-                                <p className="text-emerald-100 text-xs mt-1 flex items-center">
-                                    <MapPin size={12} className="mr-1" />
-                                    {activeProperty.address.city}, {activeProperty.address.state}
-                                </p>
-                            )}
-                        </div>
+                <div className="relative z-10 text-center">
+                    <div className="mb-6">
+                        <p className="text-emerald-100 font-medium text-sm mb-1">{getGreeting()}</p>
+                        <h2 className="text-3xl font-extrabold">{activeProperty?.name || 'My Home'}</h2>
+                        {activeProperty?.address && (
+                            <p className="text-emerald-100 text-sm mt-1 flex items-center justify-center">
+                                <MapPin size={14} className="mr-1.5" />
+                                {activeProperty.address.city}, {activeProperty.address.state}
+                            </p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-4 border-t border-emerald-500/30 pt-4">
-                        <div className="text-center">
-                            <p className="text-2xl font-extrabold">{records.length}</p>
+                        <button 
+                            onClick={onNavigateToItems}
+                            className="text-center group hover:bg-white/10 rounded-xl p-2 transition-colors cursor-pointer"
+                        >
+                            <p className="text-2xl font-extrabold group-hover:scale-110 transition-transform">{records.length}</p>
                             <p className="text-[10px] text-emerald-200 uppercase font-bold tracking-wider">Items</p>
-                        </div>
-                        <div className="text-center border-l border-emerald-500/30">
-                            <p className="text-2xl font-extrabold">{contractors.length}</p>
+                        </button>
+                        
+                        <button 
+                            onClick={onNavigateToContractors}
+                            className="text-center border-l border-emerald-500/30 group hover:bg-white/10 rounded-xl p-2 transition-colors cursor-pointer"
+                        >
+                            <p className="text-2xl font-extrabold group-hover:scale-110 transition-transform">{contractors.length}</p>
                             <p className="text-[10px] text-emerald-200 uppercase font-bold tracking-wider">Pros</p>
-                        </div>
-                        <div className="text-center border-l border-emerald-500/30">
-                            <p className="text-2xl font-extrabold">
-                                {parcelData?.assessedValue 
-                                    ? `$${(parcelData.assessedValue / 1000).toFixed(0)}k`
-                                    : '—'
-                                }
-                            </p>
-                            <p className="text-[10px] text-emerald-200 uppercase font-bold tracking-wider">Value</p>
+                        </button>
+                        
+                        <div className="text-center border-l border-emerald-500/30 p-2">
+                            {needsAttention.length > 0 ? (
+                                <p className="text-2xl font-extrabold text-amber-300">{needsAttention.length}</p>
+                            ) : (
+                                <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-300" />
+                            )}
+                            <p className="text-[10px] text-emerald-200 uppercase font-bold tracking-wider">Alerts</p>
                         </div>
                     </div>
                 </div>
@@ -341,7 +370,12 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
             {/* 2. Quick Actions */}
             <div>
                 <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</h2>
-                <QuickActions onScanReceipt={onScanReceipt} onCreateContractorLink={onCreateContractorLink} onMarkTaskDone={handleMarkTaskDone} />
+                <QuickActions 
+                    onScanReceipt={onScanReceipt} 
+                    onCreateContractorLink={onCreateContractorLink} 
+                    onMarkTaskDone={handleMarkTaskDone} 
+                    onShareHome={handleShareHome} 
+                />
             </div>
             
             {/* 3. Money Tracker */}
@@ -380,7 +414,7 @@ export const Dashboard = ({ records, contractors = [], activeProperty, onScanRec
                 </button>
             </div>
 
-            {/* 6. Insights (Moved to Bottom) */}
+            {/* 6. Insights (Bottom) */}
             <HomeSnapshot propertyProfile={activeProperty} />
         </div>
     );
