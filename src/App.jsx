@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu, CheckSquare, DoorOpen } from 'lucide-react'; 
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, MapPin, Trash2, Menu, CheckSquare, DoorOpen, Wrench } from 'lucide-react'; 
 
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -12,20 +12,40 @@ import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants'
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
 
+// Common Components
 import { Logo } from './components/common/Logo';
 import { FeatureErrorBoundary } from './components/common/FeatureErrorBoundary';
 import { EmptyState } from './components/common/EmptyState';
 import { AppShellSkeleton } from './components/common/Skeletons';
+
+// Navigation
+import { BottomNav, MoreMenu } from './components/navigation/BottomNav';
+
+// Auth
 import { AuthScreen } from './features/auth/AuthScreen';
+
+// Onboarding
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
 import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
+import { GuidedOnboarding } from './features/onboarding/GuidedOnboarding';
+
+// Records
 import { RecordCard } from './features/records/RecordCard';
+import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
+
+// Dashboard
 import { Dashboard } from './features/dashboard/Dashboard';
-import { RequestManager } from './features/requests/RequestManager';
-import { ContractorView } from './features/requests/ContractorView';
+import { HomeSnapshot } from './features/dashboard/HomeSnapshot';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
 import { CountyData } from './features/dashboard/CountyData';
+
+// Requests & Contractors
+import { RequestManager } from './features/requests/RequestManager';
+import { ProConnect } from './features/requests/ProConnect';
+import { ContractorView } from './features/requests/ContractorView';
+import { ContractorPortal } from './features/requests/ContractorPortal';
+import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -51,6 +71,7 @@ const AppContent = () => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [dueTasks, setDueTasks] = useState([]);
     const [newSubmissions, setNewSubmissions] = useState([]);
     const [activePropertyId, setActivePropertyId] = useState(null);
@@ -69,6 +90,16 @@ const AppContent = () => {
     // NEW: Mass Delete State
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
+
+    // NEW: Quick Service Request Modal State
+    const [quickServiceRecord, setQuickServiceRecord] = useState(null);
+    const [showQuickService, setShowQuickService] = useState(false);
+
+    // NEW: Guided Onboarding State
+    const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
+
+    // NEW: Use Enhanced Record Cards toggle
+    const [useEnhancedCards, setUseEnhancedCards] = useState(true);
 
     const getPropertiesList = () => {
         if (!profile) return [];
@@ -282,8 +313,63 @@ const AppContent = () => {
         }
     };
 
+    // NEW: Handle Quick Service Request
+    const handleOpenQuickService = (record) => {
+        setQuickServiceRecord(record);
+        setShowQuickService(true);
+    };
+
+    const handleCloseQuickService = () => {
+        setShowQuickService(false);
+        setQuickServiceRecord(null);
+    };
+
+    // NEW: Handle Guided Onboarding Item Add
+    const handleGuidedOnboardingAddItem = async (item) => {
+        try {
+            await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), {
+                ...item,
+                userId: user.uid,
+                propertyId: activeProperty?.id || 'legacy',
+                propertyLocation: activeProperty?.name || 'My Home',
+                timestamp: serverTimestamp()
+            });
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to add item");
+        }
+    };
+
+    const handleGuidedOnboardingComplete = (itemsAdded) => {
+        setShowGuidedOnboarding(false);
+        setHasSeenWelcome(true);
+        if (user) {
+            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+            updateDoc(profileRef, { hasSeenWelcome: true });
+        }
+        if (itemsAdded.length > 0) {
+            toast.success(`Great start! ${itemsAdded.length} items added to your home.`);
+        }
+    };
+
+    // NEW: Handle tab changes from BottomNav
+    const handleTabChange = (tabId) => {
+        if (tabId === 'More') {
+            setShowMoreMenu(true);
+        } else {
+            setActiveTab(tabId);
+        }
+    };
+
+    // NEW: Handle navigation from More menu
+    const handleMoreNavigate = (destination) => {
+        setActiveTab(destination);
+        setShowMoreMenu(false);
+    };
+
+    // Check for contractor view (URL param)
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
-    if (isContractor) return <ContractorView />;
+    if (isContractor) return <ContractorPortal />;
 
     if (loading) return <AppShellSkeleton />;
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
@@ -389,16 +475,41 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {isNewUser && activeTab === 'Dashboard' && (
+                {/* NEW: Guided Onboarding Modal */}
+                {showGuidedOnboarding && (
+                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div>
+                        <div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+                            <GuidedOnboarding 
+                                propertyName={activeProperty?.name}
+                                onComplete={handleGuidedOnboardingComplete}
+                                onAddItem={handleGuidedOnboardingAddItem}
+                                onScanReceipt={() => { setShowGuidedOnboarding(false); openAddModal(); }}
+                                onDismiss={() => { setShowGuidedOnboarding(false); handleDismissWelcome(); }}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Welcome Screen / Dashboard for New Users */}
+                {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && (
                     <WelcomeScreen 
                         propertyName={activeProperty.name}
-                        onAddRecord={() => openAddModal()}
+                        onAddRecord={() => setShowGuidedOnboarding(true)}
                         onDismiss={handleDismissWelcome}
                     />
                 )}
                 
+                {/* Main Dashboard */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
+                        {/* NEW: Home Snapshot at top of dashboard */}
+                        <HomeSnapshot 
+                            propertyProfile={activeProperty}
+                            recordCount={activePropertyRecords.length}
+                            onAddFirstItem={() => openAddModal()}
+                        />
+                        
                         <Dashboard 
                             records={activePropertyRecords}
                             contractors={contractorsList} 
@@ -407,12 +518,12 @@ const AppContent = () => {
                             onScanReceipt={() => openAddModal()}
                             onNavigateToItems={() => setActiveTab('Items')}
                             onNavigateToContractors={() => setActiveTab('Contractors')}
-                            onCreateContractorLink={() => setActiveTab('Contractors')}
+                            onCreateContractorLink={() => handleOpenQuickService(null)}
                         />
                     </FeatureErrorBoundary>
                 )}
 
-                {/* NEW: AREAS VIEW (Formerly Rooms) */}
+                {/* Areas View */}
                 {activeTab === 'Areas' && (
                      <div className="space-y-6">
                         <div className="flex items-center justify-between">
@@ -439,16 +550,25 @@ const AppContent = () => {
                                         <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${openAreaId === area.name ? 'rotate-180' : ''}`} />
                                     </button>
                                     
-                                    {/* Controlled Content Display */}
                                     {openAreaId === area.name && (
                                         <div className="p-4 pt-0 border-t border-slate-50 bg-slate-50/50 animate-in fade-in slide-in-from-top-2">
                                             <div className="space-y-3 mt-4">
                                                 {area.items.map(r => (
-                                                    <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                    useEnhancedCards ? (
+                                                        <EnhancedRecordCard 
+                                                            key={r.id} 
+                                                            record={r} 
+                                                            onDeleteClick={handleDeleteRecord} 
+                                                            onEditClick={openAddModal}
+                                                            onRequestService={handleOpenQuickService}
+                                                        />
+                                                    ) : (
+                                                        <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                    )
                                                 ))}
                                                 <button 
                                                     onClick={() => {
-                                                        setEditingRecord({ area: area.name }); // Pre-fill area
+                                                        setEditingRecord({ area: area.name });
                                                         setIsAddModalOpen(true);
                                                     }}
                                                     className="w-full py-3 text-sm font-bold text-indigo-600 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-center"
@@ -471,6 +591,7 @@ const AppContent = () => {
                      </div>
                 )}
 
+                {/* Items View */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
@@ -486,7 +607,6 @@ const AppContent = () => {
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
-                            {/* Mass Delete Toggle */}
                             <button 
                                 onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedRecords(new Set()); }}
                                 className={`px-4 rounded-xl font-bold flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
@@ -495,7 +615,6 @@ const AppContent = () => {
                             </button>
                         </div>
 
-                        {/* Batch Action Bar */}
                         {isSelectionMode && selectedRecords.size > 0 && (
                             <div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between items-center animate-in fade-in slide-in-from-top-4">
                                 <span className="font-bold text-slate-700">{selectedRecords.size} items selected</span>
@@ -553,7 +672,16 @@ const AppContent = () => {
                                                         </div>
                                                     )}
                                                     <div className="flex-grow min-w-0">
-                                                        <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                        {useEnhancedCards ? (
+                                                            <EnhancedRecordCard 
+                                                                record={r} 
+                                                                onDeleteClick={handleDeleteRecord} 
+                                                                onEditClick={openAddModal}
+                                                                onRequestService={handleOpenQuickService}
+                                                            />
+                                                        ) : (
+                                                            <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -569,18 +697,21 @@ const AppContent = () => {
                     </div>
                 )}
 
+                {/* Contractors Tab - Using ProConnect */}
                 {activeTab === 'Contractors' && (
                     <FeatureErrorBoundary label="Contractors">
-                        <RequestManager 
+                        <ProConnect 
                             userId={user.uid} 
                             propertyName={activeProperty.name} 
                             propertyAddress={activeProperty.address} 
                             records={activePropertyRecords} 
                             onRequestImport={handleRequestImport}
+                            onOpenQuickRequest={handleOpenQuickService}
                         />
                     </FeatureErrorBoundary>
                 )}
                 
+                {/* Property Tab */}
                 {activeTab === 'Property' && (
                     <FeatureErrorBoundary label="Property">
                         <div className="space-y-8">
@@ -589,32 +720,66 @@ const AppContent = () => {
                         </div>
                     </FeatureErrorBoundary>
                 )}
+
+                {/* Settings Tab */}
+                {activeTab === 'Settings' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold text-emerald-950">Settings</h2>
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Enhanced Record Cards</h3>
+                                    <p className="text-sm text-slate-500">Use new card design with quick service requests</p>
+                                </div>
+                                <button 
+                                    onClick={() => setUseEnhancedCards(!useEnhancedCards)}
+                                    className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Help Tab */}
+                {activeTab === 'Help' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold text-emerald-950">Help & Support</h2>
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <p className="text-slate-600">Need help? Contact us at support@krib.io</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Reports Tab */}
+                {activeTab === 'Reports' && (
+                    <div className="space-y-6">
+                        <h2 className="text-2xl font-bold text-emerald-950">Reports</h2>
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                            <p className="text-slate-600">Generate home reports coming soon!</p>
+                        </div>
+                    </div>
+                )}
             </main>
 
-            <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100">
-                <button onClick={() => setActiveTab('Dashboard')} className={`flex flex-col items-center ${activeTab === 'Dashboard' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <LayoutDashboard size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Dashboard</span>
-                </button>
-                 <button onClick={() => setActiveTab('Areas')} className={`flex flex-col items-center ${activeTab === 'Areas' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <DoorOpen size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Areas</span>
-                </button>
-                <div className="relative -top-8">
-                    <button onClick={() => openAddModal()} className="h-16 w-16 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-colors active:scale-95">
-                        <Plus size={32}/>
-                    </button>
-                </div>
-                <button onClick={() => setActiveTab('Items')} className={`flex flex-col items-center ${activeTab === 'Items' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <Package size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Items</span>
-                </button>
-                <button onClick={() => setActiveTab('Property')} className={`flex flex-col items-center ${activeTab === 'Property' ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    <MapPin size={24}/>
-                    <span className="text-[10px] font-bold mt-1">Property</span>
-                </button>
-            </nav>
+            {/* NEW: Using BottomNav Component */}
+            <BottomNav 
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                onAddClick={() => openAddModal()}
+                notificationCount={newSubmissions.length}
+            />
 
+            {/* NEW: More Menu */}
+            <MoreMenu 
+                isOpen={showMoreMenu}
+                onClose={() => setShowMoreMenu(false)}
+                onNavigate={handleMoreNavigate}
+                onSignOut={() => signOut(auth)}
+            />
+
+            {/* Add/Edit Modal */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
@@ -631,6 +796,17 @@ const AppContent = () => {
                         />
                     </div>
                 </div>
+            )}
+
+            {/* NEW: Quick Service Request Modal */}
+            {showQuickService && (
+                <QuickServiceRequest 
+                    record={quickServiceRecord}
+                    userId={user.uid}
+                    propertyName={activeProperty?.name}
+                    propertyAddress={activeProperty?.address}
+                    onClose={handleCloseQuickService}
+                />
             )}
         </div>
         </>
