@@ -1,68 +1,252 @@
 // src/features/report/PedigreeReport.jsx
-import React from 'react';
-import { Printer, ExternalLink, MapPin, Key, Wrench, HardHat, Clock, Calendar } from 'lucide-react';
-import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import React, { useMemo } from 'react';
+import { 
+    Printer, MapPin, Key, Wrench, Calendar, ShieldCheck, 
+    Home, Award, Clock, DollarSign, PenTool, CheckCircle2
+} from 'lucide-react';
+import { useCountyData } from '../../hooks/useCountyData';
 
-export const PedigreeReport = ({ propertyProfile, records }) => {
-    // Helper to calculate age
-    const calculateAge = (categoryFilter) => {
-        const filtered = records.filter(categoryFilter);
-        if (filtered.length === 0) return { age: 'N/A', year: 'N/A' };
-        const latest = filtered.reduce((a, b) => new Date(a.dateInstalled) > new Date(b.dateInstalled) ? a : b);
-        const year = new Date(latest.dateInstalled).getFullYear();
-        return { age: isNaN(year) ? 'N/A' : new Date().getFullYear() - year, year };
-    };
+// Helper to format currency
+const formatCurrency = (amount) => {
+    if (!amount) return '—';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+};
 
-    const hvacAge = calculateAge(r => r.category === "HVAC & Systems");
-    const roofAge = calculateAge(r => r.item.toLowerCase().includes('roof'));
-    const waterHeaterAge = calculateAge(r => r.item.toLowerCase().includes('water heater'));
-    const timelineRecords = [...records].sort((a, b) => new Date(b.dateInstalled) - new Date(a.dateInstalled));
+// Helper to format dates
+const formatDate = (dateString) => {
+    if (!dateString) return 'Unknown Date';
+    return new Date(dateString).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+};
+
+export const PedigreeReport = ({ propertyProfile, records = [] }) => {
+    const { parcelData } = useCountyData(propertyProfile?.coordinates, propertyProfile?.address);
+
+    // Calculate System Ages
+    const systemAges = useMemo(() => {
+        const calculateAge = (keyword) => {
+            const items = records.filter(r => 
+                (r.item?.toLowerCase().includes(keyword) || r.category?.toLowerCase().includes(keyword)) && r.dateInstalled
+            );
+            if (items.length === 0) return null;
+            // Find most recent
+            const latest = items.sort((a, b) => new Date(b.dateInstalled) - new Date(a.dateInstalled))[0];
+            const age = new Date().getFullYear() - new Date(latest.dateInstalled).getFullYear();
+            return { age, item: latest };
+        };
+
+        return {
+            hvac: calculateAge('hvac') || calculateAge('ac') || calculateAge('furnace'),
+            roof: calculateAge('roof'),
+            waterHeater: calculateAge('water heater')
+        };
+    }, [records]);
+
+    // Filter for "Capital Improvements" (Cost > $500 or major categories)
+    const capitalImprovements = useMemo(() => {
+        return records.filter(r => 
+            (r.cost && parseFloat(r.cost) > 500) || 
+            ['Roof & Exterior', 'HVAC & Systems', 'Flooring'].includes(r.category)
+        ).sort((a, b) => new Date(b.dateInstalled) - new Date(a.dateInstalled));
+    }, [records]);
+
+    // Group remaining records by year for the timeline
+    const timeline = useMemo(() => {
+        return records.sort((a, b) => new Date(b.dateInstalled) - new Date(a.dateInstalled));
+    }, [records]);
+
+    const totalInvestment = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
 
     return (
-        <div className="space-y-8 print:p-0">
-             <div className="flex justify-between items-center mb-6 no-print">
-                <button onClick={() => window.print()} className="flex items-center px-4 py-2 bg-white border border-slate-200 rounded-xl font-bold text-slate-700"><Printer className="h-4 w-4 mr-2" /> Print Report</button>
-            </div>
-            <div className="bg-sky-950 text-white p-8 rounded-[2rem] shadow-xl relative overflow-hidden print:bg-white print:text-black">
-                <div className="relative z-10">
-                    <div className="flex items-center mb-6"><Key className="h-8 w-8 text-sky-200 mr-4"/><span className="text-xl font-bold tracking-widest uppercase text-sky-200">Official Pedigree</span></div>
-                    <h1 className="text-4xl font-extrabold mb-2">{propertyProfile.name}</h1>
-                    <p className="text-sky-200 text-lg flex items-center"><MapPin className="h-5 w-5 mr-2" /> {propertyProfile.address?.street}, {propertyProfile.address?.city}</p>
+        <div className="max-w-5xl mx-auto space-y-8 pb-20 print:pb-0 print:max-w-none">
+            
+            {/* Action Bar (Hidden when printing) */}
+            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-100 shadow-sm print:hidden">
+                <div>
+                    <h2 className="text-lg font-bold text-slate-800">Property Pedigree™</h2>
+                    <p className="text-sm text-slate-500">Official history report for insurance or resale.</p>
                 </div>
+                <button 
+                    onClick={() => window.print()} 
+                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-lg shadow-slate-900/20"
+                >
+                    <Printer size={18} />
+                    Print / Save PDF
+                </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 border border-slate-100 rounded-[2rem] bg-white shadow-lg">
-                {[
-                    { label: "Total Records", val: records.length },
-                    { label: "HVAC Age", val: hvacAge.age + " Yrs" },
-                    { label: "Roof Age", val: roofAge.age + " Yrs" },
-                    { label: "Water Heater", val: waterHeaterAge.age + " Yrs" }
-                ].map((stat, i) => (
-                    <div key={i} className="p-6 text-center">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">{stat.label}</p>
-                        <p className="text-3xl font-extrabold text-sky-900">{stat.val}</p>
+
+            {/* REPORT DOCUMENT */}
+            <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden print:shadow-none print:rounded-none print:border-none">
+                
+                {/* 1. HEADER */}
+                <div className="bg-slate-900 text-white p-12 relative overflow-hidden print:bg-slate-900 print:text-white print:p-8">
+                    <div className="absolute top-0 right-0 p-12 opacity-10">
+                        <Home size={200} />
                     </div>
-                ))}
-            </div>
-            <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100">
-                <h2 className="text-2xl font-bold text-slate-900 mb-10 flex items-center"><Wrench className="h-6 w-6 mr-3 text-sky-600"/> History Timeline</h2>
-                <div className="space-y-10 border-l-2 border-slate-100 ml-3 pl-10 relative">
-                    {timelineRecords.map(record => (
-                        <div key={record.id} className="relative group">
-                            <div className="absolute -left-[49px] top-1 h-5 w-5 rounded-full bg-sky-500 border-4 border-white shadow-sm ring-1 ring-slate-100"></div>
-                            <div className="mb-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                                <span className="font-bold text-xl text-slate-900">{record.item}</span>
-                                <span className="text-sm font-mono text-slate-400">{record.dateInstalled}</span>
-                            </div>
-                            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-4">
-                                    <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Category</p><p className="font-bold text-slate-800">{record.category}</p></div>
-                                    {record.contractor && <div><p className="text-xs text-slate-400 uppercase font-bold mb-1">Provider</p><p className="font-medium text-slate-800 flex items-center"><HardHat className="h-3 w-3 mr-1.5 text-sky-500"/> {record.contractor}</p></div>}
+                    <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+                        <div>
+                            <div className="flex items-center gap-2 mb-4">
+                                <div className="bg-emerald-500/20 p-2 rounded-lg backdrop-blur-sm border border-emerald-500/30">
+                                    <ShieldCheck className="text-emerald-400" size={24} />
                                 </div>
-                                {record.notes && <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm italic mb-4">"{record.notes}"</div>}
-                                {record.imageUrl && <img src={record.imageUrl} alt="Proof" className="h-32 rounded-lg border border-slate-200 object-cover"/>}
+                                <span className="text-emerald-400 font-bold uppercase tracking-widest text-sm">Verified Krib Report</span>
                             </div>
+                            <h1 className="text-4xl md:text-5xl font-extrabold mb-2 leading-tight">
+                                {propertyProfile?.address?.street || propertyProfile?.name || 'Property Report'}
+                            </h1>
+                            <p className="text-slate-400 text-lg flex items-center">
+                                <MapPin size={18} className="mr-2" />
+                                {propertyProfile?.address?.city}, {propertyProfile?.address?.state} {propertyProfile?.address?.zip}
+                            </p>
                         </div>
-                    ))}
+                        <div className="text-left md:text-right">
+                            <p className="text-slate-400 text-sm font-medium uppercase tracking-wide mb-1">Report Generated</p>
+                            <p className="text-2xl font-bold">{new Date().toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. PROPERTY VITALS GRID */}
+                <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 bg-slate-50 print:bg-slate-50">
+                    <div className="p-6 text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Year Built</p>
+                        <p className="text-3xl font-extrabold text-slate-800">{parcelData?.yearBuilt || '—'}</p>
+                    </div>
+                    <div className="p-6 text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Tracked Items</p>
+                        <p className="text-3xl font-extrabold text-indigo-600">{records.length}</p>
+                    </div>
+                    <div className="p-6 text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Total Investment</p>
+                        <p className="text-3xl font-extrabold text-emerald-600">{formatCurrency(totalInvestment)}</p>
+                    </div>
+                    <div className="p-6 text-center">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Assessment</p>
+                        <p className="text-3xl font-extrabold text-slate-800">
+                            {parcelData?.assessedValue ? `$${(parcelData.assessedValue / 1000).toFixed(0)}k` : '—'}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="p-12 space-y-12 print:p-8 print:space-y-8">
+                    
+                    {/* 3. MAJOR SYSTEMS HEALTH */}
+                    <section>
+                        <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                            <Award className="mr-3 text-indigo-600" /> Major Systems Health
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {[
+                                { label: 'Roof', data: systemAges.roof, icon: Home },
+                                { label: 'HVAC', data: systemAges.hvac, icon: Wrench },
+                                { label: 'Water Heater', data: systemAges.waterHeater, icon: Clock }
+                            ].map((sys) => (
+                                <div key={sys.label} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm flex items-center justify-between">
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">{sys.label}</p>
+                                        <p className="text-2xl font-extrabold text-slate-800">
+                                            {sys.data ? `${sys.data.age} Years` : 'Unknown'}
+                                        </p>
+                                        <p className="text-xs text-slate-500 mt-1 truncate max-w-[120px]">
+                                            {sys.data?.item.brand || 'No record'}
+                                        </p>
+                                    </div>
+                                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${sys.data && sys.data.age < 15 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <sys.icon size={20} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* 4. CAPITAL IMPROVEMENTS */}
+                    {capitalImprovements.length > 0 && (
+                        <section className="print:break-inside-avoid">
+                            <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                                <DollarSign className="mr-3 text-emerald-600" /> Capital Improvements & Upgrades
+                            </h3>
+                            <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs">
+                                        <tr>
+                                            <th className="p-4">Date</th>
+                                            <th className="p-4">Item / Project</th>
+                                            <th className="p-4">Category</th>
+                                            <th className="p-4 text-right">Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {capitalImprovements.map((rec) => (
+                                            <tr key={rec.id} className="hover:bg-slate-50/50">
+                                                <td className="p-4 font-mono text-slate-500">{rec.dateInstalled}</td>
+                                                <td className="p-4 font-bold text-slate-800">
+                                                    {rec.item}
+                                                    {rec.contractor && <span className="block text-xs font-normal text-slate-400 mt-0.5">by {rec.contractor}</span>}
+                                                </td>
+                                                <td className="p-4 text-slate-600">{rec.category}</td>
+                                                <td className="p-4 text-right font-bold text-emerald-700">{formatCurrency(rec.cost)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* 5. COMPLETE MAINTENANCE LOG */}
+                    <section>
+                        <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center">
+                            <Calendar className="mr-3 text-slate-600" /> Complete History Log
+                        </h3>
+                        <div className="relative border-l-2 border-slate-200 ml-3 space-y-8 pl-8 py-2">
+                            {timeline.map((rec) => (
+                                <div key={rec.id} className="relative group print:break-inside-avoid">
+                                    {/* Timeline Dot */}
+                                    <div className="absolute -left-[41px] top-1.5 h-5 w-5 rounded-full border-4 border-white bg-slate-300 group-hover:bg-indigo-500 transition-colors shadow-sm"></div>
+                                    
+                                    <div className="flex flex-col sm:flex-row sm:items-baseline justify-between mb-2">
+                                        <h4 className="font-bold text-slate-800 text-lg">{rec.item}</h4>
+                                        <span className="font-mono text-xs text-slate-400">{formatDate(rec.dateInstalled)}</span>
+                                    </div>
+                                    
+                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
+                                        <div className="flex flex-wrap gap-x-4 gap-y-2 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wide">
+                                            <span>{rec.category}</span>
+                                            {rec.brand && <span>• {rec.brand} {rec.model}</span>}
+                                            {rec.contractor && <span>• {rec.contractor}</span>}
+                                        </div>
+                                        {rec.notes ? (
+                                            <p className="italic">"{rec.notes}"</p>
+                                        ) : (
+                                            <p className="text-slate-400 italic">No additional notes recorded.</p>
+                                        )}
+                                        
+                                        {/* Attachment Indicators */}
+                                        {rec.attachments && rec.attachments.length > 0 && (
+                                            <div className="flex gap-2 mt-3 pt-3 border-t border-slate-200/60">
+                                                {rec.attachments.map((att, i) => (
+                                                    <span key={i} className="inline-flex items-center px-2 py-1 bg-white border border-slate-200 rounded text-xs font-medium text-slate-500">
+                                                        <PenTool size={10} className="mr-1" /> {att.type || 'File'}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* DISCLAIMER FOOTER */}
+                    <div className="border-t border-slate-100 pt-8 text-center">
+                        <div className="inline-flex items-center gap-2 text-slate-400 text-sm font-medium mb-2">
+                            <ShieldCheck size={16} /> Authenticated by Krib
+                        </div>
+                        <p className="text-xs text-slate-400 max-w-2xl mx-auto leading-relaxed">
+                            This report is generated based on user-submitted data and records stored in the Krib Home Management Platform. 
+                            Krib verifies the existence of the digital record but does not physically inspect the property.
+                        </p>
+                    </div>
+
                 </div>
             </div>
         </div>
