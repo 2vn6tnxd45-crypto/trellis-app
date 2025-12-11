@@ -1,22 +1,11 @@
 // src/components/navigation/BottomNav.jsx
-// ============================================
-// 📱 BOTTOM NAVIGATION
-// ============================================
-// Simplified navigation that makes sense:
-// Home (Dashboard) | Inventory | + | Pros | More
-
 import React from 'react';
 import { 
     LayoutDashboard, Package, Plus, Wrench, Menu,
-    MapPin, FileText, Settings, HelpCircle, LogOut
+    FileText, Settings, HelpCircle, LogOut
 } from 'lucide-react';
 
-export const BottomNav = ({ 
-    activeTab, 
-    onTabChange, 
-    onAddClick,
-    notificationCount = 0 
-}) => {
+export const BottomNav = ({ activeTab, onTabChange, onAddClick, notificationCount = 0 }) => {
     const tabs = [
         { id: 'Dashboard', icon: LayoutDashboard, label: 'Home' },
         { id: 'Items', icon: Package, label: 'Inventory' },
@@ -37,9 +26,9 @@ export const BottomNav = ({
                             <button
                                 key={tab.id}
                                 onClick={onAddClick}
-                                className="relative -top-6"
+                                className="relative -top-6 group"
                             >
-                                <div className="h-14 w-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-colors active:scale-95">
+                                <div className="h-14 w-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all group-active:scale-95">
                                     <Plus size={28} strokeWidth={2.5} />
                                 </div>
                             </button>
@@ -59,7 +48,7 @@ export const BottomNav = ({
                             <div className="relative">
                                 <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                                 {tab.badge > 0 && (
-                                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                                    <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
                                         {tab.badge > 9 ? '9+' : tab.badge}
                                     </span>
                                 )}
@@ -75,17 +64,11 @@ export const BottomNav = ({
     );
 };
 
-// More Menu Component (shown when "More" is tapped)
-export const MoreMenu = ({ 
-    isOpen, 
-    onClose, 
-    onNavigate,
-    onSignOut 
-}) => {
+export const MoreMenu = ({ isOpen, onClose, onNavigate, onSignOut }) => {
     if (!isOpen) return null;
     
     const menuItems = [
-        { id: 'Property', icon: MapPin, label: 'Property Info', description: 'Location data & county records' },
+        // REMOVED 'Property' (Moved to Dashboard)
         { id: 'Reports', icon: FileText, label: 'Reports', description: 'Generate home reports' },
         { id: 'Settings', icon: Settings, label: 'Settings', description: 'Account & preferences' },
         { id: 'Help', icon: HelpCircle, label: 'Help & Support', description: 'FAQs and contact' },
@@ -93,14 +76,8 @@ export const MoreMenu = ({
     
     return (
         <>
-            {/* Backdrop */}
-            <div 
-                className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50"
-                onClick={onClose}
-            />
-            
-            {/* Menu Panel */}
-            <div className="fixed bottom-20 left-4 right-4 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in slide-in-from-bottom-4 duration-200 md:max-w-sm md:left-1/2 md:-translate-x-1/2">
+            <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60]" onClick={onClose} />
+            <div className="fixed bottom-24 left-4 right-4 bg-white rounded-2xl shadow-2xl border border-slate-100 z-[70] overflow-hidden animate-in slide-in-from-bottom-4 duration-200 md:max-w-sm md:left-1/2 md:-translate-x-1/2">
                 <div className="p-2">
                     {menuItems.map((item) => {
                         const Icon = item.icon;
@@ -108,10 +85,10 @@ export const MoreMenu = ({
                             <button
                                 key={item.id}
                                 onClick={() => { onNavigate(item.id); onClose(); }}
-                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors text-left"
+                                className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-slate-50 transition-colors text-left group"
                             >
-                                <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center">
-                                    <Icon size={20} className="text-slate-600" />
+                                <div className="h-10 w-10 bg-slate-100 rounded-xl flex items-center justify-center group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                                    <Icon size={20} className="text-slate-600 group-hover:text-emerald-600" />
                                 </div>
                                 <div>
                                     <p className="font-bold text-slate-800">{item.label}</p>
@@ -121,14 +98,12 @@ export const MoreMenu = ({
                         );
                     })}
                 </div>
-                
-                {/* Sign Out */}
                 <div className="border-t border-slate-100 p-2">
                     <button
                         onClick={onSignOut}
                         className="w-full flex items-center gap-4 p-4 rounded-xl hover:bg-red-50 transition-colors text-left"
                     >
-                        <div className="h-10 w-10 bg-red-100 rounded-xl flex items-center justify-center">
+                        <div className="h-10 w-10 bg-red-50 rounded-xl flex items-center justify-center">
                             <LogOut size={20} className="text-red-600" />
                         </div>
                         <div>
