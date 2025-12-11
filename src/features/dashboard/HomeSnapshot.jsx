@@ -27,10 +27,10 @@ const RiskBadge = ({ level, label }) => {
 
 export const HomeSnapshot = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
-    const { flood, broadband, wildfire, loading: neighborhoodLoading } = useNeighborhoodData(coordinates);
+    // UPDATED: Pass address here too
+    const { flood, broadband, wildfire, loading: neighborhoodLoading } = useNeighborhoodData(coordinates, address);
     const { parcelData, detectedLocation } = useCountyData(coordinates, address);
     
-    // We only need loading state for the insights now
     const loading = neighborhoodLoading;
 
     return (
@@ -69,7 +69,7 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                             )}
                         </div>
                         
-                        {/* Wildfire Risk (UPDATED) */}
+                        {/* Wildfire Risk */}
                         <div className={`p-4 rounded-xl border ${wildfire?.isHighRisk ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
                             <div className="flex items-start justify-between mb-2">
                                 <Flame className={`h-5 w-5 ${wildfire?.isHighRisk ? 'text-orange-600' : 'text-slate-400'}`} />
