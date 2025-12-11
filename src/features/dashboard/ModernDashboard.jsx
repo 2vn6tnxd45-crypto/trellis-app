@@ -3,7 +3,8 @@ import React, { useMemo, useState } from 'react';
 import { 
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
-    AlertTriangle, Wrench, Map, Shield
+    AlertTriangle, Wrench, Shield, CheckCircle2,
+    Info, TrendingUp
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
@@ -42,7 +43,7 @@ const formatCurrency = (amount) => {
 };
 
 const getSeasonalTheme = () => {
-    const month = new Date().getMonth(); // 0-11
+    const month = new Date().getMonth();
     // Winter: Dec, Jan, Feb
     if (month === 11 || month <= 1) return { 
         name: 'Winter', 
@@ -82,12 +83,72 @@ const getGreeting = () => {
 
 // --- SUB-COMPONENTS ---
 
-const HealthRing = ({ score, size = 160, theme }) => {
+const HealthScoreCard = ({ breakdown, score, onDismiss }) => {
+    return (
+        <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
+                <h3 className="font-bold text-slate-900">Score Breakdown</h3>
+                <span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span>
+            </div>
+            
+            <div className="space-y-3">
+                {/* 1. Maintenance Health */}
+                <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                        <Wrench size={16} className={breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
+                        <span className="font-medium text-slate-600">Maintenance</span>
+                    </div>
+                    <span className={`font-bold ${breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
+                        {breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : "Good"}
+                    </span>
+                </div>
+                {breakdown.maintenance.penalty > 0 && (
+                    <p className="text-xs text-slate-400 pl-6 -mt-2">
+                        {breakdown.maintenance.count} overdue item{breakdown.maintenance.count !== 1 ? 's' : ''}
+                    </p>
+                )}
+
+                {/* 2. Upcoming Tasks */}
+                <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                        <Clock size={16} className={breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-300"} />
+                        <span className="font-medium text-slate-600">Upcoming</span>
+                    </div>
+                    <span className={`font-bold ${breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-400"}`}>
+                        {breakdown.upcoming.penalty > 0 ? `-${breakdown.upcoming.penalty}` : "--"}
+                    </span>
+                </div>
+
+                {/* 3. Data Coverage */}
+                <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                        <Shield size={16} className={breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
+                        <span className="font-medium text-slate-600">Coverage</span>
+                    </div>
+                    <span className={`font-bold ${breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
+                        {breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : "Max"}
+                    </span>
+                </div>
+                {breakdown.coverage.penalty > 0 && (
+                    <div className="bg-blue-50 p-2 rounded-lg mt-1 text-xs text-blue-700 font-medium flex items-center gap-2">
+                        <TrendingUp size={12} />
+                        Add {breakdown.coverage.needed} more items to boost score.
+                    </div>
+                )}
+            </div>
+            
+            {/* Arrow Tip */}
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white transform rotate-45 border-t border-l border-slate-100"></div>
+        </div>
+    );
+};
+
+const HealthRing = ({ score, size = 160, theme, breakdown }) => {
+    const [showBreakdown, setShowBreakdown] = useState(false);
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (score / 100) * circumference;
     
-    // Dynamic color based on score
     const getColor = () => {
         if (score >= 80) return '#10b981'; // Emerald
         if (score >= 60) return '#f59e0b'; // Amber
@@ -97,8 +158,14 @@ const HealthRing = ({ score, size = 160, theme }) => {
     const strokeColor = getColor();
     
     return (
-        <div className="relative" style={{ width: size, height: size }}>
-            <svg className="transform -rotate-90" width={size} height={size}>
+        <div 
+            className="relative group cursor-pointer" 
+            style={{ width: size, height: size }}
+            onClick={() => setShowBreakdown(!showBreakdown)}
+            onMouseEnter={() => setShowBreakdown(true)}
+            onMouseLeave={() => setShowBreakdown(false)}
+        >
+            <svg className="transform -rotate-90 transition-all duration-300 group-hover:scale-105" width={size} height={size}>
                 {/* Background Track */}
                 <circle
                     cx={size / 2}
@@ -126,14 +193,21 @@ const HealthRing = ({ score, size = 160, theme }) => {
                     }}
                 />
             </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
-                <span className="text-5xl font-black tracking-tight">
+            
+            {/* Center Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
+                <span className="text-5xl font-black tracking-tight shadow-sm">
                     {score}
                 </span>
-                <span className={`text-xs font-bold uppercase tracking-widest mt-1 ${theme.accent}`}>
-                    Health Score
+                <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${theme.accent}`}>
+                    Health <Info size={10} />
                 </span>
             </div>
+
+            {/* HOVER CARD */}
+            {showBreakdown && (
+                <HealthScoreCard breakdown={breakdown} score={score} />
+            )}
         </div>
     );
 };
@@ -222,18 +296,18 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
 
+    // --- ROBUST SCORING LOGIC ---
     const metrics = useMemo(() => {
         const now = new Date();
         let overdueCount = 0;
         let upcomingCount = 0;
-        let totalTracked = 0;
+        let totalTracked = records.length;
         const overdueTasks = [];
         const upcomingTasks = [];
         
         records.forEach(record => {
             const nextDate = getNextServiceDate(record);
             if (nextDate) {
-                totalTracked++;
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                 if (daysUntil < 0) {
                     overdueCount++;
@@ -245,28 +319,58 @@ export const ModernDashboard = ({
             }
         });
         
-        const total = totalTracked || 1;
-        const score = Math.max(0, Math.round(100 - ((overdueCount / total) * 50) - ((upcomingCount / total) * 20)));
+        // 1. Data Confidence Penalty (Encourages adding at least 5 items)
+        let coveragePenalty = 0;
+        const TARGET_ITEMS = 5;
+        if (totalTracked === 0) coveragePenalty = 40;
+        else if (totalTracked < 3) coveragePenalty = 25;
+        else if (totalTracked < TARGET_ITEMS) coveragePenalty = 10;
+
+        // 2. Maintenance Penalty (Overdue hurts a lot, Upcoming hurts a little)
+        const overduePenalty = Math.min(60, overdueCount * 15);
+        const upcomingPenalty = Math.min(20, upcomingCount * 5);
+        
+        const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
+        const score = Math.max(0, rawScore);
+        
         const totalSpent = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
         
-        return { score: records.length === 0 ? 100 : score, overdueCount, upcomingCount, totalSpent, overdueTasks, upcomingTasks };
+        return {
+            score, 
+            overdueCount, 
+            upcomingCount, 
+            totalSpent, 
+            overdueTasks, 
+            upcomingTasks,
+            breakdown: {
+                coverage: { 
+                    penalty: coveragePenalty, 
+                    needed: Math.max(0, TARGET_ITEMS - totalTracked)
+                },
+                maintenance: { penalty: overduePenalty, count: overdueCount },
+                upcoming: { penalty: upcomingPenalty, count: upcomingCount }
+            }
+        };
     }, [records]);
 
     const getScoreMessage = () => {
-        if (records.length === 0) return "Add items to unlock your home's health score!";
+        if (records.length === 0) return "Start adding items to build your score!";
         if (metrics.score >= 90) return "Your home is in excellent shape! 🎉";
         if (metrics.score >= 75) return "Looking good! Just a few checks needed.";
-        return "Your home needs some attention.";
+        if (metrics.score >= 50) return "Some items need your attention.";
+        return "Time to catch up on maintenance.";
     };
 
     return (
         <div className="space-y-8 pb-8">
             
             {/* HERO SECTION */}
-            <div className="relative overflow-hidden rounded-[2.5rem] shadow-xl">
-                {/* Seasonal Background */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${season.gradient}`} />
-                <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
+            <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
+                {/* Seasonal Background (clipped to rounded corners) */}
+                <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${season.gradient}`} />
+                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
+                </div>
                 
                 <div className="relative z-10 p-8 text-white">
                     {/* Header Row */}
@@ -284,9 +388,13 @@ export const ModernDashboard = ({
                         </button>
                     </div>
                     
-                    {/* Score Center */}
+                    {/* Score Center (Interactive) */}
                     <div className="flex flex-col items-center py-2">
-                        <HealthRing score={metrics.score} theme={season} />
+                        <HealthRing 
+                            score={metrics.score} 
+                            theme={season} 
+                            breakdown={metrics.breakdown}
+                        />
                         <p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">
                             {getScoreMessage()}
                         </p>
@@ -378,7 +486,6 @@ export const ModernDashboard = ({
     );
 };
 
-// Icons needed for this component
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react'; // Ensure this is imported
 
 export default ModernDashboard;
