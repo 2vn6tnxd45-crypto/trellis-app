@@ -12,39 +12,51 @@ export const useNeighborhoodData = (coordinates, address) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Guard clause: Need either coordinates OR a full address string
-        if ((!coordinates || !coordinates.lat) && (!address || !address.city)) return;
+        // Guard clause
+        if ((!coordinates || !coordinates.lat) && (!address || !address.city)) {
+            console.log("DEBUG: No coordinates or address found. Skipping fetch.");
+            return;
+        }
 
         const fetchAll = async () => {
             setLoading(true);
+            console.log("DEBUG: Starting fetch...", { coordinates, address });
             
             let targetLat = coordinates?.lat;
             let targetLon = coordinates?.lon;
 
             // FALLBACK: If no coords, geocode the address first
             if (!targetLat && address) {
+                console.log("DEBUG: Coordinates missing. Attempting Geocode fallback...");
                 try {
                     const query = `${address.street}, ${address.city}, ${address.state}`;
                     const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`;
+                    
                     const geoRes = await fetch(geoUrl);
                     const geoJson = await geoRes.json();
+                    
+                    console.log("DEBUG: Geocode Response:", geoJson);
+
+                    if (geoJson.status !== 'OK') {
+                        console.error("DEBUG: Geocoding API Error:", geoJson.status, geoJson.error_message);
+                    }
                     
                     if (geoJson.results?.[0]?.geometry?.location) {
                         targetLat = geoJson.results[0].geometry.location.lat;
                         targetLon = geoJson.results[0].geometry.location.lng;
+                        console.log("DEBUG: Resolved Coordinates:", targetLat, targetLon);
                     }
                 } catch (e) {
-                    console.error("Geocoding fallback failed", e);
+                    console.error("DEBUG: Geocoding fallback failed", e);
                 }
             }
 
-            // If we still don't have coords after fallback, stop.
             if (!targetLat) {
+                console.warn("DEBUG: Could not resolve location. Stopping.");
                 setLoading(false);
                 return;
             }
 
-            // FCC and ArcGIS APIs prefer 4 decimal places to avoid precision errors
             const lat = Number(targetLat).toFixed(4);
             const lon = Number(targetLon).toFixed(4);
 
@@ -64,6 +76,7 @@ export const useNeighborhoodData = (coordinates, address) => {
                     
                     const res = await fetch(`${url}?${params.toString()}`);
                     const json = await res.json();
+                    console.log("DEBUG: Flood Data:", json);
                     
                     if (json.features && json.features.length > 0) {
                         const attr = json.features[0].attributes;
@@ -86,6 +99,7 @@ export const useNeighborhoodData = (coordinates, address) => {
                     const url = `https://broadbandmap.fcc.gov/api/public/map/list/broadband/${lat}/${lon}`;
                     const res = await fetch(url);
                     const json = await res.json();
+                    console.log("DEBUG: Broadband Data:", json);
                     
                     if (json.data && json.data.length > 0) {
                         const fastProviders = json.data.filter(p => p.tech_code === 50 || p.tech_code === 40); 
@@ -123,6 +137,7 @@ export const useNeighborhoodData = (coordinates, address) => {
 
                     const res = await fetch(`${url}?${params.toString()}`);
                     const json = await res.json();
+                    console.log("DEBUG: Wildfire Data:", json);
 
                     if (json.features && json.features.length > 0) {
                         const score = json.features[0].attributes.RSL_SCORE || 0;
@@ -144,7 +159,6 @@ export const useNeighborhoodData = (coordinates, address) => {
                 }
             };
 
-            // Execute parallel fetches
             const [floodData, broadbandData, wildfireData] = await Promise.all([
                 fetchFlood(),
                 fetchBroadband(),
@@ -161,7 +175,7 @@ export const useNeighborhoodData = (coordinates, address) => {
         };
 
         fetchAll();
-    }, [coordinates, address]); // Added address dependency
+    }, [coordinates, address]);
 
     return { ...data, loading };
 };
