@@ -68,7 +68,6 @@ export const MoreMenu = ({ isOpen, onClose, onNavigate, onSignOut }) => {
     if (!isOpen) return null;
     
     const menuItems = [
-        // REMOVED 'Property' (Moved to Dashboard)
         { id: 'Reports', icon: FileText, label: 'Reports', description: 'Generate home reports' },
         { id: 'Settings', icon: Settings, label: 'Settings', description: 'Account & preferences' },
         { id: 'Help', icon: HelpCircle, label: 'Help & Support', description: 'FAQs and contact' },
