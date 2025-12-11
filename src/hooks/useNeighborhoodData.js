@@ -1,23 +1,52 @@
 // src/hooks/useNeighborhoodData.js
 import { useState, useEffect } from 'react';
+import { googleMapsApiKey } from '../config/constants';
 
-export const useNeighborhoodData = (coordinates) => {
+export const useNeighborhoodData = (coordinates, address) => {
     const [data, setData] = useState({
         flood: null,
         broadband: null,
-        wildfire: null, // NEW
+        wildfire: null,
         schools: null
     });
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (!coordinates || !coordinates.lat) return;
+        // Guard clause: Need either coordinates OR a full address string
+        if ((!coordinates || !coordinates.lat) && (!address || !address.city)) return;
 
         const fetchAll = async () => {
             setLoading(true);
+            
+            let targetLat = coordinates?.lat;
+            let targetLon = coordinates?.lon;
+
+            // FALLBACK: If no coords, geocode the address first
+            if (!targetLat && address) {
+                try {
+                    const query = `${address.street}, ${address.city}, ${address.state}`;
+                    const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`;
+                    const geoRes = await fetch(geoUrl);
+                    const geoJson = await geoRes.json();
+                    
+                    if (geoJson.results?.[0]?.geometry?.location) {
+                        targetLat = geoJson.results[0].geometry.location.lat;
+                        targetLon = geoJson.results[0].geometry.location.lng;
+                    }
+                } catch (e) {
+                    console.error("Geocoding fallback failed", e);
+                }
+            }
+
+            // If we still don't have coords after fallback, stop.
+            if (!targetLat) {
+                setLoading(false);
+                return;
+            }
+
             // FCC and ArcGIS APIs prefer 4 decimal places to avoid precision errors
-            const lat = Number(coordinates.lat).toFixed(4);
-            const lon = Number(coordinates.lon).toFixed(4);
+            const lat = Number(targetLat).toFixed(4);
+            const lon = Number(targetLon).toFixed(4);
 
             // 1. FEMA FLOOD DATA
             const fetchFlood = async () => {
@@ -54,14 +83,12 @@ export const useNeighborhoodData = (coordinates) => {
             // 2. FCC BROADBAND DATA
             const fetchBroadband = async () => {
                 try {
-                    // FIXED: Ensure coordinates are clean numbers
                     const url = `https://broadbandmap.fcc.gov/api/public/map/list/broadband/${lat}/${lon}`;
                     const res = await fetch(url);
                     const json = await res.json();
                     
                     if (json.data && json.data.length > 0) {
                         const fastProviders = json.data.filter(p => p.tech_code === 50 || p.tech_code === 40); 
-                        // Handle cases where max_ad_download might be missing or 0
                         const speeds = json.data.map(p => p.max_ad_download).filter(s => s > 0);
                         const maxSpeed = speeds.length > 0 ? Math.max(...speeds) : 0;
                         const providerCount = new Set(json.data.map(p => p.provider_id)).size;
@@ -80,18 +107,16 @@ export const useNeighborhoodData = (coordinates) => {
                 }
             };
 
-            // 3. USDA WILDFIRE RISK (NEW)
+            // 3. USDA WILDFIRE RISK
             const fetchWildfire = async () => {
                 try {
-                    // Wildfire Risk to Communities (ArcGIS REST)
-                    // MapServer 0 is usually the "Risk to Potential Structures" layer
                     const url = 'https://apps.fs.usda.gov/arcx/rest/services/rdw_Wildfire/Wildfire_Risk_to_Communities_Maps/MapServer/0/query';
                     const params = new URLSearchParams({
                         f: 'json',
                         geometry: `${lon},${lat}`,
                         geometryType: 'esriGeometryPoint',
                         spatialRel: 'esriSpatialRelIntersects',
-                        outFields: 'RSL_SCORE', // Risk Score (0-100) or similar field
+                        outFields: 'RSL_SCORE',
                         returnGeometry: 'false',
                         inSR: '4326'
                     });
@@ -101,7 +126,6 @@ export const useNeighborhoodData = (coordinates) => {
 
                     if (json.features && json.features.length > 0) {
                         const score = json.features[0].attributes.RSL_SCORE || 0;
-                        // Normalize 0-100 score to Low/Med/High
                         let riskLevel = 'Low';
                         if (score > 80) riskLevel = 'Very High';
                         else if (score > 50) riskLevel = 'High';
@@ -137,7 +161,7 @@ export const useNeighborhoodData = (coordinates) => {
         };
 
         fetchAll();
-    }, [coordinates]);
+    }, [coordinates, address]); // Added address dependency
 
     return { ...data, loading };
 };
