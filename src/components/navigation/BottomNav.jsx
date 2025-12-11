@@ -16,22 +16,24 @@ export const BottomNav = ({ activeTab, onTabChange, onAddClick, notificationCoun
     
     return (
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-50 md:max-w-md md:left-1/2 md:-translate-x-1/2 md:rounded-full md:bottom-6 md:shadow-2xl md:border-slate-100 md:px-4">
-            <div className="flex justify-around items-center">
+            {/* CHANGED: Used grid-cols-5 to force 5 equal columns */}
+            <div className="grid grid-cols-5 items-center h-full">
                 {tabs.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = activeTab === tab.id;
                     
                     if (tab.isCenter) {
                         return (
-                            <button
-                                key={tab.id}
-                                onClick={onAddClick}
-                                className="relative -top-6 group"
-                            >
-                                <div className="h-14 w-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all group-active:scale-95">
-                                    <Plus size={28} strokeWidth={2.5} />
-                                </div>
-                            </button>
+                            <div key={tab.id} className="flex justify-center">
+                                <button
+                                    onClick={onAddClick}
+                                    className="relative -top-6 group"
+                                >
+                                    <div className="h-14 w-14 bg-emerald-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all group-active:scale-95 border-4 border-white md:border-transparent">
+                                        <Plus size={28} strokeWidth={2.5} />
+                                    </div>
+                                </button>
+                            </div>
                         );
                     }
                     
@@ -39,14 +41,14 @@ export const BottomNav = ({ activeTab, onTabChange, onAddClick, notificationCoun
                         <button
                             key={tab.id}
                             onClick={() => onTabChange(tab.id)}
-                            className={`flex flex-col items-center py-1 px-3 rounded-xl transition-colors relative ${
+                            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-colors relative group w-full ${
                                 isActive 
                                     ? 'text-emerald-600' 
                                     : 'text-slate-400 hover:text-slate-600'
                             }`}
                         >
                             <div className="relative">
-                                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+                                <Icon size={22} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-active:scale-90" />
                                 {tab.badge > 0 && (
                                     <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
                                         {tab.badge > 9 ? '9+' : tab.badge}
