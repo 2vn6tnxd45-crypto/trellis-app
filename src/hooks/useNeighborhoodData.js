@@ -12,6 +12,7 @@ export const useNeighborhoodData = (coordinates, address) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        // Guard clause: Need either coordinates OR a full address string
         if ((!coordinates || !coordinates.lat) && (!address || !address.city)) return;
 
         const fetchAll = async () => {
@@ -42,13 +43,17 @@ export const useNeighborhoodData = (coordinates, address) => {
                 return;
             }
 
+            // FCC and ArcGIS APIs prefer 4 decimal places
             const lat = Number(targetLat).toFixed(4);
             const lon = Number(targetLon).toFixed(4);
 
             // HELPER: Use a CORS Proxy to bypass browser blocks
+            // We use 'allorigins' to wrap the request
             const fetchWithProxy = async (url) => {
                 const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-                return fetch(proxyUrl);
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`Proxy error: ${response.status}`);
+                return response.json();
             };
 
             // 2. FEMA FLOOD DATA (Via Proxy)
@@ -65,8 +70,8 @@ export const useNeighborhoodData = (coordinates, address) => {
                         inSR: '4326'
                     });
                     
-                    const res = await fetchWithProxy(`${baseUrl}?${params.toString()}`);
-                    const json = await res.json();
+                    // USE PROXY HERE
+                    const json = await fetchWithProxy(`${baseUrl}?${params.toString()}`);
                     
                     if (json.features && json.features.length > 0) {
                         const attr = json.features[0].attributes;
@@ -87,8 +92,9 @@ export const useNeighborhoodData = (coordinates, address) => {
             const fetchBroadband = async () => {
                 try {
                     const url = `https://broadbandmap.fcc.gov/api/public/map/list/broadband/${lat}/${lon}`;
-                    const res = await fetchWithProxy(url);
-                    const json = await res.json();
+                    
+                    // USE PROXY HERE
+                    const json = await fetchWithProxy(url);
                     
                     if (json.data && json.data.length > 0) {
                         const fastProviders = json.data.filter(p => p.tech_code === 50 || p.tech_code === 40); 
@@ -110,7 +116,7 @@ export const useNeighborhoodData = (coordinates, address) => {
                 }
             };
 
-            // 4. USDA WILDFIRE RISK (Often works without proxy, but added for safety)
+            // 4. USDA WILDFIRE RISK (Via Proxy for safety)
             const fetchWildfire = async () => {
                 try {
                     const url = 'https://apps.fs.usda.gov/arcx/rest/services/rdw_Wildfire/Wildfire_Risk_to_Communities_Maps/MapServer/0/query';
@@ -124,15 +130,8 @@ export const useNeighborhoodData = (coordinates, address) => {
                         inSR: '4326'
                     });
 
-                    // USDA usually allows direct access, but we'll use proxy if it fails
-                    let res;
-                    try {
-                        res = await fetch(`${url}?${params.toString()}`);
-                    } catch {
-                        res = await fetchWithProxy(`${url}?${params.toString()}`);
-                    }
-                    
-                    const json = await res.json();
+                    // USE PROXY HERE
+                    const json = await fetchWithProxy(`${url}?${params.toString()}`);
 
                     if (json.features && json.features.length > 0) {
                         const score = json.features[0].attributes.RSL_SCORE || 0;
