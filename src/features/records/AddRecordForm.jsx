@@ -1,26 +1,41 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronUp, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info } from 'lucide-react'; 
+import { 
+    ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, 
+    ChevronRight, FileText, Trash2, Paperclip, Armchair, 
+    Loader2, Save, ListChecks, Tag, Info, ScanLine, 
+    ArrowLeft, CheckCircle2, Image as ImageIcon
+} from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES, PAINT_SHEENS, ROOF_MATERIALS, FLOORING_TYPES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
 import { SmartScan } from './SmartScan';
-import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary';
 import { compressImage } from '../../lib/images';
 
 const DOC_TYPES = ["Photo", "Receipt", "Warranty", "Manual", "Contract", "Other"];
 
+// Helper for step indicators
+const StepIndicator = ({ currentStep, totalSteps }) => (
+    <div className="flex items-center gap-2 mb-6">
+        {Array.from({ length: totalSteps }).map((_, i) => (
+            <div key={i} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${i + 1 <= currentStep ? 'bg-emerald-500' : 'bg-slate-100'}`} />
+        ))}
+    </div>
+);
+
 export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInputChange, onAttachmentsChange, isEditing, onCancelEdit }) => {
-    const { suggestMaintenance, scanRoom, isSuggesting, isScanning } = useGemini();
+    const { suggestMaintenance, scanRoom, isSuggesting } = useGemini();
+    const [step, setStep] = useState(isEditing ? 2 : 1); // 1: Capture, 2: Essentials, 3: Details
+    const [scanMode, setScanMode] = useState(null); // 'receipt' | 'room' | null
     const [suggestedTasks, setSuggestedTasks] = useState([]);
     const [isCustomArea, setIsCustomArea] = useState(false);
-    const [isExpanded, setIsExpanded] = useState(!!isEditing);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
     
-    // Room/Area Scan State
+    // Room Scan / Batch State
     const [roomScanResults, setRoomScanResults] = useState([]);
     const [roomScanFile, setRoomScanFile] = useState(null);
     const roomInputRef = useRef(null);
+    const photoInputRef = useRef(null);
 
     useEffect(() => {
         if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true);
@@ -28,26 +43,54 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (newRecord.attachments) setLocalAttachments(newRecord.attachments);
     }, [newRecord]);
 
+    // --- HANDLERS ---
+
+    const handleNext = () => setStep(s => s + 1);
+    const handleBack = () => setStep(s => s - 1);
+
+    const handlePhotoUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Add as attachment immediately
+        const newAtts = [...(localAttachments || [])];
+        newAtts.push({ 
+            fileRef: file, 
+            name: "Item Photo", 
+            type: "Photo",
+            size: file.size,
+            preview: URL.createObjectURL(file) 
+        });
+        onAttachmentsChange(newAtts.map(a => a.fileRef || a)); // Hack to keep compatibility with parent
+        setLocalAttachments(newAtts);
+
+        // Optional: Run basic AI vision here to guess category?
+        // For now, just move to step 2
+        toast.success("Photo added!");
+        setStep(2);
+    };
+
     const handleRoomScan = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         
         setRoomScanFile(file);
-        const loadingToast = toast.loading("AI is analyzing area & identifying products...");
+        const loadingToast = toast.loading("Analyzing room & identifying items...");
         
         try {
             const base64Str = await compressImage(file);
-            const data = await scanRoom(file, base64Str);
+            const data = await scanRoom([file], [base64Str]); // Updated to array format
             
             if (data && data.items) {
                 setRoomScanResults(data.items);
-                toast.success(`Identified ${data.items.length} items! Review them below.`);
+                toast.success(`Found ${data.items.length} items!`);
+                setScanMode('room-results'); // Special mode for reviewing results
             } else {
                 toast.error("Could not identify items.");
             }
         } catch (err) {
             console.error(err);
-            toast.error("Area scan failed.");
+            toast.error("Scan failed.");
         } finally {
             toast.dismiss(loadingToast);
             if (roomInputRef.current) roomInputRef.current.value = "";
@@ -59,21 +102,10 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         await onBatchSave(roomScanResults, roomScanFile);
         setRoomScanResults([]); 
         setRoomScanFile(null);
+        setScanMode(null);
     };
 
-    const updateRoomItem = (index, field, val) => {
-        const updated = [...roomScanResults];
-        updated[index][field] = val;
-        setRoomScanResults(updated);
-    };
-
-    const removeRoomItem = (index) => {
-        const updated = [...roomScanResults];
-        updated.splice(index, 1);
-        setRoomScanResults(updated);
-    };
-
-    // Standard handlers...
+    // Standard Form Handlers
     const handleRoomChange = (e) => {
         if (e.target.value === "Other (Custom)") {
             setIsCustomArea(true);
@@ -87,11 +119,10 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const handleSuggest = async () => {
         const result = await suggestMaintenance(newRecord);
         if (result) {
-            setIsExpanded(true);
             if (result.frequency) onInputChange({ target: { name: 'maintenanceFrequency', value: result.frequency } });
             if (result.tasks) {
                 setSuggestedTasks(result.tasks);
-                onInputChange({ target: { name: 'maintenanceTasks', value: result.tasks } });
+                toast.success("Maintenance schedule updated!");
             }
         }
     };
@@ -100,14 +131,8 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         Object.keys(data).forEach(key => {
             onInputChange({ target: { name: key, value: data[key] } });
         });
-        setIsExpanded(true);
-    };
-
-    const handleFileSelect = (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            const newFiles = Array.from(e.target.files);
-            onAttachmentsChange(newFiles);
-        }
+        setStep(2); // Jump to essentials
+        setScanMode(null);
     };
 
     const removeAttachment = (index) => {
@@ -117,240 +142,247 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         onInputChange({ target: { name: 'attachments', value: updated } });
     };
 
-    const updateAttachmentType = (index, type) => {
-        const updated = [...localAttachments];
-        updated[index].type = type;
-        setLocalAttachments(updated);
-        onInputChange({ target: { name: 'attachments', value: updated } });
-    };
+    // --- RENDERERS ---
 
-    const showSheen = newRecord.category === "Paint & Finishes";
-    const showMaterial = ["Roof & Exterior", "Flooring"].includes(newRecord.category);
-    const showSerial = ["Appliances", "HVAC & Systems", "Plumbing", "Electrical"].includes(newRecord.category);
-
-    return (
-        <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
-            
-            {/* Improved Scan Review UI */}
-            {roomScanResults.length > 0 && (
-                <div className="p-6 bg-slate-50 border-b border-slate-200 animate-in fade-in slide-in-from-top-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    // 1. VIEW: BATCH REVIEW (Room Scan Results)
+    if (scanMode === 'room-results') {
+        return (
+            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
+                <div className="p-6 bg-slate-50 border-b border-slate-200">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <h3 className="font-bold text-slate-800 text-lg flex items-center">
-                                <ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Review Items ({roomScanResults.length})
+                                <ListChecks className="mr-2 h-5 w-5 text-emerald-600"/> Room Scan Results
                             </h3>
-                            <p className="text-sm text-slate-500">Edit the details before saving.</p>
+                            <p className="text-sm text-slate-500">We found {roomScanResults.length} items. Review before saving.</p>
                         </div>
-                        <button 
-                            onClick={handleSaveRoomItems}
-                            disabled={isSaving}
-                            className="w-full sm:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center justify-center transition-transform active:scale-95"
-                        >
-                            {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
-                            Save All Items
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => setScanMode(null)} className="px-4 py-2 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+                            <button 
+                                onClick={handleSaveRoomItems}
+                                disabled={isSaving}
+                                className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-sm font-bold hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 flex items-center"
+                            >
+                                {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2"/> : <Save className="mr-2 h-4 w-4"/>}
+                                Save All
+                            </button>
+                        </div>
                     </div>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+                    {roomScanResults.map((item, idx) => (
+                        <div key={idx} className="flex gap-4 p-4 bg-white border border-slate-200 rounded-xl items-start">
+                            <div className="bg-slate-100 p-2 rounded-lg"><Tag size={16} className="text-slate-400"/></div>
+                            <div className="flex-grow grid grid-cols-2 gap-4">
+                                <input value={item.item} onChange={(e) => { const u = [...roomScanResults]; u[idx].item = e.target.value; setRoomScanResults(u); }} className="font-bold text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1" placeholder="Item Name"/>
+                                <input value={item.category} onChange={(e) => { const u = [...roomScanResults]; u[idx].category = e.target.value; setRoomScanResults(u); }} className="text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1" placeholder="Category"/>
+                            </div>
+                            <button onClick={() => { const u = [...roomScanResults]; u.splice(idx, 1); setRoomScanResults(u); }} className="text-slate-300 hover:text-red-500"><X size={18}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    // 2. VIEW: SMART SCAN (Receipt Mode)
+    if (scanMode === 'receipt') {
+        return (
+            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden p-6">
+                <div className="flex items-center mb-4">
+                    <button onClick={() => setScanMode(null)} className="mr-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><ArrowLeft size={20}/></button>
+                    <h3 className="text-lg font-bold text-slate-800">Scan Receipt</h3>
+                </div>
+                <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]">
+            
+            {/* HEADER */}
+            <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white sticky top-0 z-10">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Item' : 'Add New Item'}</h2>
+                    {!isEditing && <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mt-1">Step {step} of 3</p>}
+                </div>
+                {isEditing ? (
+                    <button type="button" onClick={onCancelEdit} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button>
+                ) : (
+                    <button type="button" onClick={onCancelEdit} className="text-sm font-bold text-slate-400 hover:text-slate-600">Cancel</button>
+                )}
+            </div>
+
+            {/* PROGRESS BAR (New Items Only) */}
+            {!isEditing && (
+                <div className="px-6 pt-6">
+                    <StepIndicator currentStep={step} totalSteps={3} />
+                </div>
+            )}
+
+            {/* FORM CONTENT */}
+            <div className="overflow-y-auto p-6 pt-2 flex-grow">
+                <form id="recordForm" onSubmit={onSave} className="space-y-6">
                     
-                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1 pb-4">
-                        {roomScanResults.map((item, idx) => (
-                            <div key={idx} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm relative group hover:border-emerald-300 transition-colors">
-                                <button 
-                                    onClick={() => removeRoomItem(idx)} 
-                                    className="absolute top-4 right-4 text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-full transition-all"
-                                >
-                                    <X size={20}/>
+                    {/* STEP 1: CAPTURE */}
+                    {step === 1 && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                            <h3 className="text-lg font-bold text-slate-800 mb-6 text-center">How do you want to add this item?</h3>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <button type="button" onClick={() => setScanMode('receipt')} className="group p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 transition-all text-left flex flex-col gap-3">
+                                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <ScanLine className="text-emerald-600" size={24} />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-emerald-900">Scan Receipt</p>
+                                        <p className="text-xs text-emerald-700/80 mt-1">Extract info automatically</p>
+                                    </div>
                                 </button>
 
-                                <div className="grid grid-cols-1 gap-4 pr-10">
+                                <button type="button" onClick={() => photoInputRef.current?.click()} className="group p-6 rounded-2xl border-2 border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all text-left flex flex-col gap-3">
+                                    <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <ImageIcon className="text-blue-600" size={24} />
+                                    </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
-                                        <input 
-                                            value={item.item} 
-                                            onChange={(e) => updateRoomItem(idx, 'item', e.target.value)}
-                                            className="font-bold text-slate-800 border border-slate-200 rounded-lg p-3 w-full focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-slate-50 focus:bg-white transition-all"
-                                            placeholder="e.g. Modern Vanity"
-                                        />
+                                        <p className="font-bold text-slate-800">Upload Photo</p>
+                                        <p className="text-xs text-slate-500 mt-1">Take a picture of the item</p>
                                     </div>
+                                    <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
+                                </button>
+                            </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center"><Tag size={10} className="mr-1"/> Brand</label>
-                                            <input 
-                                                value={item.brand || ''} 
-                                                onChange={(e) => updateRoomItem(idx, 'brand', e.target.value)}
-                                                className="text-sm text-slate-600 border border-slate-200 rounded-lg p-2.5 w-full focus:ring-emerald-500 outline-none"
-                                                placeholder="Unknown"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center"><Info size={10} className="mr-1"/> Model/Style</label>
-                                            <input 
-                                                value={item.model || ''} 
-                                                onChange={(e) => updateRoomItem(idx, 'model', e.target.value)}
-                                                className="text-sm text-slate-600 border border-slate-200 rounded-lg p-2.5 w-full focus:ring-emerald-500 outline-none"
-                                                placeholder="Style/Series"
-                                            />
-                                        </div>
+                            <button type="button" onClick={() => setStep(2)} className="w-full p-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-sm transition-colors flex items-center justify-center">
+                                <Pencil className="mr-2 h-4 w-4" /> Type Manually
+                            </button>
+
+                            <div className="pt-6 border-t border-slate-50 text-center">
+                                <p className="text-xs text-slate-400 mb-3">Adding multiple items?</p>
+                                <button type="button" onClick={() => roomInputRef.current?.click()} className="text-indigo-600 font-bold text-sm hover:underline flex items-center justify-center">
+                                    <Armchair className="mr-1.5 h-4 w-4" /> Scan a whole room
+                                </button>
+                                <input ref={roomInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleRoomScan} />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* STEP 2: ESSENTIALS */}
+                    {(step === 2 || isEditing) && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            
+                            {/* Preview Image if exists */}
+                            {localAttachments.length > 0 && localAttachments[0].preview && (
+                                <div className="w-full h-40 bg-slate-100 rounded-xl overflow-hidden relative mb-4">
+                                    <img src={localAttachments[0].preview} alt="Preview" className="w-full h-full object-cover" />
+                                    <button type="button" onClick={() => removeAttachment(0)} className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-red-500"><X size={14}/></button>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">What is it? *</label>
+                                <input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. Living Room Sofa" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-4 border focus:ring-emerald-500 focus:bg-white transition-all font-bold text-lg text-slate-800 placeholder:font-normal"/>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Category *</label>
+                                    <div className="relative">
+                                        <select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium">
+                                            <option value="" disabled>Select...</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        <ChevronDown size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/>
                                     </div>
-
-                                    {item.notes && (
-                                        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                                            <p className="text-xs text-slate-500 italic">"{item.notes}"</p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Area *</label>
+                                    {!isCustomArea ? (
+                                        <div className="relative">
+                                            <select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium">
+                                                <option value="" disabled>Select...</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other...</option>
+                                            </select>
+                                            <ChevronDown size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/>
+                                        </div>
+                                    ) : (
+                                        <div className="flex">
+                                            <input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="Name..." className="block w-full rounded-l-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm"/>
+                                            <button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-slate-100 border border-l-0 border-slate-200 rounded-r-xl hover:bg-slate-200"><X size={16}/></button>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
-            {!isEditing && roomScanResults.length === 0 && (
-                <div className="p-10 pb-0 space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-                        <div className="h-full">
-                            <FeatureErrorBoundary label="Smart Scan">
-                                <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
-                            </FeatureErrorBoundary>
-                        </div>
-                        
-                        <div className="h-full flex flex-col pb-8">
-                            <button 
-                                onClick={() => roomInputRef.current?.click()}
-                                disabled={isScanning}
-                                className="w-full flex-grow bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 border border-indigo-100 flex flex-col items-center justify-center hover:border-indigo-200 transition-all text-center group shadow-sm hover:shadow-md min-h-[200px]"
-                            >
-                                {isScanning ? <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mb-3"/> : <Armchair className="h-10 w-10 text-indigo-600 mb-3 group-hover:scale-110 transition-transform"/>}
-                                <span className="font-bold text-indigo-900 text-lg block">Area Scan</span>
-                                <span className="text-xs text-indigo-600 uppercase font-bold tracking-wide mt-2">Photo to Inventory</span>
-                            </button>
-                            <input ref={roomInputRef} type="file" accept="image/*" className="hidden" onChange={handleRoomScan} />
-                        </div>
-                    </div>
-                </div>
-            )}
-            
-            <form onSubmit={onSave} className="p-10 pt-6 space-y-6">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-2"> 
-                    <h2 className="text-2xl font-bold text-slate-800">{isEditing ? 'Edit Record' : 'Add Item'}</h2> 
-                    {isEditing && <button type="button" onClick={onCancelEdit} className="text-sm text-slate-400 hover:text-slate-600 flex items-center font-bold uppercase tracking-wider"><X size={14} className="mr-1"/> Cancel</button>} 
-                </div> 
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Category *</label>
-                        <div className="relative">
-                            <select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white appearance-none transition-colors">
-                                <option value="" disabled>Select</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                            <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
-                        </div>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Area *</label>
-                        {!isCustomArea ? (
-                            <div className="relative">
-                                <select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white appearance-none transition-colors">
-                                    <option value="" disabled>Select</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other (Custom)</option>
-                                </select>
-                                <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Date Installed</label>
+                                <input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm text-slate-600"/>
                             </div>
-                        ) : (
-                            <div className="relative flex">
-                                <input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="e.g. Guest House" className="block w-full rounded-l-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/>
-                                <button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-4 bg-slate-100 border border-l-0 border-slate-200 rounded-r-xl hover:bg-slate-200"><X size={18}/></button>
-                            </div>
-                        )}
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Item Name *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. North Wall" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 focus:bg-white"/></div>
-                    <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
-                </div>
-
-                <div>
-                    <div className="flex justify-between items-center mb-2">
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Documents & Photos</label>
-                        <label className="cursor-pointer text-xs flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-colors font-bold uppercase tracking-wide">
-                            <PlusCircle size={12} className="mr-1"/> Add File
-                            <input type="file" multiple onChange={handleFileSelect} className="hidden" />
-                        </label>
-                    </div>
-                    {localAttachments.length > 0 ? (
-                        <div className="space-y-2 mb-4">
-                            {localAttachments.map((att, idx) => (
-                                <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                    <div className="h-10 w-10 bg-white rounded-lg flex items-center justify-center border border-slate-100 shrink-0">
-                                        {att.type === 'Photo' ? <Camera size={16} className="text-slate-400"/> : <FileText size={16} className="text-slate-400"/>}
-                                    </div>
-                                    <div className="flex-grow min-w-0">
-                                        <p className="text-sm font-bold text-slate-700 truncate">{att.name || "Untitled"}</p>
-                                        <p className="text-xs text-slate-400">{Math.round((att.size || 0) / 1024)} KB</p>
-                                    </div>
-                                    <select value={att.type} onChange={(e) => updateAttachmentType(idx, e.target.value)} className="text-xs border-slate-200 rounded-lg p-1.5 bg-white focus:ring-0">
-                                        {DOC_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                    <button type="button" onClick={() => removeAttachment(idx)} className="p-2 text-slate-300 hover:text-red-500 transition"><Trash2 size={16}/></button>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-300 text-center relative">
-                            <div className="text-slate-400"><Paperclip size={24} className="mx-auto mb-2"/></div>
-                            <p className="text-sm font-bold text-slate-500">No documents attached</p>
-                            <p className="text-xs text-slate-400">Upload warranties, receipts, or manuals.</p>
+                            {!isEditing && (
+                                <button type="button" onClick={handleNext} disabled={!newRecord.item || !newRecord.category} className="w-full py-4 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center shadow-lg">
+                                    Next: Add Details <ChevronRight size={16} className="ml-2"/>
+                                </button>
+                            )}
                         </div>
                     )}
-                </div>
 
-                <button type="button" onClick={() => setIsExpanded(!isExpanded)} className="flex items-center text-sm font-bold text-emerald-600 hover:text-emerald-800 transition-colors w-full justify-center py-2 bg-emerald-50/50 rounded-lg hover:bg-emerald-50">
-                    {isExpanded ? <><ChevronUp size={16} className="mr-1"/> Hide Details</> : <><ChevronRight size={16} className="mr-1"/> Add Details, Specs & Maintenance</>}
-                </button>
-
-                {isExpanded && (
-                    <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                            <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Brand</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
-                            <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Model</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
-                            {showSheen && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Sheen</label><select name="sheen" value={newRecord.sheen} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{PAINT_SHEENS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>}
-                            {showSerial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Serial #</label><input type="text" name="serialNumber" value={newRecord.serialNumber} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>}
-                            {showMaterial && <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Material</label><select name="material" value={newRecord.material} onChange={onInputChange} className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"><option value="">Select</option>{(newRecord.category==="Roof & Exterior"?ROOF_MATERIALS:FLOORING_TYPES).map(m=><option key={m} value={m}>{m}</option>)}</select></div>}
-                        </div>
-
-                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wide">Purchase & Contractor Info</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor / Store</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
-                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost</label><div className="relative"><span className="absolute left-3 top-3 text-slate-400 font-bold">$</span><input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" step="0.01" className="block w-full pl-6 rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div></div>
-                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Phone</label><input type="tel" name="contractorPhone" value={newRecord.contractorPhone} onChange={onInputChange} placeholder="(555) 123-4567" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
-                                <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor Email</label><input type="email" name="contractorEmail" value={newRecord.contractorEmail} onChange={onInputChange} placeholder="pro@company.com" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500"/></div>
+                    {/* STEP 3: DETAILS */}
+                    {(step === 3 || isEditing) && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                            
+                            {/* Product Specs */}
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4">
+                                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center"><Tag size={12} className="mr-1"/> Product Specs</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Brand</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} placeholder="e.g. Samsung" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Model</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} placeholder="Model #" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost ($)</label><input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
+                                    <div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="border-t border-slate-100 pt-4">
-                            <div className="flex justify-between items-center mb-2">
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Maintenance Schedule</label>
-                                <button type="button" onClick={handleSuggest} disabled={isSuggesting} className="text-xs flex items-center bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-colors font-bold uppercase tracking-wide">
-                                    {isSuggesting ? <span className="animate-pulse">Thinking...</span> : <><Zap size={12} className="mr-1 fill-emerald-700"/> Auto-Suggest</>}
+                            {/* Maintenance */}
+                            <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center"><Wrench size={12} className="mr-1"/> Maintenance</h4>
+                                    <button type="button" onClick={handleSuggest} disabled={isSuggesting} className="text-[10px] font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-50 shadow-sm flex items-center">
+                                        {isSuggesting ? <Loader2 className="animate-spin h-3 w-3 mr-1"/> : <Zap className="h-3 w-3 mr-1 fill-emerald-600"/>} AI Suggest
+                                    </button>
+                                </div>
+                                <div className="relative">
+                                    <select name="maintenanceFrequency" value={newRecord.maintenanceFrequency} onChange={onInputChange} className="block w-full rounded-xl border-emerald-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium text-emerald-900">
+                                        {MAINTENANCE_FREQUENCIES.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}
+                                    </select>
+                                    <ChevronDown size={16} className="absolute right-3 top-3.5 text-emerald-400 pointer-events-none"/>
+                                </div>
+                                {suggestedTasks.length > 0 && (
+                                    <div className="bg-white p-3 rounded-xl border border-emerald-100 text-xs text-emerald-800">
+                                        <p className="font-bold mb-1">Recommended Tasks:</p>
+                                        <ul className="list-disc pl-4 space-y-0.5">{suggestedTasks.map((t,i) => <li key={i}>{t}</li>)}</ul>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Notes */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Notes & Warranty</label>
+                                <textarea name="notes" value={newRecord.notes} onChange={onInputChange} rows={3} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm resize-none" placeholder="Add details..."></textarea>
+                            </div>
+
+                            {/* Navigation Buttons */}
+                            <div className="flex gap-3 pt-2">
+                                {!isEditing && (
+                                    <button type="button" onClick={handleBack} className="px-6 py-4 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50">Back</button>
+                                )}
+                                <button type="submit" disabled={isSaving} className="flex-grow py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center transition-all active:scale-[0.98]">
+                                    {isSaving ? <Loader2 className="animate-spin h-5 w-5 mr-2" /> : (isEditing ? 'Save Changes' : 'Complete Setup')}
                                 </button>
                             </div>
-                            <div className="relative">
-                                <select name="maintenanceFrequency" value={newRecord.maintenanceFrequency} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500 appearance-none">
-                                    {MAINTENANCE_FREQUENCIES.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}
-                                </select>
-                                <ChevronDown size={16} className="absolute right-3 top-4 text-slate-400 pointer-events-none"/>
-                            </div>
-                            {suggestedTasks.length > 0 && <div className="mt-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm"><p className="font-bold text-emerald-900 mb-2 flex items-center"><Wrench size={14} className="mr-2"/> Suggested Tasks:</p><ul className="list-disc pl-5 space-y-1 text-emerald-800">{suggestedTasks.map((task, i) => <li key={i}>{task}</li>)}</ul></div>}
                         </div>
-
-                        <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Product Link</label><input type="url" name="purchaseLink" value={newRecord.purchaseLink} onChange={onInputChange} placeholder="https://..." className="block w-full rounded-xl border-slate-200 bg-slate-50 p-3.5 border focus:ring-emerald-500"/></div>
-                        <div><label className="block text-sm font-medium text-gray-700">Notes</label><textarea name="notes" rows="3" value={newRecord.notes} onChange={onInputChange} className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-2 border resize-none"></textarea></div>
-                    </div>
-                )}
-                
-                <button type="submit" disabled={isSaving} className="w-full flex justify-center items-center py-4 px-6 border border-transparent rounded-xl shadow-lg shadow-emerald-600/10 text-base font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-transform active:scale-[0.98]"> {isSaving ? 'Saving...' : (isEditing ? <><Pencil size={18} className="mr-2"/> Update Record</> : <><PlusCircle size={18} className="mr-2"/> Log Item</>)} </button>
-            </form>
+                    )}
+                </form>
+            </div>
         </div>
     );
 };
