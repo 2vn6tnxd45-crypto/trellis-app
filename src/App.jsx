@@ -34,12 +34,15 @@ import { RecordCard } from './features/records/RecordCard';
 import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
 
-// Dashboard
+// Dashboard - OLD (keep as fallback)
 import { Dashboard } from './features/dashboard/Dashboard';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
 import { CountyData } from './features/dashboard/CountyData';
 
-// NEW IMPORT
+// Dashboard - NEW MODERN VERSION
+import { ModernDashboard } from './features/dashboard/ModernDashboard';
+
+// Reports
 import { PedigreeReport } from './features/report/PedigreeReport';
 
 // Requests & Contractors
@@ -64,7 +67,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppContent = () => {
-    // ... (Keep existing state: user, profile, records, etc.) ...
+    // State
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
@@ -92,6 +95,9 @@ const AppContent = () => {
     const [showQuickService, setShowQuickService] = useState(false);
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
+    
+    // NEW: Toggle for Modern vs Classic Dashboard
+    const [useModernDashboard, setUseModernDashboard] = useState(true);
 
     const getPropertiesList = () => {
         if (!profile) return [];
@@ -233,7 +239,6 @@ const AppContent = () => {
         
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
-                {/* ... (Keep existing header content: Logo, Property Switcher, Notifications, User Menu) ... */}
                 <div className="relative">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
                         <Logo className="h-10 w-10"/>
@@ -282,29 +287,48 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* Welcome Screen */}
+                {/* Welcome Screen for brand new users */}
                 {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && (
                     <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />
                 )}
                 
-                {/* Main Dashboard */}
+                {/* ============================================ */}
+                {/* DASHBOARD - Modern or Classic based on toggle */}
+                {/* ============================================ */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
-                        <Dashboard 
-                            records={activePropertyRecords}
-                            contractors={contractorsList} 
-                            activeProperty={activeProperty}
-                            propertyName={activeProperty.name}
-                            onScanReceipt={() => openAddModal()}
-                            onNavigateToItems={() => setActiveTab('Items')}
-                            onNavigateToContractors={() => setActiveTab('Contractors')}
-                            onCreateContractorLink={() => handleOpenQuickService(null)}
-                            onNavigateToReports={() => setActiveTab('Reports')} // Passed for the Share button
-                        />
+                        {useModernDashboard ? (
+                            // NEW MODERN DASHBOARD
+                            <ModernDashboard 
+                                records={activePropertyRecords}
+                                contractors={contractorsList} 
+                                activeProperty={activeProperty}
+                                onScanReceipt={() => openAddModal()}
+                                onAddRecord={() => openAddModal()}
+                                onNavigateToItems={() => setActiveTab('Items')}
+                                onNavigateToContractors={() => setActiveTab('Contractors')}
+                                onNavigateToReports={() => setActiveTab('Reports')}
+                                onNavigateToMaintenance={() => setActiveTab('Items')}
+                                onCreateContractorLink={() => handleOpenQuickService(null)}
+                            />
+                        ) : (
+                            // CLASSIC DASHBOARD (fallback)
+                            <Dashboard 
+                                records={activePropertyRecords}
+                                contractors={contractorsList} 
+                                activeProperty={activeProperty}
+                                propertyName={activeProperty.name}
+                                onScanReceipt={() => openAddModal()}
+                                onNavigateToItems={() => setActiveTab('Items')}
+                                onNavigateToContractors={() => setActiveTab('Contractors')}
+                                onCreateContractorLink={() => handleOpenQuickService(null)}
+                                onNavigateToReports={() => setActiveTab('Reports')}
+                            />
+                        )}
                     </FeatureErrorBoundary>
                 )}
 
-                {/* Reports Tab (NOW IMPLEMENTED) */}
+                {/* Reports Tab */}
                 {activeTab === 'Reports' && (
                     <FeatureErrorBoundary label="Reports">
                         <PedigreeReport 
@@ -314,7 +338,6 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
-                {/* ... (Keep other tabs: Areas, Items, Contractors, Property, Settings, Help) ... */}
                 {/* Areas View */}
                 {activeTab === 'Areas' && (
                      <div className="space-y-6">
@@ -413,8 +436,36 @@ const AppContent = () => {
                 {activeTab === 'Settings' && (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-emerald-950">Settings</h2>
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-4">
-                            <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Enhanced Record Cards</h3><p className="text-sm text-slate-500">Use new card design with quick service requests</p></div><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
+                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
+                            {/* Modern Dashboard Toggle */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Modern Dashboard</h3>
+                                    <p className="text-sm text-slate-500">Use the new redesigned dashboard with health score</p>
+                                </div>
+                                <button 
+                                    onClick={() => setUseModernDashboard(!useModernDashboard)} 
+                                    className={`w-12 h-6 rounded-full transition-colors ${useModernDashboard ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useModernDashboard ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
+                            
+                            <div className="border-t border-slate-100"></div>
+                            
+                            {/* Enhanced Cards Toggle */}
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Enhanced Record Cards</h3>
+                                    <p className="text-sm text-slate-500">Use new card design with quick service requests</p>
+                                </div>
+                                <button 
+                                    onClick={() => setUseEnhancedCards(!useEnhancedCards)} 
+                                    className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}
+                                >
+                                    <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
