@@ -38,13 +38,11 @@ import { RecordCard } from './features/records/RecordCard';
 import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
 
-// Dashboard - OLD (keep as fallback)
-import { Dashboard } from './features/dashboard/Dashboard';
+// Dashboard
+import { Dashboard } from './features/dashboard/Dashboard'; // Legacy fallback
+import { ModernDashboard } from './features/dashboard/ModernDashboard';
 import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
 import { CountyData } from './features/dashboard/CountyData';
-
-// Dashboard - NEW MODERN VERSION
-import { ModernDashboard } from './features/dashboard/ModernDashboard';
 
 // Reports
 import { PedigreeReport } from './features/report/PedigreeReport';
@@ -235,30 +233,64 @@ const AppContent = () => {
         <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px', padding: '12px 16px', fontSize: '14px', fontWeight: '500' }, success: { iconTheme: { primary: '#10b981', secondary: '#fff' } }, error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } } }} />
         
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
-            <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm">
-                <div className="relative">
-                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors">
-                        <Logo className="h-10 w-10"/>
+            
+            {/* HEADER with Location Pill */}
+            <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
+                <div className="relative z-10 flex items-center">
+                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors group">
+                        <Logo className="h-10 w-10 group-hover:scale-105 transition-transform"/>
                         <div className="flex flex-col">
                             <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">
                                 {activeProperty.name}
-                                <ChevronDown size={16} className="ml-1 text-slate-400"/>
+                                <ChevronDown size={16} className="ml-1 text-slate-400 group-hover:text-emerald-600 transition-colors"/>
                             </h1>
+                            {activeProperty?.address && (
+                                <p className="text-[10px] font-bold text-slate-400 md:hidden mt-0.5 max-w-[120px] truncate flex items-center">
+                                    <MapPin size={8} className="mr-1 inline" />
+                                    {activeProperty.address.street}
+                                </p>
+                            )}
                         </div>
                     </button>
                     {isSwitchingProp && (
-                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
-                            {properties.map(p => (<button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>))}
+                        <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in slide-in-from-top-2">
+                            {properties.map(p => (
+                                <button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                                    {p.name}
+                                    {activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}
+                                </button>
+                            ))}
                             <div className="border-t border-slate-100 my-1"></div>
-                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50"><PlusCircle size={16} className="mr-2"/> Add Property</button>
+                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50">
+                                <PlusCircle size={16} className="mr-2"/> Add Property
+                            </button>
                         </div>
                     )}
                 </div>
-                <div className="flex items-center gap-3">
+
+                {/* Desktop Address Pill */}
+                {activeProperty?.address && (
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 bg-slate-50 px-5 py-2 rounded-full border border-slate-100 shadow-sm hover:border-emerald-200 transition-colors cursor-default">
+                        <div className="bg-white p-1 rounded-full shadow-sm">
+                            <MapPin size={12} className="text-emerald-600" />
+                        </div>
+                        <span className="text-sm font-bold text-slate-700">
+                            {activeProperty.address.street}
+                        </span>
+                        <span className="text-xs font-medium text-slate-400 border-l border-slate-200 pl-2">
+                            {activeProperty.address.city}, {activeProperty.address.state}
+                        </span>
+                    </div>
+                )}
+
+                <div className="relative z-10 flex items-center gap-3">
                     <div className="relative">
-                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 relative"><Bell size={20} className="text-slate-400"/>{totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</button>
+                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 relative bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                            <Bell size={20} className="text-slate-400"/>
+                            {totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                        </button>
                         {showNotifications && (
-                            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50">
+                            <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in zoom-in-95">
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Notifications</h3>
                                 {totalNotifications === 0 ? <p className="text-xs text-slate-400">No new notifications.</p> : <div className="space-y-2">{dueTasks.slice(0, 3).map(task => (<div key={task.id} className="p-2 bg-amber-50 rounded-lg text-xs"><p className="font-bold text-amber-800">{task.item}</p><p className="text-amber-600">Due in {task.diffDays} days</p></div>))}{newSubmissions.slice(0, 2).map(sub => (<div key={sub.id} className="p-2 bg-emerald-50 rounded-lg text-xs"><p className="font-bold text-emerald-800">New submission</p><p className="text-emerald-600">{sub.description}</p></div>))}</div>}
                             </div>
@@ -266,15 +298,16 @@ const AppContent = () => {
                         {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
                     </div>
                     <div className="relative">
-                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2"><Menu size={20} className="text-slate-400"/></button>
-                        {showUserMenu && (<><div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50"><button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl flex items-center"><LogOut size={16} className="mr-2"/> Sign Out</button><div className="border-t border-slate-100 my-1"></div><button onClick={handleDeleteAccount} className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl flex items-center"><Trash2 size={16} className="mr-2"/> Delete Account</button></div><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div></>)}
+                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                            <Menu size={20} className="text-slate-400"/>
+                        </button>
+                        {showUserMenu && (<><div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95"><button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl flex items-center"><LogOut size={16} className="mr-2"/> Sign Out</button><div className="border-t border-slate-100 my-1"></div><button onClick={handleDeleteAccount} className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl flex items-center"><Trash2 size={16} className="mr-2"/> Delete Account</button></div><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div></>)}
                     </div>
                 </div>
             </header>
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
                 
-                {/* Guided Onboarding Modal */}
                 {showGuidedOnboarding && (
                     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div>
@@ -284,14 +317,11 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* Welcome Screen for brand new users */}
                 {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && (
                     <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />
                 )}
                 
-                {/* ============================================ */}
                 {/* DASHBOARD */}
-                {/* ============================================ */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
                         {useModernDashboard ? (
@@ -326,217 +356,80 @@ const AppContent = () => {
                 {/* Reports Tab */}
                 {activeTab === 'Reports' && (
                     <FeatureErrorBoundary label="Reports">
-                        <PedigreeReport 
-                            propertyProfile={activeProperty} 
-                            records={activePropertyRecords} 
-                        />
+                        <PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} />
                     </FeatureErrorBoundary>
                 )}
 
-                {/* Areas View - Legacy Tab kept if needed, but 'Items' tab now handles both views via toggle */}
-                {activeTab === 'Areas' && (
-                     <div className="space-y-6">
-                        <div className="flex items-center justify-between"><h2 className="text-2xl font-bold text-emerald-950">My Areas</h2><span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full">{areasViewData.length} Areas</span></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {areasViewData.map(area => (
-                                <div key={area.name} className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                    <button onClick={() => toggleArea(area.name)} className="w-full flex items-center justify-between p-6 cursor-pointer hover:bg-slate-50 transition select-none text-left">
-                                        <div className="flex items-center gap-4"><div className="h-12 w-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600"><DoorOpen size={24} /></div><div><h3 className="font-bold text-slate-800 text-lg">{area.name}</h3><p className="text-xs text-slate-500 font-medium">{area.itemCount} items • ${(area.value || 0).toLocaleString()}</p></div></div>
-                                        <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${openAreaId === area.name ? 'rotate-180' : ''}`} />
-                                    </button>
-                                    {openAreaId === area.name && (
-                                        <div className="p-4 pt-0 border-t border-slate-50 bg-slate-50/50 animate-in fade-in slide-in-from-top-2">
-                                            <div className="space-y-3 mt-4">
-                                                {area.items.map(r => (useEnhancedCards ? <EnhancedRecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard key={r.id} record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />))}
-                                                <button onClick={() => { setEditingRecord({ area: area.name }); setIsAddModalOpen(true); }} className="w-full py-3 text-sm font-bold text-indigo-600 border border-dashed border-indigo-200 rounded-xl hover:bg-indigo-50 transition-colors flex items-center justify-center"><Plus size={16} className="mr-2"/> Add Item to {area.name}</button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        {areasViewData.length === 0 && <EmptyState icon={DoorOpen} title="No Areas Yet" description="Items you add will automatically be grouped into areas here." />}
-                     </div>
-                )}
-
-                {/* Items View */}
+                {/* Items View with Toggle */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
-                        {/* Header & Controls */}
                         <div className="flex flex-col gap-4">
-                            
-                            {/* NEW: View Toggle & Title */}
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
                                     <h2 className="text-2xl font-bold text-emerald-950">Inventory</h2>
                                     <p className="text-sm text-slate-500">Manage your home's items and records</p>
                                 </div>
-                                
-                                {/* Segmented Control */}
                                 <div className="bg-slate-100 p-1 rounded-xl flex shrink-0">
-                                    <button 
-                                        onClick={() => setInventoryView('category')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                                            inventoryView === 'category' 
-                                                ? 'bg-white text-emerald-800 shadow-sm' 
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        By Category
-                                    </button>
-                                    <button 
-                                        onClick={() => setInventoryView('room')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                                            inventoryView === 'room' 
-                                                ? 'bg-white text-emerald-800 shadow-sm' 
-                                                : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        By Room
-                                    </button>
+                                    <button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'category' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Category</button>
+                                    <button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'room' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Room</button>
                                 </div>
                             </div>
 
-                            {/* Search Bar */}
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
                                 <div className="relative flex-grow">
                                     <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Search items..." 
-                                        value={searchTerm} 
-                                        onChange={(e) => setSearchTerm(e.target.value)} 
-                                        className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"
-                                    />
-                                    {searchTerm && (
-                                        <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600">
-                                            <XCircle className="h-5 w-5" />
-                                        </button>
-                                    )}
+                                    <input type="text" placeholder="Search items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
+                                    {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}
                                 </div>
-                                
                                 {inventoryView === 'room' && (
                                     <div className="relative min-w-[160px]">
                                         <Filter className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                        <select 
-                                            value={filterCategory} 
-                                            onChange={(e) => setFilterCategory(e.target.value)} 
-                                            className="w-full pl-10 pr-8 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer"
-                                        >
+                                        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-8 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer">
                                             <option value="All">All Categories</option>
                                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
                                 )}
-                                
-                                <button 
-                                    onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedRecords(new Set()); }} 
-                                    className={`px-4 py-3 rounded-xl font-bold flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}
-                                >
-                                    <CheckSquare size={20} className="mr-2"/> {isSelectionMode ? 'Cancel' : 'Select'}
-                                </button>
+                                <button onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedRecords(new Set()); }} className={`px-4 py-3 rounded-xl font-bold flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}><CheckSquare size={20} className="mr-2"/> {isSelectionMode ? 'Cancel' : 'Select'}</button>
                             </div>
                         </div>
 
-                        {/* Selection Banner */}
                         {isSelectionMode && selectedRecords.size > 0 && (
                             <div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between items-center animate-in fade-in slide-in-from-top-4">
                                 <span className="font-bold text-slate-700">{selectedRecords.size} items selected</span>
-                                <button onClick={handleBatchDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center transition-colors">
-                                    <Trash2 size={16} className="mr-2"/> Delete Selected
-                                </button>
+                                <button onClick={handleBatchDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center transition-colors"><Trash2 size={16} className="mr-2"/> Delete Selected</button>
                             </div>
                         )}
 
-                        {/* Items List */}
                         {records.length === 0 ? (
-                            <EmptyState 
-                                icon={Package} 
-                                title="No items yet" 
-                                description="Start building your home's inventory. Add appliances, paint colors, systems, and more." 
-                                actions={
-                                    <>
-                                        <button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center">
-                                            <Camera className="mr-2 h-5 w-5" /> Scan Receipt
-                                        </button>
-                                        <button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center">
-                                            <Plus className="mr-2 h-5 w-5" /> Add Manually
-                                        </button>
-                                    </>
-                                } 
-                            />
+                            <EmptyState icon={Package} title="No items yet" description="Start building your home's inventory. Add appliances, paint colors, systems, and more." actions={<><button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center"><Camera className="mr-2 h-5 w-5" /> Scan Receipt</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center"><Plus className="mr-2 h-5 w-5" /> Add Manually</button></>} />
                         ) : filteredRecords.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200">
-                                <p>No items match your search.</p>
-                                <button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button>
-                            </div>
+                            <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200"><p>No items match your search.</p><button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button></div>
                         ) : (
                             <div className="space-y-6">
-                                {/* Grouping Logic */}
                                 {(() => {
                                     const groups = filteredRecords.reduce((acc, record) => {
-                                        const key = inventoryView === 'room' 
-                                            ? (record.area || 'General') 
-                                            : (record.category || 'Other');
-                                        
+                                        const key = inventoryView === 'room' ? (record.area || 'General') : (record.category || 'Other');
                                         if (!acc[key]) acc[key] = [];
                                         acc[key].push(record);
                                         return acc;
                                     }, {});
-                                    
                                     const sortedKeys = Object.keys(groups).sort();
-
                                     return sortedKeys.map(groupKey => (
                                         <details key={groupKey} open className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                                             <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition select-none list-none">
                                                 <div className="flex items-center gap-3">
-                                                    {inventoryView === 'room' ? (
-                                                        <div className="bg-indigo-50 p-2 rounded-lg">
-                                                            <DoorOpen size={18} className="text-indigo-600" />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="bg-emerald-50 p-2 rounded-lg">
-                                                            <Package size={18} className="text-emerald-600" />
-                                                        </div>
-                                                    )}
-                                                    <h3 className="font-bold text-slate-800 text-lg">
-                                                        {groupKey}
-                                                        <span className="ml-2 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                                            {groups[groupKey].length}
-                                                        </span>
-                                                    </h3>
+                                                    {inventoryView === 'room' ? <div className="bg-indigo-50 p-2 rounded-lg"><DoorOpen size={18} className="text-indigo-600" /></div> : <div className="bg-emerald-50 p-2 rounded-lg"><Package size={18} className="text-emerald-600" /></div>}
+                                                    <h3 className="font-bold text-slate-800 text-lg">{groupKey}<span className="ml-2 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{groups[groupKey].length}</span></h3>
                                                 </div>
                                                 <ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" />
                                             </summary>
-                                            
                                             <div className="p-4 pt-0 border-t border-slate-50">
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pt-4">
                                                     {groups[groupKey].map(r => (
                                                         <div key={r.id} className="relative">
-                                                            {isSelectionMode && (
-                                                                <div className="absolute top-4 right-4 z-10">
-                                                                    <input 
-                                                                        type="checkbox" 
-                                                                        checked={selectedRecords.has(r.id)} 
-                                                                        onChange={() => toggleRecordSelection(r.id)} 
-                                                                        className="h-6 w-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shadow-sm"
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                            {useEnhancedCards ? (
-                                                                <EnhancedRecordCard 
-                                                                    record={r} 
-                                                                    onDeleteClick={handleDeleteRecord} 
-                                                                    onEditClick={openAddModal} 
-                                                                    onRequestService={handleOpenQuickService} 
-                                                                />
-                                                            ) : (
-                                                                <RecordCard 
-                                                                    record={r} 
-                                                                    onDeleteClick={handleDeleteRecord} 
-                                                                    onEditClick={openAddModal} 
-                                                                />
-                                                            )}
+                                                            {isSelectionMode && <div className="absolute top-4 right-4 z-10"><input type="checkbox" checked={selectedRecords.has(r.id)} onChange={() => toggleRecordSelection(r.id)} className="h-6 w-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shadow-sm"/></div>}
+                                                            {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -544,12 +437,7 @@ const AppContent = () => {
                                         </details>
                                     ));
                                 })()}
-
-                                {records.length >= recordsLimit && (
-                                    <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">
-                                        Load More Items
-                                    </button>
-                                )}
+                                {records.length >= recordsLimit && <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load More Items</button>}
                             </div>
                         )}
                     </div>
@@ -562,85 +450,37 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
                 
-                {/* Property Tab */}
-                {activeTab === 'Property' && (
-                    <FeatureErrorBoundary label="Property">
-                        <div className="space-y-8">
-                            <EnvironmentalInsights propertyProfile={activeProperty} />
-                            <CountyData propertyProfile={activeProperty} />
-                        </div>
-                    </FeatureErrorBoundary>
-                )}
-
+                {/* Property Tab (now handled in Dashboard but accessible here if needed, merged with EnvironmentalInsights) */}
+                
                 {/* Settings Tab */}
                 {activeTab === 'Settings' && (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-emerald-950">Settings</h2>
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-                            {/* Modern Dashboard Toggle */}
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="font-bold text-slate-800">Modern Dashboard</h3>
-                                    <p className="text-sm text-slate-500">Use the new redesigned dashboard with health score</p>
-                                </div>
-                                <button 
-                                    onClick={() => setUseModernDashboard(!useModernDashboard)} 
-                                    className={`w-12 h-6 rounded-full transition-colors ${useModernDashboard ? 'bg-emerald-600' : 'bg-slate-300'}`}
-                                >
-                                    <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useModernDashboard ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
-                            
+                            <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Modern Dashboard</h3><p className="text-sm text-slate-500">Use the new redesigned dashboard with health score</p></div><button onClick={() => setUseModernDashboard(!useModernDashboard)} className={`w-12 h-6 rounded-full transition-colors ${useModernDashboard ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useModernDashboard ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
                             <div className="border-t border-slate-100"></div>
-                            
-                            {/* Enhanced Cards Toggle */}
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="font-bold text-slate-800">Enhanced Record Cards</h3>
-                                    <p className="text-sm text-slate-500">Use new card design with quick service requests</p>
-                                </div>
-                                <button 
-                                    onClick={() => setUseEnhancedCards(!useEnhancedCards)} 
-                                    className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}
-                                >
-                                    <div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div>
-                                </button>
-                            </div>
+                            <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Enhanced Record Cards</h3><p className="text-sm text-slate-500">Use new card design with quick service requests</p></div><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
                         </div>
                     </div>
                 )}
 
                 {/* Help Tab */}
-                {activeTab === 'Help' && (
-                    <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Help & Support</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><p className="text-slate-600">Need help? Contact us at support@krib.io</p></div></div>
-                )}
+                {activeTab === 'Help' && <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Help & Support</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><p className="text-slate-600">Need help? Contact us at support@krib.io</p></div></div>}
 
             </main>
 
-            {/* Navigation & Modals */}
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={newSubmissions.length} />
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {/* Add/Edit Modal */}
-            {isAddModalOpen && (
-                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
-                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
-                    <div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto">
-                         <WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={closeAddModal} />
-                    </div>
-                </div>
-            )}
-
-            {/* Quick Service Request Modal */}
-            {showQuickService && (
-                <QuickServiceRequest record={quickServiceRecord} userId={user.uid} propertyName={activeProperty?.name} propertyAddress={activeProperty?.address} onClose={handleCloseQuickService} />
-            )}
+            {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={closeAddModal} /></div></div>}
+            {showQuickService && <QuickServiceRequest record={quickServiceRecord} userId={user.uid} propertyName={activeProperty?.name} propertyAddress={activeProperty?.address} onClose={handleCloseQuickService} />}
         </div>
         </>
     );
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
+    // Wrapper to handle saves using the new AddRecordForm
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
@@ -653,9 +493,9 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
+    // Batch save for Room Scan
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
-        if (!activeProperty || !activeProperty.id) { toast.error("No active property selected. Cannot save."); return; }
         setSaving(true);
         try {
             let sharedImageUrl = null;
@@ -673,14 +513,30 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 const docData = { userId: user.uid, propertyId: activeProperty.id, propertyLocation: activeProperty.name, category: item.category || 'Other', item: item.item || 'Unknown Item', brand: item.brand || '', model: item.model || '', area: item.area || '', contractor: item.contractor || '', contractorPhone: item.contractorPhone || '', contractorEmail: item.contractorEmail || '', notes: item.notes || '', cost: item.cost ? parseFloat(item.cost) : 0, dateInstalled: item.dateInstalled || new Date().toISOString().split('T')[0], maintenanceFrequency: 'none', nextServiceDate: null, imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', attachments: sharedImageUrl ? [{ name: 'Scanned Document', type: sharedFileType, url: sharedImageUrl }] : [], timestamp: serverTimestamp() };
+                 const docData = { 
+                     userId: user.uid, 
+                     propertyId: activeProperty.id, 
+                     propertyLocation: activeProperty.name, 
+                     category: item.category || 'Other', 
+                     item: item.item || 'Unknown Item', 
+                     brand: item.brand || '', 
+                     model: item.model || '', 
+                     area: item.area || 'General', 
+                     notes: item.notes || '', 
+                     cost: item.cost ? parseFloat(item.cost) : 0, 
+                     dateInstalled: new Date().toISOString().split('T')[0], 
+                     maintenanceFrequency: 'none', 
+                     nextServiceDate: null, 
+                     imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
+                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
+                     timestamp: serverTimestamp() 
+                };
                 batch.set(newDocRef, docData);
             });
             await batch.commit();
-            setSaving(false);
-            toast.success(`${items.length} item${items.length > 1 ? 's' : ''} added to your Krib!`);
+            toast.success(`${items.length} items added!`);
             onSuccess();
-        } catch (error) { console.error("Batch Save Error:", error); toast.error("Failed to save items: " + error.message); setSaving(false); throw error; }
+        } catch (error) { console.error("Batch Save Error:", error); toast.error("Failed to save items."); } finally { setSaving(false); }
     };
 
     const handleSave = async (e) => {
@@ -693,9 +549,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
-                    const isPdf = att.fileRef.type.includes('pdf');
-                    return { name: att.name, size: att.size, type: isPdf ? 'Document' : 'Photo', url, dateAdded: new Date().toISOString() };
-                } catch(e){ console.error(e); toast.error("Upload failed for " + att.name); return null; }
+                    return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
+                } catch(e){ return null; }
             }
             return att;
         }));
@@ -709,11 +564,11 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 toast.success("Record updated!");
             } else {
                 await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
-                toast.success("Item added to your Krib!");
+                toast.success("Item added!");
                 if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
             }
             onSuccess();
-        } catch (e) { toast.error("Save failed: " + e.message); } finally { setSaving(false); }
+        } catch (e) { toast.error("Save failed."); } finally { setSaving(false); }
     };
 
     return (
