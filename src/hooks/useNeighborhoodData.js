@@ -12,47 +12,32 @@ export const useNeighborhoodData = (coordinates, address) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Guard clause
-        if ((!coordinates || !coordinates.lat) && (!address || !address.city)) {
-            console.log("DEBUG: No coordinates or address found. Skipping fetch.");
-            return;
-        }
+        if ((!coordinates || !coordinates.lat) && (!address || !address.city)) return;
 
         const fetchAll = async () => {
             setLoading(true);
-            console.log("DEBUG: Starting fetch...", { coordinates, address });
             
             let targetLat = coordinates?.lat;
             let targetLon = coordinates?.lon;
 
-            // FALLBACK: If no coords, geocode the address first
+            // 1. FALLBACK: Geocode address if coordinates are missing
             if (!targetLat && address) {
-                console.log("DEBUG: Coordinates missing. Attempting Geocode fallback...");
                 try {
                     const query = `${address.street}, ${address.city}, ${address.state}`;
                     const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`;
-                    
                     const geoRes = await fetch(geoUrl);
                     const geoJson = await geoRes.json();
-                    
-                    console.log("DEBUG: Geocode Response:", geoJson);
-
-                    if (geoJson.status !== 'OK') {
-                        console.error("DEBUG: Geocoding API Error:", geoJson.status, geoJson.error_message);
-                    }
                     
                     if (geoJson.results?.[0]?.geometry?.location) {
                         targetLat = geoJson.results[0].geometry.location.lat;
                         targetLon = geoJson.results[0].geometry.location.lng;
-                        console.log("DEBUG: Resolved Coordinates:", targetLat, targetLon);
                     }
                 } catch (e) {
-                    console.error("DEBUG: Geocoding fallback failed", e);
+                    console.error("Geocoding fallback failed", e);
                 }
             }
 
             if (!targetLat) {
-                console.warn("DEBUG: Could not resolve location. Stopping.");
                 setLoading(false);
                 return;
             }
@@ -60,10 +45,16 @@ export const useNeighborhoodData = (coordinates, address) => {
             const lat = Number(targetLat).toFixed(4);
             const lon = Number(targetLon).toFixed(4);
 
-            // 1. FEMA FLOOD DATA
+            // HELPER: Use a CORS Proxy to bypass browser blocks
+            const fetchWithProxy = async (url) => {
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                return fetch(proxyUrl);
+            };
+
+            // 2. FEMA FLOOD DATA (Via Proxy)
             const fetchFlood = async () => {
                 try {
-                    const url = 'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query';
+                    const baseUrl = 'https://hazards.fema.gov/gis/nfhl/rest/services/public/NFHL/MapServer/28/query';
                     const params = new URLSearchParams({
                         f: 'json',
                         geometry: `${lon},${lat}`,
@@ -74,9 +65,8 @@ export const useNeighborhoodData = (coordinates, address) => {
                         inSR: '4326'
                     });
                     
-                    const res = await fetch(`${url}?${params.toString()}`);
+                    const res = await fetchWithProxy(`${baseUrl}?${params.toString()}`);
                     const json = await res.json();
-                    console.log("DEBUG: Flood Data:", json);
                     
                     if (json.features && json.features.length > 0) {
                         const attr = json.features[0].attributes;
@@ -93,13 +83,12 @@ export const useNeighborhoodData = (coordinates, address) => {
                 }
             };
 
-            // 2. FCC BROADBAND DATA
+            // 3. FCC BROADBAND DATA (Via Proxy)
             const fetchBroadband = async () => {
                 try {
                     const url = `https://broadbandmap.fcc.gov/api/public/map/list/broadband/${lat}/${lon}`;
-                    const res = await fetch(url);
+                    const res = await fetchWithProxy(url);
                     const json = await res.json();
-                    console.log("DEBUG: Broadband Data:", json);
                     
                     if (json.data && json.data.length > 0) {
                         const fastProviders = json.data.filter(p => p.tech_code === 50 || p.tech_code === 40); 
@@ -121,7 +110,7 @@ export const useNeighborhoodData = (coordinates, address) => {
                 }
             };
 
-            // 3. USDA WILDFIRE RISK
+            // 4. USDA WILDFIRE RISK (Often works without proxy, but added for safety)
             const fetchWildfire = async () => {
                 try {
                     const url = 'https://apps.fs.usda.gov/arcx/rest/services/rdw_Wildfire/Wildfire_Risk_to_Communities_Maps/MapServer/0/query';
@@ -135,9 +124,15 @@ export const useNeighborhoodData = (coordinates, address) => {
                         inSR: '4326'
                     });
 
-                    const res = await fetch(`${url}?${params.toString()}`);
+                    // USDA usually allows direct access, but we'll use proxy if it fails
+                    let res;
+                    try {
+                        res = await fetch(`${url}?${params.toString()}`);
+                    } catch {
+                        res = await fetchWithProxy(`${url}?${params.toString()}`);
+                    }
+                    
                     const json = await res.json();
-                    console.log("DEBUG: Wildfire Data:", json);
 
                     if (json.features && json.features.length > 0) {
                         const score = json.features[0].attributes.RSL_SCORE || 0;
