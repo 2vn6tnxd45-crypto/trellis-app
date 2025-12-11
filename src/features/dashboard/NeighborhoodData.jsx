@@ -5,7 +5,8 @@ import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
 
 export const NeighborhoodData = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
-    const { flood, broadband, loading } = useNeighborhoodData(coordinates);
+    // UPDATED: Pass address to the hook
+    const { flood, broadband, wildfire, loading } = useNeighborhoodData(coordinates, address);
 
     if (loading) return <div className="p-8 text-center text-slate-400"><Loader2 className="h-6 w-6 animate-spin mx-auto mb-2"/>Loading neighborhood intel...</div>;
 
@@ -16,6 +17,7 @@ export const NeighborhoodData = ({ propertyProfile }) => {
             
             {/* 1. Natural Hazards & Risks */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Flood Card */}
                 <div className={`p-5 rounded-2xl border ${flood?.isHighRisk ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}>
                     <div className="flex items-start gap-3">
                         <div className={`p-2 rounded-xl ${flood?.isHighRisk ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
@@ -42,17 +44,27 @@ export const NeighborhoodData = ({ propertyProfile }) => {
                     </div>
                 </div>
 
-                <div className="p-5 bg-white rounded-2xl border border-slate-100">
+                {/* Wildfire Card */}
+                <div className={`p-5 rounded-2xl border ${wildfire?.isHighRisk ? 'bg-orange-50 border-orange-100' : 'bg-white border-slate-100'}`}>
                     <div className="flex items-start gap-3">
-                        <div className="p-2 bg-orange-100 text-orange-600 rounded-xl">
+                        <div className={`p-2 rounded-xl ${wildfire?.isHighRisk ? 'bg-orange-100 text-orange-600' : 'bg-amber-100 text-amber-600'}`}>
                             <AlertTriangle size={24} />
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800">Wildfire Risk</h3>
-                            <p className="text-sm text-slate-500 mt-1">Check USDA Wildfire Risk to Communities.</p>
-                            <a href={`https://wildfirerisk.org/explore/${zip}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">
-                                View Map <ExternalLink size={12} className="ml-1"/>
-                            </a>
+                            {wildfire ? (
+                                <>
+                                    <p className={`text-lg font-extrabold ${wildfire.isHighRisk ? 'text-orange-700' : 'text-amber-700'}`}>
+                                        {wildfire.riskLevel}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-1">USDA Score: {Math.round(wildfire.score)}/100</p>
+                                    <a href={`https://wildfirerisk.org/explore/${zip}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center text-xs font-bold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">
+                                        View Map <ExternalLink size={12} className="ml-1"/>
+                                    </a>
+                                </>
+                            ) : (
+                                <p className="text-sm text-slate-400">Data unavailable</p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -98,10 +110,8 @@ export const NeighborhoodData = ({ propertyProfile }) => {
                 )}
             </div>
 
-            {/* 3. Community Vitals (Schools, Demographics, Energy) */}
+            {/* 3. Community Vitals */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                
-                {/* Schools */}
                 <a href={`https://nces.ed.gov/globallocator/index.asp?State=${address?.state}&City=${address?.city}&ZipCode=${zip}`} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all group">
                     <div className="mb-3 bg-violet-50 w-10 h-10 flex items-center justify-center rounded-xl text-violet-600 group-hover:scale-110 transition-transform">
                         <GraduationCap size={20} />
@@ -110,7 +120,6 @@ export const NeighborhoodData = ({ propertyProfile }) => {
                     <p className="text-xs text-slate-400 mt-1">Find district ratings</p>
                 </a>
 
-                {/* Demographics */}
                 <a href={`https://censusreporter.org/profiles/86000US${zip}-${zip}/`} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all group">
                     <div className="mb-3 bg-indigo-50 w-10 h-10 flex items-center justify-center rounded-xl text-indigo-600 group-hover:scale-110 transition-transform">
                         <Users size={20} />
@@ -119,7 +128,6 @@ export const NeighborhoodData = ({ propertyProfile }) => {
                     <p className="text-xs text-slate-400 mt-1">Income & population</p>
                 </a>
 
-                {/* Energy */}
                 <a href={`https://www.dsireusa.org/`} target="_blank" rel="noreferrer" className="bg-white p-4 rounded-2xl border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all group">
                     <div className="mb-3 bg-yellow-50 w-10 h-10 flex items-center justify-center rounded-xl text-yellow-600 group-hover:scale-110 transition-transform">
                         <Zap size={20} />
