@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Map as MapIcon, Wind, Sun, ExternalLink, ShoppingBag, Loader2, AlertCircle } from 'lucide-react';
 import { googleMapsApiKey } from '../../config/constants';
-import { NeighborhoodData } from './NeighborhoodData'; // NEW IMPORT
+import { NeighborhoodData } from './NeighborhoodData';
 
 const PropertyMap = ({ address }) => {
     const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : "Home";
@@ -21,7 +21,6 @@ const PropertyMap = ({ address }) => {
                     loading="lazy"
                 ></iframe>
             </div>
-            {/* REMOVED NEARBY SUPPLIERS SECTION HERE */}
         </div>
     );
 };
@@ -34,15 +33,36 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (!coordinates?.lat || !coordinates?.lon || !googleMapsApiKey) return;
+        if (!address?.city && !coordinates?.lat) return;
         
         const fetchData = async () => {
             setLoading(true);
             try {
+                // 1. Resolve Coords if missing (Geocoding Fallback)
+                let targetLat = coordinates?.lat;
+                let targetLon = coordinates?.lon;
+
+                if (!targetLat && address) {
+                    try {
+                        const query = `${address.street}, ${address.city}, ${address.state}`;
+                        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`;
+                        const geoRes = await fetch(geoUrl);
+                        const geoJson = await geoRes.json();
+                        
+                        if (geoJson.results?.[0]?.geometry?.location) {
+                            targetLat = geoJson.results[0].geometry.location.lat;
+                            targetLon = geoJson.results[0].geometry.location.lng;
+                        }
+                    } catch (e) { console.warn("Geo fallback error", e); }
+                }
+
+                if (!targetLat || !targetLon) throw new Error("Could not resolve location");
+
+                // 2. Fetch Air Quality
                 const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ location: { latitude: coordinates.lat, longitude: coordinates.lon } })
+                    body: JSON.stringify({ location: { latitude: targetLat, longitude: targetLon } })
                 });
                 
                 if (aqRes.ok) {
@@ -50,7 +70,8 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                     setAirQuality(aqData.indexes?.[0]); 
                 }
 
-                const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${coordinates.lat}&location.longitude=${coordinates.lon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
+                // 3. Fetch Solar Data
+                const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${targetLat}&location.longitude=${targetLon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
                 
                 if (solarRes.ok) {
                     const solarData = await solarRes.json();
@@ -65,7 +86,7 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
             }
         };
         fetchData();
-    }, [coordinates]);
+    }, [coordinates, address]);
 
     if (!address) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
 
@@ -126,7 +147,7 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                 </div>
             </div>
             
-            {/* NEW: Neighborhood Data Integration */}
+            {/* Neighborhood Data Integration */}
             <NeighborhoodData propertyProfile={propertyProfile} />
         </div>
     );
