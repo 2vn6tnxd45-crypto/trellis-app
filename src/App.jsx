@@ -1,12 +1,12 @@
 // src/App.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
     LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, 
     PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, 
-    MapPin, Trash2, Menu, CheckSquare, DoorOpen, Wrench 
+    MapPin, Trash2, Menu, CheckSquare, DoorOpen 
 } from 'lucide-react'; 
 
 import toast, { Toaster } from 'react-hot-toast';
@@ -15,6 +15,12 @@ import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage } from './lib/images';
+
+// --- NEW IMPORTS: CORE UX COMPONENTS ---
+import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
+import { SmartScanner } from './features/scanner/SmartScanner';
+import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
+import './styles/krib-theme.css'; // New Theme Styles
 
 // Common Components
 import { Logo } from './components/common/Logo';
@@ -25,10 +31,8 @@ import { AppShellSkeleton } from './components/common/Skeletons';
 // Navigation
 import { BottomNav, MoreMenu } from './components/navigation/BottomNav';
 
-// Auth
+// Auth & Onboarding
 import { AuthScreen } from './features/auth/AuthScreen';
-
-// Onboarding
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
 import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 import { GuidedOnboarding } from './features/onboarding/GuidedOnboarding';
@@ -38,16 +42,8 @@ import { RecordCard } from './features/records/RecordCard';
 import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
 
-// Dashboard
-import { Dashboard } from './features/dashboard/Dashboard'; // Legacy fallback
-import { ModernDashboard } from './features/dashboard/ModernDashboard';
-import { EnvironmentalInsights } from './features/dashboard/EnvironmentalInsights';
-import { CountyData } from './features/dashboard/CountyData';
-
-// Reports
+// Reports & Requests
 import { PedigreeReport } from './features/report/PedigreeReport';
-
-// Requests & Contractors
 import { RequestManager } from './features/requests/RequestManager';
 import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
@@ -90,17 +86,20 @@ const AppContent = () => {
     const [filterCategory, setFilterCategory] = useState('All');
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
-    const [openAreaId, setOpenAreaId] = useState(null);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
     const [quickServiceRecord, setQuickServiceRecord] = useState(null);
     const [showQuickService, setShowQuickService] = useState(false);
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
     
+    // --- NEW STATE: SCANNER & CELEBRATIONS ---
+    const [showScanner, setShowScanner] = useState(false);
+    const [lastAddedItem, setLastAddedItem] = useState(null);
+    const celebrations = useCelebrations();
+
     // UI Toggles
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
-    const [useModernDashboard, setUseModernDashboard] = useState(true);
-    const [inventoryView, setInventoryView] = useState('category'); // 'category' | 'room'
+    const [inventoryView, setInventoryView] = useState('category'); 
 
     const getPropertiesList = () => {
         if (!profile) return [];
@@ -118,18 +117,6 @@ const AppContent = () => {
         }
         return acc;
     }, {}));
-
-    const areasViewData = useMemo(() => {
-        const areas = {};
-        activePropertyRecords.forEach(r => {
-            const areaName = r.area || 'General';
-            if (!areas[areaName]) areas[areaName] = { name: areaName, itemCount: 0, items: [], value: 0 };
-            areas[areaName].items.push(r);
-            areas[areaName].itemCount++;
-            areas[areaName].value += (parseFloat(r.cost) || 0);
-        });
-        return Object.values(areas).sort((a,b) => b.value - a.value);
-    }, [activePropertyRecords]);
 
     useEffect(() => {
         let unsubRecords = null;
@@ -182,6 +169,7 @@ const AppContent = () => {
 
     // Handlers
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
+    
     const handleSaveProperty = async (formData) => {
         if (!user) return;
         setIsSavingProperty(true);
@@ -191,22 +179,66 @@ const AppContent = () => {
             const snap = await getDoc(profileRef); if (snap.exists()) setProfile(snap.data()); toast.success("Your Krib has been created!");
         } catch (error) { console.error("Error saving property:", error); toast.error("Failed to create Krib: " + error.message); } finally { setIsSavingProperty(false); setIsAddingProperty(false); }
     }; 
+
     const handleSwitchProperty = async (propId) => { setActivePropertyId(propId); setIsSwitchingProp(false); const prop = properties.find(p => p.id === propId); if (prop) toast.success(`Switched to ${prop.name}`); };
     const toggleRecordSelection = (id) => { const newSet = new Set(selectedRecords); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedRecords(newSet); };
-    const toggleArea = (areaName) => { setOpenAreaId(prev => prev === areaName ? null : areaName); };
+    
     const handleBatchDelete = async () => { if (selectedRecords.size === 0) return; if (!confirm(`Delete ${selectedRecords.size} items? This cannot be undone.`)) return; const batch = writeBatch(db); selectedRecords.forEach(id => { const ref = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id); batch.delete(ref); }); try { await batch.commit(); toast.success("Items deleted."); setSelectedRecords(new Set()); setIsSelectionMode(false); } catch (e) { toast.error("Failed to delete items."); } };
     const handleDeleteRecord = async (id) => { toast((t) => (<div className="flex flex-col gap-2"><p className="font-medium">Delete this record?</p><p className="text-sm text-slate-500">This action cannot be undone.</p><div className="flex gap-2 mt-2"><button onClick={() => { toast.dismiss(t.id); deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id)).then(() => toast.success("Record deleted")).catch((e) => toast.error("Delete failed")); }} className="px-3 py-1.5 bg-red-500 text-white text-sm font-bold rounded-lg">Delete</button><button onClick={() => toast.dismiss(t.id)} className="px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-bold rounded-lg">Cancel</button></div></div>), { duration: 10000 }); };
     const handleDeleteAccount = async () => { if (!confirm("Are you sure you want to delete your account? This cannot be undone.")) return; try { await deleteUser(user); toast.success("Account deleted."); } catch (error) { console.error(error); toast.error("Failed to delete account. You may need to sign in again first."); } };
+    
     const handleRequestImport = (req) => { setEditingRecord({...req, id: null, originalRequestId: req.id, dateInstalled: req.dateInstalled||'', maintenanceFrequency: req.maintenanceFrequency||'none'}); setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
+    
     const handleDismissWelcome = async () => { setHasSeenWelcome(true); if (user) { const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'); await updateDoc(profileRef, { hasSeenWelcome: true }); } };
     const handleOpenQuickService = (record) => { setQuickServiceRecord(record); setShowQuickService(true); };
     const handleCloseQuickService = () => { setShowQuickService(false); setQuickServiceRecord(null); };
+    
     const handleGuidedOnboardingAddItem = async (item) => { try { await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...item, userId: user.uid, propertyId: activeProperty?.id || 'legacy', propertyLocation: activeProperty?.name || 'My Home', timestamp: serverTimestamp() }); } catch (e) { console.error(e); toast.error("Failed to add item"); } };
     const handleGuidedOnboardingComplete = (itemsAdded) => { setShowGuidedOnboarding(false); setHasSeenWelcome(true); if (user) { const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'); updateDoc(profileRef, { hasSeenWelcome: true }); } if (itemsAdded.length > 0) { toast.success(`Great start! ${itemsAdded.length} items added to your home.`); } };
+    
     const handleTabChange = (tabId) => { if (tabId === 'More') { setShowMoreMenu(true); } else { setActiveTab(tabId); } };
     const handleMoreNavigate = (destination) => { setActiveTab(destination); setShowMoreMenu(false); };
+
+    // --- NEW: SCANNER COMPLETION HANDLER ---
+    const handleScanComplete = useCallback(async (extractedData) => {
+        setShowScanner(false);
+        // Open the modal with extracted data to confirm/save
+        const newRecordDraft = {
+            item: extractedData.item || '',
+            category: extractedData.suggestedCategory || 'Other',
+            brand: extractedData.brand || '',
+            model: extractedData.model || '',
+            cost: extractedData.cost || '',
+            dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+            // Pass the image if available from scanner
+            attachments: extractedData.image ? [{
+                name: 'Scanned Image.jpg',
+                preview: extractedData.image, 
+                // Note: File obj needed for upload, SmartScanner should provide or handle
+                fileRef: null // Simplified for this integration
+            }] : []
+        };
+        
+        // Open the form with this data
+        setEditingRecord(newRecordDraft);
+        setIsAddModalOpen(true);
+        toast.success("Scan complete! Review details.", { icon: '📸' });
+    }, []);
+
+    // --- NEW: CHECK CELEBRATIONS ON SAVE ---
+    const handleSaveSuccess = () => {
+        const prevCount = records.length;
+        const newCount = prevCount + 1;
+        const hasMilestone = celebrations.checkMilestone(prevCount, newCount);
+        
+        // Show celebration or simple toast
+        if (!hasMilestone) {
+            celebrations.showToast(`Item saved successfully!`, Check);
+        }
+        closeAddModal();
+    };
 
     // Check for contractor view (URL param)
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
@@ -230,8 +262,26 @@ const AppContent = () => {
 
     return (
         <>
-        <Toaster position="top-center" toastOptions={{ duration: 4000, style: { background: '#1e293b', color: '#fff', borderRadius: '12px', padding: '12px 16px', fontSize: '14px', fontWeight: '500' }, success: { iconTheme: { primary: '#10b981', secondary: '#fff' } }, error: { iconTheme: { primary: '#ef4444', secondary: '#fff' } } }} />
+        <Toaster position="top-center" />
         
+        {/* CELEBRATION RENDERER */}
+        <CelebrationRenderer 
+            celebration={celebrations.celebration}
+            toast={celebrations.toast}
+            itemName={lastAddedItem}
+            onCloseCelebration={celebrations.closeCelebration}
+            onCloseToast={celebrations.closeToast}
+            onAddAnother={() => openAddModal()}
+        />
+
+        {/* GLOBAL SMART SCANNER */}
+        {showScanner && (
+            <SmartScanner 
+                onClose={() => setShowScanner(false)}
+                onProcessComplete={handleScanComplete}
+            />
+        )}
+
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             
             {/* HEADER with Location Pill */}
@@ -321,35 +371,21 @@ const AppContent = () => {
                     <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />
                 )}
                 
-                {/* DASHBOARD */}
+                {/* --- UPDATED: PROGRESSIVE DASHBOARD --- */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
-                        {useModernDashboard ? (
-                            <ModernDashboard 
-                                records={activePropertyRecords}
-                                contractors={contractorsList} 
-                                activeProperty={activeProperty}
-                                onScanReceipt={() => openAddModal()}
-                                onAddRecord={() => openAddModal()}
-                                onNavigateToItems={() => setActiveTab('Items')}
-                                onNavigateToContractors={() => setActiveTab('Contractors')}
-                                onNavigateToReports={() => setActiveTab('Reports')}
-                                onNavigateToMaintenance={() => setActiveTab('Items')}
-                                onCreateContractorLink={() => handleOpenQuickService(null)}
-                            />
-                        ) : (
-                            <Dashboard 
-                                records={activePropertyRecords}
-                                contractors={contractorsList} 
-                                activeProperty={activeProperty}
-                                propertyName={activeProperty.name}
-                                onScanReceipt={() => openAddModal()}
-                                onNavigateToItems={() => setActiveTab('Items')}
-                                onNavigateToContractors={() => setActiveTab('Contractors')}
-                                onCreateContractorLink={() => handleOpenQuickService(null)}
-                                onNavigateToReports={() => setActiveTab('Reports')}
-                            />
-                        )}
+                        <ProgressiveDashboard 
+                            records={activePropertyRecords}
+                            contractors={contractorsList} 
+                            activeProperty={activeProperty}
+                            onScanReceipt={() => setShowScanner(true)} 
+                            onAddRecord={() => openAddModal()}
+                            onNavigateToItems={() => setActiveTab('Items')}
+                            onNavigateToContractors={() => setActiveTab('Contractors')}
+                            onNavigateToReports={() => setActiveTab('Reports')}
+                            onNavigateToMaintenance={() => setActiveTab('Items')}
+                            onCreateContractorLink={() => handleOpenQuickService(null)}
+                        />
                     </FeatureErrorBoundary>
                 )}
 
@@ -360,7 +396,7 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
-                {/* Items View with Toggle */}
+                {/* Items View */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="flex flex-col gap-4">
@@ -402,7 +438,7 @@ const AppContent = () => {
                         )}
 
                         {records.length === 0 ? (
-                            <EmptyState icon={Package} title="No items yet" description="Start building your home's inventory. Add appliances, paint colors, systems, and more." actions={<><button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center"><Camera className="mr-2 h-5 w-5" /> Scan Receipt</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center"><Plus className="mr-2 h-5 w-5" /> Add Manually</button></>} />
+                            <EmptyState icon={Package} title="No items yet" description="Start building your home's inventory. Add appliances, paint colors, systems, and more." actions={<><button onClick={() => setShowScanner(true)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center"><Camera className="mr-2 h-5 w-5" /> Scan</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center"><Plus className="mr-2 h-5 w-5" /> Add</button></>} />
                         ) : filteredRecords.length === 0 ? (
                             <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200"><p>No items match your search.</p><button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button></div>
                         ) : (
@@ -450,15 +486,11 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
                 
-                {/* Property Tab (now handled in Dashboard but accessible here if needed, merged with EnvironmentalInsights) */}
-                
                 {/* Settings Tab */}
                 {activeTab === 'Settings' && (
                     <div className="space-y-6">
                         <h2 className="text-2xl font-bold text-emerald-950">Settings</h2>
                         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-                            <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Modern Dashboard</h3><p className="text-sm text-slate-500">Use the new redesigned dashboard with health score</p></div><button onClick={() => setUseModernDashboard(!useModernDashboard)} className={`w-12 h-6 rounded-full transition-colors ${useModernDashboard ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useModernDashboard ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
-                            <div className="border-t border-slate-100"></div>
                             <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Enhanced Record Cards</h3><p className="text-sm text-slate-500">Use new card design with quick service requests</p></div><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
                         </div>
                     </div>
@@ -472,7 +504,8 @@ const AppContent = () => {
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={newSubmissions.length} />
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={closeAddModal} /></div></div>}
+            {/* ADD RECORD MODAL (Now uses handleSaveSuccess) */}
+            {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} /></div></div>}
             {showQuickService && <QuickServiceRequest record={quickServiceRecord} userId={user.uid} propertyName={activeProperty?.name} propertyAddress={activeProperty?.address} onClose={handleCloseQuickService} />}
         </div>
         </>
@@ -534,8 +567,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 batch.set(newDocRef, docData);
             });
             await batch.commit();
-            toast.success(`${items.length} items added!`);
-            onSuccess();
+            onSuccess(); // Trigger celebration
         } catch (error) { console.error("Batch Save Error:", error); toast.error("Failed to save items."); } finally { setSaving(false); }
     };
 
@@ -564,7 +596,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 toast.success("Record updated!");
             } else {
                 await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
-                toast.success("Item added!");
+                setNewRecord(initial); // Reset form for next add
+                // Celebration handled by onSuccess in parent
                 if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
             }
             onSuccess();
