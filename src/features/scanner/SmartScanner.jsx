@@ -1,12 +1,11 @@
-// src/features/scanner/SmartScanner.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle } from 'lucide-react';
-// FIXED IMPORT PATH BELOW:
-import { useGemini } from '../../hooks/useGemini'; 
+import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
-const SmartScanner = ({ onClose, onScanComplete }) => {
+// Export as named constant to satisfy App.jsx's import { SmartScanner }
+export const SmartScanner = ({ onClose, onScanComplete }) => {
   const [image, setImage] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -76,7 +75,7 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
     } catch (err) {
       setError('Failed to analyze receipt. Please try again or enter details manually.');
       console.error('Analysis failed:', err);
-      setAnalysis(null); // Ensure we don't show partial data
+      setAnalysis(null);
     } finally {
       setIsAnalyzing(false);
     }
@@ -87,13 +86,12 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
     
     setIsSaving(true);
     try {
-      // Add necessary fields for Firebase record
       const recordData = {
         ...analysis,
         type: 'receipt',
         date: analysis.date || new Date().toISOString(),
         createdAt: new Date().toISOString(),
-        images: [image] // Include the scanned image
+        images: [image]
       };
       
       await onScanComplete(recordData);
@@ -145,7 +143,7 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
             </div>
           )}
 
-          {/* State 1: Initial Selection (No image yet) */}
+          {/* State 1: Initial Selection */}
           {!image && !isScanning && (
             <div className="space-y-6">
               <div 
@@ -190,7 +188,6 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
             <div className="space-y-4">
                <div className="h-[400px] bg-black relative rounded-xl overflow-hidden">
                 <CameraPro ref={cameraRef} aspectRatio={4 / 3} />
-                {/* Camera Overlay */}
                 <div className="absolute inset-0 border-[3px] border-white/30 m-8 rounded-lg pointer-events-none">
                   <div className="absolute inset-0 flex items-center justify-center">
                     <p className="text-white/70 text-sm font-medium bg-black/50 px-4 py-2 rounded-full">
@@ -219,10 +216,9 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
 
           {/* State 3: Image Preview & Analysis Results */}
           {image && !isScanning && (
-            // Use flex-col and space-y to guarantee vertical stacking and prevent overlap
             <div className="flex flex-col space-y-6">
               
-              {/* Image Preview Container - shrink-0 prevents crushing */}
+              {/* Image Preview Container */}
               <div className="relative rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 group">
                 <img 
                   src={image} 
@@ -247,7 +243,7 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
                 </div>
               </div>
 
-              {/* Analysis Results Form - Only show if analysis succeeded */}
+              {/* Analysis Results Form */}
               {analysis && !isAnalyzing && (
                 <div className="space-y-4 shrink-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   <div>
@@ -303,7 +299,6 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
                     </select>
                   </div>
                   
-                  {/* Confidence Score Indicator */}
                   {analysis.confidence && (
                       <div className="flex items-center gap-2 mt-2">
                           <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
@@ -323,7 +318,7 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
                 </div>
               )}
 
-              {/* Loading Skeletons - Show only while analyzing */}
+              {/* Loading Skeletons */}
               {isAnalyzing && !analysis && !error && (
                 <div className="space-y-4 shrink-0">
                   <div className="space-y-2">
@@ -350,7 +345,7 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
           )}
         </div>
 
-        {/* Footer Actions - Only show if an image has been selected */}
+        {/* Footer Actions */}
         {image && !isScanning && (
           <div className="p-4 border-t border-gray-100 bg-gray-50 shrink-0">
             <div className="flex gap-3">
@@ -393,4 +388,5 @@ const SmartScanner = ({ onClose, onScanComplete }) => {
   );
 };
 
+// Also default export for backward compatibility
 export default SmartScanner;
