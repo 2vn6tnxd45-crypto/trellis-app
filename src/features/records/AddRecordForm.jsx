@@ -4,7 +4,8 @@ import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronRight, 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
-import { SmartScan } from './SmartScan';
+// NEW IMPORT: Use the robust scanner instead of the old one
+import { SmartScanner } from '../scanner/SmartScanner';
 import { compressImage } from '../../lib/images';
 
 const StepIndicator = ({ currentStep, totalSteps }) => (
@@ -15,17 +16,21 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const { suggestMaintenance, scanRoom, isSuggesting } = useGemini();
     const [step, setStep] = useState(isEditing ? 2 : 1);
     
-    // CRITICAL: Initialize batch mode if items exist
+    // Batch Mode State
     const hasBatchItems = newRecord.isBatch && newRecord.items && newRecord.items.length > 0;
     const [scanMode, setScanMode] = useState(hasBatchItems ? 'room-results' : null);
     const [roomScanResults, setRoomScanResults] = useState(hasBatchItems ? newRecord.items : []);
     
+    // UI States
+    const [showSmartScanner, setShowSmartScanner] = useState(false);
     const [suggestedTasks, setSuggestedTasks] = useState([]);
     const [isCustomArea, setIsCustomArea] = useState(false);
     const [localAttachments, setLocalAttachments] = useState(newRecord.attachments || []);
-    const [roomScanFile, setRoomScanFile] = useState(null);
+    
+    // Refs
     const roomInputRef = useRef(null);
     const photoInputRef = useRef(null);
+    const [roomScanFile, setRoomScanFile] = useState(null);
 
     useEffect(() => {
         const hasBatch = newRecord.isBatch && newRecord.items && newRecord.items.length > 0;
@@ -41,6 +46,58 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
     const handleNext = () => setStep(s => s + 1);
     const handleBack = () => setStep(s => s - 1);
+
+    // --- INTEGRATION: Handle Data from SmartScanner ---
+    const handleSmartScanComplete = (data) => {
+        setShowSmartScanner(false);
+        
+        // 1. Handle Batch Items (e.g. detailed invoice)
+        if (data.items && data.items.length > 1) {
+            setRoomScanResults(data.items);
+            // If there's a file image, store it for the batch save
+            if (data.image) {
+                // Convert base64 back to file object if needed, or rely on App.jsx handling
+                // For now, we store the items which is the critical part
+            }
+            setScanMode('room-results');
+            toast.success(`Imported ${data.items.length} items from scan!`);
+        } 
+        // 2. Handle Single Item (Auto-fill Step 2)
+        else {
+            const singleItem = data.items?.[0] || {};
+            
+            // Map the scanner data to our form fields
+            const fieldsToUpdate = {
+                item: singleItem.item || data.item || '',
+                category: singleItem.category || data.category || '',
+                brand: singleItem.brand || data.brand || '',
+                model: singleItem.model || data.model || '',
+                cost: singleItem.cost || data.cost || '',
+                dateInstalled: data.date || new Date().toISOString().split('T')[0],
+                contractor: data.store || data.contractor || '',
+                
+                // Keep the attachments
+                attachments: data.attachments || [],
+                
+                // Rich contractor data (if form supports it later, or just save it)
+                contractorPhone: data.contractorPhone,
+                contractorEmail: data.contractorEmail,
+                contractorAddress: data.contractorAddress
+            };
+
+            // Update parent state for each field
+            Object.keys(fieldsToUpdate).forEach(key => {
+                onInputChange({ target: { name: key, value: fieldsToUpdate[key] } });
+            });
+            
+            // Update local attachments state
+            if (data.attachments) setLocalAttachments(data.attachments);
+
+            // Move to Step 2 (Details)
+            setStep(2);
+            toast.success("Details auto-filled!");
+        }
+    };
 
     const handlePhotoUpload = async (e) => {
         const file = e.target.files[0];
@@ -88,16 +145,19 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         }
     };
 
-    const handleAutoFill = (data) => {
-        Object.keys(data).forEach(key => onInputChange({ target: { name: key, value: data[key] } }));
-        setStep(2); setScanMode(null);
-    };
-
     const removeAttachment = (index) => {
         const updated = [...localAttachments]; updated.splice(index, 1);
         setLocalAttachments(updated); onInputChange({ target: { name: 'attachments', value: updated } });
     };
 
+    // --- RENDER ---
+
+    // 1. SMART SCANNER OVERLAY
+    if (showSmartScanner) {
+        return <SmartScanner onClose={() => setShowSmartScanner(false)} onProcessComplete={handleSmartScanComplete} />;
+    }
+
+    // 2. BATCH RESULTS REVIEW
     if (scanMode === 'room-results') {
         return (
             <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden">
@@ -123,15 +183,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         );
     }
 
-    if (scanMode === 'receipt') {
-        return (
-            <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden p-6">
-                <div className="flex items-center mb-4"><button onClick={() => setScanMode(null)} className="mr-4 p-2 hover:bg-slate-100 rounded-full transition-colors"><ArrowLeft size={20}/></button><h3 className="text-lg font-bold text-slate-800">Scan Receipt</h3></div>
-                <SmartScan onBatchSave={onBatchSave} onAutoFill={handleAutoFill} />
-            </div>
-        );
-    }
-
+    // 3. MAIN FORM
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white sticky top-0 z-10"><div><h2 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Item' : 'Add New Item'}</h2>{!isEditing && <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mt-1">Step {step} of 3</p>}</div>{isEditing ? <button type="button" onClick={onCancelEdit} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button> : <button type="button" onClick={onCancelEdit} className="text-sm font-bold text-slate-400 hover:text-slate-600">Cancel</button>}</div>
@@ -142,7 +194,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                             <h3 className="text-lg font-bold text-slate-800 mb-6 text-center">How do you want to add this item?</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <button type="button" onClick={() => setScanMode('receipt')} className="group p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 transition-all text-left flex flex-col gap-3">
+                                <button type="button" onClick={() => setShowSmartScanner(true)} className="group p-6 rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 hover:bg-emerald-50 hover:border-emerald-300 transition-all text-left flex flex-col gap-3">
                                     <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform"><ScanLine className="text-emerald-600" size={24} /></div>
                                     <div><p className="font-bold text-emerald-900">Scan Receipt</p><p className="text-xs text-emerald-700/80 mt-1">Extract info automatically</p></div>
                                 </button>
