@@ -26,7 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // THE RESTORED, HARDENED & UPGRADED SCANNER LOGIC
+    // THE ROBUST SCANNER LOGIC
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -38,23 +38,25 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // PROMPT: Includes Vendor Logic, Item Splitting, and NEW Warranty Extraction
+            // UPDATED PROMPT: DYNAMIC VENDOR DETECTION
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
-                   - Find the company performing the work (e.g., Logo at top, Header).
-                   - CRITICAL: Do NOT use the "Bill To", "Customer", or "Ship To" name. The user is the CUSTOMER, not the vendor.
+                   - The Vendor is the company PERFORMING the service (e.g., "Allied Pest Control", "Prime HVAC").
+                   - Look for logos or business names at the VERY TOP of the document.
+                   - Look for keywords: LLC, Inc, Corp, HVAC, Pest, Plumbing, Electric.
+                   - CRITICAL: Do NOT confuse with the "Bill To", "Sold To", or "Customer" section. The person listed under "Bill To" is the USER, not the contractor.
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
-                   - Look for physical equipment (HVAC, Water Heater, Appliances).
+                   - Look for physical equipment (HVAC, Water Heater, Appliances) or Services.
                    - **SPLIT RULE**: If a single line item lists multiple pieces of equipment with distinct Model numbers (e.g. "Air Handler Model X" AND "Heat Pump Model Y"), create TWO separate items.
                    - **IGNORE**: Do NOT create separate items for "Warranty", "Labor", "Demo", "Permits", or "Misc Materials" unless they are the only things on the invoice.
                 
                 3. **EXTRACT COSTS**:
                    - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
-                   - If items were split (see above), try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
+                   - If items were split, try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
                 
                 4. **EXTRACT WARRANTY**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
@@ -105,9 +107,9 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
-            data.warranty = String(data.warranty || ''); // Ensure warranty string exists
+            data.warranty = String(data.warranty || '');
             
-            // Clean up items (ensure strings are strings)
+            // Clean up items
             data.items = data.items.map(item => ({
                 ...item,
                 item: toProperCase(String(item.item || 'Unknown Item')),
