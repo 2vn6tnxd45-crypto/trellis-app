@@ -5,7 +5,6 @@ import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle, File
 import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
-// Named export + Default export for compatibility
 export const SmartScanner = ({ onClose, onScanComplete }) => {
   const [image, setImage] = useState(null);
   const [fileObj, setFileObj] = useState(null);
@@ -14,8 +13,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   const [analysis, setAnalysis] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Expanded State for Detailed Fields
   const [showContractorDetails, setShowContractorDetails] = useState(false);
   
   const fileInputRef = useRef(null);
@@ -39,6 +36,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   };
 
   const startCamera = () => { setError(null); setIsScanning(true); };
+  
   const takePhoto = () => {
     if (cameraRef.current) {
       const photo = cameraRef.current.takePhoto();
@@ -55,16 +53,38 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
       const result = await scanReceipt(file, base64);
       if (!result) throw new Error("Analysis failed");
       
-      // Flatten the first item for the main form, but keep full data
-      const primaryItem = result.items?.[0] || {};
+      // LOGIC FIX: Don't just take the first item.
+      // 1. Try to use the explicit "primaryJobDescription" from AI
+      // 2. If missing, find the item with the highest cost.
+      // 3. Fallback to the first item.
+      
+      let mainItem = result.items?.[0] || {};
+      if (result.items && result.items.length > 0) {
+          // Sort by cost descending to find the "real" job
+          const sortedItems = [...result.items].sort((a, b) => (b.cost || 0) - (a.cost || 0));
+          mainItem = sortedItems[0];
+      }
+
       setAnalysis({
         ...result,
-        itemName: primaryItem.item || result.store || 'New Item',
-        category: primaryItem.category || '',
-        brand: primaryItem.brand || '',
-        model: primaryItem.model || '',
-        serial: primaryItem.serial || '',
+        // Use the AI's summary title if available, otherwise the highest cost item name
+        itemName: result.primaryJobDescription || mainItem.item || 'New Item',
+        category: mainItem.category || '',
+        brand: mainItem.brand || '',
+        model: mainItem.model || '',
+        serial: mainItem.serial || '',
+        // Map vendor fields
+        store: result.vendorName || result.store || '',
+        contractorPhone: result.vendorPhone || '',
+        contractorEmail: result.vendorEmail || '',
+        contractorAddress: result.vendorAddress || '',
       });
+      
+      // Auto-expand contractor details if we found data
+      if (result.vendorName || result.vendorPhone) {
+          setShowContractorDetails(true);
+      }
+
     } catch (err) { setError('Could not analyze document. Try manual entry.'); setAnalysis(null); } 
     finally { setIsAnalyzing(false); }
   };
@@ -73,22 +93,18 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     if (!analysis) return;
     setIsSaving(true);
     try {
-      // Pass mapped data back to app
       const recordData = {
         item: analysis.itemName,
         category: analysis.category,
         brand: analysis.brand,
         model: analysis.model,
-        serialNumber: analysis.serial, // Mapping to your specific requirement
+        serialNumber: analysis.serial,
         cost: analysis.totalAmount,
         dateInstalled: analysis.date,
-        
-        // Contractor Data
         contractor: analysis.store,
         contractorPhone: analysis.contractorPhone,
         contractorEmail: analysis.contractorEmail,
         contractorAddress: analysis.contractorAddress,
-        
         attachments: [{ name: fileObj?.name || 'Scan', type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', url: image }]
       };
       await onScanComplete(recordData);
@@ -103,13 +119,11 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
         
-        {/* Header */}
         <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
           <h2 className="text-lg font-bold text-gray-900">{image ? 'Review Details' : 'Smart Scan'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray-500"/></button>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide">
           {error && <div className="p-4 bg-red-50 text-red-700 rounded-xl text-sm font-medium flex gap-2"><AlertCircle size={16}/>{error}</div>}
 
@@ -117,7 +131,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
             <div className="space-y-6">
               <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:bg-gray-50 cursor-pointer transition-colors">
                 <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600"><Upload size={32}/></div>
-                <p className="font-bold text-gray-900">Click to Upload Invoice/Receipt</p>
+                <p className="font-bold text-gray-900">Upload Invoice/Receipt</p>
                 <p className="text-sm text-gray-500 mt-1">PDF or Image (Max 10MB)</p>
               </div>
               <div className="relative text-center"><span className="bg-white px-3 text-sm text-gray-400 relative z-10">OR</span><div className="absolute top-1/2 w-full border-t border-gray-100"></div></div>
@@ -138,7 +152,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
 
           {image && !isScanning && (
             <div className="space-y-6">
-              {/* Preview */}
               <div className="relative bg-gray-100 rounded-xl overflow-hidden border border-gray-200 shrink-0 h-48 flex items-center justify-center group">
                 {isPdf ? <div className="text-center text-gray-500"><FileText className="w-12 h-12 mx-auto mb-2"/><p className="text-xs font-bold">{fileObj?.name}</p></div> : <img src={image} className="h-full w-full object-contain" alt="Scan"/>}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -146,7 +159,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                 </div>
               </div>
 
-              {/* Form Fields */}
               {isAnalyzing ? (
                 <div className="space-y-4 animate-pulse">
                   <div className="h-10 bg-gray-100 rounded-xl w-full"/>
@@ -155,7 +167,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                 </div>
               ) : analysis ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                  {/* Basic Info */}
                   <div>
                     <label className="text-xs font-bold text-gray-500 uppercase">Item / Service Name</label>
                     <input value={analysis.itemName} onChange={e => setAnalysis({...analysis, itemName: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 font-bold text-gray-900 focus:ring-2 focus:ring-emerald-500 outline-none"/>
@@ -163,7 +174,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Cost</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase">Total Cost</label>
                         <input type="number" value={analysis.totalAmount} onChange={e => setAnalysis({...analysis, totalAmount: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900"/>
                     </div>
                     <div>
@@ -172,7 +183,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                     </div>
                   </div>
 
-                  {/* Technical Specs Section */}
                   <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
                     <h4 className="text-xs font-bold text-blue-800 uppercase flex items-center"><Hash size={12} className="mr-1"/> Equipment Specs</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -182,14 +192,13 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                     </div>
                   </div>
 
-                  {/* Contractor Section */}
                   <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                     <button onClick={() => setShowContractorDetails(!showContractorDetails)} className="w-full flex justify-between items-center text-xs font-bold text-gray-500 uppercase">
                         <span className="flex items-center"><User size={12} className="mr-1"/> Contractor Info</span>
                         <ChevronDown size={14} className={`transform transition-transform ${showContractorDetails ? 'rotate-180' : ''}`}/>
                     </button>
                     
-                    {(showContractorDetails || analysis.store) && (
+                    {showContractorDetails && (
                         <div className="mt-3 space-y-3">
                             <input placeholder="Company Name" value={analysis.store} onChange={e => setAnalysis({...analysis, store: e.target.value})} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm font-bold"/>
                             <div className="grid grid-cols-2 gap-3">
@@ -207,7 +216,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
           )}
         </div>
 
-        {/* Footer */}
         {image && !isScanning && (
             <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
                 <button onClick={reset} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Retake</button>
