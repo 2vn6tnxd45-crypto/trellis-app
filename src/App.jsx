@@ -191,6 +191,7 @@ const AppContent = () => {
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
+                warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
                 attachments: validAttachments
             });
             toast.success(`Found ${extractedData.items.length} items! Review them now.`, { icon: '📸' });
@@ -208,6 +209,7 @@ const AppContent = () => {
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
+                warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
                 attachments: validAttachments
             });
             toast.success("Scan complete!", { icon: '📸' });
@@ -296,7 +298,7 @@ const AppContent = () => {
 
 // --- WRAPPER ADD RECORD (Handles Save Logic) ---
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
-    const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
+    const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
 
@@ -367,6 +369,9 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      contractorPhone: editingRecord.contractorPhone || '',
                      contractorEmail: editingRecord.contractorEmail || '',
                      contractorAddress: editingRecord.contractorAddress || '',
+                     
+                     // SAVE WARRANTY FIELD
+                     warranty: item.warranty || editingRecord.warranty || '',
 
                      imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
                      attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
