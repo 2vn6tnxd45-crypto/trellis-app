@@ -34,38 +34,39 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // UPDATED PROMPT: Focus on Main Service and Vendor Extraction
+            // UPDATED PROMPT: Prioritize "Job Total" over "Amount Due" and handle multiple items
             const prompt = `
-                Analyze this invoice/receipt for a Home History App.
+                Analyze this invoice/receipt for a Home Inventory App.
                 
-                1. **IDENTIFY VENDOR (Contractor)**: Look for the company doing the work (e.g. "Prime HVAC"). Do NOT confuse with the "Bill To" client.
-                   - Extract: Name, Phone, Email, Address, License Number.
+                1. **IDENTIFY VENDOR**: Company Name, Phone, Email, Address.
                 
-                2. **IDENTIFY PRIMARY JOB**: What was the MAIN service performed?
-                   - If there are multiple line items, pick the one with the highest cost.
-                   - Example: If line 1 is "Demo ($0)" and line 2 is "Install Heat Pump ($11k)", the Primary Job is "Heat Pump Install".
+                2. **EXTRACT TOTAL COST**: 
+                   - CRITICAL: If "Amount Due" is $0.00 (paid), look for "Job Total", "Subtotal", or "Total" to find the actual value of work performed.
+                   - Do NOT return 0.00 unless the work was actually free.
                 
-                3. **EXTRACT LINE ITEMS**: List all distinct services/products.
-                   - Look specifically for MODEL numbers and SERIAL numbers in the item descriptions.
+                3. **EXTRACT ALL LINE ITEMS**: 
+                   - List every distinct service or product as a separate item.
+                   - Ignore "Warranty" or "Info" lines unless they are the only items.
+                   - For each item, look for: Description, Category (from [${categoriesStr}]), Brand, Model #, Serial #, and Cost.
                 
-                4. **CATEGORIZE**: Best fit from: [${categoriesStr}].
+                4. **PRIMARY JOB**: Create a short summary title for the entire invoice (e.g. "Heat Pump Install").
 
                 Return JSON:
                 {
-                  "vendorName": "Contractor Company Name",
-                  "vendorPhone": "Phone Number",
-                  "vendorEmail": "Email",
-                  "vendorAddress": "Full Address",
+                  "vendorName": "String",
+                  "vendorPhone": "String",
+                  "vendorEmail": "String",
+                  "vendorAddress": "String",
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
-                  "primaryJobDescription": "Short title of the main work performed",
+                  "primaryJobDescription": "String",
                   "items": [
                     { 
-                      "item": "Description of line item", 
-                      "category": "Category",
-                      "brand": "Brand", 
-                      "model": "Model Number", 
-                      "serial": "Serial Number",
+                      "item": "Detailed Name", 
+                      "category": "String",
+                      "brand": "String", 
+                      "model": "String", 
+                      "serial": "String",
                       "cost": 0.00
                     }
                   ]
@@ -98,14 +99,14 @@ export const useGemini = () => {
         }
     };
 
-    // ... scanRoom and other functions remain the same ...
+    // ... scanRoom and getCountyRecordGuide remain the same ...
     const scanRoom = async (files, base64Array) => {
-        // (Keep existing implementation)
-        return null; 
+        // ... (keep existing)
+        return null;
     };
 
     const getCountyRecordGuide = async (county, state) => {
-        // (Keep existing implementation)
+        // ... (keep existing)
         return null;
     };
 
