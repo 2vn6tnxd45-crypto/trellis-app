@@ -1,12 +1,13 @@
+// src/features/scanner/SmartScanner.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle } from 'lucide-react';
+import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle, FileText } from 'lucide-react';
 import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
-// Export as named constant to satisfy App.jsx's import { SmartScanner }
 export const SmartScanner = ({ onClose, onScanComplete }) => {
-  const [image, setImage] = useState(null);
+  const [image, setImage] = useState(null); // Stores the Base64 string for display/sending
+  const [fileObj, setFileObj] = useState(null); // Stores the raw file object for the AI
   const [isScanning, setIsScanning] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState(null);
@@ -19,6 +20,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   // Reset state when reopening
   useEffect(() => {
     setImage(null);
+    setFileObj(null);
     setAnalysis(null);
     setError(null);
     setIsScanning(false);
@@ -29,7 +31,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setError('File size too large. Please choose an image under 10MB.');
+      setError('File size too large. Please choose a file under 10MB.');
       return;
     }
 
@@ -37,8 +39,11 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     try {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImage(reader.result);
-        analyzeImage(reader.result);
+        const base64Result = reader.result;
+        setImage(base64Result);
+        setFileObj(file);
+        // Pass BOTH the file object and the base64 string
+        analyzeImage(file, base64Result);
       };
       reader.readAsDataURL(file);
     } catch (err) {
@@ -56,9 +61,16 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     if (cameraRef.current) {
       try {
         const photo = cameraRef.current.takePhoto();
-        setImage(photo);
-        setIsScanning(false);
-        analyzeImage(photo);
+        // Convert base64 to a file-like object for consistency
+        fetch(photo)
+          .then(res => res.blob())
+          .then(blob => {
+            const file = new File([blob], "camera_capture.jpg", { type: "image/jpeg" });
+            setImage(photo);
+            setFileObj(file);
+            setIsScanning(false);
+            analyzeImage(file, photo);
+          });
       } catch (err) {
         setError('Failed to take photo. Please try uploading a file instead.');
         setIsScanning(false);
@@ -66,14 +78,16 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     }
   };
 
-  const analyzeImage = async (base64Image) => {
+  const analyzeImage = async (file, base64Image) => {
     setIsAnalyzing(true);
     setError(null);
     try {
-      const result = await scanReceipt(base64Image);
+      // scanReceipt expects (file, base64String)
+      const result = await scanReceipt(file, base64Image);
+      if (!result) throw new Error("No data returned");
       setAnalysis(result);
     } catch (err) {
-      setError('Failed to analyze receipt. Please try again or enter details manually.');
+      setError('Failed to analyze document. Please try again or enter details manually.');
       console.error('Analysis failed:', err);
       setAnalysis(null);
     } finally {
@@ -91,7 +105,13 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
         type: 'receipt',
         date: analysis.date || new Date().toISOString(),
         createdAt: new Date().toISOString(),
-        images: [image]
+        // Only include image preview if it's an image, otherwise null or icon
+        imageUrl: fileObj?.type?.includes('image') ? image : null,
+        attachments: [{
+            name: fileObj?.name || 'Scan',
+            type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo',
+            url: image // In a real app, this would be the Firebase Storage URL after upload
+        }]
       };
       
       await onScanComplete(recordData);
@@ -105,11 +125,15 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
 
   const resetScanner = () => {
     setImage(null);
+    setFileObj(null);
     setAnalysis(null);
     setError(null);
     setIsScanning(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  // Helper to check if current file is PDF
+  const isPdf = fileObj?.type === 'application/pdf';
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -122,7 +146,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
         {/* Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">
-            {image ? 'Review Receipt' : 'Scan Receipt'}
+            {image ? 'Review Document' : 'Scan Invoice or Receipt'}
           </h2>
           <button
             onClick={onClose}
@@ -153,14 +177,14 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                 <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-sage-100 transition-colors">
                   <Upload className="w-8 h-8 text-gray-400 group-hover:text-sage-600 transition-colors" />
                 </div>
-                <p className="text-base text-gray-900 font-medium mb-2">Click or drag to upload receipt photo</p>
-                <p className="text-sm text-gray-500">PNG, JPG up to 10MB</p>
+                <p className="text-base text-gray-900 font-medium mb-2">Click or drag to upload</p>
+                <p className="text-sm text-gray-500">PDF, PNG, JPG up to 10MB</p>
               </div>
               <input
                 type="file"
                 ref={fileInputRef}
                 className="hidden"
-                accept="image/*"
+                accept="image/*,application/pdf" // Added PDF support
                 onChange={handleFileSelect}
               />
 
@@ -191,7 +215,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                 <div className="absolute inset-0 border-[3px] border-white/30 m-8 rounded-lg pointer-events-none">
                   <div className="absolute inset-0 flex items-center justify-center">
                     <p className="text-white/70 text-sm font-medium bg-black/50 px-4 py-2 rounded-full">
-                      Position receipt within frame
+                      Position document within frame
                     </p>
                   </div>
                 </div>
@@ -214,22 +238,33 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
             </div>
           )}
 
-          {/* State 3: Image Preview & Analysis Results */}
+          {/* State 3: Preview & Results */}
           {image && !isScanning && (
             <div className="flex flex-col space-y-6">
               
-              {/* Image Preview Container */}
+              {/* Preview Container - Handles both Images and PDFs */}
               <div className="relative rounded-xl overflow-hidden bg-gray-100 border border-gray-200 shrink-0 group">
-                <img 
-                  src={image} 
-                  alt="Receipt content" 
-                  className="w-full h-auto object-contain max-h-[300px] mx-auto" 
-                />
+                {isPdf ? (
+                    // PDF View
+                    <div className="w-full h-[200px] flex flex-col items-center justify-center bg-gray-50 text-gray-500">
+                        <FileText className="w-16 h-16 text-sage-500 mb-2" />
+                        <p className="text-sm font-medium text-gray-900">{fileObj?.name}</p>
+                        <p className="text-xs">PDF Document</p>
+                    </div>
+                ) : (
+                    // Image View
+                    <img 
+                      src={image} 
+                      alt="Document content" 
+                      className="w-full h-auto object-contain max-h-[300px] mx-auto" 
+                    />
+                )}
+                
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
                    <button 
                     onClick={() => fileInputRef.current?.click()}
                     className="p-2 bg-white/90 rounded-full hover:bg-white transition-colors"
-                    title="Replace Image"
+                    title="Replace File"
                    >
                     <RefreshCw className="w-5 h-5 text-gray-700" />
                   </button>
@@ -250,7 +285,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">Merchant / Item Name</label>
                     <input
                       type="text"
-                      value={analysis.merchantName || analysis.itemName || ''}
+                      value={analysis.merchantName || analysis.itemName || analysis.store || ''}
                       onChange={(e) => setAnalysis(prev => ({ ...prev, merchantName: e.target.value, itemName: e.target.value }))}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 transition-colors"
                       placeholder="e.g., Home Depot"
@@ -298,23 +333,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                       <option value="other">Other</option>
                     </select>
                   </div>
-                  
-                  {analysis.confidence && (
-                      <div className="flex items-center gap-2 mt-2">
-                          <div className="h-1.5 flex-1 bg-gray-100 rounded-full overflow-hidden">
-                              <div 
-                                  className={`h-full rounded-full ${
-                                      analysis.confidence > 0.8 ? 'bg-green-500' : 
-                                      analysis.confidence > 0.6 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${analysis.confidence * 100}%` }}
-                              />
-                          </div>
-                          <span className="text-xs font-medium text-gray-500">
-                              {Math.round(analysis.confidence * 100)}% confidence
-                          </span>
-                      </div>
-                  )}
                 </div>
               )}
 
@@ -334,10 +352,6 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                       <div className="h-4 w-16 bg-gray-200 rounded animate-pulse" />
                       <div className="h-11 bg-gray-100 rounded-xl animate-pulse" />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse" />
-                      <div className="h-11 bg-gray-100 rounded-xl animate-pulse" />
                   </div>
                 </div>
               )}
@@ -388,5 +402,4 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   );
 };
 
-// Also default export for backward compatibility
 export default SmartScanner;
