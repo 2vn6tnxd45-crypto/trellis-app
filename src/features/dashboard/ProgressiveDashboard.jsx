@@ -372,12 +372,9 @@ const BuildingDashboard = ({
         metrics.upcomingCount
     );
 
-    // Calculate breakdown for modal
-    const breakdown = {
-        coverage: { penalty: 0, needed: 0 },
-        maintenance: { penalty: metrics.overdueCount * 10, count: metrics.overdueCount },
-        upcoming: { penalty: metrics.upcomingCount * 5, count: metrics.upcomingCount }
-    };
+    // Get full breakdown from calculateHealthScore
+    const healthScoreData = calculateHealthScore(records);
+    const breakdown = healthScoreData.breakdown;
 
     return (
         <div className="space-y-6">
