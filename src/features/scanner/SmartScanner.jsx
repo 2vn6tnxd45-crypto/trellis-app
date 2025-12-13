@@ -90,8 +90,7 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
     try {
         if (!analysis) return;
         
-        // CRITICAL FIX: Pass 'fileRef' so App.jsx knows to upload this file
-        // instead of trying to save the base64 string to Firestore.
+        // Pass 'fileRef' so App.jsx knows to upload this file
         const attachment = { 
             name: fileObj?.name || 'Scan.jpg', 
             type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', 
@@ -103,6 +102,10 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
             store: analysis.vendorName || '', 
             image: image, 
             date: analysis.date,
+            
+            // Pass the extracted warranty
+            warranty: analysis.warranty || '',
+
             contractorPhone: analysis.vendorPhone || '',
             contractorEmail: analysis.vendorEmail || '',
             contractorAddress: analysis.vendorAddress || '',
@@ -115,7 +118,8 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
                 serial: item.serial || '', 
                 cost: item.cost || 0,
                 dateInstalled: analysis.date,
-                contractor: analysis.vendorName || ''
+                contractor: analysis.vendorName || '',
+                warranty: analysis.warranty || ''
             })),
             
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
@@ -215,6 +219,19 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
                         ))}
                     </div>
                 </div>
+
+                {/* SHOW WARRANTY IF FOUND */}
+                {analysis.warranty && (
+                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex items-start gap-3">
+                        <div className="bg-purple-100 p-2 rounded-lg text-purple-700 shrink-0">
+                            <FileText size={16} />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-purple-700 uppercase">Warranty Detected</p>
+                            <p className="text-sm font-medium text-purple-900">{analysis.warranty}</p>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                     <button onClick={() => setShowContractorDetails(!showContractorDetails)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
