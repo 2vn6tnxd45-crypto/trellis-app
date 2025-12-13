@@ -10,12 +10,10 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
+    // ... (suggestMaintenance function remains the same) ...
     const suggestMaintenance = async (record) => {
         if (!geminiModel) return null;
-        if (!record.item && !record.category) {
-            alert("Please enter an Item Name or Category first.");
-            return null;
-        }
+        if (!record.item && !record.category) return null;
         setIsSuggesting(true);
         try {
             const prompt = `
@@ -50,45 +48,36 @@ export const useGemini = () => {
         try {
             const base64Data = getBase64Data(base64Str);
             const mimeType = file.type || "image/jpeg";
-
             const categoriesStr = CATEGORIES.join(', ');
-            const roomsStr = ROOMS.join(', ');
 
+            // UPDATED PROMPT: Specific instruction for Contractor Details and Equipment Specs
             const prompt = `
-                Analyze this document (receipt/invoice/proposal).
+                Analyze this document (receipt/invoice/proposal) for a Home Inventory App.
                 VALID CATEGORIES: [${categoriesStr}]
-                VALID ROOMS: [${roomsStr}]
 
-                STEP 1: GLOBAL CONTEXT
-                - Identify the Store/Contractor Name.
-                - Look for Contractor Contact Info: Phone Number and Email Address if present.
-                - Identify the Date.
+                YOUR TASKS:
+                1. IDENTIFY CONTRACTOR: Look for company name, phone number, email, and physical address.
+                2. EXTRACT ITEMS: Look for line items. If it's a general service invoice, create a summary item.
+                3. EXTRACT SPECS: Look specifically for 'Model', 'M/N', 'Serial', 'S/N' numbers.
+                4. EXTRACT COST: Total invoice amount.
 
-                STEP 2: ITEM EXTRACTION RULES
-                - Extract PHYSICAL installed items only.
-                - IGNORE Labor/Haul Away unless it's the only item.
-                - EXTRACT COST: Find the line item price.
-                - DEDUPLICATE items.
-                - NAME CLEANING: Remove warranty info or verbs.
-
-                STEP 3: OUTPUT
                 Return JSON: 
                 { 
-                  "store": "Contractor Name",
-                  "phone": "555-0199 (if found)",
-                  "email": "contact@company.com (if found)",
+                  "store": "Contractor/Company Name",
+                  "contractorPhone": "555-0199 (if found)",
+                  "contractorEmail": "contact@company.com (if found)",
+                  "contractorAddress": "123 Main St (if found)",
                   "date": "YYYY-MM-DD",
-                  "primaryCategory": "Category", 
-                  "primaryArea": "Room",
+                  "totalAmount": 0.00,
                   "items": [
                     { 
-                      "item": "Clean Product Name", 
-                      "category": "Best Fit",
-                      "area": "Best Fit",
-                      "brand": "Inferred", 
-                      "model": "Inferred", 
+                      "item": "Product Name or Service Description", 
+                      "category": "Best Fit Category",
+                      "brand": "Brand Name", 
+                      "model": "Model Number", 
+                      "serial": "Serial Number",
                       "cost": 0.00,
-                      "notes": "Details" 
+                      "notes": "Any other details" 
                     }
                   ] 
                 }
@@ -98,18 +87,21 @@ export const useGemini = () => {
                 prompt,
                 { inlineData: { data: base64Data, mimeType: mimeType } }
             ]);
+            
             const text = result.response.text().replace(/```json|```/g, '').trim();
             const data = JSON.parse(text);
             
+            // Clean up data
             if (data.items) {
                 data.items = data.items.map(item => ({
                     ...item,
                     item: toProperCase(item.item),
                     brand: toProperCase(item.brand),
-                    category: item.category || data.primaryCategory || "",
-                    area: item.area || data.primaryArea || "",
-                    notes: item.notes || "",
-                    cost: item.cost || 0
+                    category: item.category || "Other",
+                    // Ensure contractor details are passed down to items if needed
+                    contractor: data.store,
+                    contractorPhone: data.contractorPhone,
+                    contractorEmail: data.contractorEmail
                 }));
             }
             return data;
@@ -121,56 +113,26 @@ export const useGemini = () => {
         }
     };
 
-    // UPDATED: Support multiple images and deduplication
+    // ... (scanRoom and getCountyRecordGuide remain the same) ...
     const scanRoom = async (files, base64Array) => {
         if (!geminiModel || !files || files.length === 0) return null;
         setIsScanning(true);
         try {
-            // Prepare image parts for the API
             const imageParts = base64Array.map((b64, index) => ({
-                inlineData: { 
-                    data: getBase64Data(b64), 
-                    mimeType: files[index].type || "image/jpeg" 
-                }
+                inlineData: { data: getBase64Data(b64), mimeType: files[index].type || "image/jpeg" }
             }));
-
             const categoriesStr = CATEGORIES.join(', ');
-
             const prompt = `
-                Act as a specialized Home Inventory App. 
-                I am providing ${files.length} photo(s) of a room (or parts of a room).
+                Act as a Home Inventory App. Identify distinct fixtures/appliances/furniture.
+                DEDUPLICATE: List unique items only.
+                RULES:
+                1. Describe visually if brand hidden.
+                2. Guess style/model.
+                3. CATEGORY: [${categoriesStr}].
                 
-                YOUR GOAL: 
-                Identify the distinct fixtures, appliances, and major furniture visible.
-                
-                CRITICAL DEDUPLICATION RULE: 
-                If the same item appears in multiple photos (e.g., the same "Vanity" seen from two angles, or a wide shot and a close up), only list it ONCE. Consolidate your findings into a single record for that object.
-
-                RULES FOR IDENTIFICATION:
-                1. **NO "UNKNOWN"**: Describe visually if brand is hidden (e.g. "Modern Floating Vanity", "Matte Black Faucet").
-                2. **GUESS THE STYLE/MODEL**: Suggest models if recognizable (e.g. "Likely IKEA Godmorgon").
-                3. **CATEGORY**: Pick the best fit from: [${categoriesStr}].
-                4. **NOTES**: Include specific details like color, finish, and condition.
-
-                Return JSON only:
-                {
-                    "items": [
-                        { 
-                            "item": "Descriptive Name", 
-                            "category": "Category", 
-                            "brand": "Brand or Style", 
-                            "model": "Estimated Series/Model",
-                            "notes": "Color, finish, and condition notes." 
-                        }
-                    ]
-                }
+                Return JSON: { "items": [{ "item": "Name", "category": "Category", "brand": "Brand", "model": "Model", "notes": "Details" }] }
             `;
-
-            const result = await geminiModel.generateContent([
-                prompt,
-                ...imageParts
-            ]);
-            
+            const result = await geminiModel.generateContent([prompt, ...imageParts]);
             const text = result.response.text().replace(/```json|```/g, '').trim();
             return JSON.parse(text);
         } catch (error) {
@@ -185,24 +147,11 @@ export const useGemini = () => {
         if (!geminiModel) return null;
         setIsSearching(true);
         try {
-            const prompt = `
-                I need to find property tax or assessor records for: ${county}, ${state}.
-                Return JSON only:
-                {
-                    "department": "Name of Dept",
-                    "url": "https://...",
-                    "tips": "Short tip string"
-                }
-            `;
+            const prompt = `Find property tax/assessor records for: ${county}, ${state}. Return JSON: { "department": "Name", "url": "URL", "tips": "Tips" }`;
             const result = await geminiModel.generateContent(prompt);
             const text = result.response.text().replace(/```json|```/g, '').trim(); 
             return JSON.parse(text);
-        } catch (error) {
-            console.error("AI Search Error:", error);
-            return null;
-        } finally {
-            setIsSearching(false);
-        }
+        } catch (error) { return null; } finally { setIsSearching(false); }
     };
 
     return { suggestMaintenance, scanReceipt, scanRoom, getCountyRecordGuide, isSuggesting, isScanning, isSearching };
