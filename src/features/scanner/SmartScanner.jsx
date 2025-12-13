@@ -103,7 +103,6 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
             image: image, 
             date: analysis.date,
             
-            // Pass the extracted warranty
             warranty: analysis.warranty || '',
 
             contractorPhone: analysis.vendorPhone || '',
@@ -125,7 +124,7 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
             cost: analysis.totalAmount || 0,
             
-            attachments: [attachment] // Send the properly formatted attachment
+            attachments: [attachment]
         };
         
         if (onProcessComplete) onProcessComplete(recordData);
@@ -220,7 +219,6 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
                     </div>
                 </div>
 
-                {/* SHOW WARRANTY IF FOUND */}
                 {analysis.warranty && (
                     <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 flex items-start gap-3">
                         <div className="bg-purple-100 p-2 rounded-lg text-purple-700 shrink-0">
