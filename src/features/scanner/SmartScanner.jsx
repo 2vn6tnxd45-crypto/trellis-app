@@ -6,7 +6,7 @@ import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
 // Named export + Default export for compatibility
-export const SmartScanner = ({ onClose, onScanComplete }) => {
+export const SmartScanner = ({ onClose, onProcessComplete }) => {
   const [image, setImage] = useState(null);
   const [fileObj, setFileObj] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -75,39 +75,54 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     if (!analysis) return;
     setIsSaving(true);
     try {
-      // Prepare the package. If we have multiple items, send them all.
-      // App.jsx will detect 'items' array and switch to Batch Mode.
+      // PREPARE DATA PAYLOAD
+      // We map our new rich fields to what App.jsx expects (store, image)
+      // while preserving the new detailed data for the batch processor.
       const recordData = {
-        // Global Invoice Data
+        // --- Legacy Fields (Required for App.jsx to preview correctly) ---
+        store: analysis.vendorName, 
+        image: image, 
         date: analysis.date,
-        contractor: analysis.vendorName,
+
+        // --- Rich Data (For Database) ---
         contractorPhone: analysis.vendorPhone,
         contractorEmail: analysis.vendorEmail,
         contractorAddress: analysis.vendorAddress,
         
-        // Pass the full list of items found
+        // Full Item List
         items: analysis.items.map(item => ({
             item: item.item,
             category: item.category,
             brand: item.brand,
             model: item.model,
-            serial: item.serial, // Ensure serial maps correctly
+            serial: item.serial, 
             cost: item.cost,
-            // Fallback to global data if item is missing it
             dateInstalled: analysis.date,
             contractor: analysis.vendorName
         })),
         
-        // Primary Item Fallback (for single item logic)
+        // Fallback for single-item view
         item: analysis.items?.[0]?.item || analysis.primaryJobDescription,
-        cost: analysis.totalAmount, // Overall invoice total
+        cost: analysis.totalAmount,
         
         attachments: [{ name: fileObj?.name || 'Scan', type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', url: image }]
       };
       
-      await onScanComplete(recordData);
+      // Use onProcessComplete (matches App.jsx)
+      if (onProcessComplete) {
+          await onProcessComplete(recordData);
+      } else {
+          console.error("Missing onProcessComplete prop");
+          throw new Error("Integration error: Save function missing");
+      }
+      
       onClose();
-    } catch (err) { setError('Save failed'); } finally { setIsSaving(false); }
+    } catch (err) { 
+        console.error(err);
+        setError('Save failed. Please try again.'); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const removeItem = (index) => {
@@ -120,7 +135,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   const isPdf = fileObj?.type === 'application/pdf';
 
   return (
-    // Z-INDEX FIX: Changed from z-50 to z-[100] to sit above BottomNav
+    // Z-INDEX FIX: z-[100] to sit above BottomNav
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
         
@@ -191,7 +206,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                       </p>
                   </div>
 
-                  {/* Detected Items List - NEW UI for Multiple Items */}
+                  {/* Detected Items List */}
                   <div>
                       <div className="flex justify-between items-center mb-2">
                           <label className="text-xs font-bold text-gray-500 uppercase">Detected Line Items ({analysis.items.length})</label>
@@ -215,13 +230,10 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                                   </button>
                               </div>
                           ))}
-                          {analysis.items.length === 0 && (
-                              <p className="text-sm text-gray-400 italic text-center py-2">No items detected. Try retaking.</p>
-                          )}
                       </div>
                   </div>
 
-                  {/* Contractor Section (Collapsible) */}
+                  {/* Contractor Section */}
                   <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                     <button onClick={() => setShowContractorDetails(!showContractorDetails)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
                         <span className="text-xs font-bold text-gray-600 uppercase flex items-center"><User size={14} className="mr-2"/> Contractor Info</span>
