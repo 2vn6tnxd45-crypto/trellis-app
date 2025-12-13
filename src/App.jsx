@@ -175,19 +175,23 @@ const AppContent = () => {
 
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
-        // CRITICAL: Check if multiple items found
+        // CRITICAL FIX: Use the attachments passed from SmartScanner because they contain the fileRef.
+        // We do NOT want to rebuild them here or we lose the file object.
+        const validAttachments = extractedData.attachments || [];
+
+        // Check if multiple items found
         if (extractedData.items && extractedData.items.length > 0) {
-            // Batch Mode: Pass ALL contractor info to the edit modal state
+            // Batch Mode
             setEditingRecord({
                 isBatch: true,
                 items: extractedData.items,
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
                 contractor: extractedData.store || '',
-                // Pass rich contractor data so it's available for saving
+                // Pass rich contractor data
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
-                attachments: extractedData.image ? [{ name: 'Scan.jpg', preview: extractedData.image }] : []
+                attachments: validAttachments
             });
             toast.success(`Found ${extractedData.items.length} items! Review them now.`, { icon: '📸' });
         } else {
@@ -204,7 +208,7 @@ const AppContent = () => {
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
-                attachments: extractedData.image ? [{ name: 'Scan.jpg', preview: extractedData.image }] : []
+                attachments: validAttachments
             });
             toast.success("Scan complete!", { icon: '📸' });
         }
@@ -309,20 +313,22 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         try {
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
-            if (file) {
-                const isPdf = file.type === 'application/pdf';
+            
+            // CORRECTED: If 'file' argument is missing, try to find it in the editingRecord
+            const fileToUpload = file || editingRecord?.attachments?.[0]?.fileRef;
+
+            if (fileToUpload) {
+                const isPdf = fileToUpload.type?.includes('pdf');
                 const ext = isPdf ? 'pdf' : 'jpg'; 
                 sharedFileType = isPdf ? 'Document' : 'Photo';
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
-                await uploadBytes(storageRef, file);
+                await uploadBytes(storageRef, fileToUpload);
                 sharedImageUrl = await getDownloadURL(storageRef);
             }
+            
             const batch = writeBatch(db);
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
-            
-            // NOTE: editingRecord contains the "Global" batch data passed from SmartScanner (contractor info etc)
-            // We need to merge that with the individual item data.
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
@@ -336,7 +342,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      item: item.item || 'Unknown Item', 
                      brand: item.brand || '', 
                      model: item.model || '', 
-                     serialNumber: item.serial || '', // Added serial
+                     serialNumber: item.serial || '', 
                      cost: item.cost ? parseFloat(item.cost) : 0, 
                      
                      // Global / Defaults
@@ -346,7 +352,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      maintenanceFrequency: 'none', 
                      nextServiceDate: null, 
                      
-                     // CONTRACTOR INFO (Fixed: Pulling from editingRecord which holds the scanner result)
+                     // CONTRACTOR INFO
                      contractor: item.contractor || editingRecord.contractor || '',
                      contractorPhone: editingRecord.contractorPhone || '',
                      contractorEmail: editingRecord.contractorEmail || '',
@@ -373,20 +379,27 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                     const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
                     await uploadBytes(fileRef, file);
                     const url = await getDownloadURL(fileRef);
+                    // CRITICAL: Return cleaned object, DO NOT return fileRef or preview (blob) to Firestore
                     return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
                 } catch(e){ return null; }
             }
-            return att;
+            // If it's an existing attachment (no fileRef), keep it. 
+            // If it has a 'preview' blob URL but no fileRef, we must skip it or it will crash Firestore.
+            if (att.url && !att.url.startsWith('blob:')) return att;
+            return null;
         }));
+        
         const finalAtts = processed.filter(Boolean);
         const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
         const { originalRequestId, id, isBatch, ...data } = newRecord;
+        
         const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
+        
         try {
             if (editingRecord?.id) { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload); toast.success("Record updated!"); } 
             else { await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() }); setNewRecord(initial); if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){} }
             onSuccess();
-        } catch (e) { toast.error("Save failed."); } finally { setSaving(false); }
+        } catch (e) { console.error(e); toast.error("Save failed: " + e.message); } finally { setSaving(false); }
     };
 
     return (
