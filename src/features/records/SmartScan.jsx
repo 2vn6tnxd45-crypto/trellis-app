@@ -25,6 +25,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     // Global Fields
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
+    const [globalPhone, setGlobalPhone] = useState("");
+    const [globalEmail, setGlobalEmail] = useState("");
     const [globalArea, setGlobalArea] = useState("General");
     const [globalCategory, setGlobalCategory] = useState("");
 
@@ -55,6 +57,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 setScannedItems(data.items);
                 if (data.date) setGlobalDate(data.date);
                 if (data.store) setGlobalStore(data.store);
+                if (data.phone) setGlobalPhone(data.phone);
+                if (data.email) setGlobalEmail(data.email);
                 if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) setGlobalCategory(data.primaryCategory);
                 if (data.primaryArea && ROOMS.includes(data.primaryArea)) setGlobalArea(data.primaryArea);
 
@@ -132,18 +136,29 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 ...item,
                 dateInstalled: globalDate || item.dateInstalled,
                 contractor: globalStore || item.contractor,
+                contractorPhone: globalPhone || item.contractorPhone || '',
+                contractorEmail: globalEmail || item.contractorEmail || '',
                 area: item.area || globalArea,
                 category: globalCategory || item.category
             }));
-            
-            await onBatchSave(finalItems, currentFile);
-            
+
+            // Pass contractor info separately so it can be saved to contractors collection
+            const contractorInfo = globalStore ? {
+                name: globalStore,
+                phone: globalPhone || '',
+                email: globalEmail || ''
+            } : null;
+
+            await onBatchSave(finalItems, currentFile, contractorInfo);
+
             // Reset
             setScannedItems([]);
             setScannedImagePreview(null);
             setCurrentFile(null);
             setGlobalCategory("");
             setGlobalStore("");
+            setGlobalPhone("");
+            setGlobalEmail("");
             setGlobalArea("General");
             
             toast.dismiss(savingToast);

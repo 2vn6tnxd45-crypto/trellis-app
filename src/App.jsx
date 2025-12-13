@@ -653,15 +653,51 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     };
     
     // Batch save for Room Scan
-    const handleBatchSave = async (items, file) => {
+    const handleBatchSave = async (items, file, contractorInfo = null) => {
         if (!items || items.length === 0) return;
         setSaving(true);
         try {
+            // Save contractor info to contractors collection if provided
+            if (contractorInfo && contractorInfo.name) {
+                try {
+                    const contractorsSnapshot = await getDocs(
+                        query(collection(db, 'artifacts', appId, 'users', user.uid, 'contractors'))
+                    );
+                    const existingContractors = contractorsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                    const existingContractor = findExistingContractor(existingContractors, contractorInfo);
+
+                    if (existingContractor) {
+                        // Update existing contractor
+                        const contractorRef = doc(db, 'artifacts', appId, 'users', user.uid, 'contractors', existingContractor.id);
+                        await updateDoc(contractorRef, {
+                            phone: contractorInfo.phone || existingContractor.phone,
+                            email: contractorInfo.email || existingContractor.email,
+                            lastUpdated: serverTimestamp()
+                        });
+                        toast.success(`Updated contractor: ${contractorInfo.name}`, { icon: '👷' });
+                    } else {
+                        // Add new contractor
+                        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'contractors'), {
+                            name: contractorInfo.name,
+                            phone: contractorInfo.phone || '',
+                            email: contractorInfo.email || '',
+                            propertyId: activeProperty?.id || 'legacy',
+                            addedFrom: 'receipt_scan',
+                            createdAt: serverTimestamp()
+                        });
+                        toast.success(`Saved contractor: ${contractorInfo.name}`, { icon: '👷' });
+                    }
+                } catch (error) {
+                    console.error('Failed to save contractor:', error);
+                    // Don't throw - this is a nice-to-have feature
+                }
+            }
+
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
             if (file) {
                 const isPdf = file.type === 'application/pdf';
-                const ext = isPdf ? 'pdf' : 'jpg'; 
+                const ext = isPdf ? 'pdf' : 'jpg';
                 sharedFileType = isPdf ? 'Document' : 'Photo';
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
@@ -672,7 +708,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 const docData = { 
+                 const docData = {
                      userId: user.uid, 
                      propertyId: activeProperty.id, 
                      propertyLocation: activeProperty.name, 

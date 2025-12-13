@@ -70,27 +70,28 @@ export const useGemini = () => {
                 - EXTRACT COST: Find the line item price.
                 - DEDUPLICATE items.
                 - NAME CLEANING: Remove warranty info or verbs.
+                - BRAND/MODEL: Only include if explicitly visible on document. Leave empty string "" if not found or not applicable (e.g., for services like pest control, plumbing labor, etc.)
 
                 STEP 3: OUTPUT
-                Return JSON: 
-                { 
+                Return JSON:
+                {
                   "store": "Contractor Name",
-                  "phone": "555-0199 (if found)",
-                  "email": "contact@company.com (if found)",
+                  "phone": "555-0199 (if found, else empty string)",
+                  "email": "contact@company.com (if found, else empty string)",
                   "date": "YYYY-MM-DD",
-                  "primaryCategory": "Category", 
+                  "primaryCategory": "Category",
                   "primaryArea": "Room",
                   "items": [
-                    { 
-                      "item": "Clean Product Name", 
+                    {
+                      "item": "Clean Product Name",
                       "category": "Best Fit",
                       "area": "Best Fit",
-                      "brand": "Inferred", 
-                      "model": "Inferred", 
+                      "brand": "",
+                      "model": "",
                       "cost": 0.00,
-                      "notes": "Details" 
+                      "notes": "Details"
                     }
-                  ] 
+                  ]
                 }
             `;
             

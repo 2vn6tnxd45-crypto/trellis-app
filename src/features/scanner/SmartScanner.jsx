@@ -6,10 +6,10 @@
 // Eliminates choice paralysis - just point and shoot.
 
 import React, { useState, useRef, useCallback } from 'react';
-import { 
+import {
     Camera, X, Loader2, Sparkles, Check, Upload,
     RotateCcw, Zap, FileText, Tag, Paintbrush, Home,
-    Package, AlertCircle
+    Package, AlertCircle, ChevronRight
 } from 'lucide-react';
 
 // ============================================
