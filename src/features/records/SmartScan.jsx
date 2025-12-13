@@ -4,7 +4,7 @@ import { ScanLine, Camera, ListChecks, Save, XCircle, FileText, Loader2, Sparkle
 import toast from 'react-hot-toast';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
-import { CATEGORIES, ROOMS } from '../../config/constants';
+import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 
 export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const fileInputRef = useRef(null);
@@ -139,7 +139,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 contractorPhone: globalPhone || item.contractorPhone || '',
                 contractorEmail: globalEmail || item.contractorEmail || '',
                 area: item.area || globalArea,
-                category: globalCategory || item.category
+                category: globalCategory || item.category,
+                maintenanceFrequency: item.maintenanceFrequency || item.suggestedMaintenanceFrequency || 'none',
+                maintenanceTasks: item.suggestedTasks || []
             }));
 
             // Pass contractor info separately so it can be saved to contractors collection
@@ -430,6 +432,42 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                         <XCircle className="h-5 w-5" />
                                     </button>
                                 </div>
+
+                                {/* Maintenance Schedule - AI Suggested */}
+                                {item.suggestedMaintenanceFrequency && item.suggestedMaintenanceFrequency !== 'none' && (
+                                    <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <Sparkles className="h-4 w-4 text-emerald-600" />
+                                                <label className="text-xs font-bold text-emerald-900">AI Suggested Maintenance</label>
+                                            </div>
+                                        </div>
+                                        <select
+                                            value={item.maintenanceFrequency || item.suggestedMaintenanceFrequency}
+                                            onChange={(e) => updateItem(idx, 'maintenanceFrequency', e.target.value)}
+                                            className="w-full px-3 py-2 border border-emerald-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white mb-2"
+                                        >
+                                            {MAINTENANCE_FREQUENCIES.map(f => (
+                                                <option key={f.value} value={f.value}>
+                                                    {f.label}
+                                                    {f.value === item.suggestedMaintenanceFrequency && ' (AI Recommended)'}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {/* Suggested Tasks */}
+                                        {item.suggestedTasks && item.suggestedTasks.length > 0 && (
+                                            <div className="text-xs text-emerald-800">
+                                                <p className="font-bold mb-1">Maintenance Tasks:</p>
+                                                <ul className="list-disc pl-4 space-y-0.5">
+                                                    {item.suggestedTasks.map((task, taskIdx) => (
+                                                        <li key={taskIdx}>{task}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>

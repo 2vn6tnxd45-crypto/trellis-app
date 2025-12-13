@@ -350,6 +350,8 @@ const AppContent = () => {
             contractorPhone: contractorInfo?.phone || '',
             contractorEmail: contractorInfo?.email || '',
             notes: extractedData.notes || '',
+            maintenanceFrequency: extractedData.suggestedMaintenanceFrequency || 'none',
+            maintenanceTasks: extractedData.suggestedTasks || [],
             // Pass the image if available from scanner
             attachments: extractedData.image ? [{
                 name: 'Scanned Receipt.jpg',
@@ -360,7 +362,13 @@ const AppContent = () => {
 
         setEditingRecord(newRecordDraft);
         setIsAddModalOpen(true);
-        toast.success("Scan complete! Review and save.", { icon: '📸' });
+
+        // Show enhanced toast if maintenance was suggested
+        if (extractedData.suggestedMaintenanceFrequency && extractedData.suggestedMaintenanceFrequency !== 'none') {
+            toast.success(`Scan complete! AI suggested ${extractedData.suggestedMaintenanceFrequency} maintenance`, { icon: '✨' });
+        } else {
+            toast.success("Scan complete! Review and save.", { icon: '📸' });
+        }
     };
 
     // Save contractor to contractors collection
@@ -763,23 +771,29 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
+                 const installDate = item.dateInstalled || new Date().toISOString().split('T')[0];
+                 const maintenanceFreq = item.maintenanceFrequency || 'none';
                  const docData = {
-                     userId: user.uid, 
-                     propertyId: activeProperty.id, 
-                     propertyLocation: activeProperty.name, 
-                     category: item.category || 'Other', 
-                     item: item.item || 'Unknown Item', 
-                     brand: item.brand || '', 
-                     model: item.model || '', 
-                     area: item.area || 'General', 
-                     notes: item.notes || '', 
-                     cost: item.cost ? parseFloat(item.cost) : 0, 
-                     dateInstalled: new Date().toISOString().split('T')[0], 
-                     maintenanceFrequency: 'none', 
-                     nextServiceDate: null, 
-                     imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
-                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
-                     timestamp: serverTimestamp() 
+                     userId: user.uid,
+                     propertyId: activeProperty.id,
+                     propertyLocation: activeProperty.name,
+                     category: item.category || 'Other',
+                     item: item.item || 'Unknown Item',
+                     brand: item.brand || '',
+                     model: item.model || '',
+                     area: item.area || 'General',
+                     notes: item.notes || '',
+                     cost: item.cost ? parseFloat(item.cost) : 0,
+                     dateInstalled: installDate,
+                     maintenanceFrequency: maintenanceFreq,
+                     maintenanceTasks: item.maintenanceTasks || [],
+                     nextServiceDate: calculateNextDate(installDate, maintenanceFreq),
+                     contractor: item.contractor || '',
+                     contractorPhone: item.contractorPhone || '',
+                     contractorEmail: item.contractorEmail || '',
+                     imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '',
+                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [],
+                     timestamp: serverTimestamp()
                 };
                 batch.set(newDocRef, docData);
             });

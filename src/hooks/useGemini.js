@@ -58,6 +58,7 @@ export const useGemini = () => {
                 Analyze this document (receipt/invoice/proposal).
                 VALID CATEGORIES: [${categoriesStr}]
                 VALID ROOMS: [${roomsStr}]
+                VALID MAINTENANCE FREQUENCIES: [monthly, quarterly, semiannual, annual, biennial, quinquennial, none]
 
                 STEP 1: GLOBAL CONTEXT
                 - Identify the Store/Contractor Name.
@@ -72,7 +73,23 @@ export const useGemini = () => {
                 - NAME CLEANING: Remove warranty info or verbs.
                 - BRAND/MODEL: Only include if explicitly visible on document. Leave empty string "" if not found or not applicable (e.g., for services like pest control, plumbing labor, etc.)
 
-                STEP 3: OUTPUT
+                STEP 3: SMART MAINTENANCE SUGGESTIONS
+                For each item, intelligently suggest a maintenance frequency:
+                - HVAC systems/filters: monthly or quarterly
+                - Water heaters, appliances: annual
+                - Roof, siding, windows: quinquennial (5 years)
+                - Paint, flooring: quinquennial
+                - Pest control services: quarterly or annual
+                - Plumbing fixtures: annual or biennial
+                - Generic services with no recurring need: none
+
+                STEP 4: INDIVIDUAL MAINTENANCE TASKS
+                For items that need maintenance, suggest 2-4 specific tasks:
+                - Example for HVAC: ["Replace air filter", "Check refrigerant levels", "Clean condensate drain", "Inspect ductwork"]
+                - Example for Water Heater: ["Flush tank to remove sediment", "Test pressure relief valve", "Check anode rod"]
+                - Keep tasks actionable and specific to the item type
+
+                STEP 5: OUTPUT
                 Return JSON:
                 {
                   "store": "Contractor Name",
@@ -89,7 +106,9 @@ export const useGemini = () => {
                       "brand": "",
                       "model": "",
                       "cost": 0.00,
-                      "notes": "Details"
+                      "notes": "Details",
+                      "suggestedMaintenanceFrequency": "annual",
+                      "suggestedTasks": ["Task 1", "Task 2", "Task 3"]
                     }
                   ]
                 }
