@@ -540,10 +540,10 @@ export const SmartScanner = ({
                         >
                             <Upload className="h-6 w-6 text-white" />
                         </button>
-                        <input 
+                        <input
                             ref={fileInputRef}
                             type="file"
-                            accept="image/*"
+                            accept="image/*,application/pdf"
                             onChange={handleFileUpload}
                             className="hidden"
                         />

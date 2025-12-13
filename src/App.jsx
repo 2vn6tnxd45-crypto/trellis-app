@@ -14,8 +14,9 @@ import toast, { Toaster } from 'react-hot-toast';
 import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
-import { compressImage } from './lib/images';
+import { compressImage, fileToBase64 } from './lib/images';
 import { findDuplicateRecord, mergeRecordData, extractContractorInfo, findExistingContractor } from './lib/recordHelpers';
+import { useGemini } from './hooks/useGemini';
 
 // --- NEW IMPORTS: CORE UX COMPONENTS ---
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
@@ -97,6 +98,7 @@ const AppContent = () => {
     const [showScanner, setShowScanner] = useState(false);
     const [lastAddedItem, setLastAddedItem] = useState(null);
     const celebrations = useCelebrations();
+    const { scanReceipt } = useGemini();
 
     // UI Toggles
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
@@ -201,6 +203,58 @@ const AppContent = () => {
     
     const handleTabChange = (tabId) => { if (tabId === 'More') { setShowMoreMenu(true); } else { setActiveTab(tabId); } };
     const handleMoreNavigate = (destination) => { setActiveTab(destination); setShowMoreMenu(false); };
+
+    // --- NEW: AI ANALYSIS FUNCTION FOR SMART SCANNER ---
+    const analyzeImage = useCallback(async (imageData, mode, detectedType) => {
+        // Mode can be 'detect_type' or 'extract'
+        if (mode === 'detect_type') {
+            // For type detection, always assume it's a receipt
+            return { type: 'receipt', confidence: 0.95 };
+        }
+
+        if (mode === 'extract') {
+            try {
+                // Convert base64 data URL to Blob then to File
+                const base64Response = await fetch(imageData);
+                const blob = await base64Response.blob();
+                const isPdf = blob.type === 'application/pdf';
+                const file = new File([blob], isPdf ? 'receipt.pdf' : 'receipt.jpg', { type: blob.type });
+
+                // Call the AI to extract receipt data
+                const data = await scanReceipt(file, imageData);
+
+                if (!data || !data.items || data.items.length === 0) {
+                    return { item: 'Unknown Item', category: 'Other' };
+                }
+
+                // Handle single or multiple items
+                // For now, if multiple items, we'll take the first one for the form
+                // (The batch flow is handled separately in SmartScan component)
+                const firstItem = data.items[0];
+
+                return {
+                    item: firstItem.item || 'Unknown Item',
+                    brand: firstItem.brand || '',
+                    model: firstItem.model || '',
+                    cost: firstItem.cost || '',
+                    category: firstItem.category || data.primaryCategory || 'Other',
+                    area: firstItem.area || data.primaryArea || '',
+                    notes: firstItem.notes || '',
+                    date: data.date || new Date().toISOString().split('T')[0],
+                    // Include contractor info for extraction
+                    contractor: data.store || '',
+                    phone: data.phone || '',
+                    email: data.email || '',
+                    suggestedCategory: data.primaryCategory || 'Other'
+                };
+            } catch (error) {
+                console.error('AI extraction error:', error);
+                return { item: 'Unknown Item', category: 'Other' };
+            }
+        }
+
+        return {};
+    }, [scanReceipt]);
 
     // --- NEW: SCANNER COMPLETION HANDLER WITH DUPLICATE DETECTION & CONTRACTOR EXTRACTION ---
     const handleScanComplete = useCallback(async (extractedData) => {
@@ -402,9 +456,10 @@ const AppContent = () => {
 
         {/* GLOBAL SMART SCANNER */}
         {showScanner && (
-            <SmartScanner 
+            <SmartScanner
                 onClose={() => setShowScanner(false)}
                 onProcessComplete={handleScanComplete}
+                analyzeImage={analyzeImage}
             />
         )}
 
