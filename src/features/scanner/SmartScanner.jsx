@@ -1,10 +1,11 @@
 // src/features/scanner/SmartScanner.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle, FileText, ChevronDown, User, Hash } from 'lucide-react';
+import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle, FileText, ChevronDown, User, Hash, Plus, Minus } from 'lucide-react';
 import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
+// Named export + Default export for compatibility
 export const SmartScanner = ({ onClose, onScanComplete }) => {
   const [image, setImage] = useState(null);
   const [fileObj, setFileObj] = useState(null);
@@ -13,6 +14,8 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
   const [analysis, setAnalysis] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  
+  // UI States
   const [showContractorDetails, setShowContractorDetails] = useState(false);
   
   const fileInputRef = useRef(null);
@@ -53,37 +56,16 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
       const result = await scanReceipt(file, base64);
       if (!result) throw new Error("Analysis failed");
       
-      // LOGIC FIX: Don't just take the first item.
-      // 1. Try to use the explicit "primaryJobDescription" from AI
-      // 2. If missing, find the item with the highest cost.
-      // 3. Fallback to the first item.
-      
-      let mainItem = result.items?.[0] || {};
-      if (result.items && result.items.length > 0) {
-          // Sort by cost descending to find the "real" job
-          const sortedItems = [...result.items].sort((a, b) => (b.cost || 0) - (a.cost || 0));
-          mainItem = sortedItems[0];
-      }
-
+      // Store the full result including all items
       setAnalysis({
         ...result,
-        // Use the AI's summary title if available, otherwise the highest cost item name
-        itemName: result.primaryJobDescription || mainItem.item || 'New Item',
-        category: mainItem.category || '',
-        brand: mainItem.brand || '',
-        model: mainItem.model || '',
-        serial: mainItem.serial || '',
-        // Map vendor fields
-        store: result.vendorName || result.store || '',
-        contractorPhone: result.vendorPhone || '',
-        contractorEmail: result.vendorEmail || '',
-        contractorAddress: result.vendorAddress || '',
+        // Ensure items array exists
+        items: result.items || [],
+        // Default top-level fields for fallback
+        itemName: result.primaryJobDescription || result.items?.[0]?.item || 'New Item',
       });
       
-      // Auto-expand contractor details if we found data
-      if (result.vendorName || result.vendorPhone) {
-          setShowContractorDetails(true);
-      }
+      if (result.vendorName || result.vendorPhone) setShowContractorDetails(true);
 
     } catch (err) { setError('Could not analyze document. Try manual entry.'); setAnalysis(null); } 
     finally { setIsAnalyzing(false); }
@@ -93,30 +75,53 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
     if (!analysis) return;
     setIsSaving(true);
     try {
+      // Prepare the package. If we have multiple items, send them all.
+      // App.jsx will detect 'items' array and switch to Batch Mode.
       const recordData = {
-        item: analysis.itemName,
-        category: analysis.category,
-        brand: analysis.brand,
-        model: analysis.model,
-        serialNumber: analysis.serial,
-        cost: analysis.totalAmount,
-        dateInstalled: analysis.date,
-        contractor: analysis.store,
-        contractorPhone: analysis.contractorPhone,
-        contractorEmail: analysis.contractorEmail,
-        contractorAddress: analysis.contractorAddress,
+        // Global Invoice Data
+        date: analysis.date,
+        contractor: analysis.vendorName,
+        contractorPhone: analysis.vendorPhone,
+        contractorEmail: analysis.vendorEmail,
+        contractorAddress: analysis.vendorAddress,
+        
+        // Pass the full list of items found
+        items: analysis.items.map(item => ({
+            item: item.item,
+            category: item.category,
+            brand: item.brand,
+            model: item.model,
+            serial: item.serial, // Ensure serial maps correctly
+            cost: item.cost,
+            // Fallback to global data if item is missing it
+            dateInstalled: analysis.date,
+            contractor: analysis.vendorName
+        })),
+        
+        // Primary Item Fallback (for single item logic)
+        item: analysis.items?.[0]?.item || analysis.primaryJobDescription,
+        cost: analysis.totalAmount, // Overall invoice total
+        
         attachments: [{ name: fileObj?.name || 'Scan', type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', url: image }]
       };
+      
       await onScanComplete(recordData);
       onClose();
     } catch (err) { setError('Save failed'); } finally { setIsSaving(false); }
+  };
+
+  const removeItem = (index) => {
+      const newItems = [...analysis.items];
+      newItems.splice(index, 1);
+      setAnalysis({ ...analysis, items: newItems });
   };
 
   const reset = () => { setImage(null); setFileObj(null); setAnalysis(null); setIsScanning(false); };
   const isPdf = fileObj?.type === 'application/pdf';
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    // Z-INDEX FIX: Changed from z-50 to z-[100] to sit above BottomNav
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
         
         <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
@@ -152,6 +157,7 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
 
           {image && !isScanning && (
             <div className="space-y-6">
+              {/* Preview */}
               <div className="relative bg-gray-100 rounded-xl overflow-hidden border border-gray-200 shrink-0 h-48 flex items-center justify-center group">
                 {isPdf ? <div className="text-center text-gray-500"><FileText className="w-12 h-12 mx-auto mb-2"/><p className="text-xs font-bold">{fileObj?.name}</p></div> : <img src={image} className="h-full w-full object-contain" alt="Scan"/>}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
@@ -166,46 +172,70 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
                   <div className="h-20 bg-gray-100 rounded-xl w-full"/>
                 </div>
               ) : analysis ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Item / Service Name</label>
-                    <input value={analysis.itemName} onChange={e => setAnalysis({...analysis, itemName: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 font-bold text-gray-900 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                  </div>
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
                   
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Total Cost</label>
-                        <input type="number" value={analysis.totalAmount} onChange={e => setAnalysis({...analysis, totalAmount: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900"/>
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Date</label>
-                        <input type="date" value={analysis.date} onChange={e => setAnalysis({...analysis, date: e.target.value})} className="w-full p-3 bg-gray-50 rounded-xl border border-gray-200 text-gray-900"/>
-                    </div>
+                  {/* Summary Section */}
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                      <div className="flex justify-between items-start mb-2">
+                          <div>
+                              <p className="text-xs font-bold text-emerald-700 uppercase">Total Invoice</p>
+                              <p className="text-xl font-extrabold text-emerald-900">${analysis.totalAmount}</p>
+                          </div>
+                          <div className="text-right">
+                              <p className="text-xs font-bold text-emerald-700 uppercase">Date</p>
+                              <p className="font-medium text-emerald-900">{analysis.date}</p>
+                          </div>
+                      </div>
+                      <p className="text-xs text-emerald-600 font-medium border-t border-emerald-200/50 pt-2 mt-2">
+                          Job: {analysis.primaryJobDescription || 'General Service'}
+                      </p>
                   </div>
 
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
-                    <h4 className="text-xs font-bold text-blue-800 uppercase flex items-center"><Hash size={12} className="mr-1"/> Equipment Specs</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="Brand" value={analysis.brand} onChange={e => setAnalysis({...analysis, brand: e.target.value})} className="p-2 bg-white border border-blue-200 rounded-lg text-sm"/>
-                        <input placeholder="Model #" value={analysis.model} onChange={e => setAnalysis({...analysis, model: e.target.value})} className="p-2 bg-white border border-blue-200 rounded-lg text-sm"/>
-                        <input placeholder="Serial #" value={analysis.serial} onChange={e => setAnalysis({...analysis, serial: e.target.value})} className="col-span-2 p-2 bg-white border border-blue-200 rounded-lg text-sm"/>
-                    </div>
+                  {/* Detected Items List - NEW UI for Multiple Items */}
+                  <div>
+                      <div className="flex justify-between items-center mb-2">
+                          <label className="text-xs font-bold text-gray-500 uppercase">Detected Line Items ({analysis.items.length})</label>
+                      </div>
+                      <div className="space-y-2">
+                          {analysis.items.map((item, idx) => (
+                              <div key={idx} className="flex gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 relative group">
+                                  <div className="flex-grow min-w-0">
+                                      <p className="font-bold text-gray-800 truncate">{item.item}</p>
+                                      <div className="flex gap-2 text-xs text-gray-500 mt-0.5">
+                                          <span>{item.category}</span>
+                                          {item.model && <span>• {item.model}</span>}
+                                          {item.cost > 0 && <span className="text-emerald-600 font-bold">• ${item.cost}</span>}
+                                      </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => removeItem(idx)} 
+                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                  >
+                                      <Trash2 size={16}/>
+                                  </button>
+                              </div>
+                          ))}
+                          {analysis.items.length === 0 && (
+                              <p className="text-sm text-gray-400 italic text-center py-2">No items detected. Try retaking.</p>
+                          )}
+                      </div>
                   </div>
 
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                    <button onClick={() => setShowContractorDetails(!showContractorDetails)} className="w-full flex justify-between items-center text-xs font-bold text-gray-500 uppercase">
-                        <span className="flex items-center"><User size={12} className="mr-1"/> Contractor Info</span>
-                        <ChevronDown size={14} className={`transform transition-transform ${showContractorDetails ? 'rotate-180' : ''}`}/>
+                  {/* Contractor Section (Collapsible) */}
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <button onClick={() => setShowContractorDetails(!showContractorDetails)} className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <span className="text-xs font-bold text-gray-600 uppercase flex items-center"><User size={14} className="mr-2"/> Contractor Info</span>
+                        <ChevronDown size={14} className={`text-gray-400 transform transition-transform ${showContractorDetails ? 'rotate-180' : ''}`}/>
                     </button>
                     
                     {showContractorDetails && (
-                        <div className="mt-3 space-y-3">
-                            <input placeholder="Company Name" value={analysis.store} onChange={e => setAnalysis({...analysis, store: e.target.value})} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm font-bold"/>
+                        <div className="p-4 space-y-3 border-t border-gray-100">
+                            <input placeholder="Company Name" value={analysis.vendorName} onChange={e => setAnalysis({...analysis, vendorName: e.target.value})} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm font-bold"/>
                             <div className="grid grid-cols-2 gap-3">
-                                <input placeholder="Phone" value={analysis.contractorPhone} onChange={e => setAnalysis({...analysis, contractorPhone: e.target.value})} className="p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
-                                <input placeholder="Email" value={analysis.contractorEmail} onChange={e => setAnalysis({...analysis, contractorEmail: e.target.value})} className="p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
+                                <input placeholder="Phone" value={analysis.vendorPhone} onChange={e => setAnalysis({...analysis, vendorPhone: e.target.value})} className="p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
+                                <input placeholder="Email" value={analysis.vendorEmail} onChange={e => setAnalysis({...analysis, vendorEmail: e.target.value})} className="p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
                             </div>
-                            <input placeholder="Address" value={analysis.contractorAddress} onChange={e => setAnalysis({...analysis, contractorAddress: e.target.value})} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
+                            <input placeholder="Address" value={analysis.vendorAddress} onChange={e => setAnalysis({...analysis, vendorAddress: e.target.value})} className="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm"/>
                         </div>
                     )}
                   </div>
@@ -216,11 +246,13 @@ export const SmartScanner = ({ onClose, onScanComplete }) => {
           )}
         </div>
 
+        {/* Footer */}
         {image && !isScanning && (
             <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
                 <button onClick={reset} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Retake</button>
                 <button onClick={handleSave} disabled={!analysis || isSaving} className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
-                    {isSaving ? <Loader2 className="animate-spin"/> : <Check/>} Save Record
+                    {isSaving ? <Loader2 className="animate-spin"/> : <Check/>} 
+                    {analysis?.items?.length > 1 ? `Save ${analysis.items.length} Items` : 'Save Record'}
                 </button>
             </div>
         )}
