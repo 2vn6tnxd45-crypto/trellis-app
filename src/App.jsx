@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
     LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, 
-    PlusCircle, Check, ChevronRight, LayoutDashboard, Package, Users, 
+    PlusCircle, Check, ChevronRight, LayoutDashboard, Package, 
     MapPin, Trash2, Menu, CheckSquare, DoorOpen 
 } from 'lucide-react'; 
 
@@ -14,37 +14,29 @@ import toast, { Toaster } from 'react-hot-toast';
 import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
-import { compressImage } from './lib/images';
+import { compressImage, fileToBase64 } from './lib/images';
 
-// --- NEW IMPORTS: CORE UX COMPONENTS ---
+// --- NEW IMPORTS ---
+import { useGemini } from './hooks/useGemini';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
-import './styles/krib-theme.css'; // New Theme Styles
+import './styles/krib-theme.css'; 
 
-// Common Components
+// Feature Components
 import { Logo } from './components/common/Logo';
 import { FeatureErrorBoundary } from './components/common/FeatureErrorBoundary';
 import { EmptyState } from './components/common/EmptyState';
 import { AppShellSkeleton } from './components/common/Skeletons';
-
-// Navigation
 import { BottomNav, MoreMenu } from './components/navigation/BottomNav';
-
-// Auth & Onboarding
 import { AuthScreen } from './features/auth/AuthScreen';
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
 import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 import { GuidedOnboarding } from './features/onboarding/GuidedOnboarding';
-
-// Records
 import { RecordCard } from './features/records/RecordCard';
 import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { AddRecordForm } from './features/records/AddRecordForm';
-
-// Reports & Requests
 import { PedigreeReport } from './features/report/PedigreeReport';
-import { RequestManager } from './features/requests/RequestManager';
 import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
@@ -56,7 +48,6 @@ class ErrorBoundary extends React.Component {
       if (this.state.hasError) return (
         <div className="p-10 text-red-600">
             <h2 className="font-bold">Something went wrong.</h2>
-            <p className="text-sm font-mono mt-2">{this.state.error?.toString()}</p>
             <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-slate-200 rounded">Reload</button>
         </div>
       ); 
@@ -92,15 +83,17 @@ const AppContent = () => {
     const [showQuickService, setShowQuickService] = useState(false);
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
     
-    // --- NEW STATE: SCANNER & CELEBRATIONS ---
+    // Scanner & Celebration State
     const [showScanner, setShowScanner] = useState(false);
     const [lastAddedItem, setLastAddedItem] = useState(null);
     const celebrations = useCelebrations();
+    const { scanReceipt } = useGemini();
 
     // UI Toggles
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
     const [inventoryView, setInventoryView] = useState('category'); 
 
+    // Property Logic
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
@@ -118,6 +111,7 @@ const AppContent = () => {
         return acc;
     }, {}));
 
+    // Data Listeners
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -201,46 +195,66 @@ const AppContent = () => {
     const handleTabChange = (tabId) => { if (tabId === 'More') { setShowMoreMenu(true); } else { setActiveTab(tabId); } };
     const handleMoreNavigate = (destination) => { setActiveTab(destination); setShowMoreMenu(false); };
 
-    // --- NEW: SCANNER COMPLETION HANDLER ---
+    // --- NEW: SCANNER COMPLETION & AI HANDLER ---
+    const handleAnalyzeImage = useCallback(async (imageBlob) => {
+        // Convert Blob URL to actual File/Blob object and base64 for API
+        const response = await fetch(imageBlob);
+        const blob = await response.blob();
+        const base64 = await fileToBase64(blob);
+        // Use existing scanReceipt function (which wraps Gemini)
+        return await scanReceipt(blob, base64);
+    }, [scanReceipt]);
+
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
-        // Open the modal with extracted data to confirm/save
-        const newRecordDraft = {
-            item: extractedData.item || '',
-            category: extractedData.suggestedCategory || 'Other',
-            brand: extractedData.brand || '',
-            model: extractedData.model || '',
-            cost: extractedData.cost || '',
-            dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
-            // Pass the image if available from scanner
-            attachments: extractedData.image ? [{
-                name: 'Scanned Image.jpg',
-                preview: extractedData.image, 
-                // Note: File obj needed for upload, SmartScanner should provide or handle
-                fileRef: null // Simplified for this integration
-            }] : []
-        };
         
-        // Open the form with this data
-        setEditingRecord(newRecordDraft);
-        setIsAddModalOpen(true);
-        toast.success("Scan complete! Review details.", { icon: '📸' });
+        // CHECK IF BATCH (ARRAY)
+        if (extractedData.items && extractedData.items.length > 0) {
+            // Case 1: Multiple Items Found (Batch Mode)
+            // We pass the special 'isBatch' flag and the items array to AddRecordForm
+            const batchRecordDraft = {
+                isBatch: true,
+                items: extractedData.items,
+                dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+                contractor: extractedData.store || ''
+            };
+            
+            setEditingRecord(batchRecordDraft);
+            setIsAddModalOpen(true);
+            toast.success(`Found ${extractedData.items.length} items! Review them now.`, { icon: '📸' });
+            
+        } else {
+            // Case 2: Single Item / Fallback
+            const newRecordDraft = {
+                item: extractedData.item || '',
+                category: extractedData.category || extractedData.primaryCategory || 'Other',
+                brand: extractedData.brand || '',
+                model: extractedData.model || '',
+                cost: extractedData.cost || '',
+                dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+                contractor: extractedData.store || '',
+                attachments: extractedData.image ? [{
+                    name: 'Scanned Image.jpg',
+                    preview: extractedData.image, 
+                    fileRef: null // Note: Ideally pass the actual file blob here for upload
+                }] : []
+            };
+            
+            setEditingRecord(newRecordDraft);
+            setIsAddModalOpen(true);
+            toast.success("Scan complete! Review details.", { icon: '📸' });
+        }
     }, []);
 
-    // --- NEW: CHECK CELEBRATIONS ON SAVE ---
     const handleSaveSuccess = () => {
         const prevCount = records.length;
         const newCount = prevCount + 1;
         const hasMilestone = celebrations.checkMilestone(prevCount, newCount);
-        
-        // Show celebration or simple toast
-        if (!hasMilestone) {
-            celebrations.showToast(`Item saved successfully!`, Check);
-        }
+        if (!hasMilestone) celebrations.showToast(`Item saved successfully!`, Check);
         closeAddModal();
     };
 
-    // Check for contractor view (URL param)
+    // Check for contractor view
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     if (isContractor) return <ContractorPortal />;
 
@@ -263,82 +277,48 @@ const AppContent = () => {
     return (
         <>
         <Toaster position="top-center" />
-        
-        {/* CELEBRATION RENDERER */}
-        <CelebrationRenderer 
-            celebration={celebrations.celebration}
-            toast={celebrations.toast}
-            itemName={lastAddedItem}
-            onCloseCelebration={celebrations.closeCelebration}
-            onCloseToast={celebrations.closeToast}
-            onAddAnother={() => openAddModal()}
-        />
+        <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} itemName={lastAddedItem} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} onAddAnother={() => openAddModal()} />
 
         {/* GLOBAL SMART SCANNER */}
         {showScanner && (
             <SmartScanner 
                 onClose={() => setShowScanner(false)}
                 onProcessComplete={handleScanComplete}
+                analyzeImage={handleAnalyzeImage}
             />
         )}
 
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             
-            {/* HEADER with Location Pill */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
                 <div className="relative z-10 flex items-center">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors group">
                         <Logo className="h-10 w-10 group-hover:scale-105 transition-transform"/>
                         <div className="flex flex-col">
-                            <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">
-                                {activeProperty.name}
-                                <ChevronDown size={16} className="ml-1 text-slate-400 group-hover:text-emerald-600 transition-colors"/>
-                            </h1>
-                            {activeProperty?.address && (
-                                <p className="text-[10px] font-bold text-slate-400 md:hidden mt-0.5 max-w-[120px] truncate flex items-center">
-                                    <MapPin size={8} className="mr-1 inline" />
-                                    {activeProperty.address.street}
-                                </p>
-                            )}
+                            <h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">{activeProperty.name}<ChevronDown size={16} className="ml-1 text-slate-400 group-hover:text-emerald-600 transition-colors"/></h1>
+                            {activeProperty?.address && <p className="text-[10px] font-bold text-slate-400 md:hidden mt-0.5 max-w-[120px] truncate flex items-center"><MapPin size={8} className="mr-1 inline" />{activeProperty.address.street}</p>}
                         </div>
                     </button>
                     {isSwitchingProp && (
                         <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in slide-in-from-top-2">
                             {properties.map(p => (
-                                <button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>
-                                    {p.name}
-                                    {activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}
-                                </button>
+                                <button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>
                             ))}
                             <div className="border-t border-slate-100 my-1"></div>
-                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50">
-                                <PlusCircle size={16} className="mr-2"/> Add Property
-                            </button>
+                            <button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50"><PlusCircle size={16} className="mr-2"/> Add Property</button>
                         </div>
                     )}
                 </div>
-
-                {/* Desktop Address Pill */}
                 {activeProperty?.address && (
                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex items-center gap-2 bg-slate-50 px-5 py-2 rounded-full border border-slate-100 shadow-sm hover:border-emerald-200 transition-colors cursor-default">
-                        <div className="bg-white p-1 rounded-full shadow-sm">
-                            <MapPin size={12} className="text-emerald-600" />
-                        </div>
-                        <span className="text-sm font-bold text-slate-700">
-                            {activeProperty.address.street}
-                        </span>
-                        <span className="text-xs font-medium text-slate-400 border-l border-slate-200 pl-2">
-                            {activeProperty.address.city}, {activeProperty.address.state}
-                        </span>
+                        <div className="bg-white p-1 rounded-full shadow-sm"><MapPin size={12} className="text-emerald-600" /></div>
+                        <span className="text-sm font-bold text-slate-700">{activeProperty.address.street}</span>
+                        <span className="text-xs font-medium text-slate-400 border-l border-slate-200 pl-2">{activeProperty.address.city}, {activeProperty.address.state}</span>
                     </div>
                 )}
-
                 <div className="relative z-10 flex items-center gap-3">
                     <div className="relative">
-                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 relative bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                            <Bell size={20} className="text-slate-400"/>
-                            {totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
-                        </button>
+                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 relative bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100"><Bell size={20} className="text-slate-400"/>{totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</button>
                         {showNotifications && (
                             <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in zoom-in-95">
                                 <h3 className="font-bold text-slate-800 mb-3 text-sm">Notifications</h3>
@@ -348,130 +328,44 @@ const AppContent = () => {
                         {showNotifications && <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)}></div>}
                     </div>
                     <div className="relative">
-                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                            <Menu size={20} className="text-slate-400"/>
-                        </button>
+                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100"><Menu size={20} className="text-slate-400"/></button>
                         {showUserMenu && (<><div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95"><button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl flex items-center"><LogOut size={16} className="mr-2"/> Sign Out</button><div className="border-t border-slate-100 my-1"></div><button onClick={handleDeleteAccount} className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl flex items-center"><Trash2 size={16} className="mr-2"/> Delete Account</button></div><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div></>)}
                     </div>
                 </div>
             </header>
 
             <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+                {showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
+                {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />}
                 
-                {showGuidedOnboarding && (
-                    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div>
-                        <div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-                            <GuidedOnboarding propertyName={activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { setShowGuidedOnboarding(false); handleDismissWelcome(); }} />
-                        </div>
-                    </div>
-                )}
-
-                {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && (
-                    <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />
-                )}
-                
-                {/* --- UPDATED: PROGRESSIVE DASHBOARD --- */}
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
-                        <ProgressiveDashboard 
-                            records={activePropertyRecords}
-                            contractors={contractorsList} 
-                            activeProperty={activeProperty}
-                            onScanReceipt={() => setShowScanner(true)} 
-                            onAddRecord={() => openAddModal()}
-                            onNavigateToItems={() => setActiveTab('Items')}
-                            onNavigateToContractors={() => setActiveTab('Contractors')}
-                            onNavigateToReports={() => setActiveTab('Reports')}
-                            onNavigateToMaintenance={() => setActiveTab('Items')}
-                            onCreateContractorLink={() => handleOpenQuickService(null)}
-                        />
+                        <ProgressiveDashboard records={activePropertyRecords} contractors={contractorsList} activeProperty={activeProperty} onScanReceipt={() => setShowScanner(true)} onAddRecord={() => openAddModal()} onNavigateToItems={() => setActiveTab('Items')} onNavigateToContractors={() => setActiveTab('Contractors')} onNavigateToReports={() => setActiveTab('Reports')} onNavigateToMaintenance={() => setActiveTab('Items')} onCreateContractorLink={() => handleOpenQuickService(null)} />
                     </FeatureErrorBoundary>
                 )}
 
-                {/* Reports Tab */}
-                {activeTab === 'Reports' && (
-                    <FeatureErrorBoundary label="Reports">
-                        <PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} />
-                    </FeatureErrorBoundary>
-                )}
+                {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
 
-                {/* Items View */}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div>
-                                    <h2 className="text-2xl font-bold text-emerald-950">Inventory</h2>
-                                    <p className="text-sm text-slate-500">Manage your home's items and records</p>
-                                </div>
-                                <div className="bg-slate-100 p-1 rounded-xl flex shrink-0">
-                                    <button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'category' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Category</button>
-                                    <button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'room' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Room</button>
-                                </div>
+                                <div><h2 className="text-2xl font-bold text-emerald-950">Inventory</h2><p className="text-sm text-slate-500">Manage your home's items and records</p></div>
+                                <div className="bg-slate-100 p-1 rounded-xl flex shrink-0"><button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'category' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Category</button><button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${inventoryView === 'room' ? 'bg-white text-emerald-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>By Room</button></div>
                             </div>
-
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4">
-                                <div className="relative flex-grow">
-                                    <Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                    <input type="text" placeholder="Search items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>
-                                    {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}
-                                </div>
-                                {inventoryView === 'room' && (
-                                    <div className="relative min-w-[160px]">
-                                        <Filter className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" />
-                                        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-8 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer">
-                                            <option value="All">All Categories</option>
-                                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                )}
+                                <div className="relative flex-grow"><Search className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" /><input type="text" placeholder="Search items..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all"/>{searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"><XCircle className="h-5 w-5" /></button>}</div>
+                                {inventoryView === 'room' && (<div className="relative min-w-[160px]"><Filter className="absolute left-3 top-3.5 text-slate-400 h-5 w-5" /><select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full pl-10 pr-8 py-3 bg-emerald-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none cursor-pointer"><option value="All">All Categories</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>)}
                                 <button onClick={() => { setIsSelectionMode(!isSelectionMode); setSelectedRecords(new Set()); }} className={`px-4 py-3 rounded-xl font-bold flex items-center justify-center transition-colors ${isSelectionMode ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600'}`}><CheckSquare size={20} className="mr-2"/> {isSelectionMode ? 'Cancel' : 'Select'}</button>
                             </div>
                         </div>
-
-                        {isSelectionMode && selectedRecords.size > 0 && (
-                            <div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between items-center animate-in fade-in slide-in-from-top-4">
-                                <span className="font-bold text-slate-700">{selectedRecords.size} items selected</span>
-                                <button onClick={handleBatchDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center transition-colors"><Trash2 size={16} className="mr-2"/> Delete Selected</button>
-                            </div>
-                        )}
-
-                        {records.length === 0 ? (
-                            <EmptyState icon={Package} title="No items yet" description="Start building your home's inventory. Add appliances, paint colors, systems, and more." actions={<><button onClick={() => setShowScanner(true)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center"><Camera className="mr-2 h-5 w-5" /> Scan</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center"><Plus className="mr-2 h-5 w-5" /> Add</button></>} />
-                        ) : filteredRecords.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200"><p>No items match your search.</p><button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button></div>
-                        ) : (
+                        {isSelectionMode && selectedRecords.size > 0 && (<div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between items-center animate-in fade-in slide-in-from-top-4"><span className="font-bold text-slate-700">{selectedRecords.size} items selected</span><button onClick={handleBatchDelete} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center transition-colors"><Trash2 size={16} className="mr-2"/> Delete Selected</button></div>)}
+                        {records.length === 0 ? (<EmptyState icon={Package} title="No items yet" description="Start building your home's inventory. Add appliances, paint colors, systems, and more." actions={<><button onClick={() => setShowScanner(true)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition shadow-lg shadow-emerald-600/20 flex items-center justify-center"><Camera className="mr-2 h-5 w-5" /> Scan</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold hover:bg-emerald-50 transition flex items-center justify-center"><Plus className="mr-2 h-5 w-5" /> Add</button></>} />) : filteredRecords.length === 0 ? (<div className="text-center py-12 text-slate-400 bg-white rounded-2xl border border-dashed border-slate-200"><p>No items match your search.</p><button onClick={() => {setSearchTerm(''); setFilterCategory('All');}} className="mt-2 text-emerald-600 font-bold hover:underline">Clear Filters</button></div>) : (
                             <div className="space-y-6">
                                 {(() => {
-                                    const groups = filteredRecords.reduce((acc, record) => {
-                                        const key = inventoryView === 'room' ? (record.area || 'General') : (record.category || 'Other');
-                                        if (!acc[key]) acc[key] = [];
-                                        acc[key].push(record);
-                                        return acc;
-                                    }, {});
+                                    const groups = filteredRecords.reduce((acc, record) => { const key = inventoryView === 'room' ? (record.area || 'General') : (record.category || 'Other'); if (!acc[key]) acc[key] = []; acc[key].push(record); return acc; }, {});
                                     const sortedKeys = Object.keys(groups).sort();
-                                    return sortedKeys.map(groupKey => (
-                                        <details key={groupKey} open className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                                            <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition select-none list-none">
-                                                <div className="flex items-center gap-3">
-                                                    {inventoryView === 'room' ? <div className="bg-indigo-50 p-2 rounded-lg"><DoorOpen size={18} className="text-indigo-600" /></div> : <div className="bg-emerald-50 p-2 rounded-lg"><Package size={18} className="text-emerald-600" /></div>}
-                                                    <h3 className="font-bold text-slate-800 text-lg">{groupKey}<span className="ml-2 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{groups[groupKey].length}</span></h3>
-                                                </div>
-                                                <ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" />
-                                            </summary>
-                                            <div className="p-4 pt-0 border-t border-slate-50">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pt-4">
-                                                    {groups[groupKey].map(r => (
-                                                        <div key={r.id} className="relative">
-                                                            {isSelectionMode && <div className="absolute top-4 right-4 z-10"><input type="checkbox" checked={selectedRecords.has(r.id)} onChange={() => toggleRecordSelection(r.id)} className="h-6 w-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shadow-sm"/></div>}
-                                                            {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </details>
-                                    ));
+                                    return sortedKeys.map(groupKey => (<details key={groupKey} open className="group bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"><summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 transition select-none list-none"><div className="flex items-center gap-3">{inventoryView === 'room' ? <div className="bg-indigo-50 p-2 rounded-lg"><DoorOpen size={18} className="text-indigo-600" /></div> : <div className="bg-emerald-50 p-2 rounded-lg"><Package size={18} className="text-emerald-600" /></div>}<h3 className="font-bold text-slate-800 text-lg">{groupKey}<span className="ml-2 text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{groups[groupKey].length}</span></h3></div><ChevronDown className="h-5 w-5 text-slate-400 group-open:rotate-180 transition-transform" /></summary><div className="p-4 pt-0 border-t border-slate-50"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 pt-4">{groups[groupKey].map(r => (<div key={r.id} className="relative">{isSelectionMode && <div className="absolute top-4 right-4 z-10"><input type="checkbox" checked={selectedRecords.has(r.id)} onChange={() => toggleRecordSelection(r.id)} className="h-6 w-6 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shadow-sm"/></div>}{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>))}</div></div></details>));
                                 })()}
                                 {records.length >= recordsLimit && <button onClick={() => setRecordsLimit(p => p + 50)} className="w-full py-4 text-emerald-600 font-bold text-sm bg-white rounded-xl border border-slate-100 hover:bg-slate-50">Load More Items</button>}
                             </div>
@@ -479,32 +373,15 @@ const AppContent = () => {
                     </div>
                 )}
 
-                {/* Contractors Tab */}
-                {activeTab === 'Contractors' && (
-                    <FeatureErrorBoundary label="Contractors">
-                        <ProConnect userId={user.uid} propertyName={activeProperty.name} propertyAddress={activeProperty.address} records={activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} />
-                    </FeatureErrorBoundary>
-                )}
-                
-                {/* Settings Tab */}
-                {activeTab === 'Settings' && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-emerald-950">Settings</h2>
-                        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
-                            <div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Enhanced Record Cards</h3><p className="text-sm text-slate-500">Use new card design with quick service requests</p></div><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Help Tab */}
+                {activeTab === 'Contractors' && <FeatureErrorBoundary label="Contractors"><ProConnect userId={user.uid} propertyName={activeProperty.name} propertyAddress={activeProperty.address} records={activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} /></FeatureErrorBoundary>}
+                {activeTab === 'Settings' && <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Settings</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6"><div className="flex items-center justify-between"><div><h3 className="font-bold text-slate-800">Enhanced Record Cards</h3><p className="text-sm text-slate-500">Use new card design with quick service requests</p></div><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full transition-colors ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'}`}><div className={`w-5 h-5 bg-white rounded-full shadow transform transition-transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'}`}></div></button></div></div></div>}
                 {activeTab === 'Help' && <div className="space-y-6"><h2 className="text-2xl font-bold text-emerald-950">Help & Support</h2><div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6"><p className="text-slate-600">Need help? Contact us at support@krib.io</p></div></div>}
-
             </main>
 
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={newSubmissions.length} />
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {/* ADD RECORD MODAL (Now uses handleSaveSuccess) */}
+            {/* ADD RECORD MODAL */}
             {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} /></div></div>}
             {showQuickService && <QuickServiceRequest record={quickServiceRecord} userId={user.uid} propertyName={activeProperty?.name} propertyAddress={activeProperty?.address} onClose={handleCloseQuickService} />}
         </div>
@@ -513,7 +390,6 @@ const AppContent = () => {
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess }) => {
-    // Wrapper to handle saves using the new AddRecordForm
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
@@ -526,7 +402,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
-    // Batch save for Room Scan
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         setSaving(true);
@@ -567,7 +442,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 batch.set(newDocRef, docData);
             });
             await batch.commit();
-            onSuccess(); // Trigger celebration
+            onSuccess();
         } catch (error) { console.error("Batch Save Error:", error); toast.error("Failed to save items."); } finally { setSaving(false); }
     };
 
@@ -588,7 +463,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         }));
         const finalAtts = processed.filter(Boolean);
         const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
-        const { originalRequestId, id, ...data } = newRecord;
+        const { originalRequestId, id, isBatch, ...data } = newRecord; // Ensure isBatch is stripped
         const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
         try {
             if (editingRecord?.id) {
@@ -596,8 +471,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 toast.success("Record updated!");
             } else {
                 await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() });
-                setNewRecord(initial); // Reset form for next add
-                // Celebration handled by onSuccess in parent
+                setNewRecord(initial); 
                 if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){}
             }
             onSuccess();
