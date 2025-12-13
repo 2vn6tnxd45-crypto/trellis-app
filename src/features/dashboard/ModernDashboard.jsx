@@ -1,13 +1,16 @@
 // src/features/dashboard/ModernDashboard.jsx
 import React, { useMemo, useState } from 'react';
-import { 
+import {
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
     AlertTriangle, Wrench, Shield, CheckCircle2,
-    Info, TrendingUp
+    Info, TrendingUp, ChevronDown
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
+import { useGamification } from '../../hooks/useGamification';
+import { GamifiedHealthScore } from '../../components/GamifiedHealthScore';
+import { CelebrationRenderer } from '../../components/CelebrationModal';
 
 // --- CONFIG & HELPERS ---
 
@@ -143,27 +146,24 @@ const HealthScoreCard = ({ breakdown, score, onDismiss }) => {
     );
 };
 
-const HealthRing = ({ score, size = 160, theme, breakdown }) => {
-    const [showBreakdown, setShowBreakdown] = useState(false);
+const HealthRing = ({ score, size = 160, theme, breakdown, onClick, gamification }) => {
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (score / 100) * circumference;
-    
+
     const getColor = () => {
         if (score >= 80) return '#10b981'; // Emerald
         if (score >= 60) return '#f59e0b'; // Amber
         return '#ef4444'; // Red
     };
-    
+
     const strokeColor = getColor();
-    
+
     return (
-        <div 
-            className="relative group cursor-pointer" 
+        <div
+            className="relative group cursor-pointer"
             style={{ width: size, height: size }}
-            onClick={() => setShowBreakdown(!showBreakdown)}
-            onMouseEnter={() => setShowBreakdown(true)}
-            onMouseLeave={() => setShowBreakdown(false)}
+            onClick={onClick}
         >
             <svg className="transform -rotate-90 transition-all duration-300 group-hover:scale-105" width={size} height={size}>
                 {/* Background Track */}
@@ -193,20 +193,25 @@ const HealthRing = ({ score, size = 160, theme, breakdown }) => {
                     }}
                 />
             </svg>
-            
+
             {/* Center Content */}
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
                 <span className="text-5xl font-black tracking-tight shadow-sm">
                     {score}
                 </span>
                 <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${theme.accent}`}>
-                    Health <Info size={10} />
+                    Tap to view <Info size={10} />
                 </span>
             </div>
 
-            {/* HOVER CARD */}
-            {showBreakdown && (
-                <HealthScoreCard breakdown={breakdown} score={score} />
+            {/* Level Badge */}
+            {gamification && (
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
+                    <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${gamification.currentLevel.gradient} text-white text-xs font-bold shadow-lg flex items-center gap-1`}>
+                        <span>{gamification.currentLevel.icon}</span>
+                        <span>{gamification.currentLevel.name}</span>
+                    </div>
+                </div>
             )}
         </div>
     );
@@ -295,6 +300,7 @@ export const ModernDashboard = ({
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
+    const [showGamifiedScore, setShowGamifiedScore] = useState(false);
 
     // --- ROBUST SCORING LOGIC ---
     const metrics = useMemo(() => {
@@ -361,9 +367,17 @@ export const ModernDashboard = ({
         return "Time to catch up on maintenance.";
     };
 
+    // --- GAMIFICATION ---
+    const gamification = useGamification(
+        metrics.score,
+        records.length,
+        metrics.overdueCount,
+        metrics.upcomingCount
+    );
+
     return (
         <div className="space-y-8 pb-8">
-            
+
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
                 {/* Seasonal Background (clipped to rounded corners) */}
@@ -390,10 +404,12 @@ export const ModernDashboard = ({
                     
                     {/* Score Center (Interactive) */}
                     <div className="flex flex-col items-center py-2">
-                        <HealthRing 
-                            score={metrics.score} 
-                            theme={season} 
+                        <HealthRing
+                            score={metrics.score}
+                            theme={season}
                             breakdown={metrics.breakdown}
+                            onClick={() => setShowGamifiedScore(true)}
+                            gamification={gamification}
                         />
                         <p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">
                             {getScoreMessage()}
@@ -481,11 +497,25 @@ export const ModernDashboard = ({
                     )}
                 </div>
             </div>
-            
+
+            {/* Gamified Score Modal */}
+            {showGamifiedScore && (
+                <GamifiedHealthScore
+                    score={metrics.score}
+                    breakdown={metrics.breakdown}
+                    gamification={gamification}
+                    onDismiss={() => setShowGamifiedScore(false)}
+                />
+            )}
+
+            {/* Celebration Renderer */}
+            <CelebrationRenderer
+                celebration={gamification.currentCelebration}
+                onDismiss={gamification.dismissCelebration}
+            />
+
         </div>
     );
 };
-
-import { ChevronDown } from 'lucide-react'; // Ensure this is imported
 
 export default ModernDashboard;

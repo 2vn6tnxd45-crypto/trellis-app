@@ -6,13 +6,16 @@
 // New users see inspiration, established users see full features.
 
 import React, { useMemo, useState } from 'react';
-import { 
+import {
     Camera, Plus, Package, FileText, Wrench, ChevronRight,
     Sparkles, Home, ArrowRight, CheckCircle2, Clock, Star,
     TrendingUp, Shield, AlertTriangle, Calendar, DollarSign
 } from 'lucide-react';
 import { ReportTeaser } from './ReportTeaser';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import { useGamification } from '../../hooks/useGamification';
+import { GamifiedHealthScore } from '../../components/GamifiedHealthScore';
+import { CelebrationRenderer } from '../../components/CelebrationModal';
 
 // ============================================
 // HELPERS
@@ -306,7 +309,7 @@ const GettingStartedDashboard = ({
 // STAGE 3: BUILDING (5-19 items)
 // ============================================
 
-const BuildingDashboard = ({ 
+const BuildingDashboard = ({
     records,
     contractors,
     activeProperty,
@@ -315,6 +318,8 @@ const BuildingDashboard = ({
     onNavigateToContractors,
     onNavigateToReports
 }) => {
+    const [showGamifiedScore, setShowGamifiedScore] = useState(false);
+
     const metrics = useMemo(() => {
         const now = new Date();
         let overdueCount = 0;
@@ -366,6 +371,21 @@ const BuildingDashboard = ({
         return '#ef4444';
     };
 
+    // Gamification
+    const gamification = useGamification(
+        metrics.score,
+        records.length,
+        metrics.overdueCount,
+        metrics.upcomingCount
+    );
+
+    // Calculate breakdown for modal
+    const breakdown = {
+        coverage: { penalty: 0, needed: 0 },
+        maintenance: { penalty: metrics.overdueCount * 10, count: metrics.overdueCount },
+        upcoming: { penalty: metrics.upcomingCount * 5, count: metrics.upcomingCount }
+    };
+
     return (
         <div className="space-y-6">
             {/* Health Score Hero */}
@@ -379,8 +399,11 @@ const BuildingDashboard = ({
                 
                 <div className="relative z-10 flex items-center gap-8">
                     {/* Score Ring */}
-                    <div className="relative shrink-0">
-                        <svg width="120" height="120" className="transform -rotate-90">
+                    <div
+                        className="relative shrink-0 cursor-pointer group"
+                        onClick={() => setShowGamifiedScore(true)}
+                    >
+                        <svg width="120" height="120" className="transform -rotate-90 group-hover:scale-105 transition-transform">
                             <circle
                                 cx="60" cy="60" r="50"
                                 stroke="rgba(255,255,255,0.1)"
@@ -397,11 +420,18 @@ const BuildingDashboard = ({
                                 style={{ filter: `drop-shadow(0 0 8px ${getScoreRingColor(metrics.score)}40)` }}
                             />
                         </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                             <span className={`text-4xl font-extrabold ${getScoreColor(metrics.score)}`}>
                                 {metrics.score}
                             </span>
-                            <span className="text-xs text-slate-400 font-bold uppercase">Health</span>
+                            <span className="text-xs text-slate-400 font-bold uppercase group-hover:opacity-100 opacity-80 transition-opacity">Tap to view</span>
+                        </div>
+                        {/* Level Badge */}
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2">
+                            <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${gamification.currentLevel.gradient} text-white text-xs font-bold shadow-lg flex items-center gap-1`}>
+                                <span>{gamification.currentLevel.icon}</span>
+                                <span>{gamification.currentLevel.name}</span>
+                            </div>
                         </div>
                     </div>
                     
@@ -503,11 +533,27 @@ const BuildingDashboard = ({
             </div>
 
             {/* Report Teaser (unlocked state) */}
-            <ReportTeaser 
-                recordCount={records.length} 
+            <ReportTeaser
+                recordCount={records.length}
                 requiredCount={5}
                 isUnlocked={true}
                 onViewReport={onNavigateToReports}
+            />
+
+            {/* Gamified Score Modal */}
+            {showGamifiedScore && (
+                <GamifiedHealthScore
+                    score={metrics.score}
+                    breakdown={breakdown}
+                    gamification={gamification}
+                    onDismiss={() => setShowGamifiedScore(false)}
+                />
+            )}
+
+            {/* Celebration Renderer */}
+            <CelebrationRenderer
+                celebration={gamification.currentCelebration}
+                onDismiss={gamification.dismissCelebration}
             />
         </div>
     );
