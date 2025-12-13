@@ -1,7 +1,9 @@
+// src/features/scanner/SmartScanner.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle } from 'lucide-react';
-import { useGemini } from '../hooks/useGemini';
+// FIXED IMPORT PATH BELOW:
+import { useGemini } from '../../hooks/useGemini'; 
 import { Camera as CameraPro } from 'react-camera-pro';
 
 const SmartScanner = ({ onClose, onScanComplete }) => {
