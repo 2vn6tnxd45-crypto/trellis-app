@@ -10,6 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
+    // Maintenance suggestion logic
     const suggestMaintenance = async (record) => {
         if (!geminiModel || (!record.item && !record.category)) return null;
         setIsSuggesting(true);
@@ -25,6 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
+    // THE RESTORED & HARDENED SCANNER LOGIC
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -36,18 +38,45 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
+            // RESTORED: The "Perfect" Prompt with strict logic
             const prompt = `
-                Analyze this invoice/receipt.
-                1. IDENTIFY VENDOR (Contractor): Name, Phone, Email, Address. Ignore "Bill To".
-                2. EXTRACT ITEMS: Split "Air Handler" and "Heat Pump" into separate items if listed.
-                3. COSTS: If "Amount Due" is 0, use "Job Total".
-                4. RETURN JSON ONLY.
+                Analyze this invoice/receipt for a Home Inventory App.
                 
-                Format:
+                1. **IDENTIFY VENDOR (CONTRACTOR)**:
+                   - Find the company performing the work (e.g., Logo at top, Header).
+                   - CRITICAL: Do NOT use the "Bill To", "Customer", or "Ship To" name. The user (Devon Davila) is the CUSTOMER, not the vendor.
+                   - Extract: Vendor Name, Phone, Email, Address.
+                
+                2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
+                   - Look for physical equipment (HVAC, Water Heater, Appliances).
+                   - **SPLIT RULE**: If a single line item lists multiple pieces of equipment with distinct Model numbers (e.g. "Air Handler Model X" AND "Heat Pump Model Y"), create TWO separate items.
+                   - **IGNORE**: Do NOT create separate items for "Warranty", "Labor", "Demo", "Permits", or "Misc Materials" unless they are the only things on the invoice.
+                
+                3. **EXTRACT COSTS**:
+                   - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
+                   - If items were split (see above), try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
+                
+                4. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
+
+                Return JSON:
                 {
-                  "vendorName": "String", "vendorPhone": "String", "vendorEmail": "String", "vendorAddress": "String",
-                  "date": "YYYY-MM-DD", "totalAmount": 0.00, "primaryJobDescription": "String",
-                  "items": [{ "item": "String", "category": "String", "brand": "String", "model": "String", "serial": "String", "cost": 0.00 }]
+                  "vendorName": "String",
+                  "vendorPhone": "String",
+                  "vendorEmail": "String",
+                  "vendorAddress": "String",
+                  "date": "YYYY-MM-DD",
+                  "totalAmount": 0.00,
+                  "primaryJobDescription": "String",
+                  "items": [
+                    { 
+                      "item": "Specific Equipment Name (e.g. Trane Air Handler)", 
+                      "category": "String",
+                      "brand": "String", 
+                      "model": "String", 
+                      "serial": "String",
+                      "cost": 0.00
+                    }
+                  ]
                 }
             `;
             
@@ -57,8 +86,9 @@ export const useGemini = () => {
             ]);
             
             const text = result.response.text().replace(/```json|```/g, '').trim();
-            let data;
             
+            // --- SAFETY HARDENING (Prevent Crashes) ---
+            let data;
             try {
                 data = JSON.parse(text);
             } catch (e) {
@@ -66,14 +96,12 @@ export const useGemini = () => {
                 return null;
             }
             
-            // --- SAFETY HARDENING ---
-            // Ensure items is ALWAYS an array
+            // Validate Structure
             if (!Array.isArray(data.items)) data.items = [];
-            
-            // Ensure strings are strings (prevents object render crashes)
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
             
+            // Clean up items (ensure strings are strings)
             data.items = data.items.map(item => ({
                 ...item,
                 item: toProperCase(String(item.item || 'Unknown Item')),
@@ -83,6 +111,7 @@ export const useGemini = () => {
             }));
 
             return data;
+
         } catch (error) {
             console.error("Scan Error:", error);
             return null;
