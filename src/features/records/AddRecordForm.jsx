@@ -47,7 +47,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     // --- HELPER: DUPLICATE CHECKER ---
     const checkDuplicate = (itemName) => {
         if (!itemName) return false;
-        // Simple fuzzy match: check if existing item name contains new item name or vice versa
         const match = existingRecords.find(r => 
             r.item.toLowerCase().includes(itemName.toLowerCase()) || 
             itemName.toLowerCase().includes(r.item.toLowerCase())
@@ -74,7 +73,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                 dateInstalled: data.date || new Date().toISOString().split('T')[0],
                 contractor: data.store || data.contractor || '',
                 
-                // NEW FIELD
                 warranty: data.warranty || '',
                 
                 attachments: data.attachments || [],
@@ -221,7 +219,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 space-y-4"><h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center"><Tag size={12} className="mr-1"/> Product Specs</h4><div className="grid grid-cols-2 gap-4"><div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Brand</label><input type="text" name="brand" value={newRecord.brand} onChange={onInputChange} placeholder="e.g. Samsung" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div><div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Model</label><input type="text" name="model" value={newRecord.model} onChange={onInputChange} placeholder="Model #" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Cost ($)</label><input type="number" name="cost" value={newRecord.cost} onChange={onInputChange} placeholder="0.00" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div><div><label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Contractor</label><input type="text" name="contractor" value={newRecord.contractor} onChange={onInputChange} placeholder="Company Name" className="block w-full rounded-lg border-slate-200 p-2.5 border text-sm bg-white"/></div></div></div>
                             <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 space-y-3"><div className="flex justify-between items-center"><h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center"><Wrench size={12} className="mr-1"/> Maintenance</h4><button type="button" onClick={handleSuggest} disabled={isSuggesting} className="text-[10px] font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-emerald-200 hover:bg-emerald-50 shadow-sm flex items-center">{isSuggesting ? <Loader2 className="animate-spin h-3 w-3 mr-1"/> : <Zap className="h-3 w-3 mr-1 fill-emerald-600"/>} AI Suggest</button></div><div className="relative"><select name="maintenanceFrequency" value={newRecord.maintenanceFrequency} onChange={onInputChange} className="block w-full rounded-xl border-emerald-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium text-emerald-900">{MAINTENANCE_FREQUENCIES.map(f=><option key={f.value} value={f.value}>{f.label}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-3.5 text-emerald-400 pointer-events-none"/></div>{suggestedTasks.length > 0 && (<div className="bg-white p-3 rounded-xl border border-emerald-100 text-xs text-emerald-800"><p className="font-bold mb-1">Recommended Tasks:</p><ul className="list-disc pl-4 space-y-0.5">{suggestedTasks.map((t,i) => <li key={i}>{t}</li>)}</ul></div>)}</div>
                             
-                            {/* NEW WARRANTY FIELD */}
+                            {/* WARRANTY FIELD */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Warranty Information</label>
                                 <input type="text" name="warranty" value={newRecord.warranty || ''} onChange={onInputChange} placeholder="e.g. 10 Year Parts, 1 Year Labor" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm" />
