@@ -68,7 +68,6 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
       const result = await scanReceipt(file, base64);
       if (!result) throw new Error("Analysis returned no data");
       
-      // Safety check: Ensure items is an array
       const safeItems = Array.isArray(result.items) ? result.items : [];
       
       setAnalysis({
@@ -91,6 +90,15 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
     try {
         if (!analysis) return;
         
+        // CRITICAL FIX: Pass 'fileRef' so App.jsx knows to upload this file
+        // instead of trying to save the base64 string to Firestore.
+        const attachment = { 
+            name: fileObj?.name || 'Scan.jpg', 
+            type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', 
+            url: image, // Preview only
+            fileRef: fileObj // The actual file to upload
+        };
+
         const recordData = {
             store: analysis.vendorName || '', 
             image: image, 
@@ -113,14 +121,14 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
             cost: analysis.totalAmount || 0,
             
-            attachments: [{ name: fileObj?.name || 'Scan', type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', url: image }]
+            attachments: [attachment] // Send the properly formatted attachment
         };
         
         if (onProcessComplete) onProcessComplete(recordData);
         onClose();
     } catch (err) {
         console.error("Handoff Error:", err);
-        setError("Failed to save data. Please try again.");
+        setError("Failed to prepare data. Please try again.");
     }
   };
 
@@ -175,7 +183,6 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
                     <div className="flex justify-between items-start mb-2">
                         <div>
                             <p className="text-xs font-bold text-emerald-700 uppercase">Total Invoice</p>
-                            {/* SAFE RENDER: Ensure totalAmount is not an object */}
                             <p className="text-xl font-extrabold text-emerald-900">${Number(analysis.totalAmount || 0).toLocaleString()}</p>
                         </div>
                         <div className="text-right">
