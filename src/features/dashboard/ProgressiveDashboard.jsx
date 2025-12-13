@@ -16,6 +16,7 @@ import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useGamification } from '../../hooks/useGamification';
 import { GamifiedHealthScore } from '../../components/GamifiedHealthScore';
 import { CelebrationRenderer } from '../../components/CelebrationModal';
+import { calculateHealthScore } from '../../lib/recordHelpers';
 
 // ============================================
 // HELPERS
@@ -322,40 +323,32 @@ const BuildingDashboard = ({
 
     const metrics = useMemo(() => {
         const now = new Date();
-        let overdueCount = 0;
-        let upcomingCount = 0;
         const overdueTasks = [];
         const upcomingTasks = [];
-        
+
         records.forEach(record => {
             const nextDate = getNextServiceDate(record);
             if (nextDate) {
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                 if (daysUntil < 0) {
-                    overdueCount++;
                     overdueTasks.push({ ...record, daysOverdue: Math.abs(daysUntil) });
                 } else if (daysUntil <= 30) {
-                    upcomingCount++;
                     upcomingTasks.push({ ...record, daysUntil });
                 }
             }
         });
-        
+
+        // Use improved health score calculation
+        const healthScore = calculateHealthScore(records);
         const totalSpent = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
-        
-        // Calculate simple health score now that we have enough data
-        const baseScore = 100;
-        const overduePenalty = Math.min(40, overdueCount * 10);
-        const upcomingPenalty = Math.min(20, upcomingCount * 5);
-        const score = Math.max(0, baseScore - overduePenalty - upcomingPenalty);
-        
-        return { 
-            score,
-            overdueCount, 
-            upcomingCount, 
-            totalSpent, 
-            overdueTasks, 
-            upcomingTasks 
+
+        return {
+            score: healthScore.score,
+            overdueCount: healthScore.breakdown.maintenance.count,
+            upcomingCount: healthScore.breakdown.upcoming.count,
+            totalSpent,
+            overdueTasks,
+            upcomingTasks
         };
     }, [records]);
 

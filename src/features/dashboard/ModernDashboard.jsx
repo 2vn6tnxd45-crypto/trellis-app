@@ -11,6 +11,7 @@ import { CountyData } from './CountyData';
 import { useGamification } from '../../hooks/useGamification';
 import { GamifiedHealthScore } from '../../components/GamifiedHealthScore';
 import { CelebrationRenderer } from '../../components/CelebrationModal';
+import { calculateHealthScore } from '../../lib/recordHelpers';
 
 // --- CONFIG & HELPERS ---
 
@@ -88,58 +89,71 @@ const getGreeting = () => {
 
 const HealthScoreCard = ({ breakdown, score, onDismiss }) => {
     return (
-        <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
-                <h3 className="font-bold text-slate-900">Score Breakdown</h3>
-                <span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span>
+        <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-3">
+                <h3 className="font-bold text-slate-900">Health Score Breakdown</h3>
+                <span className={`font-black text-2xl ${score >= 80 ? 'text-emerald-600' : score >= 60 ? 'text-amber-500' : 'text-red-500'}`}>{score}</span>
             </div>
-            
+
             <div className="space-y-3">
-                {/* 1. Maintenance Health */}
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Wrench size={16} className={breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
-                        <span className="font-medium text-slate-600">Maintenance</span>
+                {/* 1. Data Coverage */}
+                <div className="bg-slate-50 p-3 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-2">
+                            <Shield size={16} className={breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
+                            <span className="font-bold text-slate-700">Coverage</span>
+                        </div>
+                        <span className={`font-black ${breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
+                            {breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : "✓"}
+                        </span>
                     </div>
-                    <span className={`font-bold ${breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
-                        {breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : "Good"}
-                    </span>
-                </div>
-                {breakdown.maintenance.penalty > 0 && (
-                    <p className="text-xs text-slate-400 pl-6 -mt-2">
-                        {breakdown.maintenance.count} overdue item{breakdown.maintenance.count !== 1 ? 's' : ''}
+                    <p className="text-xs text-slate-600 pl-6">
+                        {breakdown.coverage.message}
                     </p>
-                )}
-
-                {/* 2. Upcoming Tasks */}
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Clock size={16} className={breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-300"} />
-                        <span className="font-medium text-slate-600">Upcoming</span>
-                    </div>
-                    <span className={`font-bold ${breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-400"}`}>
-                        {breakdown.upcoming.penalty > 0 ? `-${breakdown.upcoming.penalty}` : "--"}
-                    </span>
                 </div>
 
-                {/* 3. Data Coverage */}
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Shield size={16} className={breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
-                        <span className="font-medium text-slate-600">Coverage</span>
+                {/* 2. Maintenance Health */}
+                <div className="bg-slate-50 p-3 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-2">
+                            <Wrench size={16} className={breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
+                            <span className="font-bold text-slate-700">Maintenance</span>
+                        </div>
+                        <span className={`font-black ${breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
+                            {breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : "✓"}
+                        </span>
                     </div>
-                    <span className={`font-bold ${breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
-                        {breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : "Max"}
-                    </span>
+                    <p className="text-xs text-slate-600 pl-6">
+                        {breakdown.maintenance.message}
+                    </p>
                 </div>
-                {breakdown.coverage.penalty > 0 && (
-                    <div className="bg-blue-50 p-2 rounded-lg mt-1 text-xs text-blue-700 font-medium flex items-center gap-2">
-                        <TrendingUp size={12} />
-                        Add {breakdown.coverage.needed} more items to boost score.
+
+                {/* 3. Upcoming Tasks */}
+                <div className="bg-slate-50 p-3 rounded-xl">
+                    <div className="flex justify-between items-center mb-1">
+                        <div className="flex items-center gap-2">
+                            <Clock size={16} className={breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-emerald-500"} />
+                            <span className="font-bold text-slate-700">Upcoming</span>
+                        </div>
+                        <span className={`font-black ${breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-emerald-600"}`}>
+                            {breakdown.upcoming.penalty > 0 ? `-${breakdown.upcoming.penalty}` : "✓"}
+                        </span>
                     </div>
-                )}
+                    <p className="text-xs text-slate-600 pl-6">
+                        {breakdown.upcoming.message}
+                    </p>
+                </div>
             </div>
-            
+
+            {/* Summary message */}
+            {score < 80 && (
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                    <p className="text-xs text-slate-500 text-center">
+                        {score < 50 ? '🚨 Action needed soon' : '⚠️ Some maintenance recommended'}
+                    </p>
+                </div>
+            )}
+
             {/* Arrow Tip */}
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white transform rotate-45 border-t border-l border-slate-100"></div>
         </div>
@@ -147,6 +161,7 @@ const HealthScoreCard = ({ breakdown, score, onDismiss }) => {
 };
 
 const HealthRing = ({ score, size = 160, theme, breakdown, onClick, gamification }) => {
+    const [showBreakdown, setShowBreakdown] = useState(false);
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference - (score / 100) * circumference;
@@ -164,6 +179,8 @@ const HealthRing = ({ score, size = 160, theme, breakdown, onClick, gamification
             className="relative group cursor-pointer"
             style={{ width: size, height: size }}
             onClick={onClick}
+            onMouseEnter={() => setShowBreakdown(true)}
+            onMouseLeave={() => setShowBreakdown(false)}
         >
             <svg className="transform -rotate-90 transition-all duration-300 group-hover:scale-105" width={size} height={size}>
                 {/* Background Track */}
@@ -212,6 +229,11 @@ const HealthRing = ({ score, size = 160, theme, breakdown, onClick, gamification
                         <span>{gamification.currentLevel.name}</span>
                     </div>
                 </div>
+            )}
+
+            {/* Hover Breakdown Card */}
+            {showBreakdown && breakdown && (
+                <HealthScoreCard breakdown={breakdown} score={score} onDismiss={() => setShowBreakdown(false)} />
             )}
         </div>
     );
@@ -305,57 +327,33 @@ export const ModernDashboard = ({
     // --- ROBUST SCORING LOGIC ---
     const metrics = useMemo(() => {
         const now = new Date();
-        let overdueCount = 0;
-        let upcomingCount = 0;
-        let totalTracked = records.length;
         const overdueTasks = [];
         const upcomingTasks = [];
-        
+
         records.forEach(record => {
             const nextDate = getNextServiceDate(record);
             if (nextDate) {
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                 if (daysUntil < 0) {
-                    overdueCount++;
                     overdueTasks.push({ ...record, daysOverdue: Math.abs(daysUntil) });
                 } else if (daysUntil <= 30) {
-                    upcomingCount++;
                     upcomingTasks.push({ ...record, daysUntil });
                 }
             }
         });
-        
-        // 1. Data Confidence Penalty (Encourages adding at least 5 items)
-        let coveragePenalty = 0;
-        const TARGET_ITEMS = 5;
-        if (totalTracked === 0) coveragePenalty = 40;
-        else if (totalTracked < 3) coveragePenalty = 25;
-        else if (totalTracked < TARGET_ITEMS) coveragePenalty = 10;
 
-        // 2. Maintenance Penalty (Overdue hurts a lot, Upcoming hurts a little)
-        const overduePenalty = Math.min(60, overdueCount * 15);
-        const upcomingPenalty = Math.min(20, upcomingCount * 5);
-        
-        const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
-        const score = Math.max(0, rawScore);
-        
+        // Use improved health score calculation
+        const healthScore = calculateHealthScore(records);
         const totalSpent = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
-        
+
         return {
-            score, 
-            overdueCount, 
-            upcomingCount, 
-            totalSpent, 
-            overdueTasks, 
+            score: healthScore.score,
+            overdueCount: healthScore.breakdown.maintenance.count,
+            upcomingCount: healthScore.breakdown.upcoming.count,
+            totalSpent,
+            overdueTasks,
             upcomingTasks,
-            breakdown: {
-                coverage: { 
-                    penalty: coveragePenalty, 
-                    needed: Math.max(0, TARGET_ITEMS - totalTracked)
-                },
-                maintenance: { penalty: overduePenalty, count: overdueCount },
-                upcoming: { penalty: upcomingPenalty, count: upcomingCount }
-            }
+            breakdown: healthScore.breakdown
         };
     }, [records]);
 

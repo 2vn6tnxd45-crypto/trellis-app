@@ -1,7 +1,7 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
+import { collection, query, onSnapshot, doc, getDoc, getDocs, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { 
     LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, 
@@ -15,6 +15,7 @@ import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage } from './lib/images';
+import { findDuplicateRecord, mergeRecordData, extractContractorInfo, findExistingContractor } from './lib/recordHelpers';
 
 // --- NEW IMPORTS: CORE UX COMPONENTS ---
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
@@ -201,31 +202,156 @@ const AppContent = () => {
     const handleTabChange = (tabId) => { if (tabId === 'More') { setShowMoreMenu(true); } else { setActiveTab(tabId); } };
     const handleMoreNavigate = (destination) => { setActiveTab(destination); setShowMoreMenu(false); };
 
-    // --- NEW: SCANNER COMPLETION HANDLER ---
+    // --- NEW: SCANNER COMPLETION HANDLER WITH DUPLICATE DETECTION & CONTRACTOR EXTRACTION ---
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
-        // Open the modal with extracted data to confirm/save
+
+        // Extract contractor information if this is a receipt/invoice
+        const contractorInfo = extractContractorInfo(extractedData);
+
+        // Check for duplicate records
+        const duplicateRecord = findDuplicateRecord(activePropertyRecords, extractedData.item);
+
+        if (duplicateRecord) {
+            // Ask user if they want to update the existing record
+            toast((t) => (
+                <div className="flex flex-col gap-3 p-2">
+                    <div>
+                        <p className="font-bold text-slate-800">Item "{duplicateRecord.item}" already exists</p>
+                        <p className="text-sm text-slate-600 mt-1">
+                            Would you like to update it with the scanned information?
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                                // Merge and edit existing record
+                                const mergedData = mergeRecordData(duplicateRecord, {
+                                    brand: extractedData.brand,
+                                    model: extractedData.model,
+                                    cost: extractedData.cost,
+                                    dateInstalled: extractedData.date,
+                                    contractor: contractorInfo?.name,
+                                    contractorPhone: contractorInfo?.phone,
+                                    contractorEmail: contractorInfo?.email,
+                                    notes: extractedData.notes,
+                                    attachments: extractedData.image ? [{
+                                        name: 'Scanned Receipt.jpg',
+                                        preview: extractedData.image,
+                                        fileRef: null
+                                    }] : []
+                                });
+                                setEditingRecord(mergedData);
+                                setIsAddModalOpen(true);
+                                toast.success("Updating existing item with scan data");
+                            }}
+                            className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold text-sm hover:bg-emerald-700"
+                        >
+                            Update Existing
+                        </button>
+                        <button
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                                // Create new record anyway
+                                createNewRecordFromScan(extractedData, contractorInfo);
+                            }}
+                            className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg font-bold text-sm hover:bg-slate-300"
+                        >
+                            Create New
+                        </button>
+                        <button
+                            onClick={() => toast.dismiss(t.id)}
+                            className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            ), {
+                duration: 10000,
+                icon: '🔍',
+            });
+        } else {
+            // No duplicate, create new record
+            createNewRecordFromScan(extractedData, contractorInfo);
+        }
+
+        // Save contractor info if extracted (critical functionality!)
+        if (contractorInfo && user) {
+            saveContractorToDatabase(contractorInfo);
+        }
+    }, [activePropertyRecords, user]);
+
+    // Helper function to create new record from scan
+    const createNewRecordFromScan = (extractedData, contractorInfo) => {
         const newRecordDraft = {
             item: extractedData.item || '',
-            category: extractedData.suggestedCategory || 'Other',
+            category: extractedData.suggestedCategory || extractedData.category || 'Other',
             brand: extractedData.brand || '',
             model: extractedData.model || '',
             cost: extractedData.cost || '',
             dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+            contractor: contractorInfo?.name || '',
+            contractorPhone: contractorInfo?.phone || '',
+            contractorEmail: contractorInfo?.email || '',
+            notes: extractedData.notes || '',
             // Pass the image if available from scanner
             attachments: extractedData.image ? [{
-                name: 'Scanned Image.jpg',
-                preview: extractedData.image, 
-                // Note: File obj needed for upload, SmartScanner should provide or handle
+                name: 'Scanned Receipt.jpg',
+                preview: extractedData.image,
                 fileRef: null // Simplified for this integration
             }] : []
         };
-        
-        // Open the form with this data
+
         setEditingRecord(newRecordDraft);
         setIsAddModalOpen(true);
-        toast.success("Scan complete! Review details.", { icon: '📸' });
-    }, []);
+        toast.success("Scan complete! Review and save.", { icon: '📸' });
+    };
+
+    // Save contractor to contractors collection
+    const saveContractorToDatabase = async (contractorInfo) => {
+        if (!contractorInfo || !contractorInfo.name) return;
+
+        try {
+            // Check if contractor already exists
+            const contractorsSnapshot = await getDocs(
+                query(collection(db, 'artifacts', appId, 'users', user.uid, 'contractors'))
+            );
+
+            const existingContractors = contractorsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            const existingContractor = findExistingContractor(existingContractors, contractorInfo);
+
+            if (existingContractor) {
+                // Update existing contractor with new info
+                const contractorRef = doc(db, 'artifacts', appId, 'users', user.uid, 'contractors', existingContractor.id);
+                await updateDoc(contractorRef, {
+                    phone: contractorInfo.phone || existingContractor.phone,
+                    email: contractorInfo.email || existingContractor.email,
+                    address: contractorInfo.address || existingContractor.address,
+                    website: contractorInfo.website || existingContractor.website,
+                    lastUpdated: serverTimestamp()
+                });
+                toast.success(`Updated contractor: ${contractorInfo.name}`, { icon: '👷' });
+            } else {
+                // Add new contractor
+                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'contractors'), {
+                    name: contractorInfo.name,
+                    phone: contractorInfo.phone || '',
+                    email: contractorInfo.email || '',
+                    address: contractorInfo.address || '',
+                    website: contractorInfo.website || '',
+                    propertyId: activeProperty?.id || 'legacy',
+                    addedFrom: 'receipt_scan',
+                    createdAt: serverTimestamp()
+                });
+                toast.success(`Saved contractor: ${contractorInfo.name}`, { icon: '👷' });
+            }
+        } catch (error) {
+            console.error('Failed to save contractor:', error);
+            // Don't show error to user - this is a nice-to-have feature
+        }
+    };
 
     // --- NEW: CHECK CELEBRATIONS ON SAVE ---
     const handleSaveSuccess = () => {
