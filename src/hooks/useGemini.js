@@ -34,22 +34,25 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // UPDATED PROMPT: Prioritize "Job Total" over "Amount Due" and handle multiple items
+            // UPDATED PROMPT: STRICTER RULES FOR VENDOR & ITEM SPLITTING
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
-                1. **IDENTIFY VENDOR**: Company Name, Phone, Email, Address.
+                1. **IDENTIFY VENDOR (CONTRACTOR)**:
+                   - Find the company performing the work (e.g., Logo at top, Header).
+                   - CRITICAL: Do NOT use the "Bill To", "Customer", or "Ship To" name. The user (Devon Davila) is the CUSTOMER, not the vendor.
+                   - Extract: Vendor Name, Phone, Email, Address.
                 
-                2. **EXTRACT TOTAL COST**: 
-                   - CRITICAL: If "Amount Due" is $0.00 (paid), look for "Job Total", "Subtotal", or "Total" to find the actual value of work performed.
-                   - Do NOT return 0.00 unless the work was actually free.
+                2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
+                   - Look for physical equipment (HVAC, Water Heater, Appliances).
+                   - **SPLIT RULE**: If a single line item lists multiple pieces of equipment with distinct Model numbers (e.g. "Air Handler Model X" AND "Heat Pump Model Y"), create TWO separate items.
+                   - **IGNORE**: Do NOT create separate items for "Warranty", "Labor", "Demo", "Permits", or "Misc Materials" unless they are the only things on the invoice.
                 
-                3. **EXTRACT ALL LINE ITEMS**: 
-                   - List every distinct service or product as a separate item.
-                   - Ignore "Warranty" or "Info" lines unless they are the only items.
-                   - For each item, look for: Description, Category (from [${categoriesStr}]), Brand, Model #, Serial #, and Cost.
+                3. **EXTRACT COSTS**:
+                   - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
+                   - If items were split (see above), try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
                 
-                4. **PRIMARY JOB**: Create a short summary title for the entire invoice (e.g. "Heat Pump Install").
+                4. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
 
                 Return JSON:
                 {
@@ -62,7 +65,7 @@ export const useGemini = () => {
                   "primaryJobDescription": "String",
                   "items": [
                     { 
-                      "item": "Detailed Name", 
+                      "item": "Specific Equipment Name (e.g. Trane Air Handler)", 
                       "category": "String",
                       "brand": "String", 
                       "model": "String", 
