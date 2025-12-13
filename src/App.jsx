@@ -294,6 +294,7 @@ const AppContent = () => {
     );
 };
 
+// --- WRAPPER ADD RECORD (Handles Save Logic) ---
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
     const initial = { category: '', item: '', brand: '', model: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
@@ -307,6 +308,15 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
+    // --- HELPER: SAFE PARSE COST ---
+    // Removes non-numeric characters (except dot) to prevent NaN errors
+    const parseCost = (val) => {
+        if (!val) return 0;
+        const clean = String(val).replace(/[^0-9.]/g, ''); // Strip $ , etc.
+        const num = parseFloat(clean);
+        return isNaN(num) ? 0 : num;
+    };
+
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         setSaving(true);
@@ -314,7 +324,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
             
-            // CORRECTED: If 'file' argument is missing, try to find it in the editingRecord
+            // Try to find file in argument OR editingRecord context
             const fileToUpload = file || editingRecord?.attachments?.[0]?.fileRef;
 
             if (fileToUpload) {
@@ -332,27 +342,27 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
+                 
+                 // SAFETY: Ensure all fields are defined
                  const docData = { 
                      userId: user.uid, 
                      propertyId: activeProperty.id, 
                      propertyLocation: activeProperty.name, 
                      
-                     // Item Specifics
                      category: item.category || 'Other', 
                      item: item.item || 'Unknown Item', 
                      brand: item.brand || '', 
                      model: item.model || '', 
                      serialNumber: item.serial || '', 
-                     cost: item.cost ? parseFloat(item.cost) : 0, 
+                     // Use SAFE parser here
+                     cost: parseCost(item.cost), 
                      
-                     // Global / Defaults
                      area: item.area || 'General', 
                      notes: item.notes || '', 
                      dateInstalled: editingRecord.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: 'none', 
                      nextServiceDate: null, 
                      
-                     // CONTRACTOR INFO
                      contractor: item.contractor || editingRecord.contractor || '',
                      contractorPhone: editingRecord.contractorPhone || '',
                      contractorEmail: editingRecord.contractorEmail || '',
@@ -366,40 +376,54 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             });
             await batch.commit();
             onSuccess();
-        } catch (error) { console.error("Batch Save Error:", error); toast.error("Failed to save items."); } finally { setSaving(false); }
+        } catch (error) { 
+            console.error("Batch Save Error:", error); 
+            // DIAGNOSTIC ERROR MESSAGE
+            toast.error(`Save failed. Error: ${error.code || error.message}`); 
+        } finally { setSaving(false); }
     };
 
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
-        const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
-            if (att.fileRef) {
-                try {
-                    let file = att.fileRef;
-                    if (file.type.startsWith('image/')) { const c = await compressImage(file); const r = await fetch(c); file = await r.blob(); }
-                    const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
-                    await uploadBytes(fileRef, file);
-                    const url = await getDownloadURL(fileRef);
-                    // CRITICAL: Return cleaned object, DO NOT return fileRef or preview (blob) to Firestore
-                    return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
-                } catch(e){ return null; }
-            }
-            // If it's an existing attachment (no fileRef), keep it. 
-            // If it has a 'preview' blob URL but no fileRef, we must skip it or it will crash Firestore.
-            if (att.url && !att.url.startsWith('blob:')) return att;
-            return null;
-        }));
-        
-        const finalAtts = processed.filter(Boolean);
-        const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
-        const { originalRequestId, id, isBatch, ...data } = newRecord;
-        
-        const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
-        
         try {
-            if (editingRecord?.id) { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload); toast.success("Record updated!"); } 
-            else { await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() }); setNewRecord(initial); if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){} }
+            const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
+                if (att.fileRef) {
+                    try {
+                        let file = att.fileRef;
+                        if (file.type.startsWith('image/')) { const c = await compressImage(file); const r = await fetch(c); file = await r.blob(); }
+                        const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
+                        await uploadBytes(fileRef, file);
+                        const url = await getDownloadURL(fileRef);
+                        return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
+                    } catch(e){ return null; }
+                }
+                if (att.url && !att.url.startsWith('blob:')) return att;
+                return null;
+            }));
+            
+            const finalAtts = processed.filter(Boolean);
+            const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
+            const { originalRequestId, id, isBatch, ...data } = newRecord;
+            
+            // Clean cost here too
+            data.cost = parseCost(data.cost);
+
+            const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
+            
+            if (editingRecord?.id) { 
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload); 
+                toast.success("Record updated!"); 
+            } else { 
+                await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...payload, timestamp: serverTimestamp() }); 
+                setNewRecord(initial); 
+                if (originalRequestId) try { await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, originalRequestId), { status: 'archived' }); } catch(e){} 
+            }
             onSuccess();
-        } catch (e) { console.error(e); toast.error("Save failed: " + e.message); } finally { setSaving(false); }
+        } catch (e) { 
+            console.error(e); 
+            // DIAGNOSTIC ERROR MESSAGE
+            toast.error(`Save failed. Error: ${e.code || e.message}`); 
+        } finally { setSaving(false); }
     };
 
     return (
