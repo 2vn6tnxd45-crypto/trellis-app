@@ -26,7 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // THE RESTORED & HARDENED SCANNER LOGIC
+    // THE RESTORED, HARDENED & UPGRADED SCANNER LOGIC
     const scanReceipt = async (file, base64Str) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -38,13 +38,13 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // RESTORED: The "Perfect" Prompt with strict logic
+            // PROMPT: Includes Vendor Logic, Item Splitting, and NEW Warranty Extraction
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - Find the company performing the work (e.g., Logo at top, Header).
-                   - CRITICAL: Do NOT use the "Bill To", "Customer", or "Ship To" name. The user (Devon Davila) is the CUSTOMER, not the vendor.
+                   - CRITICAL: Do NOT use the "Bill To", "Customer", or "Ship To" name. The user is the CUSTOMER, not the vendor.
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
@@ -56,7 +56,11 @@ export const useGemini = () => {
                    - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
                    - If items were split (see above), try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
                 
-                4. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
+                4. **EXTRACT WARRANTY**:
+                   - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
+                   - Combine into a single string (e.g. "10yr Parts, 1yr Labor").
+                
+                5. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
 
                 Return JSON:
                 {
@@ -67,6 +71,7 @@ export const useGemini = () => {
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
+                  "warranty": "String",
                   "items": [
                     { 
                       "item": "Specific Equipment Name (e.g. Trane Air Handler)", 
@@ -100,6 +105,7 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
+            data.warranty = String(data.warranty || ''); // Ensure warranty string exists
             
             // Clean up items (ensure strings are strings)
             data.items = data.items.map(item => ({
