@@ -276,12 +276,180 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 <input type="file" ref={roomInputRef} className="hidden" accept="image/*" multiple onChange={handleRoomScanFiles} />
             </div>
 
-            {/* REVIEW PANEL - (Same as before, not shown for brevity in this snippet as it handles result display) */}
+            {/* REVIEW PANEL - CRITICAL: This must be visible to save scanned items! */}
             {scannedItems.length > 0 && (
-               // ... (existing review panel code)
-               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4 mt-6">
-                    {/* ... */}
-               </div>
+                <div className="bg-white p-6 rounded-3xl border-2 border-emerald-200 shadow-lg animate-in fade-in slide-in-from-top-4 mt-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-200">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900">Review Scanned Items</h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                                {scannedItems.length} item{scannedItems.length !== 1 ? 's' : ''} found
+                                {totalExtractedValue > 0 && ` • Total: $${totalExtractedValue.toFixed(2)}`}
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setScannedItems([]);
+                                setScannedImagePreview(null);
+                                setCurrentFile(null);
+                            }}
+                            className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <XCircle className="h-5 w-5 text-slate-400" />
+                        </button>
+                    </div>
+
+                    {/* Preview Image */}
+                    {scannedImagePreview && !isPdf && (
+                        <div className="mb-4 rounded-xl overflow-hidden border border-slate-200">
+                            <img src={scannedImagePreview} alt="Scanned receipt" className="w-full h-48 object-cover" />
+                        </div>
+                    )}
+                    {isPdf && (
+                        <div className="mb-4 p-4 bg-slate-100 rounded-xl flex items-center gap-3">
+                            <FileText className="h-8 w-8 text-slate-400" />
+                            <div>
+                                <p className="font-bold text-slate-700">PDF Document</p>
+                                <p className="text-xs text-slate-500">Scanned and analyzed</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Global Fields */}
+                    <div className="grid grid-cols-2 gap-3 mb-4 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+                        <div>
+                            <label className="text-xs font-bold text-emerald-900 block mb-1">Purchase Date</label>
+                            <input
+                                type="date"
+                                value={globalDate}
+                                onChange={(e) => setGlobalDate(e.target.value)}
+                                className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-emerald-900 block mb-1">Vendor/Contractor</label>
+                            <input
+                                type="text"
+                                value={globalStore}
+                                onChange={(e) => setGlobalStore(e.target.value)}
+                                placeholder="e.g., Home Depot"
+                                className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-emerald-900 block mb-1">Default Category</label>
+                            <select
+                                value={globalCategory}
+                                onChange={(e) => handleGlobalCategoryChange(e.target.value)}
+                                className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            >
+                                <option value="">Select category...</option>
+                                {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-emerald-900 block mb-1">Default Area</label>
+                            <select
+                                value={globalArea}
+                                onChange={(e) => setGlobalArea(e.target.value)}
+                                className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                            >
+                                {ROOMS.map(room => <option key={room} value={room}>{room}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Items List */}
+                    <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
+                        {scannedItems.map((item, idx) => (
+                            <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-4 hover:border-emerald-300 transition-colors">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-grow grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-600 block mb-1">Item Name</label>
+                                            <input
+                                                type="text"
+                                                value={item.item || ''}
+                                                onChange={(e) => updateItem(idx, 'item', e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                placeholder="Item name..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-600 block mb-1">Cost</label>
+                                            <input
+                                                type="text"
+                                                value={item.cost || ''}
+                                                onChange={(e) => updateItem(idx, 'cost', e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-600 block mb-1">Brand</label>
+                                            <input
+                                                type="text"
+                                                value={item.brand || ''}
+                                                onChange={(e) => updateItem(idx, 'brand', e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                placeholder="Brand..."
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold text-slate-600 block mb-1">Model</label>
+                                            <input
+                                                type="text"
+                                                value={item.model || ''}
+                                                onChange={(e) => updateItem(idx, 'model', e.target.value)}
+                                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                                placeholder="Model..."
+                                            />
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => removeItem(idx)}
+                                        className="ml-3 p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Remove item"
+                                    >
+                                        <XCircle className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Save Button - CRITICAL! */}
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => {
+                                setScannedItems([]);
+                                setScannedImagePreview(null);
+                                setCurrentFile(null);
+                            }}
+                            className="px-6 py-3 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSaveAll}
+                            disabled={isSaving || scannedItems.length === 0}
+                            className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl hover:shadow-lg hover:shadow-emerald-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {isSaving ? (
+                                <>
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    Saving {scannedItems.length} items...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="h-5 w-5" />
+                                    Save All {scannedItems.length} Items
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

@@ -212,8 +212,8 @@ const TypeSelector = ({ onSelect, onClose }) => (
 // MAIN SMART SCANNER COMPONENT
 // ============================================
 
-export const SmartScanner = ({ 
-    onCapture, 
+export const SmartScanner = ({
+    onCapture,
     onClose,
     onProcessComplete,
     analyzeImage // AI analysis function passed from parent
@@ -224,7 +224,8 @@ export const SmartScanner = ({
     const [confidence, setConfidence] = useState(0);
     const [showTypeSelector, setShowTypeSelector] = useState(false);
     const [error, setError] = useState(null);
-    
+    const [showChoiceScreen, setShowChoiceScreen] = useState(true); // NEW: Show choice first
+
     const fileInputRef = useRef(null);
     const videoRef = useRef(null);
     const streamRef = useRef(null);
@@ -253,11 +254,13 @@ export const SmartScanner = ({
         }
     }, []);
     
-    // Initialize camera on mount
+    // Initialize camera only when choice screen is dismissed and user chose camera
     React.useEffect(() => {
-        startCamera();
+        if (!showChoiceScreen && !capturedImage) {
+            startCamera();
+        }
         return () => stopCamera();
-    }, [startCamera, stopCamera]);
+    }, [showChoiceScreen, capturedImage, startCamera, stopCamera]);
     
     // Capture photo from video
     const capturePhoto = useCallback(() => {
@@ -384,24 +387,103 @@ export const SmartScanner = ({
         setShowTypeSelector(false);
     };
     
+    // Handle choosing upload
+    const handleChooseUpload = () => {
+        setShowChoiceScreen(false);
+        fileInputRef.current?.click();
+    };
+
+    // Handle choosing camera
+    const handleChooseCamera = () => {
+        setShowChoiceScreen(false);
+        // Camera will start automatically via useEffect
+    };
+
     return (
         <div className="fixed inset-0 bg-black z-50 flex flex-col">
-            {/* Header */}
-            <div className="absolute top-0 left-0 right-0 z-30 p-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
-                <button 
-                    onClick={onClose}
-                    className="p-3 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
-                >
-                    <X className="h-6 w-6 text-white" />
-                </button>
-                
-                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
-                    <Sparkles className="h-4 w-4 text-emerald-400" />
-                    <span className="text-white text-sm font-medium">AI Scanner</span>
+            {/* Choice Screen - Upload or Camera */}
+            {showChoiceScreen && (
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 z-40 flex items-center justify-center p-6">
+                    <div className="max-w-md w-full">
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-8">
+                            <button
+                                onClick={onClose}
+                                className="p-3 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-6 w-6 text-white" />
+                            </button>
+                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+                                <Sparkles className="h-4 w-4 text-emerald-400" />
+                                <span className="text-white text-sm font-medium">AI Scanner</span>
+                            </div>
+                            <div className="w-14" />
+                        </div>
+
+                        {/* Title */}
+                        <div className="text-center mb-8">
+                            <h2 className="text-3xl font-black text-white mb-2">Scan Receipt</h2>
+                            <p className="text-white/60">Choose how you'd like to scan</p>
+                        </div>
+
+                        {/* Options */}
+                        <div className="space-y-4">
+                            {/* Upload Option */}
+                            <button
+                                onClick={handleChooseUpload}
+                                className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-sm border-2 border-white/20 hover:border-emerald-400/50 rounded-2xl p-6 text-left transition-all group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-emerald-500/20 p-4 rounded-xl group-hover:bg-emerald-500/30 transition-colors">
+                                        <Upload className="h-8 w-8 text-emerald-400" />
+                                    </div>
+                                    <div className="flex-grow">
+                                        <h3 className="text-lg font-bold text-white mb-1">Upload File</h3>
+                                        <p className="text-sm text-white/60">Choose an existing photo or PDF</p>
+                                    </div>
+                                    <ChevronRight className="h-6 w-6 text-white/40 group-hover:text-emerald-400 transition-colors" />
+                                </div>
+                            </button>
+
+                            {/* Camera Option */}
+                            <button
+                                onClick={handleChooseCamera}
+                                className="w-full bg-white/10 hover:bg-white/20 backdrop-blur-sm border-2 border-white/20 hover:border-blue-400/50 rounded-2xl p-6 text-left transition-all group"
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-500/20 p-4 rounded-xl group-hover:bg-blue-500/30 transition-colors">
+                                        <Camera className="h-8 w-8 text-blue-400" />
+                                    </div>
+                                    <div className="flex-grow">
+                                        <h3 className="text-lg font-bold text-white mb-1">Take Photo</h3>
+                                        <p className="text-sm text-white/60">Use your camera to scan now</p>
+                                    </div>
+                                    <ChevronRight className="h-6 w-6 text-white/40 group-hover:text-blue-400 transition-colors" />
+                                </div>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                
-                <div className="w-12" /> {/* Spacer for centering */}
-            </div>
+            )}
+
+            {/* Header */}
+            {!showChoiceScreen && (
+                <div className="absolute top-0 left-0 right-0 z-30 p-4 flex items-center justify-between bg-gradient-to-b from-black/80 to-transparent">
+                    <button
+                        onClick={onClose}
+                        className="p-3 bg-white/10 backdrop-blur-sm rounded-full hover:bg-white/20 transition-colors"
+                    >
+                        <X className="h-6 w-6 text-white" />
+                    </button>
+
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm px-4 py-2 rounded-full">
+                        <Sparkles className="h-4 w-4 text-emerald-400" />
+                        <span className="text-white text-sm font-medium">AI Scanner</span>
+                    </div>
+
+                    <div className="w-12" /> {/* Spacer for centering */}
+                </div>
+            )}
             
             {/* Camera/Image View */}
             <div className="flex-grow relative">
