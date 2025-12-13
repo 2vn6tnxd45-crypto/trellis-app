@@ -11,14 +11,14 @@ import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants'
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
 
-// NEW UX IMPORTS
+// Feature Imports
 import { useGemini } from './hooks/useGemini';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
 import './styles/krib-theme.css'; 
 
-// Components
+// Component Imports
 import { Logo } from './components/common/Logo';
 import { FeatureErrorBoundary } from './components/common/FeatureErrorBoundary';
 import { EmptyState } from './components/common/EmptyState';
@@ -177,12 +177,16 @@ const AppContent = () => {
         setShowScanner(false);
         // CRITICAL: Check if multiple items found
         if (extractedData.items && extractedData.items.length > 0) {
-            // Batch Mode
+            // Batch Mode: Pass ALL contractor info to the edit modal state
             setEditingRecord({
-                isBatch: true, // FLAG FOR ADD RECORD FORM
+                isBatch: true,
                 items: extractedData.items,
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
                 contractor: extractedData.store || '',
+                // Pass rich contractor data so it's available for saving
+                contractorPhone: extractedData.contractorPhone,
+                contractorEmail: extractedData.contractorEmail,
+                contractorAddress: extractedData.contractorAddress,
                 attachments: extractedData.image ? [{ name: 'Scan.jpg', preview: extractedData.image }] : []
             });
             toast.success(`Found ${extractedData.items.length} items! Review them now.`, { icon: '📸' });
@@ -195,6 +199,11 @@ const AppContent = () => {
                 model: extractedData.model || '',
                 cost: extractedData.cost || '',
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+                // Pass rich contractor data
+                contractor: extractedData.store || '',
+                contractorPhone: extractedData.contractorPhone,
+                contractorEmail: extractedData.contractorEmail,
+                contractorAddress: extractedData.contractorAddress,
                 attachments: extractedData.image ? [{ name: 'Scan.jpg', preview: extractedData.image }] : []
             });
             toast.success("Scan complete!", { icon: '📸' });
@@ -311,15 +320,41 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             }
             const batch = writeBatch(db);
             const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
+            
+            // NOTE: editingRecord contains the "Global" batch data passed from SmartScanner (contractor info etc)
+            // We need to merge that with the individual item data.
+            
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
                  const docData = { 
-                     userId: user.uid, propertyId: activeProperty.id, propertyLocation: activeProperty.name, 
-                     category: item.category || 'Other', item: item.item || 'Unknown Item', brand: item.brand || '', model: item.model || '', 
-                     area: item.area || 'General', notes: item.notes || '', cost: item.cost ? parseFloat(item.cost) : 0, 
-                     dateInstalled: new Date().toISOString().split('T')[0], maintenanceFrequency: 'none', nextServiceDate: null, 
+                     userId: user.uid, 
+                     propertyId: activeProperty.id, 
+                     propertyLocation: activeProperty.name, 
+                     
+                     // Item Specifics
+                     category: item.category || 'Other', 
+                     item: item.item || 'Unknown Item', 
+                     brand: item.brand || '', 
+                     model: item.model || '', 
+                     serialNumber: item.serial || '', // Added serial
+                     cost: item.cost ? parseFloat(item.cost) : 0, 
+                     
+                     // Global / Defaults
+                     area: item.area || 'General', 
+                     notes: item.notes || '', 
+                     dateInstalled: editingRecord.dateInstalled || new Date().toISOString().split('T')[0], 
+                     maintenanceFrequency: 'none', 
+                     nextServiceDate: null, 
+                     
+                     // CONTRACTOR INFO (Fixed: Pulling from editingRecord which holds the scanner result)
+                     contractor: item.contractor || editingRecord.contractor || '',
+                     contractorPhone: editingRecord.contractorPhone || '',
+                     contractorEmail: editingRecord.contractorEmail || '',
+                     contractorAddress: editingRecord.contractorAddress || '',
+
                      imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
-                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], timestamp: serverTimestamp() 
+                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
+                     timestamp: serverTimestamp() 
                 };
                 batch.set(newDocRef, docData);
             });
