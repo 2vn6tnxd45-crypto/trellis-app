@@ -48,7 +48,7 @@ export const useGemini = () => {
                 }
             }
 
-            // UPDATED PROMPT: WARRANTY AS FIELD, CLEAN ADDRESS, BUNDLED COSTS
+            // UPDATED PROMPT: MAINTENANCE SCHEDULE, WARRANTY, CLEAN ADDRESS, BUNDLED COSTS
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
@@ -62,18 +62,24 @@ export const useGemini = () => {
                    - Look for physical equipment (HVAC units, Water Heaters, Appliances).
                    - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
                    - **EXCLUDE**: Do NOT create items for warranties, labor, permits, or miscellaneous materials.
+
+                3. **DETERMINE MAINTENANCE SCHEDULE (CRITICAL)**:
+                   - Based on the item type, determine the industry standard maintenance frequency.
+                   - Use ONLY these values: 'monthly', 'quarterly', 'semiannual', 'annual', 'biennial', 'none'.
+                   - Examples: HVAC = 'semiannual' or 'annual'. Water Heater = 'annual'. Roof = 'annual'. Fridge = 'annual'.
+                   - If it is a service/repair invoice, set frequency to 'annual' to prompt a check-up.
                 
-                3. **EXTRACT WARRANTY INFO**:
+                4. **EXTRACT WARRANTY INFO**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
                    - Return this as a single string in the "warranty" field. Do NOT make it a line item.
                 
-                4. **EXTRACT COSTS (BUNDLED LOGIC)**:
+                5. **EXTRACT COSTS (BUNDLED LOGIC)**:
                    - If the invoice lists a single "Job Total" (e.g. $11,000) for a system installation, but lists components (Air Handler, Condenser) without individual prices:
                    - Assign the **FULL** cost to the MAIN unit (e.g. the Condenser or Heat Pump).
                    - Assign **0.00** to the secondary components (e.g. Air Handler, Coil) to avoid inflating the total.
                    - Ensure the sum of item costs roughly equals the Job Total.
                 
-                5. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
+                6. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
                 Return JSON:
                 {
@@ -92,7 +98,9 @@ export const useGemini = () => {
                       "brand": "String", 
                       "model": "String", 
                       "serial": "String",
-                      "cost": 0.00
+                      "cost": 0.00,
+                      "maintenanceFrequency": "String (one of the allowed values)",
+                      "maintenanceNotes": "String (e.g. 'Recommended Annual Tune-up')"
                     }
                   ]
                 }
@@ -127,7 +135,9 @@ export const useGemini = () => {
                 category: item.category || "Other",
                 cost: item.cost || 0,
                 // Ensure the global warranty is applied if the item doesn't have a specific one
-                warranty: item.warranty || data.warranty 
+                warranty: item.warranty || data.warranty,
+                maintenanceFrequency: item.maintenanceFrequency || 'none',
+                maintenanceNotes: item.maintenanceNotes || ''
             }));
 
             return data;
