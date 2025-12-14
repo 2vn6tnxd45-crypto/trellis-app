@@ -121,7 +121,10 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
                 cost: item.cost || 0,
                 dateInstalled: analysis.date,
                 contractor: analysis.vendorName || '',
-                warranty: analysis.warranty || ''
+                warranty: analysis.warranty || '',
+                // NEW: Capture the AI-suggested frequency
+                maintenanceFrequency: item.maintenanceFrequency || 'annual', // Default to annual to drive engagement
+                notes: item.maintenanceNotes || ''
             })),
             
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
