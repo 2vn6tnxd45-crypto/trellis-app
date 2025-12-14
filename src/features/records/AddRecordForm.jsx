@@ -34,6 +34,13 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (hasBatch) {
             setRoomScanResults(newRecord.items);
             setScanMode('room-results');
+            
+            // --- FIX APPLIED HERE ---
+            // If the batch came from SmartScanner, grab the fileRef from the first attachment
+            // so onBatchSave has the actual file to upload.
+            if (newRecord.attachments && newRecord.attachments.length > 0 && newRecord.attachments[0].fileRef) {
+                setRoomScanFile(newRecord.attachments[0].fileRef);
+            }
         }
         
         if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true);
@@ -60,6 +67,12 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (data.items && data.items.length > 1) {
             setRoomScanResults(data.items);
             setScanMode('room-results');
+            
+            // Ensure we capture the file if passed back
+            if (data.attachments && data.attachments.length > 0 && data.attachments[0].fileRef) {
+                setRoomScanFile(data.attachments[0].fileRef);
+            }
+            
             toast.success(`Imported ${data.items.length} items from scan!`);
         } 
         else {
@@ -121,6 +134,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
     const handleSaveRoomItems = async () => {
         if (roomScanResults.length === 0) return;
+        // Now roomScanFile should be populated correctly from useEffect or handleRoomScan
         await onBatchSave(roomScanResults, roomScanFile);
         setRoomScanResults([]); setRoomScanFile(null); setScanMode(null);
     };
