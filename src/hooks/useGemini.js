@@ -38,15 +38,20 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // Format user address for the negative constraint
+            // --- FIX START: ROBUST ADDRESS EXCLUSION ---
             let excludeAddressString = "";
+            let excludeParts = []; 
             if (userAddress) {
                 if (typeof userAddress === 'string') {
                     excludeAddressString = userAddress;
+                    excludeParts.push(userAddress.split(',')[0]); // Take first part as fuzzy match
                 } else if (typeof userAddress === 'object') {
                     excludeAddressString = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
+                    if (userAddress.street) excludeParts.push(userAddress.street);
+                    if (userAddress.city) excludeParts.push(userAddress.city);
                 }
             }
+            // --- FIX END ---
 
             // UPDATED PROMPT: MAINTENANCE SCHEDULE, WARRANTY, CLEAN ADDRESS, BUNDLED COSTS
             const prompt = `
@@ -54,7 +59,9 @@ export const useGemini = () => {
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - Vendor is the company PERFORMING the service.
-                   - **NEGATIVE CONSTRAINT**: Do NOT use the address "${excludeAddressString}". That is the client. If only that address is found, return empty string for vendor address.
+                   - **NEGATIVE CONSTRAINT**: The address "${excludeAddressString}" is the Client/Homeowner (Bill To). 
+                   - **CRITICAL**: Do NOT return this address as the Vendor Address. Even if it is the only address found, return empty string.
+                   - **FUZZY CHECK**: Ignore addresses containing "${excludeParts[0] || '#######'}" if they appear in a "Bill To" or "Ship To" section.
                    - **ADDRESS CLEANING**: Check for missing spaces between Street and City (e.g. "123 Main StSanta Ana"). Insert a space if needed ("123 Main St, Santa Ana").
                    - Extract: Vendor Name, Phone, Email, Address.
                 
