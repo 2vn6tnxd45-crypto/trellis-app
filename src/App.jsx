@@ -10,7 +10,6 @@ import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
-// NEW IMPORT
 import { generatePDFThumbnail } from './lib/pdfUtils';
 
 // Feature Imports
@@ -199,7 +198,8 @@ const AppContent = () => {
                     ...item,
                     maintenanceFrequency: maint.frequency,
                     nextServiceDate: maint.nextDate,
-                    notes: item.notes || ''
+                    notes: item.notes || '',
+                    maintenanceTasks: item.maintenanceTasks || [] // Pass tasks through
                 };
             });
 
@@ -234,6 +234,7 @@ const AppContent = () => {
                 maintenanceFrequency: maint.frequency,
                 nextServiceDate: maint.nextDate,
                 notes: singleItem.notes || '',
+                maintenanceTasks: singleItem.maintenanceTasks || [], // Pass tasks
 
                 // Pass rich contractor data
                 contractor: extractedData.store || '',
@@ -435,6 +436,11 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: item.maintenanceFrequency || 'none', 
                      nextServiceDate: nextDate, 
+                     
+                     // --- NEW: Save the specific tasks array ---
+                     maintenanceTasks: item.maintenanceTasks || [], 
+                     // -----------------------------------------
+
                      contractor: item.contractor || editingRecord?.contractor || '',
                      contractorPhone: editingRecord?.contractorPhone || '',
                      contractorEmail: editingRecord?.contractorEmail || '',
