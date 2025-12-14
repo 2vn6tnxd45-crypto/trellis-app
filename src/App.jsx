@@ -170,8 +170,10 @@ const AppContent = () => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
         const base64 = await fileToBase64(blob);
-        return await scanReceipt(blob, base64);
-    }, [scanReceipt]);
+        // UPDATED: Pass activeProperty.address to scanReceipt via handleAnalyzeImage if needed, 
+        // but SmartScanner now handles this via the userAddress prop directly.
+        return await scanReceipt(blob, base64, activeProperty?.address);
+    }, [scanReceipt, activeProperty]);
 
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
@@ -244,7 +246,14 @@ const AppContent = () => {
         <>
         <Toaster position="top-center" />
         <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} itemName={lastAddedItem} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} onAddAnother={() => openAddModal()} />
-        {showScanner && <SmartScanner onClose={() => setShowScanner(false)} onProcessComplete={handleScanComplete} analyzeImage={handleAnalyzeImage} />}
+        {showScanner && (
+            <SmartScanner 
+                onClose={() => setShowScanner(false)} 
+                onProcessComplete={handleScanComplete} 
+                userAddress={activeProperty?.address} 
+                analyzeImage={handleAnalyzeImage} 
+            />
+        )}
 
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
