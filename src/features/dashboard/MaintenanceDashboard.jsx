@@ -1,15 +1,8 @@
 // src/features/dashboard/MaintenanceDashboard.jsx
-// ============================================
-// 🏠 MAINTENANCE DASHBOARD
-// ============================================
-// Shows home health score and maintenance schedule.
-// Updated with better empty states and toast notifications.
-
 import React, { useMemo, useState } from 'react';
-import { Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, Wrench, AlertTriangle, Sparkles, ListChecks, TrendingUp, Shield } from 'lucide-react';
+import { Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, Wrench, AlertTriangle, Sparkles, TrendingUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
-import { EmptyState } from '../../components/common/EmptyState';
 
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
@@ -33,14 +26,54 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
         let totalTracked = 0;
 
         records.forEach(record => {
-            const nextDate = getNextServiceDate(record);
-            if (nextDate) {
+            // --- NEW: Granular Task Logic ---
+            if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
                 totalTracked++;
-                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                const task = { ...record, nextDate, daysUntil };
-                if (daysUntil < 0) overdue.push(task);
-                else if (daysUntil <= 90) upcoming.push(task);
-                else healthyCount++;
+                let recordHasIssue = false;
+
+                record.maintenanceTasks.forEach(task => {
+                    const nextDate = new Date(task.nextDue);
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    
+                    const taskItem = {
+                        id: `${record.id}-${task.task}`, // Unique ID
+                        item: record.item, // Parent Item Name
+                        taskName: task.task, // Specific Task
+                        category: record.category,
+                        area: record.area,
+                        nextDate: nextDate,
+                        daysUntil: daysUntil,
+                        isGranular: true
+                    };
+
+                    if (daysUntil < 0) {
+                        overdue.push(taskItem);
+                        recordHasIssue = true;
+                    } else if (daysUntil <= 90) {
+                        upcoming.push(taskItem);
+                    }
+                });
+                
+                if (!recordHasIssue) healthyCount++;
+            } 
+            // --- Fallback: Legacy Logic ---
+            else {
+                const nextDate = getNextServiceDate(record);
+                if (nextDate) {
+                    totalTracked++;
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    const task = { 
+                        ...record, 
+                        taskName: 'General Maintenance', 
+                        nextDate, 
+                        daysUntil,
+                        isGranular: false
+                    };
+                    
+                    if (daysUntil < 0) overdue.push(task);
+                    else if (daysUntil <= 90) upcoming.push(task);
+                    else healthyCount++;
+                }
             }
         });
 
@@ -66,23 +99,16 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
     const scoreColor = score >= 80 ? 'text-emerald-500' : score >= 50 ? 'text-yellow-500' : 'text-red-500';
     const ringColor = score >= 80 ? 'stroke-emerald-500' : score >= 50 ? 'stroke-yellow-500' : 'stroke-red-500';
     
-    // Get encouraging message based on score
     const getScoreMessage = () => {
-        if (score >= 80) return "Your home is in great shape! 🎉";
+        if (score >= 80) return "Your home is in great shape! 🛡️";
         if (score >= 60) return "Good progress! A few items need attention.";
         if (score >= 40) return "Time to catch up on some maintenance.";
         return "Let's get your home back on track!";
     };
 
-    // ============================================
-    // 🆕 BETTER EMPTY STATE FOR LOW RECORDS
-    // ============================================
-    // If user has less than 3 records, show a gentler dashboard
-    // instead of a "0" health score
     if (records.length < 3) {
         return (
             <div className="space-y-6">
-                {/* Getting Started Card */}
                 <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-[2rem] p-8 border border-emerald-100">
                     <div className="flex items-start gap-4">
                         <div className="bg-white p-3 rounded-2xl shadow-sm border border-emerald-100">
@@ -97,7 +123,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                         </div>
                     </div>
                     
-                    {/* Progress indicator */}
                     <div className="mt-6 bg-white rounded-xl p-4 border border-emerald-100">
                         <div className="flex justify-between items-center mb-2">
                             <span className="text-sm font-bold text-slate-600">Progress</span>
@@ -115,7 +140,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                     </div>
                 </div>
 
-                {/* Quick Add Suggestions */}
                 {suggestedItems.length > 0 && (
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center">
@@ -148,9 +172,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
         );
     }
 
-    // ============================================
-    // 📊 FULL DASHBOARD (3+ records)
-    // ============================================
     return (
         <div className="space-y-8">
             {/* Score Card */}
@@ -187,10 +208,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                                 <span className="text-xs text-slate-400 block">Upcoming</span>
                                 <span className="font-bold text-teal-600">{breakdown.upcomingScore}%</span>
                             </div>
-                            <div className="bg-slate-50 px-4 py-2 rounded-xl">
-                                <span className="text-xs text-slate-400 block">Coverage</span>
-                                <span className="font-bold text-cyan-600">{breakdown.coverageScore}%</span>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -204,18 +221,18 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                         Overdue Maintenance ({overdueTasks.length})
                     </h3>
                     <div className="space-y-2">
-                        {overdueTasks.map(task => (
+                        {overdueTasks.map((task, idx) => (
                             <div 
-                                key={task.id} 
+                                key={idx} 
                                 className="bg-white p-4 rounded-xl border border-red-100 flex justify-between items-center hover:shadow-sm transition-shadow cursor-pointer"
                                 onClick={() => {
                                     if (onNavigateToRecords) onNavigateToRecords();
-                                    toast(`Viewing: ${task.item}`, { icon: '📋' });
+                                    toast(`Viewing: ${task.item}`, { icon: '🔧' });
                                 }}
                             >
                                 <div>
-                                    <p className="font-bold text-slate-800">{task.item}</p>
-                                    <p className="text-xs text-slate-500">{task.category} • {task.area}</p>
+                                    <p className="font-bold text-slate-800">{task.taskName}</p>
+                                    <p className="text-xs text-slate-500">{task.item} • {task.category}</p>
                                 </div>
                                 <span className="text-red-600 font-bold text-sm bg-red-100 px-3 py-1 rounded-full">
                                     {Math.abs(task.daysUntil)} days overdue
@@ -233,11 +250,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                         <Calendar className="h-5 w-5 mr-2 text-emerald-600" /> 
                         Upcoming Maintenance
                     </h3>
-                    {upcomingTasks.length > 0 && (
-                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-                            {upcomingTasks.length} in next 90 days
-                        </span>
-                    )}
                 </div>
                 
                 {upcomingTasks.length === 0 ? (
@@ -250,10 +262,10 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                     </div>
                 ) : (
                     <div className="space-y-3">
-                        {upcomingTasks.map(task => (
+                        {upcomingTasks.map((task, idx) => (
                             <div 
-                                key={task.id} 
-                                className="flex items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-emerald-50 hover:border-emerald-100 transition-colors cursor-pointer" 
+                                key={idx} 
+                                className="flex items-center p-4 bg-slate-50 rounded-xl border border-slate-100 hover:bg-emerald-50 transition-colors cursor-pointer" 
                                 onClick={() => {
                                     if (onNavigateToRecords) onNavigateToRecords();
                                 }}
@@ -262,8 +274,8 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                                     <Wrench className="h-5 w-5 text-emerald-600" />
                                 </div>
                                 <div className="flex-grow">
-                                    <p className="font-bold text-slate-800">{task.item}</p>
-                                    <p className="text-xs text-slate-500">{task.category}</p>
+                                    <p className="font-bold text-slate-800">{task.taskName}</p>
+                                    <p className="text-xs text-slate-500">{task.item}</p>
                                 </div>
                                 <div className="text-right">
                                     <p className={`font-bold ${task.daysUntil <= 7 ? 'text-amber-600' : 'text-emerald-700'}`}>
