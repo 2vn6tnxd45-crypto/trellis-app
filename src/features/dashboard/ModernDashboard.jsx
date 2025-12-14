@@ -4,7 +4,7 @@ import {
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
     AlertTriangle, Wrench, Shield, CheckCircle2,
-    Info, TrendingUp
+    Info, TrendingUp, ChevronDown
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
@@ -291,12 +291,14 @@ export const ModernDashboard = ({
     onNavigateToContractors,
     onNavigateToReports,
     onCreateContractorLink,
+    // NEW PROP: To navigate to the schedule
+    onNavigateToMaintenance
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
 
-    // --- ROBUST SCORING LOGIC ---
+    // --- ROBUST SCORING LOGIC UPDATED FOR TASKS ---
     const metrics = useMemo(() => {
         const now = new Date();
         let overdueCount = 0;
@@ -306,15 +308,45 @@ export const ModernDashboard = ({
         const upcomingTasks = [];
         
         records.forEach(record => {
-            const nextDate = getNextServiceDate(record);
-            if (nextDate) {
-                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                if (daysUntil < 0) {
-                    overdueCount++;
-                    overdueTasks.push({ ...record, daysOverdue: Math.abs(daysUntil) });
-                } else if (daysUntil <= 30) {
-                    upcomingCount++;
-                    upcomingTasks.push({ ...record, daysUntil });
+            // Priority 1: Check for granular tasks (AI Generated)
+            if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
+                record.maintenanceTasks.forEach(task => {
+                    const nextDate = new Date(task.nextDue);
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    
+                    const taskItem = {
+                        id: `${record.id}-${task.task}`,
+                        item: `${record.item} - ${task.task}`,
+                        daysUntil
+                    };
+
+                    if (daysUntil < 0) {
+                        overdueCount++;
+                        overdueTasks.push({ ...taskItem, daysOverdue: Math.abs(daysUntil) });
+                    } else if (daysUntil <= 30) {
+                        upcomingCount++;
+                        upcomingTasks.push(taskItem);
+                    }
+                });
+            } 
+            // Priority 2: Fallback to simple date logic (Legacy)
+            else {
+                const nextDate = getNextServiceDate(record);
+                if (nextDate) {
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    const taskItem = {
+                        id: record.id,
+                        item: record.item,
+                        daysUntil
+                    };
+
+                    if (daysUntil < 0) {
+                        overdueCount++;
+                        overdueTasks.push({ ...taskItem, daysOverdue: Math.abs(daysUntil) });
+                    } else if (daysUntil <= 30) {
+                        upcomingCount++;
+                        upcomingTasks.push(taskItem);
+                    }
                 }
             }
         });
@@ -421,15 +453,15 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {/* ALERTS SECTION */}
+            {/* ALERTS SECTION - NOW WIRED TO MAINTENANCE */}
             {(metrics.overdueCount > 0 || metrics.upcomingCount > 0) && (
                 <div className="space-y-4">
-                    <SectionHeader title="Needs Attention" action={onNavigateToItems} actionLabel="View all" />
+                    <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
                     {metrics.overdueTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} icon={AlertTriangle} title={task.item} description={`${task.daysOverdue} days overdue`} variant="danger" action={onNavigateToItems} actionLabel="Fix" />
+                        <AttentionCard key={task.id} icon={AlertTriangle} title={task.item} description={`${task.daysOverdue} days overdue`} variant="danger" action={onNavigateToMaintenance} actionLabel="Fix" />
                     ))}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} icon={Clock} title={task.item} description={`Due in ${task.daysUntil} days`} variant="warning" action={onNavigateToItems} actionLabel="View" />
+                        <AttentionCard key={task.id} icon={Clock} title={task.item} description={`Due in ${task.daysUntil} days`} variant="warning" action={onNavigateToMaintenance} actionLabel="View" />
                     ))}
                 </div>
             )}
@@ -485,7 +517,5 @@ export const ModernDashboard = ({
         </div>
     );
 };
-
-import { ChevronDown } from 'lucide-react'; // Ensure this is imported
 
 export default ModernDashboard;
