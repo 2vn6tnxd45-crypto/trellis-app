@@ -10,7 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Maintenance suggestion logic
+    // Maintenance suggestion logic (unchanged)
     const suggestMaintenance = async (record) => {
         if (!geminiModel || (!record.item && !record.category)) return null;
         setIsSuggesting(true);
@@ -26,8 +26,8 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // THE ROBUST SCANNER LOGIC
-    const scanReceipt = async (file, base64Str) => {
+    // UPDATED SCANNER LOGIC: Now accepts userAddress
+    const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
             return null;
@@ -38,15 +38,26 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // UPDATED PROMPT: STRICTER VENDOR VS CUSTOMER LOGIC
+            // Format user address for the negative constraint
+            let excludeAddressString = "";
+            if (userAddress) {
+                if (typeof userAddress === 'string') {
+                    excludeAddressString = userAddress;
+                } else if (typeof userAddress === 'object') {
+                    // Combine parts: "123 Main St, Springfield, IL 62704"
+                    excludeAddressString = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
+                }
+            }
+
+            // UPDATED PROMPT: DYNAMIC EXCLUSION
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
-                   - The Vendor is the company PERFORMING the service (e.g., "Allied Pest Control", "Prime HVAC").
-                   - **LOCATION CUES**: Vendor info is usually in the **HEADER** (Top Left/Center/Right) or **FOOTER**.
-                   - **NEGATIVE CONSTRAINT**: Do NOT extract names/addresses labeled "Bill To", "Sold To", "Customer", "Client", or "Service Address". That is the user; we do NOT want that.
-                   - **KEYWORDS**: Look for "Remit To", "Pay To", or text near a logo.
+                   - The Vendor is the company PERFORMING the service.
+                   - **LOCATION CUES**: Look for logos or bold text at the very TOP (Header) or very BOTTOM (Footer).
+                   - **NEGATIVE CONSTRAINT (CRITICAL)**: Do NOT use the address "${excludeAddressString}" or any variation of it. That is the Client/Homeowner. If the only address you find matches this, return an empty string for the vendor address.
+                   - **IGNORE**: "Bill To", "Sold To", "Ship To", "Service Address".
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
@@ -56,28 +67,28 @@ export const useGemini = () => {
                 
                 3. **EXTRACT COSTS**:
                    - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
-                   - If items were split, try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit to avoid double-counting.
+                   - If items were split, try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit.
                 
                 4. **EXTRACT WARRANTY**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
-                   - Combine into a single string (e.g. "10yr Parts, 1yr Labor").
+                   - Combine into a single string.
                 
                 5. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
 
                 Return JSON:
                 {
-                  "vendorName": "String (The Service Provider)",
-                  "vendorPhone": "String (Provider's Phone)",
-                  "vendorEmail": "String (Provider's Email)",
-                  "vendorAddress": "String (Provider's Office Address)",
+                  "vendorName": "String",
+                  "vendorPhone": "String",
+                  "vendorEmail": "String",
+                  "vendorAddress": "String",
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
                   "warranty": "String",
                   "items": [
                     { 
-                      "item": "Specific Equipment Name (e.g. Trane Air Handler)", 
-                      "category": "String (Pick best from: ${categoriesStr})",
+                      "item": "String", 
+                      "category": "String (Best fit from: ${categoriesStr})",
                       "brand": "String", 
                       "model": "String", 
                       "serial": "String",
@@ -94,7 +105,6 @@ export const useGemini = () => {
             
             const text = result.response.text().replace(/```json|```/g, '').trim();
             
-            // --- SAFETY HARDENING (Prevent Crashes) ---
             let data;
             try {
                 data = JSON.parse(text);
