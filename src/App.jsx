@@ -10,6 +10,8 @@ import { auth, db, storage } from './config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
+// NEW IMPORT
+import { generatePDFThumbnail } from './lib/pdfUtils';
 
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
@@ -249,7 +251,7 @@ const AppContent = () => {
             <SmartScanner 
                 onClose={() => setShowScanner(false)} 
                 onProcessComplete={handleScanComplete} 
-                userAddress={activeProperty?.address} 
+                userAddress={activeProperty?.address} // PRESERVED ADDRESS EXCLUSION LOGIC
                 analyzeImage={handleAnalyzeImage} 
             />
         )}
@@ -313,16 +315,29 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     useEffect(() => { if (editingRecord) setNewRecord(editingRecord); }, [editingRecord]);
     const handleChange = (e) => setNewRecord({...newRecord, [e.target.name]: e.target.value});
     
-    const handleAttachmentsChange = (files) => {
-        const placeholders = files.map(f => ({ name: f.name, size: f.size, type: f.type.includes('pdf') ? 'Document' : 'Photo', fileRef: f }));
+    // UPDATED: Handle PDF Thumbnail Generation
+    const handleAttachmentsChange = async (files) => {
+        const placeholders = await Promise.all(files.map(async f => {
+            const isPdf = f.type.includes('pdf');
+            let thumbnailBlob = null;
+            if (isPdf) {
+                thumbnailBlob = await generatePDFThumbnail(f);
+            }
+            return { 
+                name: f.name, 
+                size: f.size, 
+                type: isPdf ? 'Document' : 'Photo', 
+                fileRef: f,
+                thumbnailRef: thumbnailBlob // Store the generated thumbnail blob
+            };
+        }));
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
     // --- HELPER: SAFE PARSE COST ---
-    // Removes non-numeric characters (except dot) to prevent NaN errors
     const parseCost = (val) => {
         if (!val) return 0;
-        const clean = String(val).replace(/[^0-9.]/g, ''); // Strip $ , etc.
+        const clean = String(val).replace(/[^0-9.]/g, '');
         const num = parseFloat(clean);
         return isNaN(num) ? 0 : num;
     };
@@ -333,8 +348,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         try {
             let sharedImageUrl = null;
             let sharedFileType = 'Photo';
+            let sharedFileUrl = null;
             
-            // Try to find file in argument OR editingRecord context
             const fileToUpload = file || editingRecord?.attachments?.[0]?.fileRef;
 
             if (fileToUpload) {
@@ -343,8 +358,26 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 sharedFileType = isPdf ? 'Document' : 'Photo';
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
+                
+                // Upload the main file
                 await uploadBytes(storageRef, fileToUpload);
-                sharedImageUrl = await getDownloadURL(storageRef);
+                sharedFileUrl = await getDownloadURL(storageRef);
+
+                // UPDATED: Handle PDF Thumbnail for Batch Mode
+                if (isPdf) {
+                    // Generate a thumbnail specifically for this batch upload
+                    const thumbnailBlob = await generatePDFThumbnail(fileToUpload);
+                    if (thumbnailBlob) {
+                         const thumbFilename = `batch_scan_thumb_${Date.now()}.jpg`;
+                         const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${thumbFilename}`);
+                         await uploadBytes(thumbRef, thumbnailBlob);
+                         // Set the sharedImageUrl to the thumbnail, so cards show the preview
+                         sharedImageUrl = await getDownloadURL(thumbRef);
+                    }
+                } else {
+                    // If it's just a photo, the image URL is the file URL
+                    sharedImageUrl = sharedFileUrl;
+                }
             }
             
             const batch = writeBatch(db);
@@ -352,39 +385,33 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 
-                 // SAFETY: Ensure all fields are defined
                  const docData = { 
                      userId: user.uid, 
                      propertyId: activeProperty.id, 
                      propertyLocation: activeProperty.name, 
-                     
                      category: item.category || 'Other', 
                      item: item.item || 'Unknown Item', 
                      brand: item.brand || '', 
                      model: item.model || '', 
                      serialNumber: item.serial || '', 
-                     // Use SAFE parser here
                      cost: parseCost(item.cost), 
-                     
                      area: item.area || 'General', 
                      notes: item.notes || '', 
-                     // FIX: Use item.dateInstalled first, safe fallback to editingRecord
+                     // FIX: Safe fallbacks
                      dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: 'none', 
                      nextServiceDate: null, 
-                     
-                     // FIX: Safe fallbacks for contractor info
                      contractor: item.contractor || editingRecord?.contractor || '',
                      contractorPhone: editingRecord?.contractorPhone || '',
                      contractorEmail: editingRecord?.contractorEmail || '',
                      contractorAddress: editingRecord?.contractorAddress || '',
-                     
-                     // FIX: Safe fallback for warranty
                      warranty: item.warranty || editingRecord?.warranty || '',
-
-                     imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
-                     attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
+                     
+                     // Use the thumbnail URL if it exists, otherwise fall back to the photo URL or empty
+                     imageUrl: sharedImageUrl || '', 
+                     
+                     // Ensure the actual file is in attachments so it can be downloaded
+                     attachments: sharedFileUrl ? [{ name: fileToUpload.name || 'Scanned Source', type: sharedFileType, url: sharedFileUrl }] : [], 
                      timestamp: serverTimestamp() 
                 };
                 batch.set(newDocRef, docData);
@@ -393,37 +420,71 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             onSuccess();
         } catch (error) { 
             console.error("Batch Save Error:", error); 
-            // DIAGNOSTIC ERROR MESSAGE
             toast.error(`Save failed. Error: ${error.code || error.message}`); 
         } finally { setSaving(false); }
     };
 
+    // UPDATED: Handle Save Logic to include PDF Thumbnails
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
         try {
-            const processed = await Promise.all((newRecord.attachments||[]).map(async att => {
+            // Process attachments sequentially to handle async uploads
+            const finalAtts = [];
+            let coverUrl = '';
+
+            for (const att of (newRecord.attachments || [])) {
                 if (att.fileRef) {
+                    // It's a new file needing upload
                     try {
-                        let file = att.fileRef;
-                        if (file.type.startsWith('image/')) { const c = await compressImage(file); const r = await fetch(c); file = await r.blob(); }
-                        const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${Date.now()}_${att.name}`);
-                        await uploadBytes(fileRef, file);
-                        const url = await getDownloadURL(fileRef);
-                        return { name: att.name, size: att.size, type: att.type, url, dateAdded: new Date().toISOString() };
-                    } catch(e){ return null; }
+                        const timestamp = Date.now();
+                        // Upload Main File
+                        const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${timestamp}_${att.name}`);
+                        await uploadBytes(fileRef, att.fileRef);
+                        const mainUrl = await getDownloadURL(fileRef);
+
+                        let thumbnailUrl = null;
+                        // If it has a generated thumbnail (it's a PDF), upload that too
+                        if (att.thumbnailRef) {
+                             const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${timestamp}_thumb_${att.name}.jpg`);
+                             await uploadBytes(thumbRef, att.thumbnailRef);
+                             thumbnailUrl = await getDownloadURL(thumbRef);
+                             // Set this as the cover image if one isn't set yet
+                             if (!coverUrl) coverUrl = thumbnailUrl;
+                        } else if (att.type === 'Photo' && !coverUrl) {
+                            // If it's a regular photo and no cover yet, use it
+                             coverUrl = mainUrl;
+                        }
+
+                        // Add the main file to the attachments list
+                        finalAtts.push({ 
+                            name: att.name, 
+                            size: att.size, 
+                            type: att.type, 
+                            url: mainUrl, // The attachment URL is the actual file, not the thumbnail
+                            dateAdded: new Date().toISOString() 
+                        });
+
+                    } catch(e) { console.error("Failed to upload attachment", att.name, e); }
+                } else if (att.url) {
+                    // It's an existing attachment, just keep it
+                    finalAtts.push(att);
+                    // If it's a photo and we don't have a cover, use it
+                    if (att.type === 'Photo' && !coverUrl && !att.url.startsWith('blob:')) coverUrl = att.url;
                 }
-                if (att.url && !att.url.startsWith('blob:')) return att;
-                return null;
-            }));
+            }
             
-            const finalAtts = processed.filter(Boolean);
-            const cover = finalAtts.find(a=>a.type==='Photo')?.url||'';
             const { originalRequestId, id, isBatch, ...data } = newRecord;
-            
-            // Clean cost here too
             data.cost = parseCost(data.cost);
 
-            const payload = { ...data, attachments: finalAtts, imageUrl: cover, userId: user.uid, propertyLocation: activeProperty.name, propertyId: activeProperty.id, nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) };
+            const payload = { 
+                ...data, 
+                attachments: finalAtts, 
+                imageUrl: coverUrl || '', // Use the determined cover URL (either photo or PDF thumb)
+                userId: user.uid, 
+                propertyLocation: activeProperty.name, 
+                propertyId: activeProperty.id, 
+                nextServiceDate: calculateNextDate(data.dateInstalled, data.maintenanceFrequency) 
+            };
             
             if (editingRecord?.id) { 
                 await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', editingRecord.id), payload); 
@@ -436,7 +497,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             onSuccess();
         } catch (e) { 
             console.error(e); 
-            // DIAGNOSTIC ERROR MESSAGE
             toast.error(`Save failed. Error: ${e.code || e.message}`); 
         } finally { setSaving(false); }
     };
