@@ -48,32 +48,32 @@ export const useGemini = () => {
                 }
             }
 
-            // UPDATED PROMPT: WARRANTY LINE ITEMS + ADDRESS CLEANING
+            // UPDATED PROMPT: WARRANTY AS FIELD, CLEAN ADDRESS, BUNDLED COSTS
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
-                   - The Vendor is the company PERFORMING the service.
-                   - **LOCATION CUES**: Header (Top) or Footer.
-                   - **NEGATIVE CONSTRAINT**: Do NOT use the address "${excludeAddressString}". That is the client. If the only address matches this, return empty string.
-                   - **ADDRESS FORMATTING**: Ensure there is a space or comma between the Street and City (e.g. "123 Main St, Santa Ana" NOT "123 Main StSanta Ana"). Fix any concatenation issues.
+                   - Vendor is the company PERFORMING the service.
+                   - **NEGATIVE CONSTRAINT**: Do NOT use the address "${excludeAddressString}". That is the client. If only that address is found, return empty string for vendor address.
+                   - **ADDRESS CLEANING**: Check for missing spaces between Street and City (e.g. "123 Main StSanta Ana"). Insert a space if needed ("123 Main St, Santa Ana").
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS**:
-                   - Look for physical equipment (HVAC, Water Heater, Appliances).
-                   - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create TWO separate items.
+                   - Look for physical equipment (HVAC units, Water Heaters, Appliances).
+                   - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
+                   - **EXCLUDE**: Do NOT create items for warranties, labor, permits, or miscellaneous materials.
                 
-                3. **EXTRACT WARRANTIES AS ITEMS**:
-                   - Look for text like "10 year parts warranty" or "2 year labor warranty".
-                   - **ACTION**: Create a NEW ITEM in the 'items' list for EACH distinct warranty period found.
-                   - **NAMING**: Name them clearly, e.g. "Parts Warranty (10 Year)" and "Labor Warranty (2 Year)".
-                   - **CATEGORY**: Set category to "Service & Repairs" or "Other".
-                   - **COST**: Set cost to 0.00.
+                3. **EXTRACT WARRANTY INFO**:
+                   - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
+                   - Return this as a single string in the "warranty" field. Do NOT make it a line item.
                 
-                4. **EXTRACT COSTS**:
-                   - If "Amount Due" is $0 (paid), use "Job Total".
+                4. **EXTRACT COSTS (BUNDLED LOGIC)**:
+                   - If the invoice lists a single "Job Total" (e.g. $11,000) for a system installation, but lists components (Air Handler, Condenser) without individual prices:
+                   - Assign the **FULL** cost to the MAIN unit (e.g. the Condenser or Heat Pump).
+                   - Assign **0.00** to the secondary components (e.g. Air Handler, Coil) to avoid inflating the total.
+                   - Ensure the sum of item costs roughly equals the Job Total.
                 
-                5. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
+                5. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
                 Return JSON:
                 {
@@ -84,6 +84,7 @@ export const useGemini = () => {
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
+                  "warranty": "String",
                   "items": [
                     { 
                       "item": "String", 
@@ -116,6 +117,7 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
+            data.warranty = String(data.warranty || ''); // Capture global warranty
             
             // Clean up items
             data.items = data.items.map(item => ({
@@ -123,7 +125,9 @@ export const useGemini = () => {
                 item: toProperCase(String(item.item || 'Unknown Item')),
                 brand: toProperCase(String(item.brand || '')),
                 category: item.category || "Other",
-                cost: item.cost || 0
+                cost: item.cost || 0,
+                // Ensure the global warranty is applied if the item doesn't have a specific one
+                warranty: item.warranty || data.warranty 
             }));
 
             return data;
