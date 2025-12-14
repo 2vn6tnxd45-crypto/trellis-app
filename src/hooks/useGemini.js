@@ -38,15 +38,15 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // UPDATED PROMPT: DYNAMIC VENDOR DETECTION
+            // UPDATED PROMPT: STRICTER VENDOR VS CUSTOMER LOGIC
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - The Vendor is the company PERFORMING the service (e.g., "Allied Pest Control", "Prime HVAC").
-                   - Look for logos or business names at the VERY TOP of the document.
-                   - Look for keywords: LLC, Inc, Corp, HVAC, Pest, Plumbing, Electric.
-                   - CRITICAL: Do NOT confuse with the "Bill To", "Sold To", or "Customer" section. The person listed under "Bill To" is the USER, not the contractor.
+                   - **LOCATION CUES**: Vendor info is usually in the **HEADER** (Top Left/Center/Right) or **FOOTER**.
+                   - **NEGATIVE CONSTRAINT**: Do NOT extract names/addresses labeled "Bill To", "Sold To", "Customer", "Client", or "Service Address". That is the user; we do NOT want that.
+                   - **KEYWORDS**: Look for "Remit To", "Pay To", or text near a logo.
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
@@ -66,10 +66,10 @@ export const useGemini = () => {
 
                 Return JSON:
                 {
-                  "vendorName": "String",
-                  "vendorPhone": "String",
-                  "vendorEmail": "String",
-                  "vendorAddress": "String",
+                  "vendorName": "String (The Service Provider)",
+                  "vendorPhone": "String (Provider's Phone)",
+                  "vendorEmail": "String (Provider's Email)",
+                  "vendorAddress": "String (Provider's Office Address)",
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
@@ -77,7 +77,7 @@ export const useGemini = () => {
                   "items": [
                     { 
                       "item": "Specific Equipment Name (e.g. Trane Air Handler)", 
-                      "category": "String",
+                      "category": "String (Pick best from: ${categoriesStr})",
                       "brand": "String", 
                       "model": "String", 
                       "serial": "String",
