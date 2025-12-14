@@ -144,4 +144,4 @@ export const useGemini = () => {
     const getCountyRecordGuide = async (county, state) => { return null; };
 
     return { suggestMaintenance, scanReceipt, scanRoom, getCountyRecordGuide, isSuggesting, isScanning, isSearching };
-};
+}; 
