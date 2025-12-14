@@ -10,7 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Maintenance suggestion logic (unchanged)
+    // Maintenance suggestion logic
     const suggestMaintenance = async (record) => {
         if (!geminiModel || (!record.item && !record.category)) return null;
         setIsSuggesting(true);
@@ -26,7 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // UPDATED SCANNER LOGIC: Now accepts userAddress
+    // THE ROBUST SCANNER LOGIC
     const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -44,34 +44,34 @@ export const useGemini = () => {
                 if (typeof userAddress === 'string') {
                     excludeAddressString = userAddress;
                 } else if (typeof userAddress === 'object') {
-                    // Combine parts: "123 Main St, Springfield, IL 62704"
                     excludeAddressString = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
                 }
             }
 
-            // UPDATED PROMPT: DYNAMIC EXCLUSION
+            // UPDATED PROMPT: WARRANTY LINE ITEMS + ADDRESS CLEANING
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - The Vendor is the company PERFORMING the service.
-                   - **LOCATION CUES**: Look for logos or bold text at the very TOP (Header) or very BOTTOM (Footer).
-                   - **NEGATIVE CONSTRAINT (CRITICAL)**: Do NOT use the address "${excludeAddressString}" or any variation of it. That is the Client/Homeowner. If the only address you find matches this, return an empty string for the vendor address.
-                   - **IGNORE**: "Bill To", "Sold To", "Ship To", "Service Address".
+                   - **LOCATION CUES**: Header (Top) or Footer.
+                   - **NEGATIVE CONSTRAINT**: Do NOT use the address "${excludeAddressString}". That is the client. If the only address matches this, return empty string.
+                   - **ADDRESS FORMATTING**: Ensure there is a space or comma between the Street and City (e.g. "123 Main St, Santa Ana" NOT "123 Main StSanta Ana"). Fix any concatenation issues.
                    - Extract: Vendor Name, Phone, Email, Address.
                 
-                2. **EXTRACT PHYSICAL ITEMS (SPLIT LOGIC)**:
-                   - Look for physical equipment (HVAC, Water Heater, Appliances) or Services.
-                   - **SPLIT RULE**: If a single line item lists multiple pieces of equipment with distinct Model numbers (e.g. "Air Handler Model X" AND "Heat Pump Model Y"), create TWO separate items.
-                   - **IGNORE**: Do NOT create separate items for "Warranty", "Labor", "Demo", "Permits", or "Misc Materials" unless they are the only things on the invoice.
+                2. **EXTRACT PHYSICAL ITEMS**:
+                   - Look for physical equipment (HVAC, Water Heater, Appliances).
+                   - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create TWO separate items.
                 
-                3. **EXTRACT COSTS**:
-                   - If "Amount Due" is $0 (paid), use "Job Total" or "Subtotal".
-                   - If items were split, try to estimate the cost split or assign the total cost to the main unit and $0 to the secondary unit.
+                3. **EXTRACT WARRANTIES AS ITEMS**:
+                   - Look for text like "10 year parts warranty" or "2 year labor warranty".
+                   - **ACTION**: Create a NEW ITEM in the 'items' list for EACH distinct warranty period found.
+                   - **NAMING**: Name them clearly, e.g. "Parts Warranty (10 Year)" and "Labor Warranty (2 Year)".
+                   - **CATEGORY**: Set category to "Service & Repairs" or "Other".
+                   - **COST**: Set cost to 0.00.
                 
-                4. **EXTRACT WARRANTY**:
-                   - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
-                   - Combine into a single string.
+                4. **EXTRACT COSTS**:
+                   - If "Amount Due" is $0 (paid), use "Job Total".
                 
                 5. **PRIMARY JOB**: Short summary title (e.g. "HVAC System Replacement").
 
@@ -84,11 +84,10 @@ export const useGemini = () => {
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
-                  "warranty": "String",
                   "items": [
                     { 
                       "item": "String", 
-                      "category": "String (Best fit from: ${categoriesStr})",
+                      "category": "String (Best match from: ${categoriesStr})",
                       "brand": "String", 
                       "model": "String", 
                       "serial": "String",
@@ -117,7 +116,6 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
-            data.warranty = String(data.warranty || '');
             
             // Clean up items
             data.items = data.items.map(item => ({
