@@ -10,7 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Maintenance suggestion logic (Unchanged)
+    // Maintenance suggestion logic (Preserved)
     const suggestMaintenance = async (record) => {
         if (!geminiModel || (!record.item && !record.category)) return null;
         setIsSuggesting(true);
@@ -26,7 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // THE ROBUST SCANNER LOGIC
+    // --- UPDATED SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -75,19 +75,19 @@ export const useGemini = () => {
                    - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
                    - **EXCLUDE**: Do NOT create items for warranties, labor, permits, or miscellaneous materials.
 
-                3. **DETERMINE MAINTENANCE SCHEDULE**:
-                   - Based on the item type, determine the industry standard maintenance frequency.
-                   - Use ONLY these values: 'monthly', 'quarterly', 'semiannual', 'annual', 'biennial', 'none'.
-                   - Examples: HVAC = 'semiannual' or 'annual'. Water Heater = 'annual'. Roof = 'annual'. Fridge = 'annual'.
-                   - If it is a service/repair invoice, set frequency to 'annual' to prompt a check-up.
-                
-                4. **EXTRACT WARRANTY INFO**:
+                3. **EXTRACT WARRANTY INFO**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
                    - Return this as a single string in the "warranty" field.
                 
-                5. **EXTRACT COSTS**:
+                4. **EXTRACT COSTS**:
                    - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
                    - Assign 0.00 to secondary components to avoid double-counting.
+                
+                5. **INTELLIGENT MAINTENANCE TASKS (CRITICAL)**:
+                   - Based on the item, suggest specific maintenance tasks.
+                   - Example: If HVAC, suggest "Replace Filter" (quarterly) AND "Professional Tune-up" (annual).
+                   - Example: If Refrigerator, suggest "Clean Coils" (annual) AND "Change Water Filter" (semiannual).
+                   - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
                 6. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
@@ -109,8 +109,15 @@ export const useGemini = () => {
                       "model": "String", 
                       "serial": "String",
                       "cost": 0.00,
-                      "maintenanceFrequency": "String (one of the allowed values)",
-                      "maintenanceNotes": "String (e.g. 'Recommended Annual Tune-up')"
+                      "maintenanceFrequency": "String (overall frequency)",
+                      "maintenanceNotes": "String",
+                      "suggestedTasks": [
+                        {
+                            "task": "String (e.g. Change Filter)",
+                            "frequency": "String (quarterly, annual, etc)",
+                            "firstDueDate": "YYYY-MM-DD"
+                        }
+                      ]
                     }
                   ]
                 }
@@ -135,7 +142,6 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
-            data.warranty = String(data.warranty || '');
             
             // Clean up items
             data.items = data.items.map(item => ({
@@ -144,9 +150,11 @@ export const useGemini = () => {
                 brand: toProperCase(String(item.brand || '')),
                 category: item.category || "Other",
                 cost: item.cost || 0,
-                warranty: item.warranty || data.warranty,
-                maintenanceFrequency: item.maintenanceFrequency || 'none',
-                maintenanceNotes: item.maintenanceNotes || ''
+                warranty: item.warranty || data.warranty || '',
+                maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                maintenanceNotes: item.maintenanceNotes || '',
+                // NEW: Ensure tasks array is present
+                suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
             }));
 
             return data;
