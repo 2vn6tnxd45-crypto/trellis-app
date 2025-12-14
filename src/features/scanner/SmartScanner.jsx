@@ -19,7 +19,8 @@ const ScanningOverlay = () => (
     </div>
 );
 
-export const SmartScanner = ({ onClose, onProcessComplete }) => {
+// UPDATED: Added userAddress prop
+export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
   const [image, setImage] = useState(null);
   const [fileObj, setFileObj] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -65,7 +66,9 @@ export const SmartScanner = ({ onClose, onProcessComplete }) => {
   const analyzeImage = async (file, base64) => {
     setIsAnalyzing(true); setError(null);
     try {
-      const result = await scanReceipt(file, base64);
+      // UPDATED: Pass userAddress to the scanner logic
+      const result = await scanReceipt(file, base64, userAddress);
+      
       if (!result) throw new Error("Analysis returned no data");
       
       const safeItems = Array.isArray(result.items) ? result.items : [];
