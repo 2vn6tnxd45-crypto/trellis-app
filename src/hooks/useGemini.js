@@ -10,7 +10,7 @@ export const useGemini = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
-    // Maintenance suggestion logic
+    // Maintenance suggestion logic (Unchanged)
     const suggestMaintenance = async (record) => {
         if (!geminiModel || (!record.item && !record.category)) return null;
         setIsSuggesting(true);
@@ -38,31 +38,36 @@ export const useGemini = () => {
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
 
-            // --- FIX START: ROBUST ADDRESS EXCLUSION ---
-            let excludeAddressString = "";
-            let excludeParts = []; 
+            // --- REFINED ADDRESS EXCLUSION ---
+            // Only exclude the specific street address to avoid blocking local pros in the same city.
+            let userStreet = "";
+            let fullUserAddress = "";
+            
             if (userAddress) {
                 if (typeof userAddress === 'string') {
-                    excludeAddressString = userAddress;
-                    excludeParts.push(userAddress.split(',')[0]); // Take first part as fuzzy match
+                    fullUserAddress = userAddress;
+                    // Try to grab just the street part (e.g., "123 Main St")
+                    userStreet = userAddress.split(',')[0]; 
                 } else if (typeof userAddress === 'object') {
-                    excludeAddressString = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
-                    if (userAddress.street) excludeParts.push(userAddress.street);
-                    if (userAddress.city) excludeParts.push(userAddress.city);
+                    fullUserAddress = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
+                    userStreet = userAddress.street || "";
                 }
             }
-            // --- FIX END ---
+            // --------------------------------
 
-            // UPDATED PROMPT: MAINTENANCE SCHEDULE, WARRANTY, CLEAN ADDRESS, BUNDLED COSTS
+            // UPDATED PROMPT: CONTEXT AWARENESS OVER BLUNT FORCE
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - Vendor is the company PERFORMING the service.
-                   - **NEGATIVE CONSTRAINT**: The address "${excludeAddressString}" is the Client/Homeowner (Bill To). 
-                   - **CRITICAL**: Do NOT return this address as the Vendor Address. Even if it is the only address found, return empty string.
-                   - **FUZZY CHECK**: Ignore addresses containing "${excludeParts[0] || '#######'}" if they appear in a "Bill To" or "Ship To" section.
-                   - **ADDRESS CLEANING**: Check for missing spaces between Street and City (e.g. "123 Main StSanta Ana"). Insert a space if needed ("123 Main St, Santa Ana").
+                   - **CONTEXT CLUES**: Vendor address is usually at the TOP (near logo) or BOTTOM (footer).
+                   - **USER ADDRESS**: The address "${fullUserAddress}" is the Homeowner. It will likely appear under "Bill To", "Ship To", or "Service Address".
+                   - **EXCLUSION LOGIC**: 
+                     - Do NOT return an address if it is explicitly labeled "Bill To" or "Service Location".
+                     - Do NOT return an address if it starts with "${userStreet}" (Street Number + Name match).
+                     - **ALLOW**: You MUST allow addresses in the same City/State/Zip as the user, as long as the street is different.
+                   - **ADDRESS CLEANING**: Check for missing spaces (e.g. "123 Main StSanta Ana" -> "123 Main St, Santa Ana").
                    - Extract: Vendor Name, Phone, Email, Address.
                 
                 2. **EXTRACT PHYSICAL ITEMS**:
@@ -70,7 +75,7 @@ export const useGemini = () => {
                    - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
                    - **EXCLUDE**: Do NOT create items for warranties, labor, permits, or miscellaneous materials.
 
-                3. **DETERMINE MAINTENANCE SCHEDULE (CRITICAL)**:
+                3. **DETERMINE MAINTENANCE SCHEDULE**:
                    - Based on the item type, determine the industry standard maintenance frequency.
                    - Use ONLY these values: 'monthly', 'quarterly', 'semiannual', 'annual', 'biennial', 'none'.
                    - Examples: HVAC = 'semiannual' or 'annual'. Water Heater = 'annual'. Roof = 'annual'. Fridge = 'annual'.
@@ -78,13 +83,11 @@ export const useGemini = () => {
                 
                 4. **EXTRACT WARRANTY INFO**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
-                   - Return this as a single string in the "warranty" field. Do NOT make it a line item.
+                   - Return this as a single string in the "warranty" field.
                 
-                5. **EXTRACT COSTS (BUNDLED LOGIC)**:
-                   - If the invoice lists a single "Job Total" (e.g. $11,000) for a system installation, but lists components (Air Handler, Condenser) without individual prices:
-                   - Assign the **FULL** cost to the MAIN unit (e.g. the Condenser or Heat Pump).
-                   - Assign **0.00** to the secondary components (e.g. Air Handler, Coil) to avoid inflating the total.
-                   - Ensure the sum of item costs roughly equals the Job Total.
+                5. **EXTRACT COSTS**:
+                   - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
+                   - Assign 0.00 to secondary components to avoid double-counting.
                 
                 6. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
@@ -132,7 +135,7 @@ export const useGemini = () => {
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
-            data.warranty = String(data.warranty || ''); // Capture global warranty
+            data.warranty = String(data.warranty || '');
             
             // Clean up items
             data.items = data.items.map(item => ({
@@ -141,7 +144,6 @@ export const useGemini = () => {
                 brand: toProperCase(String(item.brand || '')),
                 category: item.category || "Other",
                 cost: item.cost || 0,
-                // Ensure the global warranty is applied if the item doesn't have a specific one
                 warranty: item.warranty || data.warranty,
                 maintenanceFrequency: item.maintenanceFrequency || 'none',
                 maintenanceNotes: item.maintenanceNotes || ''
