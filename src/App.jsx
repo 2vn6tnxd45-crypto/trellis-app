@@ -170,15 +170,13 @@ const AppContent = () => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
         const base64 = await fileToBase64(blob);
-        // UPDATED: Pass activeProperty.address to scanReceipt via handleAnalyzeImage if needed, 
-        // but SmartScanner now handles this via the userAddress prop directly.
+        // Pass activeProperty.address so Gemini can exclude it from vendor detection
         return await scanReceipt(blob, base64, activeProperty?.address);
     }, [scanReceipt, activeProperty]);
 
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
         // CRITICAL FIX: Use the attachments passed from SmartScanner because they contain the fileRef.
-        // We do NOT want to rebuild them here or we lose the file object.
         const validAttachments = extractedData.attachments || [];
 
         // Check if multiple items found
@@ -187,6 +185,7 @@ const AppContent = () => {
             setEditingRecord({
                 isBatch: true,
                 items: extractedData.items,
+                // Default fallback date if items don't have one
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
                 contractor: extractedData.store || '',
                 // Pass rich contractor data
@@ -370,17 +369,19 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      
                      area: item.area || 'General', 
                      notes: item.notes || '', 
-                     dateInstalled: editingRecord.dateInstalled || new Date().toISOString().split('T')[0], 
+                     // FIX: Use item.dateInstalled first, safe fallback to editingRecord
+                     dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: 'none', 
                      nextServiceDate: null, 
                      
-                     contractor: item.contractor || editingRecord.contractor || '',
-                     contractorPhone: editingRecord.contractorPhone || '',
-                     contractorEmail: editingRecord.contractorEmail || '',
-                     contractorAddress: editingRecord.contractorAddress || '',
+                     // FIX: Safe fallbacks for contractor info
+                     contractor: item.contractor || editingRecord?.contractor || '',
+                     contractorPhone: editingRecord?.contractorPhone || '',
+                     contractorEmail: editingRecord?.contractorEmail || '',
+                     contractorAddress: editingRecord?.contractorAddress || '',
                      
-                     // SAVE WARRANTY FIELD
-                     warranty: item.warranty || editingRecord.warranty || '',
+                     // FIX: Safe fallback for warranty
+                     warranty: item.warranty || editingRecord?.warranty || '',
 
                      imageUrl: (sharedFileType === 'Photo') ? (sharedImageUrl || '') : '', 
                      attachments: sharedImageUrl ? [{ name: 'Scanned Source', type: sharedFileType, url: sharedImageUrl }] : [], 
