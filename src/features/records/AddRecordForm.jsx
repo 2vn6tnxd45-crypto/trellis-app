@@ -1,6 +1,6 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info, ScanLine, ArrowLeft, CheckCircle2, Image as ImageIcon, AlertTriangle } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info, ScanLine, ArrowLeft, CheckCircle2, Image as ImageIcon, AlertTriangle, ExternalLink } from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
@@ -207,7 +207,82 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     )}
                     {(step === 2 || isEditing) && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                            {localAttachments.length > 0 && localAttachments[0].preview && (<div className="w-full h-40 bg-slate-100 rounded-xl overflow-hidden relative mb-4"><img src={localAttachments[0].preview} alt="Preview" className="w-full h-full object-cover" /><button type="button" onClick={() => removeAttachment(0)} className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-red-500"><X size={14}/></button></div>)}
+                            
+                            {/* ATTACHMENT GALLERY (Supports Preview & Existing URLs) */}
+                            {localAttachments.length > 0 && (
+                                <div className="space-y-3 mb-4">
+                                    <div className="flex justify-between items-end">
+                                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Attached Documents</label>
+                                        <button type="button" onClick={() => photoInputRef.current?.click()} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center">
+                                            <PlusCircle size={14} className="mr-1"/> Add Another
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {localAttachments.map((att, index) => {
+                                            const displayUrl = att.preview || att.url;
+                                            const isImage = (att.type?.includes('image') || att.type === 'Photo') || (displayUrl && (displayUrl.includes('.jpg') || displayUrl.includes('.png') || displayUrl.includes('.jpeg')));
+                                            
+                                            return (
+                                                <div key={index} className="relative group bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                                                    {/* Preview Area */}
+                                                    <div className="h-32 bg-slate-100 flex items-center justify-center relative overflow-hidden">
+                                                        {displayUrl && isImage ? (
+                                                            <img 
+                                                                src={displayUrl} 
+                                                                alt={att.name} 
+                                                                className="w-full h-full object-cover" 
+                                                            />
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                                                                <FileText className="h-8 w-8 mb-2" />
+                                                                <span className="text-[10px] font-bold uppercase">Document</span>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Overlay Actions */}
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2">
+                                                            {displayUrl && (
+                                                                <a 
+                                                                    href={displayUrl} 
+                                                                    target="_blank" 
+                                                                    rel="noreferrer" 
+                                                                    className="p-2 bg-white rounded-full text-slate-700 shadow-sm hover:text-emerald-600 hover:scale-110 transition-all"
+                                                                    title="View Original"
+                                                                >
+                                                                    <ExternalLink size={16} />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Footer info */}
+                                                    <div className="p-2 bg-white border-t border-slate-100 flex justify-between items-center">
+                                                        <span className="text-xs font-bold text-slate-700 truncate max-w-[80%]">{att.name || 'File'}</span>
+                                                        <button 
+                                                            type="button" 
+                                                            onClick={() => removeAttachment(index)} 
+                                                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Fallback add button if no attachments */}
+                            {localAttachments.length === 0 && (
+                                <button type="button" onClick={() => photoInputRef.current?.click()} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all flex items-center justify-center gap-2">
+                                    <Paperclip size={16} /> Attach Photo or Document
+                                </button>
+                            )}
+                            
+                            {/* Hidden Input for adding more files */}
+                            <input ref={photoInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handlePhotoUpload} />
+
                             <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">What is it? *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. Living Room Sofa" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-4 border focus:ring-emerald-500 focus:bg-white transition-all font-bold text-lg text-slate-800 placeholder:font-normal"/></div>
                             <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Category *</label><div className="relative"><select name="category" value={newRecord.category} onChange={onInputChange} required className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium"><option value="" disabled>Select...</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select><ChevronDown size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/></div></div><div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Area *</label>{!isCustomArea ? (<div className="relative"><select name="area" value={ROOMS.includes(newRecord.area) ? newRecord.area : ""} onChange={handleRoomChange} required className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 appearance-none text-sm font-medium"><option value="" disabled>Select...</option>{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}<option value="Other (Custom)">Other...</option></select><ChevronDown size={16} className="absolute right-3 top-3.5 text-slate-400 pointer-events-none"/></div>) : (<div className="flex"><input type="text" name="area" value={newRecord.area} onChange={onInputChange} required autoFocus placeholder="Name..." className="block w-full rounded-l-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm"/><button type="button" onClick={() => {setIsCustomArea(false); onInputChange({target:{name:'area', value:''}})}} className="px-3 bg-slate-100 border border-l-0 border-slate-200 rounded-r-xl hover:bg-slate-200"><X size={16}/></button></div>)}</div></div>
                             <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Date Installed</label><input type="date" name="dateInstalled" value={newRecord.dateInstalled} onChange={onInputChange} className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm text-slate-600"/></div>
