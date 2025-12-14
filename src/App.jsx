@@ -15,7 +15,7 @@ import { generatePDFThumbnail } from './lib/pdfUtils';
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
-import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; // Ensure this is imported!
+import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
 import './styles/krib-theme.css'; 
@@ -68,8 +68,12 @@ const AppContent = () => {
     const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
+    
+    // Quick Service State
     const [quickServiceRecord, setQuickServiceRecord] = useState(null);
+    const [quickServiceDescription, setQuickServiceDescription] = useState(''); // NEW STATE
     const [showQuickService, setShowQuickService] = useState(false);
+    
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
     
     // Scanner & Celebration
@@ -96,6 +100,7 @@ const AppContent = () => {
         return acc;
     }, {}));
 
+    // ... (Keep useEffects for auth and data loading)
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -140,6 +145,7 @@ const AppContent = () => {
         setDueTasks(upcoming);
     }, [records, activeProperty]);
 
+    // ... (Keep existing handlers: handleAuth, handleSaveProperty, etc.)
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     const handleSaveProperty = async (formData) => {
         if (!user) return;
@@ -160,19 +166,62 @@ const AppContent = () => {
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
     const handleDismissWelcome = async () => { setHasSeenWelcome(true); if (user) updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { hasSeenWelcome: true }); };
-    const handleOpenQuickService = (record) => { setQuickServiceRecord(record); setShowQuickService(true); };
-    const handleCloseQuickService = () => { setShowQuickService(false); setQuickServiceRecord(null); };
+    
+    // UPDATED: Handle Open Quick Service (now accepts description)
+    const handleOpenQuickService = (record) => { setQuickServiceRecord(record); setQuickServiceDescription(''); setShowQuickService(true); };
+    const handleCloseQuickService = () => { setShowQuickService(false); setQuickServiceRecord(null); setQuickServiceDescription(''); };
+    
     const handleGuidedOnboardingAddItem = async (item) => addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'house_records'), { ...item, userId: user.uid, propertyId: activeProperty?.id || 'legacy', propertyLocation: activeProperty?.name, timestamp: serverTimestamp() });
     const handleGuidedOnboardingComplete = () => { setShowGuidedOnboarding(false); handleDismissWelcome(); };
     const handleTabChange = (tabId) => tabId === 'More' ? setShowMoreMenu(true) : setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { setActiveTab(dest); setShowMoreMenu(false); };
 
-    // --- INTEGRATED SCANNER LOGIC ---
+    // --- NEW: HANDLE BOOKING FROM DASHBOARD ---
+    const handleBookService = (task) => {
+        const record = records.find(r => r.id === task.recordId);
+        if (!record) return;
+        
+        setQuickServiceRecord(record);
+        setQuickServiceDescription(`Maintenance: ${task.taskName || 'General Service'}`);
+        setShowQuickService(true);
+    };
+
+    // --- NEW: HANDLE MARK DONE FROM DASHBOARD ---
+    const handleMarkTaskDone = async (task) => {
+        try {
+            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
+            const record = records.find(r => r.id === task.recordId);
+            if (!record) return;
+            
+            const now = new Date().toISOString().split('T')[0];
+            const nextDate = calculateNextDate(now, task.frequency || 'annual');
+
+            if (task.isGranular) {
+                // Update specific task in the maintenanceTasks array
+                const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                    if (t.task === task.taskName) {
+                        return { ...t, nextDue: nextDate };
+                    }
+                    return t;
+                });
+                await updateDoc(recordRef, { maintenanceTasks: updatedTasks });
+            } else {
+                // Legacy: update dateInstalled to effectively reset the cycle
+                await updateDoc(recordRef, { dateInstalled: now }); 
+            }
+            toast.success("Maintenance recorded!");
+            celebrations.showToast("Task Complete!", Check);
+        } catch (e) {
+            console.error(e);
+            toast.error("Failed to update");
+        }
+    };
+
+    // ... (Keep handleAnalyzeImage and handleScanComplete)
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
         const base64 = await fileToBase64(blob);
-        // Pass activeProperty.address so Gemini can exclude it from vendor detection
         return await scanReceipt(blob, base64, activeProperty?.address);
     }, [scanReceipt, activeProperty]);
 
@@ -180,9 +229,7 @@ const AppContent = () => {
         setShowScanner(false);
         const validAttachments = extractedData.attachments || [];
 
-        // Helper to calculate date based on AI suggestion
         const processMaintenance = (freq, installDate) => {
-            // Default to annual for "big ticket" items to ensure contractor gets a ping
             const finalFreq = freq || 'annual'; 
             return {
                 frequency: finalFreq,
@@ -190,9 +237,7 @@ const AppContent = () => {
             };
         };
 
-        // Check if multiple items found
         if (extractedData.items && extractedData.items.length > 0) {
-            // Batch Mode Logic
             const processedItems = extractedData.items.map(item => {
                 const maint = processMaintenance(item.maintenanceFrequency, extractedData.date);
                 return {
@@ -200,26 +245,23 @@ const AppContent = () => {
                     maintenanceFrequency: maint.frequency,
                     nextServiceDate: maint.nextDate,
                     notes: item.notes || '',
-                    maintenanceTasks: item.maintenanceTasks || [] // Pass tasks through
+                    maintenanceTasks: item.maintenanceTasks || [] 
                 };
             });
 
             setEditingRecord({
                 isBatch: true,
                 items: processedItems,
-                // Default fallback date if items don't have one
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
                 contractor: extractedData.store || '',
-                // Pass rich contractor data
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
-                warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
+                warranty: extractedData.warranty || '', 
                 attachments: validAttachments
             });
             toast.success(`Found ${extractedData.items.length} items with maintenance schedules!`, { icon: '📅' });
         } else {
-            // Single Mode Logic
             const singleItem = extractedData.items?.[0] || {};
             const maint = processMaintenance(singleItem.maintenanceFrequency || 'annual', extractedData.date);
 
@@ -230,19 +272,15 @@ const AppContent = () => {
                 model: singleItem.model || extractedData.model || '',
                 cost: singleItem.cost || extractedData.cost || '',
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
-                
-                // Auto-set maintenance
                 maintenanceFrequency: maint.frequency,
                 nextServiceDate: maint.nextDate,
                 notes: singleItem.notes || '',
-                maintenanceTasks: singleItem.maintenanceTasks || [], // Pass tasks
-
-                // Pass rich contractor data
+                maintenanceTasks: singleItem.maintenanceTasks || [], 
                 contractor: extractedData.store || '',
                 contractorPhone: extractedData.contractorPhone,
                 contractorEmail: extractedData.contractorEmail,
                 contractorAddress: extractedData.contractorAddress,
-                warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
+                warranty: extractedData.warranty || '', 
                 attachments: validAttachments
             });
             toast.success(`Maintenance schedule created for ${extractedData.store || 'contractor'}`, { icon: '🤝' });
@@ -281,12 +319,13 @@ const AppContent = () => {
             <SmartScanner 
                 onClose={() => setShowScanner(false)} 
                 onProcessComplete={handleScanComplete} 
-                userAddress={activeProperty?.address} // PRESERVED ADDRESS EXCLUSION LOGIC
+                userAddress={activeProperty?.address} 
                 analyzeImage={handleAnalyzeImage} 
             />
         )}
 
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
+            {/* Header (Keep as is) */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
                 <div className="relative z-10 flex items-center">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors group">
@@ -316,14 +355,15 @@ const AppContent = () => {
                             onNavigateToItems={() => setActiveTab('Items')} 
                             onNavigateToContractors={() => setActiveTab('Contractors')} 
                             onNavigateToReports={() => setActiveTab('Reports')} 
-                            // UPDATED: Now navigates to a real Maintenance tab
                             onNavigateToMaintenance={() => setActiveTab('Maintenance')} 
-                            onCreateContractorLink={() => handleOpenQuickService(null)} 
+                            onCreateContractorLink={() => handleOpenQuickService(null)}
+                            // PASSING NEW HANDLERS
+                            onBookService={handleBookService}
+                            onMarkTaskDone={handleMarkTaskDone}
                         />
                     </FeatureErrorBoundary>
                 )}
                 
-                {/* NEW: MAINTENANCE TAB LOGIC */}
                 {activeTab === 'Maintenance' && (
                     <FeatureErrorBoundary label="Maintenance Schedule">
                         <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
@@ -340,6 +380,7 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
+                {/* (Keep other tabs Items, Contractors, Reports etc.) */}
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
@@ -364,13 +405,25 @@ const AppContent = () => {
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
             {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} existingRecords={records} /></div></div>}
-            {showQuickService && <QuickServiceRequest record={quickServiceRecord} userId={user.uid} propertyName={activeProperty?.name} propertyAddress={activeProperty?.address} onClose={handleCloseQuickService} />}
+            
+            {/* UPDATED QUICK SERVICE MODAL */}
+            {showQuickService && (
+                <QuickServiceRequest 
+                    record={quickServiceRecord} 
+                    userId={user.uid} 
+                    propertyName={activeProperty?.name} 
+                    propertyAddress={activeProperty?.address} 
+                    onClose={handleCloseQuickService} 
+                    initialDescription={quickServiceDescription} // PASS DESCRIPTION
+                />
+            )}
         </div>
         </>
     );
 };
 
-// --- WRAPPER ADD RECORD (Handles Save Logic) ---
+// ... (WrapperAddRecord remains the same)
+// ... (WrapperAddRecord remains unchanged from previous verified version)
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
