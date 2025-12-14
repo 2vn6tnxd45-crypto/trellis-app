@@ -21,19 +21,28 @@ const MAINTENANCE_FREQUENCIES = [
     { value: 'none', label: 'No maintenance', months: 0 },
 ];
 
+// Helper: Safely parse a date
+const safeDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+};
+
 const getNextServiceDate = (record) => {
     if (!record?.dateInstalled || record?.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
     if (!freq || freq.months === 0) return null;
     
     try {
-        const installed = new Date(record.dateInstalled);
-        if (isNaN(installed.getTime())) return null;
+        const installed = safeDate(record.dateInstalled);
+        if (!installed) return null;
         
         const next = new Date(installed);
         next.setMonth(next.getMonth() + freq.months);
         
         const now = new Date();
+        // Project forward to next future date if overdue logic is desired, 
+        // otherwise just return the calculated next date
         while (next < now) next.setMonth(next.getMonth() + freq.months);
         
         return next;
@@ -43,7 +52,7 @@ const getNextServiceDate = (record) => {
 };
 
 const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return '$0';
+    if (typeof amount !== 'number' || isNaN(amount)) return '$0';
     try {
         return new Intl.NumberFormat('en-US', { 
             style: 'currency', 
@@ -74,6 +83,12 @@ const getGreeting = () => {
 // --- SUB-COMPONENTS ---
 
 const HealthScoreCard = ({ breakdown, score }) => {
+    const safeBreakdown = breakdown || { 
+        maintenance: { penalty: 0 }, 
+        upcoming: { penalty: 0 }, 
+        coverage: { penalty: 0 } 
+    };
+
     return (
         <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
             <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
@@ -84,31 +99,31 @@ const HealthScoreCard = ({ breakdown, score }) => {
             <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Wrench size={16} className={breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
+                        <Wrench size={16} className={safeBreakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
                         <span className="font-medium text-slate-600">Maintenance</span>
                     </div>
-                    <span className={`font-bold ${breakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
-                        {breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : "Good"}
+                    <span className={`font-bold ${safeBreakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
+                        {safeBreakdown.maintenance.penalty > 0 ? `-${safeBreakdown.maintenance.penalty}` : "Good"}
                     </span>
                 </div>
                 
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Clock size={16} className={breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-300"} />
+                        <Clock size={16} className={safeBreakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-300"} />
                         <span className="font-medium text-slate-600">Upcoming</span>
                     </div>
-                    <span className={`font-bold ${breakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-400"}`}>
-                        {breakdown.upcoming.penalty > 0 ? `-${breakdown.upcoming.penalty}` : "--"}
+                    <span className={`font-bold ${safeBreakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-400"}`}>
+                        {safeBreakdown.upcoming.penalty > 0 ? `-${safeBreakdown.upcoming.penalty}` : "--"}
                     </span>
                 </div>
 
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Shield size={16} className={breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
+                        <Shield size={16} className={safeBreakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
                         <span className="font-medium text-slate-600">Coverage</span>
                     </div>
-                    <span className={`font-bold ${breakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
-                        {breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : "Max"}
+                    <span className={`font-bold ${safeBreakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
+                        {safeBreakdown.coverage.penalty > 0 ? `-${safeBreakdown.coverage.penalty}` : "Max"}
                     </span>
                 </div>
             </div>
@@ -121,7 +136,8 @@ const HealthRing = ({ score, size = 160, theme, breakdown }) => {
     const [showBreakdown, setShowBreakdown] = useState(false);
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
-    const safeScore = isNaN(score) ? 0 : score;
+    // Safety check for NaN score
+    const safeScore = (typeof score === 'number' && !isNaN(score)) ? Math.max(0, Math.min(100, score)) : 0;
     const strokeDashoffset = circumference - (safeScore / 100) * circumference;
     const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
     
@@ -154,6 +170,7 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
 );
 
 const AttentionCard = ({ task, onBook, onDone }) => {
+    if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
     const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : 'Service';
     const days = Math.abs(task.daysUntil || 0);
@@ -165,7 +182,7 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                     {isOverdue ? <AlertTriangle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
                 </div>
                 <div className="flex-grow min-w-0">
-                    <h3 className="font-bold text-slate-800 mb-0.5">{task.taskName || task.item}</h3>
+                    <h3 className="font-bold text-slate-800 mb-0.5">{task.taskName || task.item || 'Task'}</h3>
                     <p className="text-sm text-slate-600 mb-1">{task.item !== task.taskName ? task.item : ''}</p>
                     <p className={`text-xs font-bold mb-3 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
                         {isOverdue ? `${days} days overdue` : `Due in ${days} days`}
@@ -224,112 +241,134 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
 
-    // --- ROBUST SCORING LOGIC (With Crash Prevention) ---
+    // --- ROBUST SCORING LOGIC (TRY-CATCH WRAPPED) ---
     const metrics = useMemo(() => {
-        const now = new Date();
-        let overdueCount = 0;
-        let upcomingCount = 0;
-        const overdueTasks = [];
-        const upcomingTasks = [];
-        
-        // Filter out any invalid records first
-        const validRecords = Array.isArray(records) ? records : [];
-        const totalTracked = validRecords.length;
-        
-        validRecords.forEach(record => {
-            if (!record) return;
+        try {
+            const now = new Date();
+            let overdueCount = 0;
+            let upcomingCount = 0;
+            const overdueTasks = [];
+            const upcomingTasks = [];
+            
+            // Safe array check
+            const validRecords = Array.isArray(records) ? records : [];
+            const totalTracked = validRecords.length;
+            
+            validRecords.forEach(record => {
+                if (!record) return;
 
-            // FIX: Robust check for granular tasks
-            if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
-                record.maintenanceTasks.forEach(task => {
-                    if (!task || !task.nextDue) return;
+                // 1. GRANULAR TASKS (New Schema)
+                if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
+                    record.maintenanceTasks.forEach(task => {
+                        if (!task || !task.nextDue) return;
 
-                    // Safe date parsing
-                    const nextDate = new Date(task.nextDue);
-                    if (isNaN(nextDate.getTime())) return; // Skip invalid dates
+                        const nextDate = safeDate(task.nextDue);
+                        if (!nextDate) return;
 
-                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                    
-                    const taskItem = {
-                        id: `${record.id || 'unknown'}-${task.task || Math.random()}`,
-                        recordId: record.id,
-                        taskName: task.task || 'Unknown Task',
-                        item: record.item || 'Unknown Item',
-                        contractor: record.contractor || '',
-                        frequency: task.frequency || 'annual',
-                        isGranular: true,
-                        daysUntil: isNaN(daysUntil) ? 0 : daysUntil
-                    };
+                        const diffTime = nextDate - now;
+                        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        const taskItem = {
+                            id: `${record.id || 'rec'}-${task.task || 'task'}-${Math.random()}`,
+                            recordId: record.id,
+                            taskName: task.task || 'Maintenance',
+                            item: record.item || 'Unknown Item',
+                            contractor: record.contractor || '',
+                            frequency: task.frequency || 'annual',
+                            isGranular: true,
+                            daysUntil: isNaN(daysUntil) ? 0 : daysUntil
+                        };
 
-                    if (daysUntil < 0) {
-                        overdueCount++;
-                        overdueTasks.push({ ...taskItem, daysOverdue: Math.abs(daysUntil) });
-                    } else if (daysUntil <= 30) {
-                        upcomingCount++;
-                        upcomingTasks.push(taskItem);
-                    }
-                });
-            } 
-            // Fallback logic for legacy records
-            else {
-                const nextDate = getNextServiceDate(record);
-                if (nextDate) {
-                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                    const taskItem = {
-                        id: record.id || `legacy-${Math.random()}`,
-                        recordId: record.id,
-                        taskName: 'Maintenance',
-                        item: record.item || 'Unknown Item',
-                        contractor: record.contractor || '',
-                        frequency: record.maintenanceFrequency,
-                        isGranular: false,
-                        daysUntil: isNaN(daysUntil) ? 0 : daysUntil
-                    };
+                        if (daysUntil < 0) {
+                            overdueCount++;
+                            overdueTasks.push(taskItem);
+                        } else if (daysUntil <= 30) {
+                            upcomingCount++;
+                            upcomingTasks.push(taskItem);
+                        }
+                    });
+                } 
+                // 2. LEGACY RECORDS
+                else {
+                    const nextDate = getNextServiceDate(record);
+                    if (nextDate) {
+                        const diffTime = nextDate - now;
+                        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        const taskItem = {
+                            id: record.id || `legacy-${Math.random()}`,
+                            recordId: record.id,
+                            taskName: 'Maintenance',
+                            item: record.item || 'Unknown Item',
+                            contractor: record.contractor || '',
+                            frequency: record.maintenanceFrequency,
+                            isGranular: false,
+                            daysUntil: isNaN(daysUntil) ? 0 : daysUntil
+                        };
 
-                    if (daysUntil < 0) {
-                        overdueCount++;
-                        overdueTasks.push({ ...taskItem, daysOverdue: Math.abs(daysUntil) });
-                    } else if (daysUntil <= 30) {
-                        upcomingCount++;
-                        upcomingTasks.push(taskItem);
+                        if (daysUntil < 0) {
+                            overdueCount++;
+                            overdueTasks.push(taskItem);
+                        } else if (daysUntil <= 30) {
+                            upcomingCount++;
+                            upcomingTasks.push(taskItem);
+                        }
                     }
                 }
-            }
-        });
-        
-        let coveragePenalty = 0;
-        const TARGET_ITEMS = 5;
-        if (totalTracked === 0) coveragePenalty = 40;
-        else if (totalTracked < 3) coveragePenalty = 25;
-        else if (totalTracked < TARGET_ITEMS) coveragePenalty = 10;
+            });
+            
+            // Calculate Score
+            let coveragePenalty = 0;
+            const TARGET_ITEMS = 5;
+            if (totalTracked === 0) coveragePenalty = 40;
+            else if (totalTracked < 3) coveragePenalty = 25;
+            else if (totalTracked < TARGET_ITEMS) coveragePenalty = 10;
 
-        const overduePenalty = Math.min(60, overdueCount * 15);
-        const upcomingPenalty = Math.min(20, upcomingCount * 5);
-        const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
-        const score = Math.max(0, rawScore);
-        
-        const totalSpent = validRecords.reduce((sum, r) => {
-            const cost = parseFloat(r.cost);
-            return sum + (isNaN(cost) ? 0 : cost);
-        }, 0);
-        
-        return {
-            score, overdueCount, upcomingCount, totalSpent, overdueTasks, upcomingTasks,
-            breakdown: {
-                coverage: { penalty: coveragePenalty, needed: Math.max(0, TARGET_ITEMS - totalTracked) },
-                maintenance: { penalty: overduePenalty, count: overdueCount },
-                upcoming: { penalty: upcomingPenalty, count: upcomingCount }
-            }
-        };
+            const overduePenalty = Math.min(60, overdueCount * 15);
+            const upcomingPenalty = Math.min(20, upcomingCount * 5);
+            const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
+            const score = Math.max(0, rawScore);
+            
+            // Calculate Spend
+            const totalSpent = validRecords.reduce((sum, r) => {
+                const val = parseFloat(r.cost);
+                return sum + (isNaN(val) ? 0 : val);
+            }, 0);
+            
+            return {
+                score, overdueCount, upcomingCount, totalSpent, overdueTasks, upcomingTasks,
+                breakdown: {
+                    coverage: { penalty: coveragePenalty, needed: Math.max(0, TARGET_ITEMS - totalTracked) },
+                    maintenance: { penalty: overduePenalty, count: overdueCount },
+                    upcoming: { penalty: upcomingPenalty, count: upcomingCount }
+                }
+            };
+        } catch (error) {
+            console.error("Dashboard Metrics Calculation Error:", error);
+            // FAIL-SAFE RETURN
+            return {
+                score: 0, overdueCount: 0, upcomingCount: 0, totalSpent: 0, 
+                overdueTasks: [], upcomingTasks: [],
+                breakdown: {
+                    coverage: { penalty: 0 },
+                    maintenance: { penalty: 0 },
+                    upcoming: { penalty: 0 }
+                }
+            };
+        }
     }, [records]);
 
     const getScoreMessage = () => {
-        if (records.length === 0) return "Start adding items to build your score!";
+        if (!records || records.length === 0) return "Start adding items to build your score!";
         if (metrics.score >= 90) return "Your home is in excellent shape! 🎉";
         if (metrics.score >= 75) return "Looking good! Just a few checks needed.";
         if (metrics.score >= 50) return "Some items need your attention.";
         return "Time to catch up on maintenance.";
     };
+
+    // Safe getters for counts
+    const safeRecordsCount = Array.isArray(records) ? records.length : 0;
+    const safeContractorsCount = Array.isArray(contractors) ? contractors.length : 0;
 
     return (
         <div className="space-y-8 pb-8">
@@ -346,8 +385,8 @@ export const ModernDashboard = ({
                     </div>
                     <div className="flex flex-col items-center py-2"><HealthRing score={metrics.score} theme={season} breakdown={metrics.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">{getScoreMessage()}</p></div>
                     <div className="grid grid-cols-3 gap-3 mt-8">
-                        <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{records.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
-                        <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
+                        <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{safeRecordsCount}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
+                        <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{safeContractorsCount}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
                         <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(metrics.totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
                     </div>
                 </div>
@@ -394,5 +433,4 @@ export const ModernDashboard = ({
     );
 };
 
-export const ModernDashboardDefault = ModernDashboard;
 export default ModernDashboard;
