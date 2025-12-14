@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { 
     MoreHorizontal, Calendar, MapPin, Wrench, 
-    ShieldAlert, ShieldCheck, DollarSign, Package
+    ShieldAlert, ShieldCheck, DollarSign, Package, Paperclip, ExternalLink
 } from 'lucide-react';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useRecalls } from '../../hooks/useRecalls';
@@ -22,7 +22,6 @@ export const EnhancedRecordCard = ({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Close menu when clicking outside (simple implementation)
-    // In a real production app, consider using a click-outside hook
     const toggleMenu = (e) => {
         e.stopPropagation();
         setIsMenuOpen(!isMenuOpen);
@@ -129,9 +128,11 @@ export const EnhancedRecordCard = ({
                             <MapPin size={12} /> {record.area}
                         </div>
                     )}
-                    {record.dateInstalled && (
-                        <div className="flex items-center gap-1">
-                            <Calendar size={12} /> {new Date(record.dateInstalled).getFullYear()}
+                    
+                    {/* NEW: Attachment Indicator */}
+                    {record.attachments && record.attachments.length > 0 && (
+                        <div className="flex items-center gap-1 text-slate-500">
+                            <Paperclip size={12} /> {record.attachments.length}
                         </div>
                     )}
                 </div>
