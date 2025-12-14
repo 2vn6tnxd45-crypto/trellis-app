@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, LayoutDashboard, Package, MapPin, Trash2, Menu, CheckSquare, DoorOpen } from 'lucide-react'; 
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, LayoutDashboard, Package, MapPin, Trash2, Menu, CheckSquare, DoorOpen, ArrowLeft } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
@@ -15,6 +15,7 @@ import { generatePDFThumbnail } from './lib/pdfUtils';
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
+import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; // Ensure this is imported!
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
 import './styles/krib-theme.css'; 
@@ -304,7 +305,41 @@ const AppContent = () => {
                 {showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
                 {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />}
                 
-                {activeTab === 'Dashboard' && !isNewUser && <FeatureErrorBoundary label="Dashboard"><ProgressiveDashboard records={activePropertyRecords} contractors={contractorsList} activeProperty={activeProperty} onScanReceipt={() => setShowScanner(true)} onAddRecord={() => openAddModal()} onNavigateToItems={() => setActiveTab('Items')} onNavigateToContractors={() => setActiveTab('Contractors')} onNavigateToReports={() => setActiveTab('Reports')} onNavigateToMaintenance={() => setActiveTab('Items')} onCreateContractorLink={() => handleOpenQuickService(null)} /></FeatureErrorBoundary>}
+                {activeTab === 'Dashboard' && !isNewUser && (
+                    <FeatureErrorBoundary label="Dashboard">
+                        <ProgressiveDashboard 
+                            records={activePropertyRecords} 
+                            contractors={contractorsList} 
+                            activeProperty={activeProperty} 
+                            onScanReceipt={() => setShowScanner(true)} 
+                            onAddRecord={() => openAddModal()} 
+                            onNavigateToItems={() => setActiveTab('Items')} 
+                            onNavigateToContractors={() => setActiveTab('Contractors')} 
+                            onNavigateToReports={() => setActiveTab('Reports')} 
+                            // UPDATED: Now navigates to a real Maintenance tab
+                            onNavigateToMaintenance={() => setActiveTab('Maintenance')} 
+                            onCreateContractorLink={() => handleOpenQuickService(null)} 
+                        />
+                    </FeatureErrorBoundary>
+                )}
+                
+                {/* NEW: MAINTENANCE TAB LOGIC */}
+                {activeTab === 'Maintenance' && (
+                    <FeatureErrorBoundary label="Maintenance Schedule">
+                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                            <button onClick={() => setActiveTab('Dashboard')} className="flex items-center text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">
+                                <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
+                            </button>
+                            <h2 className="text-2xl font-bold text-emerald-950">Maintenance Schedule</h2>
+                            <MaintenanceDashboard 
+                                records={activePropertyRecords} 
+                                onAddRecord={openAddModal} 
+                                onNavigateToRecords={() => setActiveTab('Items')}
+                            />
+                        </div>
+                    </FeatureErrorBoundary>
+                )}
+
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
