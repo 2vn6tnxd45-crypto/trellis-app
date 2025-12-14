@@ -1,7 +1,7 @@
 // src/features/scanner/SmartScanner.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Upload, Camera, Loader2, Check, RefreshCw, Trash2, AlertCircle, FileText, ChevronDown, User, Hash, ArrowRight, Sparkles, ScanLine, CheckCircle2 } from 'lucide-react';
+import { X, Upload, Camera, Loader2, Check, CheckSquare, Square, Trash2, AlertCircle, FileText, ChevronDown, User, Hash, ArrowRight, Sparkles, ScanLine, CheckCircle2 } from 'lucide-react';
 import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
@@ -15,11 +15,10 @@ const ScanningOverlay = () => (
             </div>
         </div>
         <h3 className="text-xl font-bold text-slate-800 mb-2">Analyzing Document...</h3>
-        <p className="text-slate-500 text-sm max-w-xs">Identifying vendor, extracting line items, and capturing costs.</p>
+        <p className="text-slate-500 text-sm max-w-xs">Extracting items, costs, and generating maintenance schedules.</p>
     </div>
 );
 
-// UPDATED: Added userAddress prop
 export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
   const [image, setImage] = useState(null);
   const [fileObj, setFileObj] = useState(null);
@@ -66,16 +65,21 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
   const analyzeImage = async (file, base64) => {
     setIsAnalyzing(true); setError(null);
     try {
-      // UPDATED: Pass userAddress to the scanner logic
       const result = await scanReceipt(file, base64, userAddress);
       
       if (!result) throw new Error("Analysis returned no data");
       
       const safeItems = Array.isArray(result.items) ? result.items : [];
       
+      // Initialize tasks with 'selected: true' for UI toggling
+      const itemsWithSelectableTasks = safeItems.map(item => ({
+          ...item,
+          suggestedTasks: (item.suggestedTasks || []).map(t => ({ ...t, selected: true }))
+      }));
+      
       setAnalysis({
         ...result,
-        items: safeItems,
+        items: itemsWithSelectableTasks,
         itemName: result.primaryJobDescription || safeItems[0]?.item || 'New Item',
       });
       
@@ -89,16 +93,22 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
     finally { setIsAnalyzing(false); }
   };
 
+  // Toggle specific task selection
+  const toggleTask = (itemIndex, taskIndex) => {
+      const newItems = [...analysis.items];
+      newItems[itemIndex].suggestedTasks[taskIndex].selected = !newItems[itemIndex].suggestedTasks[taskIndex].selected;
+      setAnalysis({ ...analysis, items: newItems });
+  };
+
   const handleProceed = () => {
     try {
         if (!analysis) return;
         
-        // Pass 'fileRef' so App.jsx knows to upload this file
         const attachment = { 
             name: fileObj?.name || 'Scan.jpg', 
             type: fileObj?.type?.includes('pdf') ? 'Document' : 'Photo', 
-            url: image, // Preview only
-            fileRef: fileObj // The actual file to upload
+            url: image, 
+            fileRef: fileObj 
         };
 
         const recordData = {
@@ -122,9 +132,12 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
                 dateInstalled: analysis.date,
                 contractor: analysis.vendorName || '',
                 warranty: analysis.warranty || '',
-                // NEW: Capture the AI-suggested frequency
-                maintenanceFrequency: item.maintenanceFrequency || 'annual', // Default to annual to drive engagement
-                notes: item.maintenanceNotes || ''
+                maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                notes: item.maintenanceNotes || '',
+                // Only pass selected tasks
+                maintenanceTasks: (item.suggestedTasks || [])
+                    .filter(t => t.selected)
+                    .map(t => ({ task: t.task, frequency: t.frequency, nextDue: t.firstDueDate }))
             })),
             
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
@@ -148,7 +161,6 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
   };
 
   const reset = () => { setImage(null); setFileObj(null); setAnalysis(null); setIsScanning(false); };
-  const isPdf = fileObj?.type === 'application/pdf';
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
@@ -157,7 +169,7 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
         {isAnalyzing && <ScanningOverlay />}
 
         <div className="p-4 border-b border-gray-100 flex justify-between items-center shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">{image ? 'Scan Results' : 'Smart Scan'}</h2>
+          <h2 className="text-lg font-bold text-gray-900">{image ? 'Review & Approve' : 'Smart Scan'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5 text-gray-500"/></button>
         </div>
 
@@ -206,20 +218,48 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
 
                 <div>
                     <div className="flex justify-between items-center mb-2">
-                        <label className="text-xs font-bold text-gray-500 uppercase">Detected Line Items ({analysis.items.length})</label>
+                        <label className="text-xs font-bold text-gray-500 uppercase">Detected Items & Tasks</label>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         {analysis.items.map((item, idx) => (
-                            <div key={idx} className="flex gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 relative group">
-                                <div className="flex-grow min-w-0">
-                                    <p className="font-bold text-gray-800 truncate">{item.item}</p>
-                                    <div className="flex gap-2 text-xs text-gray-500 mt-0.5">
-                                        <span>{item.category}</span>
-                                        {item.model && <span>• {item.model}</span>}
-                                        {item.cost > 0 && <span className="text-emerald-600 font-bold">• ${Number(item.cost).toLocaleString()}</span>}
+                            <div key={idx} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                                <div className="flex gap-3 p-3 bg-gray-50 border-b border-gray-100">
+                                    <div className="flex-grow min-w-0">
+                                        <p className="font-bold text-gray-800 truncate">{item.item}</p>
+                                        <div className="flex gap-2 text-xs text-gray-500 mt-0.5">
+                                            <span>{item.category}</span>
+                                            {item.model && <span>• {item.model}</span>}
+                                            {item.cost > 0 && <span className="text-emerald-600 font-bold">• ${Number(item.cost).toLocaleString()}</span>}
+                                        </div>
                                     </div>
+                                    <button onClick={() => removeItem(idx)} className="text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
                                 </div>
-                                <button onClick={() => removeItem(idx)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button>
+                                
+                                {/* AI SUGGESTED TASKS UI */}
+                                {item.suggestedTasks && item.suggestedTasks.length > 0 && (
+                                    <div className="p-3 bg-indigo-50/30">
+                                        <p className="text-[10px] font-bold text-indigo-400 uppercase mb-2 flex items-center">
+                                            <Sparkles size={10} className="mr-1"/> Suggested Maintenance
+                                        </p>
+                                        <div className="space-y-2">
+                                            {item.suggestedTasks.map((task, tIdx) => (
+                                                <div 
+                                                    key={tIdx} 
+                                                    onClick={() => toggleTask(idx, tIdx)}
+                                                    className="flex items-center gap-3 p-2 rounded-lg bg-white border border-indigo-100 cursor-pointer hover:border-indigo-300 transition-colors"
+                                                >
+                                                    <div className={`shrink-0 ${task.selected ? 'text-emerald-500' : 'text-slate-300'}`}>
+                                                        {task.selected ? <CheckSquare size={18} /> : <Square size={18} />}
+                                                    </div>
+                                                    <div className="flex-grow">
+                                                        <p className="text-xs font-bold text-slate-700">{task.task}</p>
+                                                        <p className="text-[10px] text-slate-500">Due: {task.firstDueDate} ({task.frequency})</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -262,8 +302,7 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
                 <button onClick={reset} className="px-6 py-3 font-bold text-gray-500 hover:bg-gray-100 rounded-xl transition-colors">Retake</button>
                 <button onClick={handleProceed} disabled={!analysis} className="flex-1 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2">
                     <CheckCircle2 size={20}/> 
-                    {analysis?.items?.length > 1 ? `Review ${analysis.items.length} Items` : 'Review & Save'}
-                    <ArrowRight size={16} className="ml-1 opacity-50"/>
+                    Save & Schedule
                 </button>
             </div>
         )}
