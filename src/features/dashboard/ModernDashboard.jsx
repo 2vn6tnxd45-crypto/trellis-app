@@ -22,21 +22,18 @@ const MAINTENANCE_FREQUENCIES = [
 ];
 
 const getNextServiceDate = (record) => {
-    if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
+    if (!record?.dateInstalled || record?.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
     if (!freq || freq.months === 0) return null;
     
     try {
         const installed = new Date(record.dateInstalled);
-        // Validate date
         if (isNaN(installed.getTime())) return null;
         
         const next = new Date(installed);
         next.setMonth(next.getMonth() + freq.months);
         
         const now = new Date();
-        // Project forward to next future date if overdue
-        // Optional: Keep it purely historical if you prefer
         while (next < now) next.setMonth(next.getMonth() + freq.months);
         
         return next;
@@ -47,12 +44,16 @@ const getNextServiceDate = (record) => {
 
 const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return '$0';
-    return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD', 
-        minimumFractionDigits: 0, 
-        maximumFractionDigits: 0 
-    }).format(amount);
+    try {
+        return new Intl.NumberFormat('en-US', { 
+            style: 'currency', 
+            currency: 'USD', 
+            minimumFractionDigits: 0, 
+            maximumFractionDigits: 0 
+        }).format(amount);
+    } catch (e) {
+        return '$0';
+    }
 };
 
 const getSeasonalTheme = () => {
@@ -120,8 +121,9 @@ const HealthRing = ({ score, size = 160, theme, breakdown }) => {
     const [showBreakdown, setShowBreakdown] = useState(false);
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
-    const strokeDashoffset = circumference - (score / 100) * circumference;
-    const strokeColor = score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444';
+    const safeScore = isNaN(score) ? 0 : score;
+    const strokeDashoffset = circumference - (safeScore / 100) * circumference;
+    const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
     
     return (
         <div 
@@ -136,10 +138,10 @@ const HealthRing = ({ score, size = 160, theme, breakdown }) => {
                 <circle cx={size/2} cy={size/2} r={radius} stroke={strokeColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} style={{ transition: 'stroke-dashoffset 1s ease-out', filter: `drop-shadow(0 0 10px ${strokeColor}40)` }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
-                <span className="text-5xl font-black tracking-tight shadow-sm">{score}</span>
+                <span className="text-5xl font-black tracking-tight shadow-sm">{safeScore}</span>
                 <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${theme.accent}`}>Health <Info size={10} /></span>
             </div>
-            {showBreakdown && <HealthScoreCard breakdown={breakdown} score={score} />}
+            {showBreakdown && <HealthScoreCard breakdown={breakdown} score={safeScore} />}
         </div>
     );
 };
@@ -151,12 +153,10 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// UPDATED: Attention Card with Safe Actions
 const AttentionCard = ({ task, onBook, onDone }) => {
-    const isOverdue = task.daysUntil < 0;
-    
-    // SAFE STRING HANDLING
+    const isOverdue = (task.daysUntil || 0) < 0;
     const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : 'Service';
+    const days = Math.abs(task.daysUntil || 0);
     
     return (
         <div className={`border rounded-2xl p-5 transition-all hover:shadow-md ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
@@ -168,7 +168,7 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                     <h3 className="font-bold text-slate-800 mb-0.5">{task.taskName || task.item}</h3>
                     <p className="text-sm text-slate-600 mb-1">{task.item !== task.taskName ? task.item : ''}</p>
                     <p className={`text-xs font-bold mb-3 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
-                        {isOverdue ? `${Math.abs(task.daysUntil)} days overdue` : `Due in ${task.daysUntil} days`}
+                        {isOverdue ? `${days} days overdue` : `Due in ${days} days`}
                     </p>
                     
                     <div className="flex gap-2 mt-2">
@@ -237,9 +237,13 @@ export const ModernDashboard = ({
         const totalTracked = validRecords.length;
         
         validRecords.forEach(record => {
-            // FIX: Check if maintenanceTasks is actually an array before iterating
+            if (!record) return;
+
+            // FIX: Robust check for granular tasks
             if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
                 record.maintenanceTasks.forEach(task => {
+                    if (!task || !task.nextDue) return;
+
                     // Safe date parsing
                     const nextDate = new Date(task.nextDue);
                     if (isNaN(nextDate.getTime())) return; // Skip invalid dates
@@ -247,14 +251,14 @@ export const ModernDashboard = ({
                     const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                     
                     const taskItem = {
-                        id: `${record.id}-${task.task}`,
+                        id: `${record.id || 'unknown'}-${task.task || Math.random()}`,
                         recordId: record.id,
                         taskName: task.task || 'Unknown Task',
                         item: record.item || 'Unknown Item',
                         contractor: record.contractor || '',
                         frequency: task.frequency || 'annual',
                         isGranular: true,
-                        daysUntil
+                        daysUntil: isNaN(daysUntil) ? 0 : daysUntil
                     };
 
                     if (daysUntil < 0) {
@@ -272,14 +276,14 @@ export const ModernDashboard = ({
                 if (nextDate) {
                     const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                     const taskItem = {
-                        id: record.id,
+                        id: record.id || `legacy-${Math.random()}`,
                         recordId: record.id,
                         taskName: 'Maintenance',
                         item: record.item || 'Unknown Item',
                         contractor: record.contractor || '',
                         frequency: record.maintenanceFrequency,
                         isGranular: false,
-                        daysUntil
+                        daysUntil: isNaN(daysUntil) ? 0 : daysUntil
                     };
 
                     if (daysUntil < 0) {
@@ -303,7 +307,11 @@ export const ModernDashboard = ({
         const upcomingPenalty = Math.min(20, upcomingCount * 5);
         const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
         const score = Math.max(0, rawScore);
-        const totalSpent = validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
+        
+        const totalSpent = validRecords.reduce((sum, r) => {
+            const cost = parseFloat(r.cost);
+            return sum + (isNaN(cost) ? 0 : cost);
+        }, 0);
         
         return {
             score, overdueCount, upcomingCount, totalSpent, overdueTasks, upcomingTasks,
@@ -386,4 +394,5 @@ export const ModernDashboard = ({
     );
 };
 
+export const ModernDashboardDefault = ModernDashboard;
 export default ModernDashboard;
