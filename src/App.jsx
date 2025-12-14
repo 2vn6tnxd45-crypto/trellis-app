@@ -178,15 +178,34 @@ const AppContent = () => {
 
     const handleScanComplete = useCallback(async (extractedData) => {
         setShowScanner(false);
-        // CRITICAL FIX: Use the attachments passed from SmartScanner because they contain the fileRef.
         const validAttachments = extractedData.attachments || [];
+
+        // Helper to calculate date based on AI suggestion
+        const processMaintenance = (freq, installDate) => {
+            // Default to annual for "big ticket" items to ensure contractor gets a ping
+            const finalFreq = freq || 'annual'; 
+            return {
+                frequency: finalFreq,
+                nextDate: calculateNextDate(installDate, finalFreq)
+            };
+        };
 
         // Check if multiple items found
         if (extractedData.items && extractedData.items.length > 0) {
-            // Batch Mode
+            // Batch Mode Logic
+            const processedItems = extractedData.items.map(item => {
+                const maint = processMaintenance(item.maintenanceFrequency, extractedData.date);
+                return {
+                    ...item,
+                    maintenanceFrequency: maint.frequency,
+                    nextServiceDate: maint.nextDate,
+                    notes: item.notes || ''
+                };
+            });
+
             setEditingRecord({
                 isBatch: true,
-                items: extractedData.items,
+                items: processedItems,
                 // Default fallback date if items don't have one
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
                 contractor: extractedData.store || '',
@@ -197,16 +216,25 @@ const AppContent = () => {
                 warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
                 attachments: validAttachments
             });
-            toast.success(`Found ${extractedData.items.length} items! Review them now.`, { icon: '📸' });
+            toast.success(`Found ${extractedData.items.length} items with maintenance schedules!`, { icon: '📅' });
         } else {
-            // Single Mode
+            // Single Mode Logic
+            const singleItem = extractedData.items?.[0] || {};
+            const maint = processMaintenance(singleItem.maintenanceFrequency || 'annual', extractedData.date);
+
             setEditingRecord({
-                item: extractedData.item || '',
-                category: extractedData.category || 'Other',
-                brand: extractedData.brand || '',
-                model: extractedData.model || '',
-                cost: extractedData.cost || '',
+                item: singleItem.item || extractedData.item || '',
+                category: singleItem.category || extractedData.category || 'Other',
+                brand: singleItem.brand || extractedData.brand || '',
+                model: singleItem.model || extractedData.model || '',
+                cost: singleItem.cost || extractedData.cost || '',
                 dateInstalled: extractedData.date || new Date().toISOString().split('T')[0],
+                
+                // Auto-set maintenance
+                maintenanceFrequency: maint.frequency,
+                nextServiceDate: maint.nextDate,
+                notes: singleItem.notes || '',
+
                 // Pass rich contractor data
                 contractor: extractedData.store || '',
                 contractorPhone: extractedData.contractorPhone,
@@ -215,7 +243,7 @@ const AppContent = () => {
                 warranty: extractedData.warranty || '', // CAPTURE GLOBAL WARRANTY
                 attachments: validAttachments
             });
-            toast.success("Scan complete!", { icon: '📸' });
+            toast.success(`Maintenance schedule created for ${extractedData.store || 'contractor'}`, { icon: '🤝' });
         }
         setIsAddModalOpen(true);
     }, []);
@@ -385,6 +413,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
+                 // CALC NEXT DATE FOR BATCH ITEMS TOO
+                 const nextDate = calculateNextDate(
+                     item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0],
+                     item.maintenanceFrequency || 'none'
+                 );
+
                  const docData = { 
                      userId: user.uid, 
                      propertyId: activeProperty.id, 
@@ -399,8 +433,8 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      notes: item.notes || '', 
                      // FIX: Safe fallbacks
                      dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
-                     maintenanceFrequency: 'none', 
-                     nextServiceDate: null, 
+                     maintenanceFrequency: item.maintenanceFrequency || 'none', 
+                     nextServiceDate: nextDate, 
                      contractor: item.contractor || editingRecord?.contractor || '',
                      contractorPhone: editingRecord?.contractorPhone || '',
                      contractorEmail: editingRecord?.contractorEmail || '',
