@@ -4,7 +4,8 @@ import {
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
     AlertTriangle, Wrench, Shield, CheckCircle2,
-    Info, TrendingUp, ChevronDown, Check, User
+    Info, TrendingUp, ChevronDown, Check, User,
+    Calendar, Phone
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
@@ -41,8 +42,6 @@ const getNextServiceDate = (record) => {
         next.setMonth(next.getMonth() + freq.months);
         
         const now = new Date();
-        // Project forward to next future date if overdue logic is desired, 
-        // otherwise just return the calculated next date
         while (next < now) next.setMonth(next.getMonth() + freq.months);
         
         return next;
@@ -136,7 +135,6 @@ const HealthRing = ({ score, size = 160, theme, breakdown }) => {
     const [showBreakdown, setShowBreakdown] = useState(false);
     const radius = (size - 20) / 2;
     const circumference = 2 * Math.PI * radius;
-    // Safety check for NaN score
     const safeScore = (typeof score === 'number' && !isNaN(score)) ? Math.max(0, Math.min(100, score)) : 0;
     const strokeDashoffset = circumference - (safeScore / 100) * circumference;
     const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
@@ -172,7 +170,7 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
 const AttentionCard = ({ task, onBook, onDone }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
-    const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : 'Service';
+    const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : 'Pro';
     const days = Math.abs(task.daysUntil || 0);
     
     return (
@@ -197,8 +195,8 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                                     : 'bg-amber-500 text-white hover:bg-amber-600'
                             }`}
                         >
-                            <Wrench size={14} className="mr-2" />
-                            Book {contractorName}
+                            <Phone size={14} className="mr-2" />
+                            Contact {contractorName}
                         </button>
                         
                         <button 
@@ -210,6 +208,47 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                     </div>
                 </div>
             </div>
+        </div>
+    );
+};
+
+// --- NEW COMPONENT: Scheduled List Row ---
+const ScheduledTaskRow = ({ task, onBook, onDone }) => {
+    const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : null;
+    
+    return (
+        <div className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group">
+            <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
+                <Calendar size={18} />
+            </div>
+            
+            <div className="flex-grow min-w-0">
+                <div className="flex justify-between items-start">
+                    <h4 className="font-bold text-slate-700 text-sm truncate">{task.taskName}</h4>
+                    <span className="text-xs font-medium text-slate-400 whitespace-nowrap ml-2">
+                        {task.nextDate ? task.nextDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}) : 'Upcoming'}
+                    </span>
+                </div>
+                <p className="text-xs text-slate-500 truncate">{task.item}</p>
+                
+                {/* Inline Action for Scheduling */}
+                {contractorName && (
+                    <button 
+                        onClick={() => onBook(task)}
+                        className="mt-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded flex items-center w-fit transition-colors"
+                    >
+                        <Phone size={10} className="mr-1"/> Schedule {contractorName}
+                    </button>
+                )}
+            </div>
+            
+            <button 
+                onClick={() => onDone(task)}
+                className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all"
+                title="Mark Done"
+            >
+                <CheckCircle2 size={20} />
+            </button>
         </div>
     );
 };
@@ -241,16 +280,16 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
 
-    // --- ROBUST SCORING LOGIC (TRY-CATCH WRAPPED) ---
+    // --- ROBUST SCORING & SCHEDULE LOGIC ---
     const metrics = useMemo(() => {
         try {
             const now = new Date();
             let overdueCount = 0;
             let upcomingCount = 0;
             const overdueTasks = [];
-            const upcomingTasks = [];
+            const upcomingTasks = []; // Now holds urgent upcoming (<= 30 days)
+            const scheduledTasks = []; // New array for future tasks (> 30 days)
             
-            // Safe array check
             const validRecords = Array.isArray(records) ? records : [];
             const totalTracked = validRecords.length;
             
@@ -276,6 +315,7 @@ export const ModernDashboard = ({
                             contractor: record.contractor || '',
                             frequency: task.frequency || 'annual',
                             isGranular: true,
+                            nextDate: nextDate,
                             daysUntil: isNaN(daysUntil) ? 0 : daysUntil
                         };
 
@@ -285,6 +325,9 @@ export const ModernDashboard = ({
                         } else if (daysUntil <= 30) {
                             upcomingCount++;
                             upcomingTasks.push(taskItem);
+                        } else if (daysUntil <= 180) {
+                            // Track items due in next 6 months for the schedule view
+                            scheduledTasks.push(taskItem);
                         }
                     });
                 } 
@@ -303,6 +346,7 @@ export const ModernDashboard = ({
                             contractor: record.contractor || '',
                             frequency: record.maintenanceFrequency,
                             isGranular: false,
+                            nextDate: nextDate,
                             daysUntil: isNaN(daysUntil) ? 0 : daysUntil
                         };
 
@@ -312,12 +356,14 @@ export const ModernDashboard = ({
                         } else if (daysUntil <= 30) {
                             upcomingCount++;
                             upcomingTasks.push(taskItem);
+                        } else if (daysUntil <= 180) {
+                            scheduledTasks.push(taskItem);
                         }
                     }
                 }
             });
             
-            // Calculate Score
+            // Calculate Score (Only penalize for overdue and immediate upcoming)
             let coveragePenalty = 0;
             const TARGET_ITEMS = 5;
             if (totalTracked === 0) coveragePenalty = 40;
@@ -329,14 +375,17 @@ export const ModernDashboard = ({
             const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
             const score = Math.max(0, rawScore);
             
-            // Calculate Spend
             const totalSpent = validRecords.reduce((sum, r) => {
                 const val = parseFloat(r.cost);
                 return sum + (isNaN(val) ? 0 : val);
             }, 0);
             
+            // Sort scheduled tasks by date
+            scheduledTasks.sort((a, b) => a.daysUntil - b.daysUntil);
+
             return {
-                score, overdueCount, upcomingCount, totalSpent, overdueTasks, upcomingTasks,
+                score, overdueCount, upcomingCount, totalSpent, 
+                overdueTasks, upcomingTasks, scheduledTasks, // Added scheduledTasks
                 breakdown: {
                     coverage: { penalty: coveragePenalty, needed: Math.max(0, TARGET_ITEMS - totalTracked) },
                     maintenance: { penalty: overduePenalty, count: overdueCount },
@@ -345,15 +394,10 @@ export const ModernDashboard = ({
             };
         } catch (error) {
             console.error("Dashboard Metrics Calculation Error:", error);
-            // FAIL-SAFE RETURN
             return {
                 score: 0, overdueCount: 0, upcomingCount: 0, totalSpent: 0, 
-                overdueTasks: [], upcomingTasks: [],
-                breakdown: {
-                    coverage: { penalty: 0 },
-                    maintenance: { penalty: 0 },
-                    upcoming: { penalty: 0 }
-                }
+                overdueTasks: [], upcomingTasks: [], scheduledTasks: [],
+                breakdown: { coverage: { penalty: 0 }, maintenance: { penalty: 0 }, upcoming: { penalty: 0 } }
             };
         }
     }, [records]);
@@ -366,7 +410,6 @@ export const ModernDashboard = ({
         return "Time to catch up on maintenance.";
     };
 
-    // Safe getters for counts
     const safeRecordsCount = Array.isArray(records) ? records.length : 0;
     const safeContractorsCount = Array.isArray(contractors) ? contractors.length : 0;
 
@@ -392,16 +435,29 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {/* ALERTS SECTION */}
+            {/* ALERTS SECTION (Overdue & Immediate < 30 days) */}
             {(metrics.overdueCount > 0 || metrics.upcomingCount > 0) && (
                 <div className="space-y-4">
                     <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
                     {metrics.overdueTasks.slice(0, 2).map((task) => (
                         <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
                     ))}
+                    {/* Only show urgent upcoming here if there are no overdue tasks to avoid clutter */}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
                         <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
                     ))}
+                </div>
+            )}
+            
+            {/* NEW: UPCOMING SCHEDULE SECTION (Future tasks > 30 days) */}
+            {metrics.scheduledTasks.length > 0 && (
+                <div className="space-y-4">
+                    <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
+                    <div className="space-y-3">
+                        {metrics.scheduledTasks.slice(0, 3).map((task) => (
+                            <ScheduledTaskRow key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
+                        ))}
+                    </div>
                 </div>
             )}
             
