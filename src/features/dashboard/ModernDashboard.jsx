@@ -78,6 +78,35 @@ const getGreeting = () => {
     return 'Good evening';
 };
 
+// --- NEW HELPER: Find contractor contact info by name ---
+const findContractorContact = (contractorName, contractorsList) => {
+    if (!contractorName || !contractorsList || contractorsList.length === 0) {
+        return { phone: '', email: '' };
+    }
+    
+    // Normalize the contractor name for comparison
+    const normalizedName = contractorName.toLowerCase().trim();
+    
+    // Try to find a matching contractor
+    const match = contractorsList.find(c => {
+        if (!c || !c.name) return false;
+        const cName = c.name.toLowerCase().trim();
+        // Check for exact match or partial match
+        return cName === normalizedName || 
+               cName.includes(normalizedName) || 
+               normalizedName.includes(cName);
+    });
+    
+    if (match) {
+        return {
+            phone: match.phone || '',
+            email: match.email || ''
+        };
+    }
+    
+    return { phone: '', email: '' };
+};
+
 // --- SUB-COMPONENTS ---
 
 const HealthScoreCard = ({ breakdown, score }) => {
@@ -97,44 +126,41 @@ const HealthScoreCard = ({ breakdown, score }) => {
             <div className="space-y-3">
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Wrench size={16} className={safeBreakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-500"} />
-                        <span className="font-medium text-slate-600">Maintenance</span>
+                        <Wrench size={16} className={safeBreakdown.maintenance.penalty > 0 ? 'text-red-500' : 'text-emerald-500'} />
+                        <span className="text-slate-600">Overdue Tasks</span>
                     </div>
-                    <span className={`font-bold ${safeBreakdown.maintenance.penalty > 0 ? "text-red-500" : "text-emerald-600"}`}>
-                        {safeBreakdown.maintenance.penalty > 0 ? `-${safeBreakdown.maintenance.penalty}` : "Good"}
+                    <span className={`font-bold ${safeBreakdown.maintenance.penalty > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {safeBreakdown.maintenance.penalty > 0 ? `-${safeBreakdown.maintenance.penalty}` : '✓'}
                     </span>
                 </div>
-                
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Clock size={16} className={safeBreakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-300"} />
-                        <span className="font-medium text-slate-600">Upcoming</span>
+                        <Clock size={16} className={safeBreakdown.upcoming.penalty > 0 ? 'text-amber-500' : 'text-emerald-500'} />
+                        <span className="text-slate-600">Upcoming Soon</span>
                     </div>
-                    <span className={`font-bold ${safeBreakdown.upcoming.penalty > 0 ? "text-amber-500" : "text-slate-400"}`}>
-                        {safeBreakdown.upcoming.penalty > 0 ? `-${safeBreakdown.upcoming.penalty}` : "--"}
+                    <span className={`font-bold ${safeBreakdown.upcoming.penalty > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {safeBreakdown.upcoming.penalty > 0 ? `-${safeBreakdown.upcoming.penalty}` : '✓'}
                     </span>
                 </div>
-
                 <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-2">
-                        <Shield size={16} className={safeBreakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-500"} />
-                        <span className="font-medium text-slate-600">Coverage</span>
+                        <Package size={16} className={safeBreakdown.coverage.penalty > 0 ? 'text-blue-500' : 'text-emerald-500'} />
+                        <span className="text-slate-600">Item Coverage</span>
                     </div>
-                    <span className={`font-bold ${safeBreakdown.coverage.penalty > 0 ? "text-blue-500" : "text-emerald-600"}`}>
-                        {safeBreakdown.coverage.penalty > 0 ? `-${safeBreakdown.coverage.penalty}` : "Max"}
+                    <span className={`font-bold ${safeBreakdown.coverage.penalty > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>
+                        {safeBreakdown.coverage.needed > 0 ? `+${safeBreakdown.coverage.needed} needed` : '✓'}
                     </span>
                 </div>
             </div>
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white transform rotate-45 border-t border-l border-slate-100"></div>
         </div>
     );
 };
 
-const HealthRing = ({ score, size = 160, theme, breakdown }) => {
+const HealthRing = ({ score, theme, breakdown }) => {
     const [showBreakdown, setShowBreakdown] = useState(false);
-    const radius = (size - 20) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const safeScore = (typeof score === 'number' && !isNaN(score)) ? Math.max(0, Math.min(100, score)) : 0;
+    const size = 150, strokeWidth = 12, radius = (size - strokeWidth) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const safeScore = typeof score === 'number' && !isNaN(score) ? Math.max(0, Math.min(100, score)) : 0;
     const strokeDashoffset = circumference - (safeScore / 100) * circumference;
     const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
     
@@ -354,6 +380,7 @@ export const ModernDashboard = ({
     const [showFullInsights, setShowFullInsights] = useState(false);
 
     // --- ROBUST SCORING & SCHEDULE LOGIC ---
+    // NOTE: Now depends on BOTH records AND contractors for contact lookup
     const metrics = useMemo(() => {
         try {
             const now = new Date();
@@ -364,10 +391,23 @@ export const ModernDashboard = ({
             const scheduledTasks = []; // New array for future tasks (> 30 days)
             
             const validRecords = Array.isArray(records) ? records : [];
+            const validContractors = Array.isArray(contractors) ? contractors : [];
             const totalTracked = validRecords.length;
             
             validRecords.forEach(record => {
                 if (!record) return;
+
+                // --- ENHANCED: Get contractor contact info ---
+                // First, try to get from the record itself
+                let contractorPhone = record.contractorPhone || '';
+                let contractorEmail = record.contractorEmail || '';
+                
+                // If not on record, look up from contractors list by name
+                if ((!contractorPhone || !contractorEmail) && record.contractor) {
+                    const lookedUp = findContractorContact(record.contractor, validContractors);
+                    if (!contractorPhone && lookedUp.phone) contractorPhone = lookedUp.phone;
+                    if (!contractorEmail && lookedUp.email) contractorEmail = lookedUp.email;
+                }
 
                 // 1. GRANULAR TASKS (New Schema)
                 if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
@@ -386,8 +426,9 @@ export const ModernDashboard = ({
                             taskName: task.task || 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
-                            contractorPhone: record.contractorPhone || '', 
-                            contractorEmail: record.contractorEmail || '', 
+                            // Use enhanced contact info (from record OR looked up)
+                            contractorPhone: contractorPhone, 
+                            contractorEmail: contractorEmail, 
                             frequency: task.frequency || 'annual',
                             isGranular: true,
                             nextDate: nextDate,
@@ -419,8 +460,9 @@ export const ModernDashboard = ({
                             taskName: 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
-                            contractorPhone: record.contractorPhone || '',
-                            contractorEmail: record.contractorEmail || '',
+                            // Use enhanced contact info (from record OR looked up)
+                            contractorPhone: contractorPhone,
+                            contractorEmail: contractorEmail,
                             frequency: record.maintenanceFrequency,
                             isGranular: false,
                             nextDate: nextDate,
@@ -477,7 +519,7 @@ export const ModernDashboard = ({
                 breakdown: { coverage: { penalty: 0 }, maintenance: { penalty: 0 }, upcoming: { penalty: 0 } }
             };
         }
-    }, [records]);
+    }, [records, contractors]); // <-- CRITICAL: Added contractors to dependency array
 
     const getScoreMessage = () => {
         if (!records || records.length === 0) return "Start adding items to build your score!";
