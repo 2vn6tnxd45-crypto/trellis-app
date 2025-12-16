@@ -6,7 +6,7 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink
+    X, ExternalLink, Hammer
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
@@ -85,7 +85,7 @@ const cleanPhoneForLink = (phone) => {
 };
 
 // --- NEW COMPONENT: Task Action Modal ---
-// This is the robust alternative way to clear records.
+// Opens when a card is clicked. Contains robust actions.
 const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContractors }) => {
     if (!task) return null;
 
@@ -96,8 +96,8 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
     const cleanPhone = cleanPhoneForLink(task.contractorPhone);
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
+            <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'} border-b ${isOverdue ? 'border-red-100' : 'border-emerald-100'}`}>
                     <div className="flex justify-between items-start mb-2">
@@ -109,21 +109,41 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
                         </button>
                     </div>
                     <h3 className="text-xl font-bold text-slate-900 leading-tight">{task.taskName}</h3>
-                    <p className={`text-sm font-bold mt-1 ${isOverdue ? 'text-red-600' : 'text-emerald-700'}`}>
-                        {isOverdue ? `${days} days overdue` : `Due in ${days} days`}
+                    <div className="flex items-center gap-2 mt-2">
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {isOverdue ? `${days} DAYS OVERDUE` : `DUE IN ${days} DAYS`}
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-3 font-medium flex items-center">
+                        <Package size={12} className="mr-1"/> {task.item}
                     </p>
-                    <p className="text-xs text-slate-500 mt-2">Item: {task.item}</p>
                 </div>
 
-                {/* Body - Contractor Actions */}
+                {/* Body - Actions */}
                 <div className="p-6 space-y-6">
+                    
+                    {/* Contractor Section */}
                     <div>
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Professional Help</h4>
+                        <div className="flex justify-between items-end mb-3">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Service Provider</h4>
+                            {!hasContractor && (
+                                <button onClick={() => { onNavigateToContractors(); onClose(); }} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                                    Find Pro
+                                </button>
+                            )}
+                        </div>
                         
                         {hasContractor ? (
                             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                <p className="font-bold text-slate-800 text-sm mb-1">{task.contractor}</p>
-                                <p className="text-xs text-slate-500 mb-3">Linked Service Provider</p>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold">
+                                        {task.contractor.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-sm">{task.contractor}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase">Linked Pro</p>
+                                    </div>
+                                </div>
                                 
                                 <div className="grid grid-cols-2 gap-2">
                                     {hasPhone ? (
@@ -146,12 +166,15 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
                                 </div>
                             </div>
                         ) : (
-                            <button 
-                                onClick={() => { onNavigateToContractors(); onClose(); }}
-                                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 text-sm font-bold hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center gap-2"
-                            >
-                                <User size={18} /> Find or Link a Pro
-                            </button>
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 border-dashed text-center">
+                                <p className="text-xs text-slate-400 mb-2">No contractor linked to this item.</p>
+                                <button 
+                                    onClick={() => { onBook(task); onClose(); }}
+                                    className="text-xs font-bold text-emerald-600 bg-white border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm"
+                                >
+                                    Generate Service Link
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -221,64 +244,25 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
-    const hasPhone = !!task.contractorPhone;
-    const hasEmail = !!task.contractorEmail;
-    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
-    const showRequestFallback = !hasPhone && !hasEmail;
-
-    // Use standard onClick, rely on wrapping div to prevent modal open
-    const buttonBaseStyle = "touch-action-manipulation select-none cursor-pointer";
-
-    return (
-        <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto flex-wrap">
-            {hasPhone && (
-                <a href={`sms:${cleanPhone}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 no-underline`}>
-                    <MessageCircle size={16} className="mr-1.5" /> Text
-                </a>
-            )}
-            {hasEmail && (
-                <a href={`mailto:${task.contractorEmail}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border no-underline ${!hasPhone ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
-                    <Mail size={16} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
-                </a>
-            )}
-            {hasPhone && (
-                <a href={`tel:${cleanPhone}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} px-3 py-2 min-h-[44px] bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center no-underline`}>
-                    <Phone size={16} />
-                </a>
-            )}
-            {showRequestFallback && (
-                <button type="button" onClick={(e) => { e.stopPropagation(); if (onBook) onBook(task); }} className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border ${isOverdue ? 'bg-red-50 text-red-700 border-red-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                    <LinkIcon size={16} className="mr-1.5" /> Request Link
-                </button>
-            )}
-            <button type="button" onClick={(e) => { e.stopPropagation(); if (onDone) onDone(task); }} className={`${buttonBaseStyle} px-4 py-2 min-h-[44px] bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 active:bg-slate-900 transition-colors flex items-center shadow-sm ml-auto sm:ml-0`}>
-                <Check size={16} className="mr-1.5" /> Done
-            </button>
-        </div>
-    );
-};
-
-// FIXED: AttentionCard is now a div, not a button, to prevent nesting issues.
-// Added onDone and onBook to props destructuring.
-const AttentionCard = ({ task, onClick, onDone, onBook }) => {
+// Updated AttentionCard: No inline buttons. Entire card opens modal.
+const AttentionCard = ({ task, onClick }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
     const days = Math.abs(task.daysUntil || 0);
     
     return (
-        <div 
+        <button 
             onClick={() => onClick(task)}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group text-left relative overflow-hidden cursor-pointer"
+            className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-200 hover:shadow-md transition-all group text-left relative overflow-hidden active:scale-[0.98] duration-150"
         >
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${isOverdue ? 'bg-red-500' : 'bg-amber-500'}`} />
-            <div className="flex gap-4 pl-2">
+            <div className="flex items-center gap-4 pl-2">
                 <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
                     <AlertTriangle size={24} />
                 </div>
                 <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start">
-                        <div className="mb-1">
+                        <div>
                             <h3 className="font-bold text-slate-800 text-base">{task.taskName}</h3>
                             <p className="text-xs text-slate-500 font-medium">{task.item}</p>
                         </div>
@@ -286,23 +270,25 @@ const AttentionCard = ({ task, onClick, onDone, onBook }) => {
                             <ChevronRight size={16} className="text-slate-400" />
                         </div>
                     </div>
-                    <p className={`text-xs font-bold uppercase tracking-wide mb-2 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
-                        {isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}
-                    </p>
-                    
-                    {/* Inline Actions - Wrapped to stop propagation to the card's modal click */}
-                    <div onClick={(e) => e.stopPropagation()}>
-                        <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
+                    <div className="flex items-center mt-2">
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wide ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}
+                        </span>
+                        {task.contractor && (
+                            <span className="text-[10px] text-slate-400 font-medium ml-2 flex items-center">
+                                <User size={10} className="mr-1"/> {task.contractor}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
-        </div>
+        </button>
     );
 };
 
-const ScheduledTaskRow = ({ task }) => (
-    <div className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors">
-        <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0">
+const ScheduledTaskRow = ({ task, onClick }) => (
+    <button onClick={() => onClick(task)} className="w-full flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors text-left group">
+        <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
             <Calendar size={18} />
         </div>
         <div className="min-w-0 flex-grow">
@@ -314,7 +300,8 @@ const ScheduledTaskRow = ({ task }) => (
             </div>
             <p className="text-xs text-slate-500 truncate">{task.item}</p>
         </div>
-    </div>
+        <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500" />
+    </button>
 );
 
 const SectionHeader = ({ title, action, actionLabel }) => (
@@ -380,8 +367,11 @@ export const ModernDashboard = ({
                     }
                     if (!nextDate) return;
                     const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    
+                    // --- CRITICAL FIX: STABLE ID GENERATION ---
+                    // Removed Math.random(). ID is now deterministic based on record ID + task name.
                     const taskItem = {
-                        id: `${record.id}-${taskName}-${Math.random()}`,
+                        id: `${record.id}-${taskName.replace(/\s+/g, '_')}`,
                         recordId: record.id,
                         taskName,
                         item: record.item,
@@ -393,6 +383,7 @@ export const ModernDashboard = ({
                         daysUntil,
                         isGranular
                     };
+
                     if (daysUntil < 0) { overdueCount++; overdueTasks.push(taskItem); }
                     else if (daysUntil <= 30) { upcomingCount++; upcomingTasks.push(taskItem); }
                     else if (daysUntil <= 180) { scheduledTasks.push(taskItem); }
@@ -456,10 +447,10 @@ export const ModernDashboard = ({
                 <div className="space-y-4">
                     <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
                     {metrics.overdueTasks.map((task) => (
-                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} onDone={onMarkTaskDone} onBook={onBookService} />
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} onDone={onMarkTaskDone} onBook={onBookService} />
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
                 </div>
             )}
@@ -469,7 +460,7 @@ export const ModernDashboard = ({
                     <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
                     <div className="space-y-3">
                         {metrics.scheduledTasks.slice(0, 3).map((task) => (
-                            <ScheduledTaskRow key={task.id} task={task} />
+                            <ScheduledTaskRow key={task.id} task={task} onClick={setSelectedTask} />
                         ))}
                     </div>
                 </div>
