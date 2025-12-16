@@ -109,6 +109,7 @@ const AppContent = () => {
                         jobs: []
                     };
                 }
+                // Update contact info if found in newer record (prioritize non-empty values)
                 if (r.contractorPhone && !acc[key].phone) acc[key].phone = r.contractorPhone;
                 if (r.contractorEmail && !acc[key].email) acc[key].email = r.contractorEmail;
                 acc[key].jobs.push(r);
@@ -196,6 +197,7 @@ const AppContent = () => {
 
     // 1. Handle "Request Service" click
     const handleBookService = useCallback((task) => {
+        console.log('[App] handleBookService called with task:', task);
         const record = records.find(r => r.id === task.recordId);
         if (!record) {
             console.warn("Record not found for booking:", task.recordId);
@@ -210,8 +212,10 @@ const AppContent = () => {
 
     // 2. Handle "Done" click (Complete Task)
     const handleMarkTaskDone = useCallback(async (task) => {
+        console.log('[App] handleMarkTaskDone called with task:', task);
         try {
             if (!task.recordId) {
+                console.error('Task is missing recordId:', task);
                 toast.error("Could not update - missing record ID");
                 return;
             }
@@ -219,6 +223,7 @@ const AppContent = () => {
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) {
+                console.error('Record not found:', task.recordId);
                 toast.error("Could not find the record to update");
                 return;
             }
@@ -408,13 +413,13 @@ const AppContent = () => {
                             <div className="space-y-8">
                                 {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (
                                     <div key={cat} className="space-y-4">
-                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2 bg-white/50 backdrop-blur-sm sticky top-20 z-10 p-2 rounded-xl">
                                             <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{cat}</h3>
                                             <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {items.map(r => (
-                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
+                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
                                                 </div>
                                             ))}
@@ -426,13 +431,13 @@ const AppContent = () => {
                             <div className="space-y-8">
                                 {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (
                                     <div key={room} className="space-y-4">
-                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2 bg-white/50 backdrop-blur-sm sticky top-20 z-10 p-2 rounded-xl">
                                             <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{room}</h3>
                                             <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {items.map(r => (
-                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
+                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
                                                 </div>
                                             ))}
