@@ -85,7 +85,7 @@ const cleanPhoneForLink = (phone) => {
 };
 
 // --- NEW COMPONENT: Task Action Modal ---
-// This isolates the "Done" action to prevent touch conflicts
+// This is the robust alternative way to clear records.
 const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContractors }) => {
     if (!task) return null;
 
@@ -96,7 +96,7 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
     const cleanPhone = cleanPhoneForLink(task.contractorPhone);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
                 {/* Header */}
                 <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'} border-b ${isOverdue ? 'border-red-100' : 'border-emerald-100'}`}>
@@ -137,7 +137,7 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
                                         </>
                                     ) : (
                                         <button 
-                                            onClick={() => onBook(task)}
+                                            onClick={() => { onBook(task); onClose(); }}
                                             className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-purple-50 hover:border-purple-200 transition-colors"
                                         >
                                             <LinkIcon size={14} /> Create Request Link
@@ -147,7 +147,7 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
                             </div>
                         ) : (
                             <button 
-                                onClick={onNavigateToContractors}
+                                onClick={() => { onNavigateToContractors(); onClose(); }}
                                 className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 text-sm font-bold hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center gap-2"
                             >
                                 <User size={18} /> Find or Link a Pro
@@ -221,37 +221,82 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-const AttentionCard = ({ task, onClick }) => {
+const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
+    const hasPhone = !!task.contractorPhone;
+    const hasEmail = !!task.contractorEmail;
+    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
+    const showRequestFallback = !hasPhone && !hasEmail;
+
+    // Use standard onClick, rely on wrapping div to prevent modal open
+    const buttonBaseStyle = "touch-action-manipulation select-none cursor-pointer";
+
+    return (
+        <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto flex-wrap">
+            {hasPhone && (
+                <a href={`sms:${cleanPhone}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 no-underline`}>
+                    <MessageCircle size={16} className="mr-1.5" /> Text
+                </a>
+            )}
+            {hasEmail && (
+                <a href={`mailto:${task.contractorEmail}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border no-underline ${!hasPhone ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                    <Mail size={16} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
+                </a>
+            )}
+            {hasPhone && (
+                <a href={`tel:${cleanPhone}`} onClick={(e) => e.stopPropagation()} className={`${buttonBaseStyle} px-3 py-2 min-h-[44px] bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center no-underline`}>
+                    <Phone size={16} />
+                </a>
+            )}
+            {showRequestFallback && (
+                <button type="button" onClick={(e) => { e.stopPropagation(); if (onBook) onBook(task); }} className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border ${isOverdue ? 'bg-red-50 text-red-700 border-red-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                    <LinkIcon size={16} className="mr-1.5" /> Request Link
+                </button>
+            )}
+            <button type="button" onClick={(e) => { e.stopPropagation(); if (onDone) onDone(task); }} className={`${buttonBaseStyle} px-4 py-2 min-h-[44px] bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 active:bg-slate-900 transition-colors flex items-center shadow-sm ml-auto sm:ml-0`}>
+                <Check size={16} className="mr-1.5" /> Done
+            </button>
+        </div>
+    );
+};
+
+// FIXED: AttentionCard is now a div, not a button, to prevent nesting issues.
+// Added onDone and onBook to props destructuring.
+const AttentionCard = ({ task, onClick, onDone, onBook }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
     const days = Math.abs(task.daysUntil || 0);
     
     return (
-        <button 
+        <div 
             onClick={() => onClick(task)}
-            className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group text-left relative overflow-hidden"
+            className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group text-left relative overflow-hidden cursor-pointer"
         >
-            {/* Visual Indicator Strip */}
             <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${isOverdue ? 'bg-red-500' : 'bg-amber-500'}`} />
-            
             <div className="flex gap-4 pl-2">
                 <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
                     <AlertTriangle size={24} />
                 </div>
                 <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start">
-                        <h3 className="font-bold text-slate-800 text-base">{task.taskName}</h3>
+                        <div className="mb-1">
+                            <h3 className="font-bold text-slate-800 text-base">{task.taskName}</h3>
+                            <p className="text-xs text-slate-500 font-medium">{task.item}</p>
+                        </div>
                         <div className="bg-slate-100 p-1 rounded-full group-hover:bg-slate-200 transition-colors">
                             <ChevronRight size={16} className="text-slate-400" />
                         </div>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium mb-1">{task.item}</p>
-                    <p className={`text-xs font-bold uppercase tracking-wide ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
+                    <p className={`text-xs font-bold uppercase tracking-wide mb-2 ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
                         {isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}
                     </p>
+                    
+                    {/* Inline Actions - Wrapped to stop propagation to the card's modal click */}
+                    <div onClick={(e) => e.stopPropagation()}>
+                        <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
+                    </div>
                 </div>
             </div>
-        </button>
+        </div>
     );
 };
 
@@ -296,11 +341,8 @@ export const ModernDashboard = ({
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
-    
-    // UI State for Modal
     const [selectedTask, setSelectedTask] = useState(null);
 
-    // Metrics & Lists Logic
     const metrics = useMemo(() => {
         try {
             const now = new Date();
@@ -309,11 +351,9 @@ export const ModernDashboard = ({
             const overdueTasks = [];
             const upcomingTasks = [];
             const scheduledTasks = [];
-            
             const validRecords = Array.isArray(records) ? records : [];
             const validContractors = Array.isArray(contractors) ? contractors : [];
             
-            // Helper to match contractor details
             const getContractorInfo = (name) => {
                 if (!name) return {};
                 const match = validContractors.find(c => c.name?.toLowerCase().includes(name.toLowerCase()));
@@ -322,17 +362,12 @@ export const ModernDashboard = ({
 
             validRecords.forEach(record => {
                 if (!record) return;
-                
-                // Determine contact info
                 const contact = getContractorInfo(record.contractor);
                 const phone = record.contractorPhone || contact.phone || '';
                 const email = record.contractorEmail || contact.email || '';
 
-                // Process Tasks (Granular or Legacy)
                 const processTask = (taskName, freq, dateStr, isGranular) => {
                     if (!dateStr || freq === 'none') return;
-                    
-                    // Simple next date logic if not pre-calculated
                     let nextDate = safeDate(dateStr);
                     if (!isGranular && nextDate) {
                         const next = new Date(nextDate);
@@ -343,9 +378,7 @@ export const ModernDashboard = ({
                             nextDate = next;
                         }
                     }
-
                     if (!nextDate) return;
-
                     const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                     const taskItem = {
                         id: `${record.id}-${taskName}-${Math.random()}`,
@@ -360,13 +393,11 @@ export const ModernDashboard = ({
                         daysUntil,
                         isGranular
                     };
-
                     if (daysUntil < 0) { overdueCount++; overdueTasks.push(taskItem); }
                     else if (daysUntil <= 30) { upcomingCount++; upcomingTasks.push(taskItem); }
                     else if (daysUntil <= 180) { scheduledTasks.push(taskItem); }
                 };
 
-                // Check Granular
                 if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
                     record.maintenanceTasks.forEach(t => processTask(t.task, t.frequency, t.nextDue, true));
                 } else {
@@ -374,7 +405,6 @@ export const ModernDashboard = ({
                 }
             });
 
-            // Score Calc
             const total = validRecords.length;
             let coveragePenalty = total < 5 ? (5 - total) * 10 : 0;
             const score = Math.max(0, 100 - coveragePenalty - (overdueCount * 15));
@@ -383,10 +413,7 @@ export const ModernDashboard = ({
             return {
                 score, overdueCount, upcomingCount, totalSpent,
                 overdueTasks, upcomingTasks, scheduledTasks: scheduledTasks.sort((a,b) => a.daysUntil - b.daysUntil),
-                breakdown: { 
-                    coverage: { penalty: coveragePenalty, needed: Math.max(0, 5 - total) },
-                    maintenance: { penalty: overdueCount * 15 }
-                }
+                breakdown: { coverage: { penalty: coveragePenalty, needed: Math.max(0, 5 - total) }, maintenance: { penalty: overdueCount * 15 } }
             };
         } catch (e) {
             console.error("Metrics Error", e);
@@ -396,7 +423,6 @@ export const ModernDashboard = ({
 
     return (
         <div className="space-y-8 pb-8">
-            {/* Modal Layer */}
             {selectedTask && (
                 <TaskActionModal 
                     task={selectedTask} 
@@ -407,7 +433,6 @@ export const ModernDashboard = ({
                 />
             )}
 
-            {/* HERO */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
                 <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden">
                     <div className={`absolute inset-0 bg-gradient-to-br ${season.gradient}`} />
@@ -427,20 +452,18 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {/* ALERTS SECTION */}
             {(metrics.overdueCount > 0 || metrics.upcomingCount > 0) && (
                 <div className="space-y-4">
                     <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
                     {metrics.overdueTasks.map((task) => (
-                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} onDone={onMarkTaskDone} onBook={onBookService} />
                     ))}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} onDone={onMarkTaskDone} onBook={onBookService} />
                     ))}
                 </div>
             )}
             
-            {/* UPCOMING SCHEDULE SECTION */}
             {metrics.scheduledTasks.length > 0 && (
                 <div className="space-y-4">
                     <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
@@ -452,7 +475,6 @@ export const ModernDashboard = ({
                 </div>
             )}
             
-            {/* QUICK ACTIONS */}
             <div>
                 <SectionHeader title="Quick Actions" />
                 <div className="grid grid-cols-2 gap-3">
@@ -463,7 +485,6 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* UNIFIED INSIGHTS SECTION */}
             <div className="space-y-4">
                 <SectionHeader title="Property Intelligence" />
                 <div className="bg-white rounded-2xl border border-slate-200 p-1 shadow-sm">
