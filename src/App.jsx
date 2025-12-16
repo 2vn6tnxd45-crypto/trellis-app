@@ -109,7 +109,6 @@ const AppContent = () => {
                         jobs: []
                     };
                 }
-                // Update contact info if found in newer record (prioritize non-empty values)
                 if (r.contractorPhone && !acc[key].phone) acc[key].phone = r.contractorPhone;
                 if (r.contractorEmail && !acc[key].email) acc[key].email = r.contractorEmail;
                 acc[key].jobs.push(r);
@@ -197,7 +196,6 @@ const AppContent = () => {
 
     // 1. Handle "Request Service" click
     const handleBookService = useCallback((task) => {
-        console.log('[App] handleBookService called with task:', task);
         const record = records.find(r => r.id === task.recordId);
         if (!record) {
             console.warn("Record not found for booking:", task.recordId);
@@ -212,10 +210,8 @@ const AppContent = () => {
 
     // 2. Handle "Done" click (Complete Task)
     const handleMarkTaskDone = useCallback(async (task) => {
-        console.log('[App] handleMarkTaskDone called with task:', task);
         try {
             if (!task.recordId) {
-                console.error('Task is missing recordId:', task);
                 toast.error("Could not update - missing record ID");
                 return;
             }
@@ -223,7 +219,6 @@ const AppContent = () => {
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) {
-                console.error('Record not found:', task.recordId);
                 toast.error("Could not find the record to update");
                 return;
             }
@@ -410,11 +405,14 @@ const AppContent = () => {
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4"><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/><button onClick={() => setIsSelectionMode(!isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{isSelectionMode ? 'Cancel' : 'Select'}</button></div>
                         </div>
                         {filteredRecords.length === 0 ? (<EmptyState icon={Package} title="No Items Found" description="Add your first item to get started." />) : inventoryView === 'category' ? (
-                            <div className="space-y-10">
+                            <div className="space-y-8">
                                 {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (
                                     <div key={cat} className="space-y-4">
-                                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 pl-1 border-b border-slate-100 pb-2">{cat} <span className="text-slate-300 ml-1">({items.length})</span></h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                            <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{cat}</h3>
+                                            <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {items.map(r => (
                                                 <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
@@ -425,11 +423,14 @@ const AppContent = () => {
                                 ))}
                             </div>
                         ) : (
-                            <div className="space-y-10">
+                            <div className="space-y-8">
                                 {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (
                                     <div key={room} className="space-y-4">
-                                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 pl-1 border-b border-slate-100 pb-2">{room} <span className="text-slate-300 ml-1">({items.length})</span></h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2">
+                                            <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{room}</h3>
+                                            <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {items.map(r => (
                                                 <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
