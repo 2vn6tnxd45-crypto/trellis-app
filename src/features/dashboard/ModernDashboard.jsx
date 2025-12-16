@@ -1,5 +1,5 @@
 // src/features/dashboard/ModernDashboard.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { 
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
@@ -84,14 +84,11 @@ const findContractorContact = (contractorName, contractorsList) => {
         return { phone: '', email: '' };
     }
     
-    // Normalize the contractor name for comparison
     const normalizedName = contractorName.toLowerCase().trim();
     
-    // Try to find a matching contractor
     const match = contractorsList.find(c => {
         if (!c || !c.name) return false;
         const cName = c.name.toLowerCase().trim();
-        // Check for exact match or partial match
         return cName === normalizedName || 
                cName.includes(normalizedName) || 
                normalizedName.includes(cName);
@@ -105,6 +102,13 @@ const findContractorContact = (contractorName, contractorsList) => {
     }
     
     return { phone: '', email: '' };
+};
+
+// --- Helper to clean phone numbers for tel: links ---
+const cleanPhoneForLink = (phone) => {
+    if (!phone) return '';
+    // Remove all non-digit characters except + at the start
+    return phone.replace(/[^\d+]/g, '');
 };
 
 // --- SUB-COMPONENTS ---
@@ -192,32 +196,72 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// --- HELPER: Smart Contact Actions (Updated with window.location) ---
+// ============================================
+// CRITICAL FIX: SmartContactActions 
+// Using native <a> tags instead of buttons with window.location
+// This is more reliable across browsers, PWAs, and WebViews
+// ============================================
 const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     const hasPhone = !!task.contractorPhone;
     const hasEmail = !!task.contractorEmail;
+    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
     
     // Only show "Request Link" if we have NO contact info
     const showRequestFallback = !hasPhone && !hasEmail;
 
+    // Debug logging - remove in production
+    console.log('[SmartContactActions] Task:', task.taskName, {
+        hasPhone,
+        hasEmail,
+        phone: task.contractorPhone,
+        email: task.contractorEmail,
+        contractor: task.contractor,
+        onDoneExists: !!onDone,
+        onBookExists: !!onBook
+    });
+
+    const handleDoneClick = useCallback((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[SmartContactActions] Done clicked for task:', task);
+        if (onDone) {
+            onDone(task);
+        } else {
+            console.error('[SmartContactActions] onDone handler is missing!');
+        }
+    }, [onDone, task]);
+
+    const handleRequestClick = useCallback((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('[SmartContactActions] Request clicked for task:', task);
+        if (onBook) {
+            onBook(task);
+        } else {
+            console.error('[SmartContactActions] onBook handler is missing!');
+        }
+    }, [onBook, task]);
+
     return (
-        <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto">
-            {/* 1. TEXT (SMS) */}
+        <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto flex-wrap">
+            {/* 1. TEXT (SMS) - Using native <a> tag */}
             {hasPhone && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); window.location.href = `sms:${task.contractorPhone}`; }}
-                    className="flex-1 sm:flex-none flex items-center justify-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 h-9"
+                <a 
+                    href={`sms:${cleanPhone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 sm:flex-none flex items-center justify-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 h-9 no-underline"
                     title="Send Text"
                 >
                     <MessageCircle size={14} className="mr-1.5" /> Text
-                </button>
+                </a>
             )}
 
-            {/* 2. EMAIL */}
+            {/* 2. EMAIL - Using native <a> tag */}
             {hasEmail && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${task.contractorEmail}`; }}
-                    className={`flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border h-9 ${
+                <a 
+                    href={`mailto:${task.contractorEmail}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className={`flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border h-9 no-underline ${
                         !hasPhone 
                             ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' 
                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -225,24 +269,26 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
                     title="Send Email"
                 >
                     <Mail size={14} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
-                </button>
+                </a>
             )}
 
-            {/* 3. CALL */}
+            {/* 3. CALL - Using native <a> tag */}
             {hasPhone && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${task.contractorPhone}`; }}
-                    className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center h-9"
+                <a 
+                    href={`tel:${cleanPhone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center h-9 no-underline"
                     title="Call"
                 >
                     <Phone size={14} />
-                </button>
+                </a>
             )}
 
             {/* 4. FALLBACK: Request Service (Only if no contact info) */}
             {showRequestFallback && (
                 <button 
-                    onClick={(e) => { e.stopPropagation(); if(onBook) onBook(task); else console.error('onBook missing'); }}
+                    type="button"
+                    onClick={handleRequestClick}
                     className={`flex-1 sm:flex-none flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border h-9 ${
                         isOverdue 
                             ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
@@ -254,9 +300,10 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
                 </button>
             )}
             
-            {/* 5. DONE BUTTON */}
+            {/* 5. DONE BUTTON - Always visible */}
             <button 
-                onClick={(e) => { e.stopPropagation(); if(onDone) onDone(task); else console.error('onDone missing'); }}
+                type="button"
+                onClick={handleDoneClick}
                 className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-colors flex items-center shadow-sm h-9 ml-auto sm:ml-0"
             >
                 <Check size={14} className="mr-1.5" /> Done
@@ -270,6 +317,15 @@ const AttentionCard = ({ task, onBook, onDone }) => {
     const isOverdue = (task.daysUntil || 0) < 0;
     const contractorName = task.contractor || 'Contractor';
     const days = Math.abs(task.daysUntil || 0);
+
+    // Debug logging
+    console.log('[AttentionCard] Rendering task:', task.taskName, {
+        contractor: task.contractor,
+        phone: task.contractorPhone,
+        email: task.contractorEmail,
+        onBookExists: !!onBook,
+        onDoneExists: !!onDone
+    });
     
     return (
         <div className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group">
@@ -298,10 +354,14 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                     {task.contractor && (
                         <p className="text-xs text-slate-400 mt-2 font-medium flex items-center">
                             via {contractorName}
+                            {/* Debug: Show if contact info exists */}
+                            {(task.contractorPhone || task.contractorEmail) && (
+                                <span className="ml-2 text-emerald-500">✓ Contact Info</span>
+                            )}
                         </p>
                     )}
 
-                    {/* ACTIONS */}
+                    {/* ACTIONS - Always render */}
                     <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
                 </div>
             </div>
@@ -312,6 +372,7 @@ const AttentionCard = ({ task, onBook, onDone }) => {
 // --- Scheduled List Row ---
 const ScheduledTaskRow = ({ task, onBook, onDone }) => {
     const contractorName = task.contractor || null;
+    const hasContactInfo = task.contractorPhone || task.contractorEmail;
     
     return (
         <div className="flex flex-col sm:flex-row sm:items-center p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group">
@@ -331,16 +392,20 @@ const ScheduledTaskRow = ({ task, onBook, onDone }) => {
                 </div>
             </div>
             
-            {/* Inline Action Row */}
+            {/* Inline Action Row - Always show actions */}
             <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 mt-2 sm:mt-0 border-t sm:border-0 border-slate-50 sm:ml-auto">
-                {contractorName && (
+                {/* Show SmartContactActions if contractor exists (with or without contact info) */}
+                {contractorName ? (
                     <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={false} />
-                )}
-                
-                {/* Simple Check button if no contractor needed or just quick complete */}
-                {!contractorName && (
+                ) : (
+                    /* Simple Check button if no contractor */
                     <button 
-                        onClick={(e) => { e.stopPropagation(); if(onDone) onDone(task); }}
+                        type="button"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            console.log('[ScheduledTaskRow] Done clicked:', task);
+                            if(onDone) onDone(task); 
+                        }}
                         className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all ml-auto sm:ml-0"
                         title="Mark Done"
                     >
@@ -379,26 +444,34 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
 
+    // Debug: Log props on mount/update
+    console.log('[ModernDashboard] Props received:', {
+        recordsCount: records?.length,
+        contractorsCount: contractors?.length,
+        onBookServiceExists: !!onBookService,
+        onMarkTaskDoneExists: !!onMarkTaskDone
+    });
+
     // --- ROBUST SCORING & SCHEDULE LOGIC ---
-    // NOTE: Now depends on BOTH records AND contractors for contact lookup
     const metrics = useMemo(() => {
         try {
             const now = new Date();
             let overdueCount = 0;
             let upcomingCount = 0;
             const overdueTasks = [];
-            const upcomingTasks = []; // Now holds urgent upcoming (<= 30 days)
-            const scheduledTasks = []; // New array for future tasks (> 30 days)
+            const upcomingTasks = [];
+            const scheduledTasks = [];
             
             const validRecords = Array.isArray(records) ? records : [];
             const validContractors = Array.isArray(contractors) ? contractors : [];
             const totalTracked = validRecords.length;
             
+            console.log('[ModernDashboard] Processing records:', totalTracked, 'with contractors:', validContractors.length);
+            
             validRecords.forEach(record => {
                 if (!record) return;
 
                 // --- ENHANCED: Get contractor contact info ---
-                // First, try to get from the record itself
                 let contractorPhone = record.contractorPhone || '';
                 let contractorEmail = record.contractorEmail || '';
                 
@@ -407,6 +480,10 @@ export const ModernDashboard = ({
                     const lookedUp = findContractorContact(record.contractor, validContractors);
                     if (!contractorPhone && lookedUp.phone) contractorPhone = lookedUp.phone;
                     if (!contractorEmail && lookedUp.email) contractorEmail = lookedUp.email;
+                    
+                    if (lookedUp.phone || lookedUp.email) {
+                        console.log('[ModernDashboard] Found contractor info for:', record.contractor, lookedUp);
+                    }
                 }
 
                 // 1. GRANULAR TASKS (New Schema)
@@ -426,9 +503,8 @@ export const ModernDashboard = ({
                             taskName: task.task || 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
-                            // Use enhanced contact info (from record OR looked up)
-                            contractorPhone: contractorPhone, 
-                            contractorEmail: contractorEmail, 
+                            contractorPhone: contractorPhone,
+                            contractorEmail: contractorEmail,
                             frequency: task.frequency || 'annual',
                             isGranular: true,
                             nextDate: nextDate,
@@ -442,7 +518,6 @@ export const ModernDashboard = ({
                             upcomingCount++;
                             upcomingTasks.push(taskItem);
                         } else if (daysUntil <= 180) {
-                            // Track items due in next 6 months for the schedule view
                             scheduledTasks.push(taskItem);
                         }
                     });
@@ -460,7 +535,6 @@ export const ModernDashboard = ({
                             taskName: 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
-                            // Use enhanced contact info (from record OR looked up)
                             contractorPhone: contractorPhone,
                             contractorEmail: contractorEmail,
                             frequency: record.maintenanceFrequency,
@@ -482,7 +556,7 @@ export const ModernDashboard = ({
                 }
             });
             
-            // Calculate Score (Only penalize for overdue and immediate upcoming)
+            // Calculate Score
             let coveragePenalty = 0;
             const TARGET_ITEMS = 5;
             if (totalTracked === 0) coveragePenalty = 40;
@@ -499,8 +573,14 @@ export const ModernDashboard = ({
                 return sum + (isNaN(val) ? 0 : val);
             }, 0);
             
-            // Sort scheduled tasks by date
             scheduledTasks.sort((a, b) => a.daysUntil - b.daysUntil);
+
+            console.log('[ModernDashboard] Metrics calculated:', {
+                overdueCount,
+                upcomingCount,
+                scheduledCount: scheduledTasks.length,
+                score
+            });
 
             return {
                 score, overdueCount, upcomingCount, totalSpent, 
@@ -512,14 +592,14 @@ export const ModernDashboard = ({
                 }
             };
         } catch (error) {
-            console.error("Dashboard Metrics Calculation Error:", error);
+            console.error("[ModernDashboard] Metrics Calculation Error:", error);
             return {
                 score: 0, overdueCount: 0, upcomingCount: 0, totalSpent: 0, 
                 overdueTasks: [], upcomingTasks: [], scheduledTasks: [],
                 breakdown: { coverage: { penalty: 0 }, maintenance: { penalty: 0 }, upcoming: { penalty: 0 } }
             };
         }
-    }, [records, contractors]); // <-- CRITICAL: Added contractors to dependency array
+    }, [records, contractors]);
 
     const getScoreMessage = () => {
         if (!records || records.length === 0) return "Start adding items to build your score!";
@@ -561,14 +641,13 @@ export const ModernDashboard = ({
                     {metrics.overdueTasks.slice(0, 2).map((task) => (
                         <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
                     ))}
-                    {/* Only show urgent upcoming here if there are no overdue tasks to avoid clutter */}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
                         <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
                     ))}
                 </div>
             )}
             
-            {/* NEW: UPCOMING SCHEDULE SECTION (Future tasks > 30 days) */}
+            {/* UPCOMING SCHEDULE SECTION (Future tasks > 30 days) */}
             {metrics.scheduledTasks.length > 0 && (
                 <div className="space-y-4">
                     <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
