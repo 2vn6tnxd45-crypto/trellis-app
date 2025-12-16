@@ -197,10 +197,8 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
 
 // ============================================
 // CRITICAL FIX: SmartContactActions 
-// - Using native <a> tags for tel/sms/mailto (more reliable)
-// - Added touch-action: manipulation to disable 300ms delay
-// - Using onPointerDown for immediate response on mobile
-// - Larger touch targets (min-h-11 = 44px, Apple's recommended minimum)
+// Removed conflicting onTouchEnd handlers that were blocking clicks.
+// Standardized on standard onClick events.
 // ============================================
 const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     const hasPhone = !!task.contractorPhone;
@@ -209,44 +207,34 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     
     const showRequestFallback = !hasPhone && !hasEmail;
 
-    // Handle Done with both click and touch
-    const handleDone = useCallback((e) => {
-        e.preventDefault();
+    // Direct click handlers
+    const handleDone = (e) => {
         e.stopPropagation();
-        console.log('[SmartContactActions] Done triggered for task:', task.taskName);
-        if (onDone) {
-            onDone(task);
-        }
-    }, [onDone, task]);
+        if (onDone) onDone(task);
+    };
 
-    // Handle Request with both click and touch
-    const handleRequest = useCallback((e) => {
-        e.preventDefault();
+    const handleRequest = (e) => {
         e.stopPropagation();
-        console.log('[SmartContactActions] Request triggered for task:', task.taskName);
-        if (onBook) {
-            onBook(task);
-        }
-    }, [onBook, task]);
+        if (onBook) onBook(task);
+    };
 
-    // Common button style with touch-action for mobile
-    const buttonBaseStyle = "touch-action-manipulation select-none";
+    // Common button style with cursor-pointer
+    const buttonBaseStyle = "touch-action-manipulation select-none cursor-pointer";
 
     return (
         <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto flex-wrap">
-            {/* 1. TEXT (SMS) - Native <a> tag */}
+            {/* 1. TEXT (SMS) */}
             {hasPhone && (
                 <a 
                     href={`sms:${cleanPhone}`}
                     onClick={(e) => e.stopPropagation()}
                     className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 active:bg-blue-200 transition-colors border border-blue-100 no-underline`}
-                    style={{ touchAction: 'manipulation' }}
                 >
                     <MessageCircle size={16} className="mr-1.5" /> Text
                 </a>
             )}
 
-            {/* 2. EMAIL - Native <a> tag */}
+            {/* 2. EMAIL */}
             {hasEmail && (
                 <a 
                     href={`mailto:${task.contractorEmail}`}
@@ -256,19 +244,17 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
                             ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 active:bg-blue-200' 
                             : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:bg-slate-100'
                     }`}
-                    style={{ touchAction: 'manipulation' }}
                 >
                     <Mail size={16} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
                 </a>
             )}
 
-            {/* 3. CALL - Native <a> tag */}
+            {/* 3. CALL */}
             {hasPhone && (
                 <a 
                     href={`tel:${cleanPhone}`}
                     onClick={(e) => e.stopPropagation()}
                     className={`${buttonBaseStyle} px-3 py-2 min-h-[44px] bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center justify-center no-underline`}
-                    style={{ touchAction: 'manipulation' }}
                 >
                     <Phone size={16} />
                 </a>
@@ -279,31 +265,22 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
                 <button 
                     type="button"
                     onClick={handleRequest}
-                    onTouchEnd={handleRequest}
                     className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border ${
                         isOverdue 
                             ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100 active:bg-red-200' 
                             : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 active:bg-emerald-200'
                     }`}
-                    style={{ touchAction: 'manipulation' }}
                 >
                     <LinkIcon size={16} className="mr-1.5" />
                     Request Link
                 </button>
             )}
             
-            {/* 5. DONE BUTTON - Always visible */}
-            {/* Using both onClick and onTouchEnd for maximum compatibility */}
+            {/* 5. DONE BUTTON - Clean onClick */}
             <button 
                 type="button"
                 onClick={handleDone}
-                onTouchEnd={(e) => {
-                    // Prevent the click event from also firing
-                    e.preventDefault();
-                    handleDone(e);
-                }}
                 className={`${buttonBaseStyle} px-4 py-2 min-h-[44px] bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 active:bg-slate-900 transition-colors flex items-center shadow-sm ml-auto sm:ml-0`}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
             >
                 <Check size={16} className="mr-1.5" /> Done
             </button>
@@ -320,7 +297,6 @@ const AttentionCard = ({ task, onBook, onDone }) => {
     return (
         <div 
             className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group"
-            style={{ touchAction: 'manipulation' }}
         >
             <div className="flex gap-4">
                 {/* Icon Column */}
@@ -350,7 +326,7 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                         </p>
                     )}
 
-                    {/* ACTIONS - Always render */}
+                    {/* ACTIONS */}
                     <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
                 </div>
             </div>
@@ -362,17 +338,14 @@ const AttentionCard = ({ task, onBook, onDone }) => {
 const ScheduledTaskRow = ({ task, onBook, onDone }) => {
     const contractorName = task.contractor || null;
 
-    // Handle Done with both click and touch
-    const handleDone = useCallback((e) => {
-        e.preventDefault();
+    const handleDone = (e) => {
         e.stopPropagation();
         if (onDone) onDone(task);
-    }, [onDone, task]);
+    };
     
     return (
         <div 
             className="flex flex-col sm:flex-row sm:items-center p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group"
-            style={{ touchAction: 'manipulation' }}
         >
             <div className="flex items-center gap-4 flex-grow min-w-0">
                 <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
@@ -398,12 +371,7 @@ const ScheduledTaskRow = ({ task, onBook, onDone }) => {
                     <button 
                         type="button"
                         onClick={handleDone}
-                        onTouchEnd={(e) => {
-                            e.preventDefault();
-                            handleDone(e);
-                        }}
-                        className="p-3 min-h-[44px] min-w-[44px] text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-full transition-all ml-auto sm:ml-0 select-none"
-                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                        className="p-3 min-h-[44px] min-w-[44px] text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-full transition-all ml-auto sm:ml-0 select-none cursor-pointer"
                         title="Mark Done"
                     >
                         <CheckCircle2 size={22} />
