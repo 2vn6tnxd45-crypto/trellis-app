@@ -170,8 +170,20 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
 const AttentionCard = ({ task, onBook, onDone }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
-    const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : 'Pro';
+    
+    // UPDATED: Use full contractor name
+    const contractorName = task.contractor || 'Pro';
     const days = Math.abs(task.daysUntil || 0);
+    
+    // UPDATED: Handle contact action (Call if number exists, otherwise open Service Request modal)
+    const handleContact = (e) => {
+        e.stopPropagation();
+        if (task.contractorPhone) {
+            window.location.href = `tel:${task.contractorPhone}`;
+        } else if (onBook) {
+            onBook(task);
+        }
+    };
     
     return (
         <div className={`border rounded-2xl p-5 transition-all hover:shadow-md ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
@@ -188,7 +200,7 @@ const AttentionCard = ({ task, onBook, onDone }) => {
                     
                     <div className="flex gap-2 mt-2">
                         <button 
-                            onClick={() => onBook && onBook(task)}
+                            onClick={handleContact}
                             className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${
                                 isOverdue 
                                     ? 'bg-red-600 text-white hover:bg-red-700' 
@@ -212,9 +224,20 @@ const AttentionCard = ({ task, onBook, onDone }) => {
     );
 };
 
-// --- NEW COMPONENT: Scheduled List Row ---
+// --- Scheduled List Row ---
 const ScheduledTaskRow = ({ task, onBook, onDone }) => {
-    const contractorName = task.contractor ? String(task.contractor).split(' ')[0] : null;
+    // UPDATED: Use full contractor name
+    const contractorName = task.contractor || null;
+    
+    // UPDATED: Handle schedule/contact action
+    const handleAction = (e) => {
+        e.stopPropagation();
+        if (task.contractorPhone) {
+            window.location.href = `tel:${task.contractorPhone}`;
+        } else if (onBook) {
+            onBook(task);
+        }
+    };
     
     return (
         <div className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group">
@@ -234,10 +257,10 @@ const ScheduledTaskRow = ({ task, onBook, onDone }) => {
                 {/* Inline Action for Scheduling */}
                 {contractorName && (
                     <button 
-                        onClick={() => onBook(task)}
+                        onClick={handleAction}
                         className="mt-2 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded flex items-center w-fit transition-colors"
                     >
-                        <Phone size={10} className="mr-1"/> Schedule {contractorName}
+                        <Phone size={10} className="mr-1"/> Contact {contractorName}
                     </button>
                 )}
             </div>
@@ -313,6 +336,8 @@ export const ModernDashboard = ({
                             taskName: task.task || 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
+                            contractorPhone: record.contractorPhone || '', // ADDED
+                            contractorEmail: record.contractorEmail || '', // ADDED
                             frequency: task.frequency || 'annual',
                             isGranular: true,
                             nextDate: nextDate,
@@ -344,6 +369,8 @@ export const ModernDashboard = ({
                             taskName: 'Maintenance',
                             item: record.item || 'Unknown Item',
                             contractor: record.contractor || '',
+                            contractorPhone: record.contractorPhone || '', // ADDED
+                            contractorEmail: record.contractorEmail || '', // ADDED
                             frequency: record.maintenanceFrequency,
                             isGranular: false,
                             nextDate: nextDate,
