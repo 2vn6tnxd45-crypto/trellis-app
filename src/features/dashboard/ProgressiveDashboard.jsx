@@ -143,11 +143,10 @@ export const ProgressiveDashboard = ({
     onNavigateToReports,
     onCreateContractorLink,
     onNavigateToMaintenance,
-    // ⬇️ CRITICAL UPDATE: Ensure these are accepted as props ⬇️
+    // ⬇️ THESE WERE LIKELY MISSING IN YOUR FILE ⬇️
     onBookService, 
     onMarkTaskDone 
 }) => {
-    // Determine user stage
     const stage = useMemo(() => {
         if (!records || records.length === 0) return 'empty';
         if (records.length < 5) return 'getting-started';
@@ -189,7 +188,7 @@ export const ProgressiveDashboard = ({
                     onNavigateToReports={onNavigateToReports}
                     onCreateContractorLink={onCreateContractorLink}
                     onNavigateToMaintenance={onNavigateToMaintenance}
-                    // ⬇️ CRITICAL UPDATE: Pass them down to ModernDashboard ⬇️
+                    // ⬇️ CRITICAL: PASSING THEM DOWN ⬇️
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                 />
