@@ -1,11 +1,12 @@
 // src/features/dashboard/ModernDashboard.jsx
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
-    Calendar, Phone, Mail, MessageCircle, Link as LinkIcon
+    Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
+    X, ExternalLink
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
@@ -78,110 +79,135 @@ const getGreeting = () => {
     return 'Good evening';
 };
 
-// --- Helper: Find contractor contact info by name ---
-const findContractorContact = (contractorName, contractorsList) => {
-    if (!contractorName || !contractorsList || contractorsList.length === 0) {
-        return { phone: '', email: '' };
-    }
-    
-    const normalizedName = contractorName.toLowerCase().trim();
-    
-    const match = contractorsList.find(c => {
-        if (!c || !c.name) return false;
-        const cName = c.name.toLowerCase().trim();
-        return cName === normalizedName || 
-               cName.includes(normalizedName) || 
-               normalizedName.includes(cName);
-    });
-    
-    if (match) {
-        return {
-            phone: match.phone || '',
-            email: match.email || ''
-        };
-    }
-    
-    return { phone: '', email: '' };
-};
-
-// --- Helper to clean phone numbers for tel: links ---
 const cleanPhoneForLink = (phone) => {
     if (!phone) return '';
     return phone.replace(/[^\d+]/g, '');
 };
 
-// --- SUB-COMPONENTS ---
+// --- NEW COMPONENT: Task Action Modal ---
+// This isolates the "Done" action to prevent touch conflicts
+const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContractors }) => {
+    if (!task) return null;
 
-const HealthScoreCard = ({ breakdown, score }) => {
-    const safeBreakdown = breakdown || { 
-        maintenance: { penalty: 0 }, 
-        upcoming: { penalty: 0 }, 
-        coverage: { penalty: 0 } 
-    };
+    const isOverdue = (task.daysUntil || 0) < 0;
+    const days = Math.abs(task.daysUntil || 0);
+    const hasContractor = !!task.contractor;
+    const hasPhone = !!task.contractorPhone;
+    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
 
     return (
-        <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
-            <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
-                <h3 className="font-bold text-slate-900">Score Breakdown</h3>
-                <span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span>
-            </div>
-            
-            <div className="space-y-3">
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Wrench size={16} className={safeBreakdown.maintenance.penalty > 0 ? 'text-red-500' : 'text-emerald-500'} />
-                        <span className="text-slate-600">Overdue Tasks</span>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+                {/* Header */}
+                <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'} border-b ${isOverdue ? 'border-red-100' : 'border-emerald-100'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                        <div className={`p-3 rounded-2xl ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            {isOverdue ? <AlertTriangle size={24} /> : <Clock size={24} />}
+                        </div>
+                        <button onClick={onClose} className="p-2 bg-white/50 hover:bg-white rounded-full transition-colors">
+                            <X size={20} className="text-slate-500" />
+                        </button>
                     </div>
-                    <span className={`font-bold ${safeBreakdown.maintenance.penalty > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {safeBreakdown.maintenance.penalty > 0 ? `-${safeBreakdown.maintenance.penalty}` : '✓'}
-                    </span>
+                    <h3 className="text-xl font-bold text-slate-900 leading-tight">{task.taskName}</h3>
+                    <p className={`text-sm font-bold mt-1 ${isOverdue ? 'text-red-600' : 'text-emerald-700'}`}>
+                        {isOverdue ? `${days} days overdue` : `Due in ${days} days`}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-2">Item: {task.item}</p>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Clock size={16} className={safeBreakdown.upcoming.penalty > 0 ? 'text-amber-500' : 'text-emerald-500'} />
-                        <span className="text-slate-600">Upcoming Soon</span>
+
+                {/* Body - Contractor Actions */}
+                <div className="p-6 space-y-6">
+                    <div>
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Professional Help</h4>
+                        
+                        {hasContractor ? (
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                <p className="font-bold text-slate-800 text-sm mb-1">{task.contractor}</p>
+                                <p className="text-xs text-slate-500 mb-3">Linked Service Provider</p>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                    {hasPhone ? (
+                                        <>
+                                            <a href={`tel:${cleanPhone}`} className="flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 transition-colors">
+                                                <Phone size={14} /> Call
+                                            </a>
+                                            <a href={`sms:${cleanPhone}`} className="flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors">
+                                                <MessageCircle size={14} /> Text
+                                            </a>
+                                        </>
+                                    ) : (
+                                        <button 
+                                            onClick={() => onBook(task)}
+                                            className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-purple-50 hover:border-purple-200 transition-colors"
+                                        >
+                                            <LinkIcon size={14} /> Create Request Link
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <button 
+                                onClick={onNavigateToContractors}
+                                className="w-full py-4 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 text-sm font-bold hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center justify-center gap-2"
+                            >
+                                <User size={18} /> Find or Link a Pro
+                            </button>
+                        )}
                     </div>
-                    <span className={`font-bold ${safeBreakdown.upcoming.penalty > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                        {safeBreakdown.upcoming.penalty > 0 ? `-${safeBreakdown.upcoming.penalty}` : '✓'}
-                    </span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-2">
-                        <Package size={16} className={safeBreakdown.coverage.penalty > 0 ? 'text-blue-500' : 'text-emerald-500'} />
-                        <span className="text-slate-600">Item Coverage</span>
-                    </div>
-                    <span className={`font-bold ${safeBreakdown.coverage.penalty > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>
-                        {safeBreakdown.coverage.needed > 0 ? `+${safeBreakdown.coverage.needed} needed` : '✓'}
-                    </span>
+
+                    {/* Main Action - Mark Done */}
+                    <button 
+                        onClick={() => {
+                            onMarkDone(task);
+                            onClose();
+                        }}
+                        className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg shadow-slate-900/20 hover:bg-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-lg"
+                    >
+                        <CheckCircle2 size={24} className="text-emerald-400" />
+                        Mark as Complete
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
+const HealthScoreCard = ({ breakdown, score }) => (
+    <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
+            <h3 className="font-bold text-slate-900">Score Breakdown</h3>
+            <span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span>
+        </div>
+        <div className="space-y-3">
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2"><Wrench size={16} className="text-slate-400" /> <span className="text-slate-600">Maintenance</span></div>
+                <span className={`font-bold ${breakdown.maintenance.penalty > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : 'OK'}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Coverage</span></div>
+                <span className={`font-bold ${breakdown.coverage.penalty > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>{breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : 'OK'}</span>
+            </div>
+        </div>
+    </div>
+);
+
 const HealthRing = ({ score, theme, breakdown }) => {
     const [showBreakdown, setShowBreakdown] = useState(false);
     const size = 150, strokeWidth = 12, radius = (size - strokeWidth) / 2;
     const circumference = radius * 2 * Math.PI;
-    const safeScore = typeof score === 'number' && !isNaN(score) ? Math.max(0, Math.min(100, score)) : 0;
+    const safeScore = Math.max(0, Math.min(100, score || 0));
     const strokeDashoffset = circumference - (safeScore / 100) * circumference;
     const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
     
     return (
-        <div 
-            className="relative group cursor-pointer" 
-            style={{ width: size, height: size }}
-            onClick={() => setShowBreakdown(!showBreakdown)}
-            onMouseEnter={() => setShowBreakdown(true)}
-            onMouseLeave={() => setShowBreakdown(false)}
-        >
+        <div className="relative group cursor-pointer" style={{ width: size, height: size }} onClick={() => setShowBreakdown(!showBreakdown)}>
             <svg className="transform -rotate-90 transition-all duration-300 group-hover:scale-105" width={size} height={size}>
                 <circle cx={size/2} cy={size/2} r={radius} stroke="currentColor" strokeWidth="12" fill="none" className="text-white/10" />
-                <circle cx={size/2} cy={size/2} r={radius} stroke={strokeColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} style={{ transition: 'stroke-dashoffset 1s ease-out', filter: `drop-shadow(0 0 10px ${strokeColor}40)` }} />
+                <circle cx={size/2} cy={size/2} r={radius} stroke={strokeColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} style={{ transition: 'stroke-dashoffset 1s ease-out' }} />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
-                <span className="text-5xl font-black tracking-tight shadow-sm">{safeScore}</span>
-                <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${theme.accent}`}>Health <Info size={10} /></span>
+                <span className="text-5xl font-black tracking-tight">{safeScore}</span>
+                <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 ${theme.accent}`}>Health</span>
             </div>
             {showBreakdown && <HealthScoreCard breakdown={breakdown} score={safeScore} />}
         </div>
@@ -195,192 +221,56 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// ============================================
-// CRITICAL FIX: SmartContactActions 
-// Removed conflicting onTouchEnd handlers that were blocking clicks.
-// Standardized on standard onClick events.
-// ============================================
-const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
-    const hasPhone = !!task.contractorPhone;
-    const hasEmail = !!task.contractorEmail;
-    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
-    
-    const showRequestFallback = !hasPhone && !hasEmail;
-
-    // Direct click handlers
-    const handleDone = (e) => {
-        e.stopPropagation();
-        if (onDone) onDone(task);
-    };
-
-    const handleRequest = (e) => {
-        e.stopPropagation();
-        if (onBook) onBook(task);
-    };
-
-    // Common button style with cursor-pointer
-    const buttonBaseStyle = "touch-action-manipulation select-none cursor-pointer";
-
-    return (
-        <div className="flex items-center gap-2 mt-3 sm:mt-0 sm:ml-auto flex-wrap">
-            {/* 1. TEXT (SMS) */}
-            {hasPhone && (
-                <a 
-                    href={`sms:${cleanPhone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 active:bg-blue-200 transition-colors border border-blue-100 no-underline`}
-                >
-                    <MessageCircle size={16} className="mr-1.5" /> Text
-                </a>
-            )}
-
-            {/* 2. EMAIL */}
-            {hasEmail && (
-                <a 
-                    href={`mailto:${task.contractorEmail}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`${buttonBaseStyle} flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border no-underline ${
-                        !hasPhone 
-                            ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100 active:bg-blue-200' 
-                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 active:bg-slate-100'
-                    }`}
-                >
-                    <Mail size={16} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
-                </a>
-            )}
-
-            {/* 3. CALL */}
-            {hasPhone && (
-                <a 
-                    href={`tel:${cleanPhone}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className={`${buttonBaseStyle} px-3 py-2 min-h-[44px] bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 active:bg-slate-100 transition-colors flex items-center justify-center no-underline`}
-                >
-                    <Phone size={16} />
-                </a>
-            )}
-
-            {/* 4. FALLBACK: Request Service */}
-            {showRequestFallback && (
-                <button 
-                    type="button"
-                    onClick={handleRequest}
-                    className={`${buttonBaseStyle} flex-1 sm:flex-none flex items-center justify-center px-3 py-2 min-h-[44px] rounded-lg text-xs font-bold transition-colors border ${
-                        isOverdue 
-                            ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100 active:bg-red-200' 
-                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 active:bg-emerald-200'
-                    }`}
-                >
-                    <LinkIcon size={16} className="mr-1.5" />
-                    Request Link
-                </button>
-            )}
-            
-            {/* 5. DONE BUTTON - Clean onClick */}
-            <button 
-                type="button"
-                onClick={handleDone}
-                className={`${buttonBaseStyle} px-4 py-2 min-h-[44px] bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 active:bg-slate-900 transition-colors flex items-center shadow-sm ml-auto sm:ml-0`}
-            >
-                <Check size={16} className="mr-1.5" /> Done
-            </button>
-        </div>
-    );
-};
-
-const AttentionCard = ({ task, onBook, onDone }) => {
+const AttentionCard = ({ task, onClick }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
-    const contractorName = task.contractor || 'Contractor';
     const days = Math.abs(task.daysUntil || 0);
     
     return (
-        <div 
-            className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group"
+        <button 
+            onClick={() => onClick(task)}
+            className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group text-left relative overflow-hidden"
         >
-            <div className="flex gap-4">
-                {/* Icon Column */}
-                <div className="shrink-0">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                        <AlertTriangle size={20} />
-                    </div>
+            {/* Visual Indicator Strip */}
+            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${isOverdue ? 'bg-red-500' : 'bg-amber-500'}`} />
+            
+            <div className="flex gap-4 pl-2">
+                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                    <AlertTriangle size={24} />
                 </div>
-
-                {/* Content Column */}
                 <div className="flex-grow min-w-0">
                     <div className="flex justify-between items-start">
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm">{task.taskName || task.item}</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">{task.item !== task.taskName ? task.item : 'General Maintenance'}</p>
+                        <h3 className="font-bold text-slate-800 text-base">{task.taskName}</h3>
+                        <div className="bg-slate-100 p-1 rounded-full group-hover:bg-slate-200 transition-colors">
+                            <ChevronRight size={16} className="text-slate-400" />
                         </div>
-                        {isOverdue && (
-                            <span className="text-[10px] font-extrabold bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                                {days} Days Late
-                            </span>
-                        )}
                     </div>
-
-                    {task.contractor && (
-                        <p className="text-xs text-slate-400 mt-2 font-medium flex items-center">
-                            via {contractorName}
-                        </p>
-                    )}
-
-                    {/* ACTIONS */}
-                    <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
+                    <p className="text-xs text-slate-500 font-medium mb-1">{task.item}</p>
+                    <p className={`text-xs font-bold uppercase tracking-wide ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
+                        {isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}
+                    </p>
                 </div>
             </div>
-        </div>
+        </button>
     );
 };
 
-// --- Scheduled List Row ---
-const ScheduledTaskRow = ({ task, onBook, onDone }) => {
-    const contractorName = task.contractor || null;
-
-    const handleDone = (e) => {
-        e.stopPropagation();
-        if (onDone) onDone(task);
-    };
-    
-    return (
-        <div 
-            className="flex flex-col sm:flex-row sm:items-center p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group"
-        >
-            <div className="flex items-center gap-4 flex-grow min-w-0">
-                <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
-                    <Calendar size={18} />
-                </div>
-                
-                <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-700 text-sm truncate">{task.taskName}</h4>
-                        <span className="text-xs font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
-                            {task.nextDate ? task.nextDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}) : 'Soon'}
-                        </span>
-                    </div>
-                    <p className="text-xs text-slate-500 truncate">{task.item}</p>
-                </div>
-            </div>
-            
-            {/* Inline Action Row */}
-            <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 mt-2 sm:mt-0 border-t sm:border-0 border-slate-50 sm:ml-auto">
-                {contractorName ? (
-                    <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={false} />
-                ) : (
-                    <button 
-                        type="button"
-                        onClick={handleDone}
-                        className="p-3 min-h-[44px] min-w-[44px] text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 active:bg-emerald-100 rounded-full transition-all ml-auto sm:ml-0 select-none cursor-pointer"
-                        title="Mark Done"
-                    >
-                        <CheckCircle2 size={22} />
-                    </button>
-                )}
-            </div>
+const ScheduledTaskRow = ({ task }) => (
+    <div className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors">
+        <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 shrink-0">
+            <Calendar size={18} />
         </div>
-    );
-};
+        <div className="min-w-0 flex-grow">
+            <div className="flex items-center justify-between">
+                <h4 className="font-bold text-slate-700 text-sm truncate">{task.taskName}</h4>
+                <span className="text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded">
+                    {task.nextDate ? task.nextDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}) : 'Soon'}
+                </span>
+            </div>
+            <p className="text-xs text-slate-500 truncate">{task.item}</p>
+        </div>
+    </div>
+);
 
 const SectionHeader = ({ title, action, actionLabel }) => (
     <div className="flex items-center justify-between mb-4 mt-8 first:mt-0">
@@ -388,8 +278,6 @@ const SectionHeader = ({ title, action, actionLabel }) => (
         {action && <button onClick={action} className="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors">{actionLabel} <ChevronRight size={16} /></button>}
     </div>
 );
-
-// --- MAIN COMPONENT ---
 
 export const ModernDashboard = ({
     records = [],
@@ -408,8 +296,11 @@ export const ModernDashboard = ({
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
+    
+    // UI State for Modal
+    const [selectedTask, setSelectedTask] = useState(null);
 
-    // --- ROBUST SCORING & SCHEDULE LOGIC ---
+    // Metrics & Lists Logic
     const metrics = useMemo(() => {
         try {
             const now = new Date();
@@ -421,143 +312,102 @@ export const ModernDashboard = ({
             
             const validRecords = Array.isArray(records) ? records : [];
             const validContractors = Array.isArray(contractors) ? contractors : [];
-            const totalTracked = validRecords.length;
             
+            // Helper to match contractor details
+            const getContractorInfo = (name) => {
+                if (!name) return {};
+                const match = validContractors.find(c => c.name?.toLowerCase().includes(name.toLowerCase()));
+                return match ? { phone: match.phone, email: match.email } : {};
+            };
+
             validRecords.forEach(record => {
                 if (!record) return;
-
-                // Get contractor contact info
-                let contractorPhone = record.contractorPhone || '';
-                let contractorEmail = record.contractorEmail || '';
                 
-                if ((!contractorPhone || !contractorEmail) && record.contractor) {
-                    const lookedUp = findContractorContact(record.contractor, validContractors);
-                    if (!contractorPhone && lookedUp.phone) contractorPhone = lookedUp.phone;
-                    if (!contractorEmail && lookedUp.email) contractorEmail = lookedUp.email;
-                }
+                // Determine contact info
+                const contact = getContractorInfo(record.contractor);
+                const phone = record.contractorPhone || contact.phone || '';
+                const email = record.contractorEmail || contact.email || '';
 
-                // 1. GRANULAR TASKS (New Schema)
-                if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
-                    record.maintenanceTasks.forEach(task => {
-                        if (!task || !task.nextDue) return;
-
-                        const nextDate = safeDate(task.nextDue);
-                        if (!nextDate) return;
-
-                        const diffTime = nextDate - now;
-                        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        
-                        const taskItem = {
-                            id: `${record.id || 'rec'}-${task.task || 'task'}-${Math.random()}`,
-                            recordId: record.id,
-                            taskName: task.task || 'Maintenance',
-                            item: record.item || 'Unknown Item',
-                            contractor: record.contractor || '',
-                            contractorPhone: contractorPhone,
-                            contractorEmail: contractorEmail,
-                            frequency: task.frequency || 'annual',
-                            isGranular: true,
-                            nextDate: nextDate,
-                            daysUntil: isNaN(daysUntil) ? 0 : daysUntil
-                        };
-
-                        if (daysUntil < 0) {
-                            overdueCount++;
-                            overdueTasks.push(taskItem);
-                        } else if (daysUntil <= 30) {
-                            upcomingCount++;
-                            upcomingTasks.push(taskItem);
-                        } else if (daysUntil <= 180) {
-                            scheduledTasks.push(taskItem);
-                        }
-                    });
-                } 
-                // 2. LEGACY RECORDS
-                else {
-                    const nextDate = getNextServiceDate(record);
-                    if (nextDate) {
-                        const diffTime = nextDate - now;
-                        const daysUntil = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        
-                        const taskItem = {
-                            id: record.id || `legacy-${Math.random()}`,
-                            recordId: record.id,
-                            taskName: 'Maintenance',
-                            item: record.item || 'Unknown Item',
-                            contractor: record.contractor || '',
-                            contractorPhone: contractorPhone,
-                            contractorEmail: contractorEmail,
-                            frequency: record.maintenanceFrequency,
-                            isGranular: false,
-                            nextDate: nextDate,
-                            daysUntil: isNaN(daysUntil) ? 0 : daysUntil
-                        };
-
-                        if (daysUntil < 0) {
-                            overdueCount++;
-                            overdueTasks.push(taskItem);
-                        } else if (daysUntil <= 30) {
-                            upcomingCount++;
-                            upcomingTasks.push(taskItem);
-                        } else if (daysUntil <= 180) {
-                            scheduledTasks.push(taskItem);
+                // Process Tasks (Granular or Legacy)
+                const processTask = (taskName, freq, dateStr, isGranular) => {
+                    if (!dateStr || freq === 'none') return;
+                    
+                    // Simple next date logic if not pre-calculated
+                    let nextDate = safeDate(dateStr);
+                    if (!isGranular && nextDate) {
+                        const next = new Date(nextDate);
+                        const f = MAINTENANCE_FREQUENCIES.find(x => x.value === freq);
+                        if (f && f.months > 0) {
+                            next.setMonth(next.getMonth() + f.months);
+                            while (next < now) next.setMonth(next.getMonth() + f.months);
+                            nextDate = next;
                         }
                     }
+
+                    if (!nextDate) return;
+
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    const taskItem = {
+                        id: `${record.id}-${taskName}-${Math.random()}`,
+                        recordId: record.id,
+                        taskName,
+                        item: record.item,
+                        contractor: record.contractor,
+                        contractorPhone: phone,
+                        contractorEmail: email,
+                        frequency: freq,
+                        nextDate,
+                        daysUntil,
+                        isGranular
+                    };
+
+                    if (daysUntil < 0) { overdueCount++; overdueTasks.push(taskItem); }
+                    else if (daysUntil <= 30) { upcomingCount++; upcomingTasks.push(taskItem); }
+                    else if (daysUntil <= 180) { scheduledTasks.push(taskItem); }
+                };
+
+                // Check Granular
+                if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
+                    record.maintenanceTasks.forEach(t => processTask(t.task, t.frequency, t.nextDue, true));
+                } else {
+                    processTask('General Maintenance', record.maintenanceFrequency, record.dateInstalled, false);
                 }
             });
-            
-            // Calculate Score
-            let coveragePenalty = 0;
-            const TARGET_ITEMS = 5;
-            if (totalTracked === 0) coveragePenalty = 40;
-            else if (totalTracked < 3) coveragePenalty = 25;
-            else if (totalTracked < TARGET_ITEMS) coveragePenalty = 10;
 
-            const overduePenalty = Math.min(60, overdueCount * 15);
-            const upcomingPenalty = Math.min(20, upcomingCount * 5);
-            const rawScore = 100 - coveragePenalty - overduePenalty - upcomingPenalty;
-            const score = Math.max(0, rawScore);
-            
-            const totalSpent = validRecords.reduce((sum, r) => {
-                const val = parseFloat(r.cost);
-                return sum + (isNaN(val) ? 0 : val);
-            }, 0);
-            
-            scheduledTasks.sort((a, b) => a.daysUntil - b.daysUntil);
+            // Score Calc
+            const total = validRecords.length;
+            let coveragePenalty = total < 5 ? (5 - total) * 10 : 0;
+            const score = Math.max(0, 100 - coveragePenalty - (overdueCount * 15));
+            const totalSpent = validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
 
             return {
-                score, overdueCount, upcomingCount, totalSpent, 
-                overdueTasks, upcomingTasks, scheduledTasks,
-                breakdown: {
-                    coverage: { penalty: coveragePenalty, needed: Math.max(0, TARGET_ITEMS - totalTracked) },
-                    maintenance: { penalty: overduePenalty, count: overdueCount },
-                    upcoming: { penalty: upcomingPenalty, count: upcomingCount }
+                score, overdueCount, upcomingCount, totalSpent,
+                overdueTasks, upcomingTasks, scheduledTasks: scheduledTasks.sort((a,b) => a.daysUntil - b.daysUntil),
+                breakdown: { 
+                    coverage: { penalty: coveragePenalty, needed: Math.max(0, 5 - total) },
+                    maintenance: { penalty: overdueCount * 15 }
                 }
             };
-        } catch (error) {
-            console.error("[ModernDashboard] Metrics Calculation Error:", error);
-            return {
-                score: 0, overdueCount: 0, upcomingCount: 0, totalSpent: 0, 
-                overdueTasks: [], upcomingTasks: [], scheduledTasks: [],
-                breakdown: { coverage: { penalty: 0 }, maintenance: { penalty: 0 }, upcoming: { penalty: 0 } }
-            };
+        } catch (e) {
+            console.error("Metrics Error", e);
+            return { score: 0, overdueTasks: [], upcomingTasks: [], scheduledTasks: [], breakdown: { coverage: {}, maintenance: {} } };
         }
     }, [records, contractors]);
 
-    const getScoreMessage = () => {
-        if (!records || records.length === 0) return "Start adding items to build your score!";
-        if (metrics.score >= 90) return "Your home is in excellent shape! 🎉";
-        if (metrics.score >= 75) return "Looking good! Just a few checks needed.";
-        if (metrics.score >= 50) return "Some items need your attention.";
-        return "Time to catch up on maintenance.";
-    };
-
-    const safeRecordsCount = Array.isArray(records) ? records.length : 0;
-    const safeContractorsCount = Array.isArray(contractors) ? contractors.length : 0;
-
     return (
         <div className="space-y-8 pb-8">
-            {/* HERO SECTION */}
+            {/* Modal Layer */}
+            {selectedTask && (
+                <TaskActionModal 
+                    task={selectedTask} 
+                    onClose={() => setSelectedTask(null)}
+                    onMarkDone={onMarkTaskDone}
+                    onBook={onBookService}
+                    onNavigateToContractors={onNavigateToContractors}
+                />
+            )}
+
+            {/* HERO */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
                 <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden">
                     <div className={`absolute inset-0 bg-gradient-to-br ${season.gradient}`} />
@@ -568,10 +418,10 @@ export const ModernDashboard = ({
                         <div><p className="text-white/60 text-sm font-bold uppercase tracking-wider mb-1">{season.icon} {season.name} Season</p><h1 className="text-3xl font-bold tracking-tight">{greeting},<br/>{activeProperty?.name || 'Homeowner'}</h1></div>
                         <button onClick={onScanReceipt} className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-3 rounded-2xl border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-lg"><Camera size={24} /></button>
                     </div>
-                    <div className="flex flex-col items-center py-2"><HealthRing score={metrics.score} theme={season} breakdown={metrics.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">{getScoreMessage()}</p></div>
+                    <div className="flex flex-col items-center py-2"><HealthRing score={metrics.score} theme={season} breakdown={metrics.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">Your home health score.</p></div>
                     <div className="grid grid-cols-3 gap-3 mt-8">
-                        <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{safeRecordsCount}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
-                        <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{safeContractorsCount}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
+                        <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{records.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
+                        <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
                         <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(metrics.totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
                     </div>
                 </div>
@@ -581,11 +431,11 @@ export const ModernDashboard = ({
             {(metrics.overdueCount > 0 || metrics.upcomingCount > 0) && (
                 <div className="space-y-4">
                     <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
-                    {metrics.overdueTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
+                    {metrics.overdueTasks.map((task) => (
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
                     {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
-                        <AttentionCard key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
+                        <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
                 </div>
             )}
@@ -596,7 +446,7 @@ export const ModernDashboard = ({
                     <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
                     <div className="space-y-3">
                         {metrics.scheduledTasks.slice(0, 3).map((task) => (
-                            <ScheduledTaskRow key={task.id} task={task} onBook={onBookService} onDone={onMarkTaskDone} />
+                            <ScheduledTaskRow key={task.id} task={task} />
                         ))}
                     </div>
                 </div>
