@@ -109,7 +109,6 @@ const AppContent = () => {
                         jobs: []
                     };
                 }
-                // Update contact info if found in newer record (prioritize non-empty values)
                 if (r.contractorPhone && !acc[key].phone) acc[key].phone = r.contractorPhone;
                 if (r.contractorEmail && !acc[key].email) acc[key].email = r.contractorEmail;
                 acc[key].jobs.push(r);
@@ -191,13 +190,8 @@ const AppContent = () => {
     const handleTabChange = (tabId) => tabId === 'More' ? setShowMoreMenu(true) : setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { setActiveTab(dest); setShowMoreMenu(false); };
 
-    // ============================================
-    // ⬇️ HANDLERS FOR DASHBOARD ACTIONS ⬇️
-    // ============================================
-
     // 1. Handle "Request Service" click
     const handleBookService = useCallback((task) => {
-        console.log('[App] handleBookService called with task:', task);
         const record = records.find(r => r.id === task.recordId);
         if (!record) {
             console.warn("Record not found for booking:", task.recordId);
@@ -212,10 +206,8 @@ const AppContent = () => {
 
     // 2. Handle "Done" click (Complete Task)
     const handleMarkTaskDone = useCallback(async (task) => {
-        console.log('[App] handleMarkTaskDone called with task:', task);
         try {
             if (!task.recordId) {
-                console.error('Task is missing recordId:', task);
                 toast.error("Could not update - missing record ID");
                 return;
             }
@@ -223,7 +215,6 @@ const AppContent = () => {
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) {
-                console.error('Record not found:', task.recordId);
                 toast.error("Could not find the record to update");
                 return;
             }
