@@ -1,15 +1,12 @@
 // src/features/dashboard/ProgressiveDashboard.jsx
 import React, { useMemo } from 'react';
 import { 
-    Camera, Plus, Package, FileText, Wrench, ChevronRight, 
-    Sparkles, Home, ArrowRight, DollarSign, TrendingUp, 
-    AlertTriangle, Clock, CheckCircle2 
+    Camera, Plus, Package, Sparkles, Home 
 } from 'lucide-react';
 import { ReportTeaser } from './ReportTeaser';
-import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { ModernDashboard } from './ModernDashboard';
 
-// --- SUB-COMPONENTS (Missing definitions fixed here) ---
+// --- SUB-COMPONENTS ---
 
 const EmptyHomeState = ({ propertyName, onAddItem, onScanReceipt }) => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in-95 duration-500">
@@ -146,7 +143,7 @@ export const ProgressiveDashboard = ({
     onNavigateToReports,
     onCreateContractorLink,
     onNavigateToMaintenance,
-    // NEW PROPS PASSED FROM APP
+    // ⬇️ CRITICAL UPDATE: Ensure these are accepted as props ⬇️
     onBookService, 
     onMarkTaskDone 
 }) => {
@@ -192,7 +189,7 @@ export const ProgressiveDashboard = ({
                     onNavigateToReports={onNavigateToReports}
                     onCreateContractorLink={onCreateContractorLink}
                     onNavigateToMaintenance={onNavigateToMaintenance}
-                    // PASSING NEW HANDLERS
+                    // ⬇️ CRITICAL UPDATE: Pass them down to ModernDashboard ⬇️
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                 />
