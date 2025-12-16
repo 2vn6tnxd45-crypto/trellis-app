@@ -38,6 +38,211 @@ import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
 
+// ============================================
+// 🔍 DEBUG COMPONENT - INLINE FOR TROUBLESHOOTING
+// Remove this after debugging is complete
+// ============================================
+const NeedsAttentionDebug = ({ records, contractors, onBookService, onMarkTaskDone }) => {
+    const now = new Date();
+    const overdueTasks = [];
+    
+    records?.forEach(record => {
+        if (!record) return;
+        
+        // Check for granular maintenance tasks
+        if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
+            record.maintenanceTasks.forEach(task => {
+                if (!task || !task.nextDue) return;
+                const nextDate = new Date(task.nextDue);
+                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                
+                if (daysUntil < 0 || daysUntil <= 30) {
+                    overdueTasks.push({
+                        recordId: record.id,
+                        taskName: task.task,
+                        item: record.item,
+                        contractor: record.contractor,
+                        contractorPhone: record.contractorPhone,
+                        contractorEmail: record.contractorEmail,
+                        daysUntil,
+                        isGranular: true,
+                        frequency: task.frequency
+                    });
+                }
+            });
+        }
+        // Check for legacy maintenance frequency
+        else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && record.dateInstalled) {
+            // Simple calculation for legacy records
+            const installed = new Date(record.dateInstalled);
+            const freqMonths = { monthly: 1, quarterly: 3, biannual: 6, annual: 12, '2years': 24, '5years': 60 };
+            const months = freqMonths[record.maintenanceFrequency] || 12;
+            const nextDate = new Date(installed);
+            nextDate.setMonth(nextDate.getMonth() + months);
+            while (nextDate < now) nextDate.setMonth(nextDate.getMonth() + months);
+            const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntil <= 30) {
+                overdueTasks.push({
+                    recordId: record.id,
+                    taskName: 'Maintenance',
+                    item: record.item,
+                    contractor: record.contractor,
+                    contractorPhone: record.contractorPhone,
+                    contractorEmail: record.contractorEmail,
+                    daysUntil,
+                    isGranular: false,
+                    frequency: record.maintenanceFrequency
+                });
+            }
+        }
+    });
+
+    // Find contractor info from list
+    const findContractor = (name) => {
+        if (!name || !contractors) return null;
+        return contractors.find(c => 
+            c.name?.toLowerCase().includes(name.toLowerCase()) ||
+            name.toLowerCase().includes(c.name?.toLowerCase())
+        );
+    };
+
+    return (
+        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 m-4 text-sm">
+            <h3 className="font-bold text-yellow-800 mb-3">🔍 DEBUG: Needs Attention Data</h3>
+            
+            <div className="space-y-2 mb-4">
+                <p><strong>Records count:</strong> {records?.length || 0}</p>
+                <p><strong>Contractors count:</strong> {contractors?.length || 0}</p>
+                <p><strong>onBookService exists:</strong> {onBookService ? '✅ YES' : '❌ NO'}</p>
+                <p><strong>onMarkTaskDone exists:</strong> {onMarkTaskDone ? '✅ YES' : '❌ NO'}</p>
+                <p><strong>Tasks needing attention:</strong> {overdueTasks.length}</p>
+            </div>
+
+            {contractors?.length > 0 && (
+                <div className="mb-4 p-3 bg-white rounded border">
+                    <p className="font-bold text-yellow-800 mb-2">Contractors in list:</p>
+                    <ul className="list-disc pl-5 space-y-1">
+                        {contractors.slice(0, 5).map((c, i) => (
+                            <li key={i}>
+                                <strong>{c.name}</strong> - Phone: <span className={c.phone ? 'text-green-600' : 'text-red-600'}>{c.phone || 'NONE'}</span> - Email: <span className={c.email ? 'text-green-600' : 'text-red-600'}>{c.email || 'NONE'}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
+            {overdueTasks.length > 0 ? (
+                <div>
+                    <p className="font-bold text-yellow-800 mb-2">Tasks found ({overdueTasks.length}):</p>
+                    {overdueTasks.slice(0, 3).map((task, i) => {
+                        const matchedContractor = findContractor(task.contractor);
+                        const hasPhone = task.contractorPhone || matchedContractor?.phone;
+                        const hasEmail = task.contractorEmail || matchedContractor?.email;
+                        const phone = task.contractorPhone || matchedContractor?.phone;
+                        const email = task.contractorEmail || matchedContractor?.email;
+                        
+                        return (
+                            <div key={i} className="bg-white p-3 rounded mb-2 border">
+                                <p><strong>Task:</strong> {task.taskName}</p>
+                                <p><strong>Item:</strong> {task.item}</p>
+                                <p><strong>Days Until Due:</strong> <span className={task.daysUntil < 0 ? 'text-red-600 font-bold' : 'text-amber-600'}>{task.daysUntil}</span></p>
+                                <p><strong>Contractor on record:</strong> {task.contractor || <span className="text-red-600">NONE</span>}</p>
+                                <p><strong>Phone on record:</strong> {task.contractorPhone || <span className="text-red-600">NONE</span>}</p>
+                                <p><strong>Email on record:</strong> {task.contractorEmail || <span className="text-red-600">NONE</span>}</p>
+                                
+                                {matchedContractor && (
+                                    <p className="text-green-600 mt-1">
+                                        <strong>✓ Found in contractors list:</strong> {matchedContractor.name} 
+                                        (Phone: {matchedContractor.phone || 'NONE'}, 
+                                        Email: {matchedContractor.email || 'NONE'})
+                                    </p>
+                                )}
+                                {!matchedContractor && task.contractor && (
+                                    <p className="text-red-600 mt-1">
+                                        <strong>✗ NOT found in contractors list!</strong>
+                                    </p>
+                                )}
+                                
+                                {/* Test buttons */}
+                                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
+                                    {hasPhone && (
+                                        <>
+                                            <a 
+                                                href={`tel:${phone}`}
+                                                className="px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-bold"
+                                            >
+                                                📞 Test Call
+                                            </a>
+                                            <a 
+                                                href={`sms:${phone}`}
+                                                className="px-3 py-1.5 bg-green-500 text-white rounded text-xs font-bold"
+                                            >
+                                                💬 Test SMS
+                                            </a>
+                                        </>
+                                    )}
+                                    {hasEmail && (
+                                        <a 
+                                            href={`mailto:${email}`}
+                                            className="px-3 py-1.5 bg-purple-500 text-white rounded text-xs font-bold"
+                                        >
+                                            ✉️ Test Email
+                                        </a>
+                                    )}
+                                    <button 
+                                        onClick={() => {
+                                            console.log('Done clicked!', task);
+                                            if (onMarkTaskDone) {
+                                                onMarkTaskDone(task);
+                                            } else {
+                                                alert('onMarkTaskDone is not defined!');
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold"
+                                    >
+                                        ✓ Test Done
+                                    </button>
+                                    {!hasPhone && !hasEmail && (
+                                        <span className="text-red-600 text-xs font-bold">No contact info - only Request Link + Done will show</span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="bg-white p-4 rounded border">
+                    <p className="text-yellow-700 font-medium">⚠️ No tasks needing attention found. This could mean:</p>
+                    <ul className="list-disc pl-5 mt-2 text-yellow-700 space-y-1">
+                        <li>No records have <code className="bg-yellow-100 px-1">maintenanceTasks</code> arrays with <code className="bg-yellow-100 px-1">nextDue</code> dates</li>
+                        <li>No records have <code className="bg-yellow-100 px-1">maintenanceFrequency</code> set (other than 'none')</li>
+                        <li>No tasks are overdue or due within 30 days</li>
+                    </ul>
+                    <p className="mt-3 text-yellow-800 font-bold">Check a sample record:</p>
+                    {records?.[0] && (
+                        <pre className="bg-yellow-100 p-2 rounded mt-2 text-xs overflow-x-auto">
+{JSON.stringify({
+    item: records[0].item,
+    contractor: records[0].contractor,
+    contractorPhone: records[0].contractorPhone,
+    contractorEmail: records[0].contractorEmail,
+    maintenanceFrequency: records[0].maintenanceFrequency,
+    maintenanceTasks: records[0].maintenanceTasks,
+    dateInstalled: records[0].dateInstalled
+}, null, 2)}
+                        </pre>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+};
+// ============================================
+// END DEBUG COMPONENT
+// ============================================
+
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -95,10 +300,28 @@ const AppContent = () => {
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
 
-    const contractorsList = Object.values(activePropertyRecords.reduce((acc, r) => {
-        if (r.contractor && r.contractor.length > 2) acc[r.contractor] = { name: r.contractor, id: r.contractor };
-        return acc;
-    }, {}));
+    // ENHANCED: Build contractors list with contact info from records
+    const contractorsList = useMemo(() => {
+        return Object.values(activePropertyRecords.reduce((acc, r) => {
+            if (r.contractor && r.contractor.length > 2) {
+                const key = r.contractor.toLowerCase().trim();
+                if (!acc[key]) {
+                    acc[key] = { 
+                        name: r.contractor, 
+                        id: r.contractor,
+                        phone: r.contractorPhone || '',
+                        email: r.contractorEmail || '',
+                        jobs: []
+                    };
+                }
+                // Update contact info if found in newer record (prioritize non-empty values)
+                if (r.contractorPhone && !acc[key].phone) acc[key].phone = r.contractorPhone;
+                if (r.contractorEmail && !acc[key].email) acc[key].email = r.contractorEmail;
+                acc[key].jobs.push(r);
+            }
+            return acc;
+        }, {}));
+    }, [activePropertyRecords]);
 
     useEffect(() => {
         let unsubRecords = null;
@@ -145,6 +368,7 @@ const AppContent = () => {
     }, [records, activeProperty]);
 
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
+    
     const handleSaveProperty = async (formData) => {
         if (!user) return;
         setIsSavingProperty(true);
@@ -164,7 +388,6 @@ const AppContent = () => {
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
     const handleDismissWelcome = async () => { setHasSeenWelcome(true); if (user) updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { hasSeenWelcome: true }); };
     
-    // UPDATED: Handle Open Quick Service
     const handleOpenQuickService = (record) => { setQuickServiceRecord(record); setQuickServiceDescription(''); setShowQuickService(true); };
     const handleCloseQuickService = () => { setShowQuickService(false); setQuickServiceRecord(null); setQuickServiceDescription(''); };
     
@@ -174,29 +397,41 @@ const AppContent = () => {
     const handleMoreNavigate = (dest) => { setActiveTab(dest); setShowMoreMenu(false); };
 
     // ============================================
-    // ⬇️ NEW HANDLERS FOR DASHBOARD ACTIONS ⬇️
+    // ⬇️ HANDLERS FOR DASHBOARD ACTIONS ⬇️
     // ============================================
 
     // 1. Handle "Request Service" click
-    const handleBookService = (task) => {
+    const handleBookService = useCallback((task) => {
+        console.log('[App] handleBookService called with task:', task);
         const record = records.find(r => r.id === task.recordId);
         if (!record) {
             console.warn("Record not found for booking:", task.recordId);
+            toast.error("Could not find the related record");
             return;
         }
         
         setQuickServiceRecord(record);
-        // Pre-fill the description based on the specific task
         setQuickServiceDescription(`Maintenance: ${task.taskName || 'General Service'}`);
         setShowQuickService(true);
-    };
+    }, [records]);
 
     // 2. Handle "Done" click (Complete Task)
-    const handleMarkTaskDone = async (task) => {
+    const handleMarkTaskDone = useCallback(async (task) => {
+        console.log('[App] handleMarkTaskDone called with task:', task);
         try {
+            if (!task.recordId) {
+                console.error('Task is missing recordId:', task);
+                toast.error("Could not update - missing record ID");
+                return;
+            }
+            
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
-            if (!record) return;
+            if (!record) {
+                console.error('Record not found:', task.recordId);
+                toast.error("Could not find the record to update");
+                return;
+            }
             
             const now = new Date().toISOString().split('T')[0];
             const nextDate = calculateNextDate(now, task.frequency || 'annual');
@@ -217,10 +452,10 @@ const AppContent = () => {
             toast.success("Maintenance recorded!");
             celebrations.showToast("Task Complete!", Check);
         } catch (e) {
-            console.error(e);
-            toast.error("Failed to update");
+            console.error('[App] handleMarkTaskDone error:', e);
+            toast.error("Failed to update: " + e.message);
         }
-    };
+    }, [records, user, celebrations]);
 
     // ============================================
 
@@ -320,37 +555,35 @@ const AppContent = () => {
     return (
         <>
         <Toaster position="top-center" />
-        <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} itemName={lastAddedItem} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} onAddAnother={() => openAddModal()} />
-        {showScanner && (
-            <SmartScanner 
-                onClose={() => setShowScanner(false)} 
-                onProcessComplete={handleScanComplete} 
-                userAddress={activeProperty?.address} 
-                analyzeImage={handleAnalyzeImage} 
-            />
-        )}
+        <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} itemName={lastAddedItem} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
 
-        <div className="min-h-screen bg-emerald-50 font-sans pb-32">
-            <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
-                <div className="relative z-10 flex items-center">
-                    <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors group">
-                        <Logo className="h-10 w-10 group-hover:scale-105 transition-transform"/>
-                        <div className="flex flex-col"><h1 className="text-xl font-extrabold text-emerald-950 leading-none flex items-center">{activeProperty.name}<ChevronDown size={16} className="ml-1 text-slate-400 group-hover:text-emerald-600 transition-colors"/></h1></div>
-                    </button>
-                    {isSwitchingProp && (<div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in slide-in-from-top-2">{properties.map(p => (<button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between text-sm font-bold mb-1 ${activePropertyId === p.id ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}>{p.name}{activePropertyId === p.id && <Check size={16} className="text-emerald-600"/>}</button>))}<div className="border-t border-slate-100 my-1"></div><button onClick={() => { setIsSwitchingProp(false); setIsAddingProperty(true); }} className="w-full text-left px-3 py-3 rounded-xl flex items-center text-sm font-bold text-emerald-600 hover:bg-emerald-50"><PlusCircle size={16} className="mr-2"/> Add Property</button></div>)}
-                </div>
-                <div className="relative z-10 flex items-center gap-3">
-                    <div className="relative"><button onClick={() => setShowNotifications(!showNotifications)} className="p-2 relative bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100"><Bell size={20} className="text-slate-400"/>{totalNotifications > 0 && <span className="absolute top-1 right-1 h-2.5 w-2.5 bg-red-500 rounded-full border-2 border-white"></span>}</button></div>
-                    <div className="relative"><button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 bg-white hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100"><Menu size={20} className="text-slate-400"/></button>{showUserMenu && (<><div className="absolute right-0 top-12 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95"><button onClick={() => signOut(auth)} className="w-full text-left px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl flex items-center"><LogOut size={16} className="mr-2"/> Sign Out</button></div><div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div></>)}</div>
+        {showScanner && <SmartScanner onClose={() => setShowScanner(false)} onProcessComplete={handleScanComplete} analyzeImage={handleAnalyzeImage} />}
+
+        <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-warm-100 pb-24">
+            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-100 shadow-sm px-4 py-3">
+                <div className="max-w-5xl mx-auto flex justify-between items-center">
+                    <button onClick={() => setIsSwitchingProp(true)} className="flex items-center gap-2 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors"><Logo className="h-8" /><span className="font-bold text-emerald-950 hidden sm:inline">{activeProperty?.name || 'My Home'}</span><ChevronDown size={16} className="text-slate-400"/></button>
+                    <div className="flex items-center gap-2"><button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 hover:bg-slate-100 rounded-full transition-colors"><Bell size={20} className="text-slate-600"/>{totalNotifications > 0 && <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalNotifications}</span>}</button><button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><Menu size={20} className="text-slate-600"/></button></div>
                 </div>
             </header>
 
-            <main className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+            <main className="max-w-5xl mx-auto px-4 py-6">
                 {showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
                 {isNewUser && activeTab === 'Dashboard' && !showGuidedOnboarding && <WelcomeScreen propertyName={activeProperty.name} onAddRecord={() => setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />}
                 
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
+                        {/* ============================================ */}
+                        {/* 🔍 DEBUG COMPONENT - REMOVE AFTER TESTING */}
+                        {/* ============================================ */}
+                        <NeedsAttentionDebug 
+                            records={activePropertyRecords}
+                            contractors={contractorsList}
+                            onBookService={handleBookService}
+                            onMarkTaskDone={handleMarkTaskDone}
+                        />
+                        {/* ============================================ */}
+                        
                         <ProgressiveDashboard 
                             records={activePropertyRecords} 
                             contractors={contractorsList} 
@@ -362,7 +595,6 @@ const AppContent = () => {
                             onNavigateToReports={() => setActiveTab('Reports')} 
                             onNavigateToMaintenance={() => setActiveTab('Maintenance')} 
                             onCreateContractorLink={() => handleOpenQuickService(null)}
-                            // ⬇️ CRITICAL: PASSING THE NEW HANDLERS ⬇️
                             onBookService={handleBookService}
                             onMarkTaskDone={handleMarkTaskDone}
                         />
@@ -386,20 +618,21 @@ const AppContent = () => {
                 )}
 
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
+                
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
                         <div className="flex flex-col gap-4">
                             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-emerald-950">Inventory</h2><div className="bg-slate-100 p-1 rounded-xl flex"><button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'category' ? 'bg-white shadow' : 'text-slate-500'}`}>Category</button><button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'room' ? 'bg-white shadow' : 'text-slate-500'}`}>Room</button></div></div>
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4"><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/><button onClick={() => setIsSelectionMode(!isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{isSelectionMode ? 'Cancel' : 'Select'}</button></div>
                         </div>
-                        {isSelectionMode && selectedRecords.size > 0 && <div className="sticky top-20 z-30 bg-white p-4 rounded-xl border border-red-100 shadow-xl flex justify-between"><span className="font-bold">{selectedRecords.size} selected</span><button onClick={handleBatchDelete} className="bg-red-500 text-white px-4 py-2 rounded-lg font-bold">Delete</button></div>}
-                        {records.length === 0 ? <EmptyState icon={Package} title="No items yet" description="Start building your home's inventory." actions={<><button onClick={() => setShowScanner(true)} className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-bold">Scan</button><button onClick={() => openAddModal()} className="px-6 py-3 border border-emerald-200 text-emerald-700 rounded-xl font-bold">Add</button></>} /> : 
-                            <div className="space-y-6">{Object.keys(filteredRecords.reduce((acc, r) => { const k = inventoryView === 'room' ? (r.area||'General') : (r.category||'Other'); if(!acc[k]) acc[k]=[]; acc[k].push(r); return acc; }, {})).sort().map(key => (
-                                <details key={key} open className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"><summary className="flex justify-between p-4 cursor-pointer hover:bg-slate-50 font-bold text-lg">{key}</summary><div className="p-4 pt-0 border-t border-slate-50 grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">{filteredRecords.filter(r => (inventoryView==='room'?r.area:r.category)===key).map(r => <div key={r.id} className="relative">{isSelectionMode && <input type="checkbox" checked={selectedRecords.has(r.id)} onChange={() => toggleRecordSelection(r.id)} className="absolute top-4 right-4 z-10 h-6 w-6"/>}{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>)}</div></details>
-                            ))}</div>
-                        }
+                        {filteredRecords.length === 0 ? (<EmptyState icon={Package} title="No Items Found" description="Add your first item to get started." />) : inventoryView === 'category' ? (
+                            <div className="space-y-6">{Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (<details key={cat} open className="group"><summary className="flex justify-between items-center cursor-pointer bg-white p-4 rounded-2xl shadow-sm border border-slate-100 list-none"><span className="font-bold text-slate-800">{cat} <span className="text-slate-400 font-normal">({items.length})</span></span><ChevronDown className="text-slate-400 group-open:rotate-180 transition-transform" /></summary><div className="mt-3 space-y-3">{items.map(r => <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>)}</div></details>))}</div>
+                        ) : (
+                            <div className="space-y-6">{Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (<details key={room} open className="group"><summary className="flex justify-between items-center cursor-pointer bg-white p-4 rounded-2xl shadow-sm border border-slate-100 list-none"><span className="font-bold text-slate-800">{room} <span className="text-slate-400 font-normal">({items.length})</span></span><ChevronDown className="text-slate-400 group-open:rotate-180 transition-transform" /></summary><div className="mt-3 space-y-3">{items.map(r => <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>)}</div></details>))}</div>
+                        )}
                     </div>
                 )}
+                
                 {activeTab === 'Contractors' && <FeatureErrorBoundary label="Contractors"><ProConnect userId={user.uid} propertyName={activeProperty.name} propertyAddress={activeProperty.address} records={activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} /></FeatureErrorBoundary>}
                 {activeTab === 'Settings' && <div className="space-y-6"><h2 className="text-2xl font-bold">Settings</h2><div className="bg-white rounded-2xl border p-6"><h3 className="font-bold">Enhanced Cards</h3><button onClick={() => setUseEnhancedCards(!useEnhancedCards)} className={`w-12 h-6 rounded-full ${useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'} transition-colors`}><div className={`w-5 h-5 bg-white rounded-full shadow transform ${useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'} transition-transform`}></div></button></div></div>}
                 {activeTab === 'Help' && <div className="space-y-6"><h2 className="text-2xl font-bold">Help</h2><div className="bg-white rounded-2xl border p-6"><p>Contact support@krib.io</p></div></div>}
