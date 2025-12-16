@@ -22,7 +22,6 @@ const MAINTENANCE_FREQUENCIES = [
     { value: 'none', label: 'No maintenance', months: 0 },
 ];
 
-// Helper: Safely parse a date
 const safeDate = (dateStr) => {
     if (!dateStr) return null;
     const d = new Date(dateStr);
@@ -167,8 +166,7 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// --- SMART CONTACT BUTTONS ROW ---
-// This handles the logic for Text vs Email vs Call vs Request
+// --- HELPER: Smart Contact Actions (Updated with window.location) ---
 const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     const hasPhone = !!task.contractorPhone;
     const hasEmail = !!task.contractorEmail;
@@ -181,7 +179,7 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
             {/* 1. TEXT (SMS) */}
             {hasPhone && (
                 <button 
-                    onClick={(e) => { e.stopPropagation(); window.open(`sms:${task.contractorPhone}`); }}
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `sms:${task.contractorPhone}`; }}
                     className="flex-1 sm:flex-none flex items-center justify-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100 h-9"
                     title="Send Text"
                 >
@@ -192,7 +190,7 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
             {/* 2. EMAIL */}
             {hasEmail && (
                 <button 
-                    onClick={(e) => { e.stopPropagation(); window.open(`mailto:${task.contractorEmail}`); }}
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${task.contractorEmail}`; }}
                     className={`flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border h-9 ${
                         !hasPhone 
                             ? 'flex-1 sm:flex-none bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' 
@@ -207,7 +205,7 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
             {/* 3. CALL */}
             {hasPhone && (
                 <button 
-                    onClick={(e) => { e.stopPropagation(); window.open(`tel:${task.contractorPhone}`); }}
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${task.contractorPhone}`; }}
                     className="px-3 py-1.5 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center h-9"
                     title="Call"
                 >
@@ -218,7 +216,7 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
             {/* 4. FALLBACK: Request Service (Only if no contact info) */}
             {showRequestFallback && (
                 <button 
-                    onClick={(e) => { e.stopPropagation(); onBook && onBook(task); }}
+                    onClick={(e) => { e.stopPropagation(); if(onBook) onBook(task); else console.error('onBook missing'); }}
                     className={`flex-1 sm:flex-none flex items-center justify-center px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border h-9 ${
                         isOverdue 
                             ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
@@ -232,7 +230,7 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
             
             {/* 5. DONE BUTTON */}
             <button 
-                onClick={(e) => { e.stopPropagation(); onDone && onDone(task); }}
+                onClick={(e) => { e.stopPropagation(); if(onDone) onDone(task); else console.error('onDone missing'); }}
                 className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-colors flex items-center shadow-sm h-9 ml-auto sm:ml-0"
             >
                 <Check size={14} className="mr-1.5" /> Done
@@ -241,7 +239,6 @@ const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     );
 };
 
-// --- UPDATED ATTENTION CARD (Matches Forecast Style) ---
 const AttentionCard = ({ task, onBook, onDone }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
@@ -249,30 +246,39 @@ const AttentionCard = ({ task, onBook, onDone }) => {
     const days = Math.abs(task.daysUntil || 0);
     
     return (
-        <div className={`flex flex-col sm:flex-row sm:items-center p-4 bg-white border rounded-xl transition-all group ${isOverdue ? 'border-red-100 hover:border-red-200' : 'border-amber-100 hover:border-amber-200'}`}>
-            <div className="flex items-center gap-4 flex-grow min-w-0">
-                {/* Icon Box */}
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
-                    {isOverdue ? <AlertTriangle size={18} /> : <Clock size={18} />}
-                </div>
-                
-                <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-0.5">
-                        <h4 className="font-bold text-slate-800 text-sm">{task.taskName || task.item}</h4>
-                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wide ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {isOverdue ? `${days} Days Late` : `Due in ${days} days`}
-                        </span>
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group">
+            <div className="flex gap-4">
+                {/* Icon Column */}
+                <div className="shrink-0">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                        <AlertTriangle size={20} />
                     </div>
-                    <p className="text-xs text-slate-500 truncate">
-                        {task.item !== task.taskName ? task.item : 'Maintenance'} 
-                        {task.contractor && <span className="hidden sm:inline"> • via {contractorName}</span>}
-                    </p>
-                    {task.contractor && <p className="text-xs text-slate-400 sm:hidden mt-0.5">via {contractorName}</p>}
+                </div>
+
+                {/* Content Column */}
+                <div className="flex-grow min-w-0">
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-sm">{task.taskName || task.item}</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">{task.item !== task.taskName ? task.item : 'General Maintenance'}</p>
+                        </div>
+                        {isOverdue && (
+                            <span className="text-[10px] font-extrabold bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                {days} Days Late
+                            </span>
+                        )}
+                    </div>
+
+                    {task.contractor && (
+                        <p className="text-xs text-slate-400 mt-2 font-medium flex items-center">
+                            via {contractorName}
+                        </p>
+                    )}
+
+                    {/* ACTIONS */}
+                    <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
                 </div>
             </div>
-
-            {/* Actions Row */}
-            <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
         </div>
     );
 };
@@ -302,13 +308,13 @@ const ScheduledTaskRow = ({ task, onBook, onDone }) => {
             {/* Inline Action Row */}
             <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 mt-2 sm:mt-0 border-t sm:border-0 border-slate-50 sm:ml-auto">
                 {contractorName && (
-                    <SmartContactActions task={task} onBook={onBook} onDone={null} isOverdue={false} />
+                    <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={false} />
                 )}
                 
                 {/* Simple Check button if no contractor needed or just quick complete */}
                 {!contractorName && (
                     <button 
-                        onClick={(e) => { e.stopPropagation(); onDone(task); }}
+                        onClick={(e) => { e.stopPropagation(); if(onDone) onDone(task); }}
                         className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all ml-auto sm:ml-0"
                         title="Mark Done"
                     >
