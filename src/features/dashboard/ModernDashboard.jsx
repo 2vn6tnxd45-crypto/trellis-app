@@ -167,24 +167,24 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// --- HELPER COMPONENT: Contact Actions ---
-const ContactActions = ({ task, onBook, onDone, isOverdue }) => {
+// --- HELPER: Smart Contact Actions ---
+const SmartContactActions = ({ task, onBook, onDone, isOverdue }) => {
     const hasPhone = !!task.contractorPhone;
     const hasEmail = !!task.contractorEmail;
     
-    // Fallback if no contact info: Use the "Book/Request" flow
-    const showRequestService = !hasPhone && !hasEmail;
+    // If no direct contact info, fallback to the "Request Service" generation link
+    const showRequestFallback = !hasPhone && !hasEmail;
 
     return (
-        <div className="flex gap-2 mt-2">
-            {/* 1. TEXT (Preferred) */}
+        <div className="flex flex-wrap gap-2 mt-3">
+            {/* 1. TEXT (SMS) */}
             {hasPhone && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); window.open(`sms:${task.contractorPhone}`); }}
-                    className="flex-1 flex items-center justify-center px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors"
-                    title="Send Text Message"
+                    className="flex-1 flex items-center justify-center px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors border border-blue-100"
+                    title="Send Text"
                 >
-                    <MessageCircle size={16} className="mr-2" /> Text
+                    <MessageCircle size={14} className="mr-1.5" /> Text
                 </button>
             )}
 
@@ -192,45 +192,49 @@ const ContactActions = ({ task, onBook, onDone, isOverdue }) => {
             {hasEmail && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); window.open(`mailto:${task.contractorEmail}`); }}
-                    className={`flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${!hasPhone ? 'flex-1 bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                    className={`flex items-center justify-center px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${
+                        !hasPhone 
+                            ? 'flex-1 bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100' 
+                            : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
                     title="Send Email"
                 >
-                    <Mail size={16} className={!hasPhone ? "mr-2" : ""} /> {!hasPhone && "Email"}
+                    <Mail size={14} className={!hasPhone ? "mr-1.5" : ""} /> {!hasPhone && "Email"}
                 </button>
             )}
 
-            {/* 3. CALL (Secondary if Text exists) */}
+            {/* 3. CALL */}
             {hasPhone && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); window.open(`tel:${task.contractorPhone}`); }}
-                    className="px-4 py-2.5 bg-slate-50 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition-colors flex items-center justify-center"
-                    title="Call Contractor"
+                    className="px-3 py-2 bg-white text-slate-600 border border-slate-200 rounded-lg text-xs font-bold hover:bg-slate-50 transition-colors flex items-center justify-center"
+                    title="Call"
                 >
-                    <Phone size={16} />
+                    <Phone size={14} />
                 </button>
             )}
 
-            {/* 4. FALLBACK: Request Service (No info) */}
-            {showRequestService && (
+            {/* 4. FALLBACK: Request Service */}
+            {showRequestFallback && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onBook && onBook(task); }}
-                    className={`flex-1 flex items-center justify-center px-4 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+                    className={`flex-1 flex items-center justify-center px-3 py-2 rounded-lg text-xs font-bold transition-colors border ${
                         isOverdue 
-                            ? 'bg-red-600 text-white hover:bg-red-700' 
-                            : 'bg-amber-500 text-white hover:bg-amber-600'
+                            ? 'bg-red-50 text-red-700 border-red-100 hover:bg-red-100' 
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
                     }`}
                 >
-                    <LinkIcon size={14} className="mr-2" />
-                    Request Service
+                    <LinkIcon size={14} className="mr-1.5" />
+                    Request Link
                 </button>
             )}
             
-            {/* 5. DONE BUTTON */}
+            {/* 5. DIY / DONE */}
             <button 
                 onClick={(e) => { e.stopPropagation(); onDone && onDone(task); }}
-                className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors flex items-center shrink-0"
+                className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-700 transition-colors flex items-center shadow-sm ml-auto"
             >
-                <Check size={14} className="mr-1" /> Done
+                <Check size={14} className="mr-1.5" /> Done
             </button>
         </div>
     );
@@ -243,87 +247,78 @@ const AttentionCard = ({ task, onBook, onDone }) => {
     const days = Math.abs(task.daysUntil || 0);
     
     return (
-        <div className={`border rounded-2xl p-5 transition-all hover:shadow-md ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-amber-50 border-amber-100'}`}>
-            <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-xl shrink-0 ${isOverdue ? 'text-red-600 bg-red-100' : 'text-amber-600 bg-amber-100'}`}>
-                    {isOverdue ? <AlertTriangle className="h-6 w-6" /> : <Clock className="h-6 w-6" />}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 hover:border-red-200 hover:shadow-md transition-all group">
+            <div className="flex gap-4">
+                {/* Icon Column */}
+                <div className="shrink-0">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>
+                        <AlertTriangle size={20} />
+                    </div>
                 </div>
+
+                {/* Content Column */}
                 <div className="flex-grow min-w-0">
-                    <h3 className="font-bold text-slate-800 mb-0.5">{task.taskName || task.item || 'Task'}</h3>
-                    <p className="text-sm text-slate-600 mb-1">{task.item !== task.taskName ? task.item : ''}</p>
-                    <div className="flex justify-between items-center mb-3">
-                        <p className={`text-xs font-bold ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
-                            {isOverdue ? `${days} days overdue` : `Due in ${days} days`}
-                        </p>
-                        {task.contractor && (
-                            <p className="text-xs text-slate-400 font-medium truncate ml-2">
-                                via {contractorName}
-                            </p>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <h3 className="font-bold text-slate-800 text-sm">{task.taskName || task.item}</h3>
+                            <p className="text-xs text-slate-500 mt-0.5">{task.item !== task.taskName ? task.item : 'General Maintenance'}</p>
+                        </div>
+                        {isOverdue && (
+                            <span className="text-[10px] font-extrabold bg-red-100 text-red-700 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                {days} Days Late
+                            </span>
                         )}
                     </div>
-                    
-                    {/* UPDATED ACTION ROW */}
-                    <ContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
+
+                    {task.contractor && (
+                        <p className="text-xs text-slate-400 mt-2 font-medium flex items-center">
+                            via {contractorName}
+                        </p>
+                    )}
+
+                    {/* ACTIONS */}
+                    <SmartContactActions task={task} onBook={onBook} onDone={onDone} isOverdue={isOverdue} />
                 </div>
             </div>
         </div>
     );
 };
 
+// --- Scheduled List Row ---
 const ScheduledTaskRow = ({ task, onBook, onDone }) => {
     const contractorName = task.contractor || null;
-    const hasContact = !!task.contractorPhone || !!task.contractorEmail;
     
     return (
-        <div className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group">
-            <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
-                <Calendar size={18} />
-            </div>
-            
-            <div className="flex-grow min-w-0">
-                <div className="flex justify-between items-start">
-                    <h4 className="font-bold text-slate-700 text-sm truncate">{task.taskName}</h4>
-                    <span className="text-xs font-medium text-slate-400 whitespace-nowrap ml-2">
-                        {task.nextDate ? task.nextDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}) : 'Upcoming'}
-                    </span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:border-emerald-200 transition-colors group">
+            <div className="flex items-center gap-4 flex-grow min-w-0">
+                <div className="h-10 w-10 bg-slate-50 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors shrink-0">
+                    <Calendar size={18} />
                 </div>
-                <p className="text-xs text-slate-500 truncate">{task.item}</p>
                 
-                {/* Inline Action for Scheduling/Contact */}
-                {contractorName && (
-                    <div className="mt-2 flex gap-2">
-                        {hasContact ? (
-                            <>
-                                {task.contractorPhone && (
-                                    <button onClick={(e) => {e.stopPropagation(); window.open(`sms:${task.contractorPhone}`)}} className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded flex items-center transition-colors">
-                                        <MessageCircle size={10} className="mr-1"/> Text {contractorName}
-                                    </button>
-                                )}
-                                {!task.contractorPhone && task.contractorEmail && (
-                                    <button onClick={(e) => {e.stopPropagation(); window.open(`mailto:${task.contractorEmail}`)}} className="text-[10px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded flex items-center transition-colors">
-                                        <Mail size={10} className="mr-1"/> Email {contractorName}
-                                    </button>
-                                )}
-                            </>
-                        ) : (
-                            <button 
-                                onClick={(e) => {e.stopPropagation(); onBook(task);}}
-                                className="text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded flex items-center transition-colors"
-                            >
-                                <LinkIcon size={10} className="mr-1"/> Request {contractorName}
-                            </button>
-                        )}
+                <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-700 text-sm truncate">{task.taskName}</h4>
+                        <span className="text-xs font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                            {task.nextDate ? task.nextDate.toLocaleDateString(undefined, {month:'short', day:'numeric'}) : 'Soon'}
+                        </span>
                     </div>
-                )}
+                    <p className="text-xs text-slate-500 truncate">{task.item}</p>
+                </div>
             </div>
             
-            <button 
-                onClick={(e) => { e.stopPropagation(); onDone(task); }}
-                className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all"
-                title="Mark Done"
-            >
-                <CheckCircle2 size={20} />
-            </button>
+            {/* Inline Action Row */}
+            <div className="flex items-center gap-2 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-slate-50">
+                {contractorName && (
+                    <SmartContactActions task={task} onBook={onBook} onDone={null} isOverdue={false} />
+                )}
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDone(task); }}
+                    className="p-2 text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition-all ml-auto sm:ml-0"
+                    title="Mark Done"
+                >
+                    <CheckCircle2 size={20} />
+                </button>
+            </div>
         </div>
     );
 };
