@@ -71,7 +71,7 @@ const AppContent = () => {
     
     // Quick Service State
     const [quickServiceRecord, setQuickServiceRecord] = useState(null);
-    const [quickServiceDescription, setQuickServiceDescription] = useState(''); // NEW STATE
+    const [quickServiceDescription, setQuickServiceDescription] = useState(''); 
     const [showQuickService, setShowQuickService] = useState(false);
     
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
@@ -100,7 +100,6 @@ const AppContent = () => {
         return acc;
     }, {}));
 
-    // ... (Keep useEffects for auth and data loading)
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -145,7 +144,6 @@ const AppContent = () => {
         setDueTasks(upcoming);
     }, [records, activeProperty]);
 
-    // ... (Keep existing handlers: handleAuth, handleSaveProperty, etc.)
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     const handleSaveProperty = async (formData) => {
         if (!user) return;
@@ -161,13 +159,12 @@ const AppContent = () => {
     const toggleRecordSelection = (id) => { const newSet = new Set(selectedRecords); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); setSelectedRecords(newSet); };
     const handleBatchDelete = async () => { if (selectedRecords.size === 0) return; if (!confirm("Delete items?")) return; const batch = writeBatch(db); selectedRecords.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id))); try { await batch.commit(); toast.success("Deleted"); setSelectedRecords(new Set()); setIsSelectionMode(false); } catch (e) { toast.error("Failed"); } };
     const handleDeleteRecord = async (id) => deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', id));
-    const handleDeleteAccount = async () => { if (!confirm("Delete account?")) return; try { await deleteUser(user); } catch (e) { toast.error("Re-login required"); } };
     const handleRequestImport = (req) => { setEditingRecord({...req, id: null, originalRequestId: req.id}); setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { setEditingRecord(rec); setIsAddModalOpen(true); };
     const closeAddModal = () => { setIsAddModalOpen(false); setEditingRecord(null); };
     const handleDismissWelcome = async () => { setHasSeenWelcome(true); if (user) updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { hasSeenWelcome: true }); };
     
-    // UPDATED: Handle Open Quick Service (now accepts description)
+    // UPDATED: Handle Open Quick Service
     const handleOpenQuickService = (record) => { setQuickServiceRecord(record); setQuickServiceDescription(''); setShowQuickService(true); };
     const handleCloseQuickService = () => { setShowQuickService(false); setQuickServiceRecord(null); setQuickServiceDescription(''); };
     
@@ -176,17 +173,25 @@ const AppContent = () => {
     const handleTabChange = (tabId) => tabId === 'More' ? setShowMoreMenu(true) : setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { setActiveTab(dest); setShowMoreMenu(false); };
 
-    // --- NEW: HANDLE BOOKING FROM DASHBOARD ---
+    // ============================================
+    // ⬇️ NEW HANDLERS FOR DASHBOARD ACTIONS ⬇️
+    // ============================================
+
+    // 1. Handle "Request Service" click
     const handleBookService = (task) => {
         const record = records.find(r => r.id === task.recordId);
-        if (!record) return;
+        if (!record) {
+            console.warn("Record not found for booking:", task.recordId);
+            return;
+        }
         
         setQuickServiceRecord(record);
+        // Pre-fill the description based on the specific task
         setQuickServiceDescription(`Maintenance: ${task.taskName || 'General Service'}`);
         setShowQuickService(true);
     };
 
-    // --- NEW: HANDLE MARK DONE FROM DASHBOARD ---
+    // 2. Handle "Done" click (Complete Task)
     const handleMarkTaskDone = async (task) => {
         try {
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
@@ -217,7 +222,8 @@ const AppContent = () => {
         }
     };
 
-    // ... (Keep handleAnalyzeImage and handleScanComplete)
+    // ============================================
+
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
@@ -325,7 +331,6 @@ const AppContent = () => {
         )}
 
         <div className="min-h-screen bg-emerald-50 font-sans pb-32">
-            {/* Header (Keep as is) */}
             <header className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center shadow-sm h-20">
                 <div className="relative z-10 flex items-center">
                     <button onClick={() => setIsSwitchingProp(!isSwitchingProp)} className="flex items-center gap-3 text-left hover:bg-emerald-50 p-2 -ml-2 rounded-xl transition-colors group">
@@ -357,7 +362,7 @@ const AppContent = () => {
                             onNavigateToReports={() => setActiveTab('Reports')} 
                             onNavigateToMaintenance={() => setActiveTab('Maintenance')} 
                             onCreateContractorLink={() => handleOpenQuickService(null)}
-                            // PASSING NEW HANDLERS
+                            // ⬇️ CRITICAL: PASSING THE NEW HANDLERS ⬇️
                             onBookService={handleBookService}
                             onMarkTaskDone={handleMarkTaskDone}
                         />
@@ -380,7 +385,6 @@ const AppContent = () => {
                     </FeatureErrorBoundary>
                 )}
 
-                {/* (Keep other tabs Items, Contractors, Reports etc.) */}
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
                 {activeTab === 'Items' && (
                     <div className="space-y-6">
@@ -406,7 +410,6 @@ const AppContent = () => {
 
             {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} existingRecords={records} /></div></div>}
             
-            {/* UPDATED QUICK SERVICE MODAL */}
             {showQuickService && (
                 <QuickServiceRequest 
                     record={quickServiceRecord} 
@@ -414,7 +417,7 @@ const AppContent = () => {
                     propertyName={activeProperty?.name} 
                     propertyAddress={activeProperty?.address} 
                     onClose={handleCloseQuickService} 
-                    initialDescription={quickServiceDescription} // PASS DESCRIPTION
+                    initialDescription={quickServiceDescription} 
                 />
             )}
         </div>
@@ -422,8 +425,6 @@ const AppContent = () => {
     );
 };
 
-// ... (WrapperAddRecord remains the same)
-// ... (WrapperAddRecord remains unchanged from previous verified version)
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
@@ -432,7 +433,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
     useEffect(() => { if (editingRecord) setNewRecord(editingRecord); }, [editingRecord]);
     const handleChange = (e) => setNewRecord({...newRecord, [e.target.name]: e.target.value});
     
-    // UPDATED: Handle PDF Thumbnail Generation
     const handleAttachmentsChange = async (files) => {
         const placeholders = await Promise.all(files.map(async f => {
             const isPdf = f.type.includes('pdf');
@@ -445,13 +445,12 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 size: f.size, 
                 type: isPdf ? 'Document' : 'Photo', 
                 fileRef: f,
-                thumbnailRef: thumbnailBlob // Store the generated thumbnail blob
+                thumbnailRef: thumbnailBlob 
             };
         }));
         setNewRecord(p => ({ ...p, attachments: [...(p.attachments||[]), ...placeholders] }));
     };
     
-    // --- HELPER: SAFE PARSE COST ---
     const parseCost = (val) => {
         if (!val) return 0;
         const clean = String(val).replace(/[^0-9.]/g, '');
@@ -476,23 +475,18 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                 const filename = `batch_scan_${Date.now()}.${ext}`;
                 const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
                 
-                // Upload the main file
                 await uploadBytes(storageRef, fileToUpload);
                 sharedFileUrl = await getDownloadURL(storageRef);
 
-                // UPDATED: Handle PDF Thumbnail for Batch Mode
                 if (isPdf) {
-                    // Generate a thumbnail specifically for this batch upload
                     const thumbnailBlob = await generatePDFThumbnail(fileToUpload);
                     if (thumbnailBlob) {
                          const thumbFilename = `batch_scan_thumb_${Date.now()}.jpg`;
                          const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${thumbFilename}`);
                          await uploadBytes(thumbRef, thumbnailBlob);
-                         // Set the sharedImageUrl to the thumbnail, so cards show the preview
                          sharedImageUrl = await getDownloadURL(thumbRef);
                     }
                 } else {
-                    // If it's just a photo, the image URL is the file URL
                     sharedImageUrl = sharedFileUrl;
                 }
             }
@@ -502,7 +496,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 // CALC NEXT DATE FOR BATCH ITEMS TOO
                  const nextDate = calculateNextDate(
                      item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0],
                      item.maintenanceFrequency || 'none'
@@ -520,25 +513,16 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      cost: parseCost(item.cost), 
                      area: item.area || 'General', 
                      notes: item.notes || '', 
-                     // FIX: Safe fallbacks
                      dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: item.maintenanceFrequency || 'none', 
                      nextServiceDate: nextDate, 
-                     
-                     // --- NEW: Save the specific tasks array ---
                      maintenanceTasks: item.maintenanceTasks || [], 
-                     // -----------------------------------------
-
                      contractor: item.contractor || editingRecord?.contractor || '',
                      contractorPhone: editingRecord?.contractorPhone || '',
                      contractorEmail: editingRecord?.contractorEmail || '',
                      contractorAddress: editingRecord?.contractorAddress || '',
                      warranty: item.warranty || editingRecord?.warranty || '',
-                     
-                     // Use the thumbnail URL if it exists, otherwise fall back to the photo URL or empty
                      imageUrl: sharedImageUrl || '', 
-                     
-                     // Ensure the actual file is in attachments so it can be downloaded
                      attachments: sharedFileUrl ? [{ name: fileToUpload.name || 'Scanned Source', type: sharedFileType, url: sharedFileUrl }] : [], 
                      timestamp: serverTimestamp() 
                 };
@@ -552,51 +536,41 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         } finally { setSaving(false); }
     };
 
-    // UPDATED: Handle Save Logic to include PDF Thumbnails
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
         try {
-            // Process attachments sequentially to handle async uploads
             const finalAtts = [];
             let coverUrl = '';
 
             for (const att of (newRecord.attachments || [])) {
                 if (att.fileRef) {
-                    // It's a new file needing upload
                     try {
                         const timestamp = Date.now();
-                        // Upload Main File
                         const fileRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${timestamp}_${att.name}`);
                         await uploadBytes(fileRef, att.fileRef);
                         const mainUrl = await getDownloadURL(fileRef);
 
                         let thumbnailUrl = null;
-                        // If it has a generated thumbnail (it's a PDF), upload that too
                         if (att.thumbnailRef) {
                              const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${timestamp}_thumb_${att.name}.jpg`);
                              await uploadBytes(thumbRef, att.thumbnailRef);
                              thumbnailUrl = await getDownloadURL(thumbRef);
-                             // Set this as the cover image if one isn't set yet
                              if (!coverUrl) coverUrl = thumbnailUrl;
                         } else if (att.type === 'Photo' && !coverUrl) {
-                            // If it's a regular photo and no cover yet, use it
                              coverUrl = mainUrl;
                         }
 
-                        // Add the main file to the attachments list
                         finalAtts.push({ 
                             name: att.name, 
                             size: att.size, 
                             type: att.type, 
-                            url: mainUrl, // The attachment URL is the actual file, not the thumbnail
+                            url: mainUrl, 
                             dateAdded: new Date().toISOString() 
                         });
 
                     } catch(e) { console.error("Failed to upload attachment", att.name, e); }
                 } else if (att.url) {
-                    // It's an existing attachment, just keep it
                     finalAtts.push(att);
-                    // If it's a photo and we don't have a cover, use it
                     if (att.type === 'Photo' && !coverUrl && !att.url.startsWith('blob:')) coverUrl = att.url;
                 }
             }
@@ -607,7 +581,7 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
             const payload = { 
                 ...data, 
                 attachments: finalAtts, 
-                imageUrl: coverUrl || '', // Use the determined cover URL (either photo or PDF thumb)
+                imageUrl: coverUrl || '', 
                 userId: user.uid, 
                 propertyLocation: activeProperty.name, 
                 propertyId: activeProperty.id, 
