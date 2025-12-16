@@ -38,211 +38,6 @@ import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
 
-// ============================================
-// 🔍 DEBUG COMPONENT - INLINE FOR TROUBLESHOOTING
-// Remove this after debugging is complete
-// ============================================
-const NeedsAttentionDebug = ({ records, contractors, onBookService, onMarkTaskDone }) => {
-    const now = new Date();
-    const overdueTasks = [];
-    
-    records?.forEach(record => {
-        if (!record) return;
-        
-        // Check for granular maintenance tasks
-        if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
-            record.maintenanceTasks.forEach(task => {
-                if (!task || !task.nextDue) return;
-                const nextDate = new Date(task.nextDue);
-                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                
-                if (daysUntil < 0 || daysUntil <= 30) {
-                    overdueTasks.push({
-                        recordId: record.id,
-                        taskName: task.task,
-                        item: record.item,
-                        contractor: record.contractor,
-                        contractorPhone: record.contractorPhone,
-                        contractorEmail: record.contractorEmail,
-                        daysUntil,
-                        isGranular: true,
-                        frequency: task.frequency
-                    });
-                }
-            });
-        }
-        // Check for legacy maintenance frequency
-        else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none' && record.dateInstalled) {
-            // Simple calculation for legacy records
-            const installed = new Date(record.dateInstalled);
-            const freqMonths = { monthly: 1, quarterly: 3, biannual: 6, annual: 12, '2years': 24, '5years': 60 };
-            const months = freqMonths[record.maintenanceFrequency] || 12;
-            const nextDate = new Date(installed);
-            nextDate.setMonth(nextDate.getMonth() + months);
-            while (nextDate < now) nextDate.setMonth(nextDate.getMonth() + months);
-            const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-            
-            if (daysUntil <= 30) {
-                overdueTasks.push({
-                    recordId: record.id,
-                    taskName: 'Maintenance',
-                    item: record.item,
-                    contractor: record.contractor,
-                    contractorPhone: record.contractorPhone,
-                    contractorEmail: record.contractorEmail,
-                    daysUntil,
-                    isGranular: false,
-                    frequency: record.maintenanceFrequency
-                });
-            }
-        }
-    });
-
-    // Find contractor info from list
-    const findContractor = (name) => {
-        if (!name || !contractors) return null;
-        return contractors.find(c => 
-            c.name?.toLowerCase().includes(name.toLowerCase()) ||
-            name.toLowerCase().includes(c.name?.toLowerCase())
-        );
-    };
-
-    return (
-        <div className="bg-yellow-50 border-2 border-yellow-400 rounded-xl p-4 m-4 text-sm">
-            <h3 className="font-bold text-yellow-800 mb-3">🔍 DEBUG: Needs Attention Data</h3>
-            
-            <div className="space-y-2 mb-4">
-                <p><strong>Records count:</strong> {records?.length || 0}</p>
-                <p><strong>Contractors count:</strong> {contractors?.length || 0}</p>
-                <p><strong>onBookService exists:</strong> {onBookService ? '✅ YES' : '❌ NO'}</p>
-                <p><strong>onMarkTaskDone exists:</strong> {onMarkTaskDone ? '✅ YES' : '❌ NO'}</p>
-                <p><strong>Tasks needing attention:</strong> {overdueTasks.length}</p>
-            </div>
-
-            {contractors?.length > 0 && (
-                <div className="mb-4 p-3 bg-white rounded border">
-                    <p className="font-bold text-yellow-800 mb-2">Contractors in list:</p>
-                    <ul className="list-disc pl-5 space-y-1">
-                        {contractors.slice(0, 5).map((c, i) => (
-                            <li key={i}>
-                                <strong>{c.name}</strong> - Phone: <span className={c.phone ? 'text-green-600' : 'text-red-600'}>{c.phone || 'NONE'}</span> - Email: <span className={c.email ? 'text-green-600' : 'text-red-600'}>{c.email || 'NONE'}</span>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )}
-
-            {overdueTasks.length > 0 ? (
-                <div>
-                    <p className="font-bold text-yellow-800 mb-2">Tasks found ({overdueTasks.length}):</p>
-                    {overdueTasks.slice(0, 3).map((task, i) => {
-                        const matchedContractor = findContractor(task.contractor);
-                        const hasPhone = task.contractorPhone || matchedContractor?.phone;
-                        const hasEmail = task.contractorEmail || matchedContractor?.email;
-                        const phone = task.contractorPhone || matchedContractor?.phone;
-                        const email = task.contractorEmail || matchedContractor?.email;
-                        
-                        return (
-                            <div key={i} className="bg-white p-3 rounded mb-2 border">
-                                <p><strong>Task:</strong> {task.taskName}</p>
-                                <p><strong>Item:</strong> {task.item}</p>
-                                <p><strong>Days Until Due:</strong> <span className={task.daysUntil < 0 ? 'text-red-600 font-bold' : 'text-amber-600'}>{task.daysUntil}</span></p>
-                                <p><strong>Contractor on record:</strong> {task.contractor || <span className="text-red-600">NONE</span>}</p>
-                                <p><strong>Phone on record:</strong> {task.contractorPhone || <span className="text-red-600">NONE</span>}</p>
-                                <p><strong>Email on record:</strong> {task.contractorEmail || <span className="text-red-600">NONE</span>}</p>
-                                
-                                {matchedContractor && (
-                                    <p className="text-green-600 mt-1">
-                                        <strong>✓ Found in contractors list:</strong> {matchedContractor.name} 
-                                        (Phone: {matchedContractor.phone || 'NONE'}, 
-                                        Email: {matchedContractor.email || 'NONE'})
-                                    </p>
-                                )}
-                                {!matchedContractor && task.contractor && (
-                                    <p className="text-red-600 mt-1">
-                                        <strong>✗ NOT found in contractors list!</strong>
-                                    </p>
-                                )}
-                                
-                                {/* Test buttons */}
-                                <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
-                                    {hasPhone && (
-                                        <>
-                                            <a 
-                                                href={`tel:${phone}`}
-                                                className="px-3 py-1.5 bg-blue-500 text-white rounded text-xs font-bold"
-                                            >
-                                                📞 Test Call
-                                            </a>
-                                            <a 
-                                                href={`sms:${phone}`}
-                                                className="px-3 py-1.5 bg-green-500 text-white rounded text-xs font-bold"
-                                            >
-                                                💬 Test SMS
-                                            </a>
-                                        </>
-                                    )}
-                                    {hasEmail && (
-                                        <a 
-                                            href={`mailto:${email}`}
-                                            className="px-3 py-1.5 bg-purple-500 text-white rounded text-xs font-bold"
-                                        >
-                                            ✉️ Test Email
-                                        </a>
-                                    )}
-                                    <button 
-                                        onClick={() => {
-                                            console.log('Done clicked!', task);
-                                            if (onMarkTaskDone) {
-                                                onMarkTaskDone(task);
-                                            } else {
-                                                alert('onMarkTaskDone is not defined!');
-                                            }
-                                        }}
-                                        className="px-3 py-1.5 bg-slate-800 text-white rounded text-xs font-bold"
-                                    >
-                                        ✓ Test Done
-                                    </button>
-                                    {!hasPhone && !hasEmail && (
-                                        <span className="text-red-600 text-xs font-bold">No contact info - only Request Link + Done will show</span>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            ) : (
-                <div className="bg-white p-4 rounded border">
-                    <p className="text-yellow-700 font-medium">⚠️ No tasks needing attention found. This could mean:</p>
-                    <ul className="list-disc pl-5 mt-2 text-yellow-700 space-y-1">
-                        <li>No records have <code className="bg-yellow-100 px-1">maintenanceTasks</code> arrays with <code className="bg-yellow-100 px-1">nextDue</code> dates</li>
-                        <li>No records have <code className="bg-yellow-100 px-1">maintenanceFrequency</code> set (other than 'none')</li>
-                        <li>No tasks are overdue or due within 30 days</li>
-                    </ul>
-                    <p className="mt-3 text-yellow-800 font-bold">Check a sample record:</p>
-                    {records?.[0] && (
-                        <pre className="bg-yellow-100 p-2 rounded mt-2 text-xs overflow-x-auto">
-{JSON.stringify({
-    item: records[0].item,
-    contractor: records[0].contractor,
-    contractorPhone: records[0].contractorPhone,
-    contractorEmail: records[0].contractorEmail,
-    maintenanceFrequency: records[0].maintenanceFrequency,
-    maintenanceTasks: records[0].maintenanceTasks,
-    dateInstalled: records[0].dateInstalled
-}, null, 2)}
-                        </pre>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
-// ============================================
-// END DEBUG COMPONENT
-// ============================================
-
-
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -573,17 +368,6 @@ const AppContent = () => {
                 
                 {activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
-                        {/* ============================================ */}
-                        {/* 🔍 DEBUG COMPONENT - REMOVE AFTER TESTING */}
-                        {/* ============================================ */}
-                        <NeedsAttentionDebug 
-                            records={activePropertyRecords}
-                            contractors={contractorsList}
-                            onBookService={handleBookService}
-                            onMarkTaskDone={handleMarkTaskDone}
-                        />
-                        {/* ============================================ */}
-                        
                         <ProgressiveDashboard 
                             records={activePropertyRecords} 
                             contractors={contractorsList} 
@@ -620,15 +404,41 @@ const AppContent = () => {
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
                 
                 {activeTab === 'Items' && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                         <div className="flex flex-col gap-4">
                             <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-emerald-950">Inventory</h2><div className="bg-slate-100 p-1 rounded-xl flex"><button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'category' ? 'bg-white shadow' : 'text-slate-500'}`}>Category</button><button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'room' ? 'bg-white shadow' : 'text-slate-500'}`}>Room</button></div></div>
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4"><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/><button onClick={() => setIsSelectionMode(!isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{isSelectionMode ? 'Cancel' : 'Select'}</button></div>
                         </div>
                         {filteredRecords.length === 0 ? (<EmptyState icon={Package} title="No Items Found" description="Add your first item to get started." />) : inventoryView === 'category' ? (
-                            <div className="space-y-6">{Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (<details key={cat} open className="group"><summary className="flex justify-between items-center cursor-pointer bg-white p-4 rounded-2xl shadow-sm border border-slate-100 list-none"><span className="font-bold text-slate-800">{cat} <span className="text-slate-400 font-normal">({items.length})</span></span><ChevronDown className="text-slate-400 group-open:rotate-180 transition-transform" /></summary><div className="mt-3 space-y-3">{items.map(r => <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>)}</div></details>))}</div>
+                            <div className="space-y-10">
+                                {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (
+                                    <div key={cat} className="space-y-4">
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 pl-1 border-b border-slate-100 pb-2">{cat} <span className="text-slate-300 ml-1">({items.length})</span></h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {items.map(r => (
+                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
+                                                    {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         ) : (
-                            <div className="space-y-6">{Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (<details key={room} open className="group"><summary className="flex justify-between items-center cursor-pointer bg-white p-4 rounded-2xl shadow-sm border border-slate-100 list-none"><span className="font-bold text-slate-800">{room} <span className="text-slate-400 font-normal">({items.length})</span></span><ChevronDown className="text-slate-400 group-open:rotate-180 transition-transform" /></summary><div className="mt-3 space-y-3">{items.map(r => <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>{useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}</div>)}</div></details>))}</div>
+                            <div className="space-y-10">
+                                {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (
+                                    <div key={room} className="space-y-4">
+                                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 pl-1 border-b border-slate-100 pb-2">{room} <span className="text-slate-300 ml-1">({items.length})</span></h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {items.map(r => (
+                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl' : ''} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
+                                                    {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 )}
