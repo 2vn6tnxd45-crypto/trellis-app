@@ -3,7 +3,8 @@ import React, { useMemo, useState } from 'react';
 import { 
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, 
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
-    ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass
+    ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
+    Trash2 // Added for delete functionality
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
@@ -61,27 +62,33 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                 {/* Due Date Badge */}
                 <div className="text-right">
                     {isOverdue ? (
-                         <span className="bg-red-200 text-red-800 text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1">
-                            {Math.abs(task.daysUntil)} DAYS LATE
+                        <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                            {Math.abs(task.daysUntil)} days overdue
                         </span>
                     ) : (
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1 ${task.daysUntil <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-                            Due {formattedDate}
+                        <span className="text-xs font-medium text-slate-500">
+                            {formattedDate}
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* Contractor Info (Smart Lookup) */}
+            {/* Contractor Info */}
             {task.contractor && (
-                <div className="flex items-center gap-1.5 mb-4 text-xs text-slate-500 bg-white/50 p-1.5 rounded-lg w-fit border border-slate-100/50">
-                    <User size={12} className="text-slate-400"/>
-                    <span className="font-semibold text-slate-600">{task.contractor}</span>
+                <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center gap-2">
+                    <User size={14} className="text-slate-400" />
+                    <span className="text-xs font-medium text-slate-600">{task.contractor}</span>
+                    {task.contractorPhone && (
+                        <span className="text-xs text-slate-400">• {task.contractorPhone}</span>
+                    )}
+                    {task.contractorEmail && (
+                        <span className="text-xs text-slate-400 truncate">• {task.contractorEmail}</span>
+                    )}
                 </div>
             )}
-            
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
+
+            {/* Actions */}
+            <div className="flex gap-2">
                 {hasPhone ? (
                     <div className="flex gap-2">
                         <a 
@@ -117,9 +124,71 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     );
 };
 
+// NEW: History Item Card with Delete functionality
+const HistoryItemCard = ({ item, onDelete }) => {
+    const [showConfirm, setShowConfirm] = useState(false);
+
+    const handleDelete = () => {
+        if (onDelete) {
+            onDelete(item);
+        }
+        setShowConfirm(false);
+    };
+
+    return (
+        <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 opacity-75 hover:opacity-100 transition-opacity group">
+            <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                <Check className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div className="flex-grow min-w-0">
+                <p className="font-bold text-slate-800 decoration-slate-300">{item.taskName}</p>
+                <p className="text-xs text-slate-500">
+                    Completed on {new Date(item.completedDate).toLocaleDateString()}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1 truncate">
+                    {item.performedBy} {item.notes && `• ${item.notes}`}
+                </p>
+            </div>
+            
+            {/* Delete Button */}
+            {showConfirm ? (
+                <div className="flex items-center gap-2 shrink-0">
+                    <button
+                        onClick={handleDelete}
+                        className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors"
+                    >
+                        Confirm
+                    </button>
+                    <button
+                        onClick={() => setShowConfirm(false)}
+                        className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            ) : (
+                <button
+                    onClick={() => setShowConfirm(true)}
+                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    title="Remove from history"
+                >
+                    <Trash2 size={16} />
+                </button>
+            )}
+        </div>
+    );
+};
+
 // --- MAIN COMPONENT ---
 
-export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRecords, onBookService, onMarkTaskDone }) => {
+export const MaintenanceDashboard = ({ 
+    records = [], 
+    onAddRecord, 
+    onNavigateToRecords, 
+    onBookService, 
+    onMarkTaskDone,
+    onDeleteHistoryItem // NEW: callback for deleting history items
+}) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [showSuggestions, setShowSuggestions] = useState(false);
     
@@ -128,17 +197,30 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
     const { score, breakdown } = healthData;
 
     // 1. Build Contractor Directory (Look up info across ALL records)
+    // FIX: More robust contractor directory building
     const contractorDirectory = useMemo(() => {
         const dir = {};
         records.forEach(r => {
             if (r.contractor && r.contractor.trim().length > 0) {
-                const name = r.contractor.trim();
+                const name = r.contractor.trim().toLowerCase(); // Normalize for lookup
+                const displayName = r.contractor.trim(); // Keep original for display
+                
                 // Initialize if not exists
-                if (!dir[name]) dir[name] = { phone: null, email: null };
+                if (!dir[name]) {
+                    dir[name] = { 
+                        displayName: displayName,
+                        phone: null, 
+                        email: null 
+                    };
+                }
                 
                 // Save phone/email if found (prioritize finding ANY valid contact info)
-                if (r.contractorPhone) dir[name].phone = r.contractorPhone;
-                if (r.contractorEmail) dir[name].email = r.contractorEmail;
+                if (r.contractorPhone && r.contractorPhone.trim()) {
+                    dir[name].phone = r.contractorPhone.trim();
+                }
+                if (r.contractorEmail && r.contractorEmail.trim()) {
+                    dir[name].email = r.contractorEmail.trim();
+                }
             }
         });
         return dir;
@@ -170,10 +252,13 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
             const processTask = (taskName, freq, nextDateStr, isGranular) => {
                 if (!nextDateStr || freq === 'none') return;
                 const nextDate = new Date(nextDateStr);
+                if (isNaN(nextDate.getTime())) return; // Skip invalid dates
+                
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                 
-                // Enrich contractor info from directory
-                const cName = record.contractor ? record.contractor.trim() : null;
+                // FIX: More robust contractor info enrichment
+                // Normalize contractor name for lookup
+                const cName = record.contractor ? record.contractor.trim().toLowerCase() : null;
                 const dirEntry = cName ? contractorDirectory[cName] : null;
                 
                 const taskItem = {
@@ -186,10 +271,10 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                     daysUntil: daysUntil,
                     frequency: freq,
                     isGranular: isGranular,
-                    // Use record info, fallback to directory info
-                    contractor: record.contractor,
-                    contractorPhone: record.contractorPhone || dirEntry?.phone,
-                    contractorEmail: record.contractorEmail || dirEntry?.email
+                    // FIX: Better fallback chain for contractor info
+                    contractor: record.contractor || null,
+                    contractorPhone: record.contractorPhone || dirEntry?.phone || null,
+                    contractorEmail: record.contractorEmail || dirEntry?.email || null
                 };
 
                 if (daysUntil < 0) {
@@ -239,36 +324,9 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
     const getScoreRing = (s) => s >= 80 ? 'stroke-emerald-500' : s >= 50 ? 'stroke-amber-500' : 'stroke-red-500';
 
     return (
-        <div className="space-y-6 pb-12">
-            {/* Header / Score Card */}
-            <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row items-center gap-8">
-                 <div className="relative h-32 w-32 shrink-0">
-                    <svg className="transform -rotate-90 h-32 w-32">
-                        <circle cx="64" cy="64" r="56" stroke="#f1f5f9" strokeWidth="8" fill="none" />
-                        <circle cx="64" cy="64" r="56" className={`${getScoreRing(score)} transition-all duration-1000`} strokeWidth="8" fill="none" strokeLinecap="round" strokeDasharray={`${score * 3.5} 351`} />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className={`text-3xl font-black ${getScoreColor(score)}`}>{score}</span>
-                    </div>
-                </div>
-                <div className="text-center md:text-left flex-grow">
-                    <h2 className="text-xl font-bold text-slate-800">Maintenance Score</h2>
-                    <p className="text-slate-500 text-sm mb-4">
-                        {score >= 80 ? "Excellent work! Your home is well-maintained." : "Keep up the maintenance to improve your score."}
-                    </p>
-                    <div className="flex gap-2 justify-center md:justify-start">
-                        <div className="bg-slate-50 px-3 py-1 rounded-lg text-xs font-bold text-slate-600">
-                            🛡️ {breakdown?.profile || 0}/50 Profile
-                        </div>
-                        <div className="bg-slate-50 px-3 py-1 rounded-lg text-xs font-bold text-slate-600">
-                            🔧 {breakdown?.maintenance || 0}/50 Tasks
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex p-1 bg-slate-100 rounded-xl">
+        <div className="space-y-6">
+            {/* View Toggle */}
+            <div className="bg-slate-100 p-1.5 rounded-xl flex">
                 <button 
                     onClick={() => setViewMode('upcoming')}
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${viewMode === 'upcoming' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
@@ -352,7 +410,7 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                     )}
                 </div>
             ) : (
-                /* HISTORY VIEW */
+                /* HISTORY VIEW - UPDATED WITH DELETE FUNCTIONALITY */
                 <div className="space-y-4">
                      {historyItems.length === 0 ? (
                         <div className="text-center py-12">
@@ -363,22 +421,18 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                              <p className="text-slate-500 text-sm">Completed tasks will appear here.</p>
                         </div>
                      ) : (
-                        historyItems.map((item, i) => (
-                            <div key={i} className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 opacity-75 hover:opacity-100 transition-opacity">
-                                <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
-                                    <Check className="h-5 w-5 text-emerald-600" />
-                                </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 decoration-slate-300">{item.taskName}</p>
-                                    <p className="text-xs text-slate-500">
-                                        Completed on {new Date(item.completedDate).toLocaleDateString()}
-                                    </p>
-                                    <p className="text-[10px] text-slate-400 mt-1">
-                                        {item.performedBy} {item.notes && `• ${item.notes}`}
-                                    </p>
-                                </div>
-                            </div>
-                        ))
+                        <>
+                            <p className="text-xs text-slate-400 text-center mb-2">
+                                Hover over an item to reveal the delete option
+                            </p>
+                            {historyItems.map((item, i) => (
+                                <HistoryItemCard 
+                                    key={item.id || i} 
+                                    item={item} 
+                                    onDelete={onDeleteHistoryItem}
+                                />
+                            ))}
+                        </>
                      )}
                 </div>
             )}
@@ -398,29 +452,28 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                     </button>
                     
                     {showSuggestions && (
-                        <div className="mt-4 space-y-2 animate-in fade-in slide-in-from-top-2">
-                            {suggestedItems.slice(0, 5).map((item, i) => (
-                                <div 
-                                    key={i} 
-                                    className="bg-white p-4 rounded-xl border border-emerald-100 flex justify-between items-center"
+                        <div className="mt-4 space-y-2">
+                            {suggestedItems.slice(0, 5).map((suggestion, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => onAddRecord && onAddRecord(suggestion)}
+                                    className="w-full flex items-center justify-between p-3 bg-white rounded-xl border border-emerald-100 hover:border-emerald-300 transition-colors text-left"
                                 >
                                     <div>
-                                        <p className="font-bold text-slate-800">{item.item}</p>
-                                        <p className="text-xs text-slate-500">{item.category}</p>
+                                        <p className="font-bold text-slate-800 text-sm">{suggestion.item}</p>
+                                        <p className="text-xs text-slate-500">{suggestion.category} • {suggestion.maintenanceFrequency}</p>
                                     </div>
-                                    <button 
-                                        onClick={() => {
-                                            if (onAddRecord) {
-                                                onAddRecord(item);
-                                                toast.success(`Adding: ${item.item}`);
-                                            }
-                                        }} 
-                                        className="text-emerald-600 hover:text-emerald-700 font-bold text-sm flex items-center bg-emerald-50 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors"
-                                    >
-                                        <PlusCircle className="h-4 w-4 mr-1" /> Add
-                                    </button>
-                                </div>
+                                    <PlusCircle className="h-5 w-5 text-emerald-500" />
+                                </button>
                             ))}
+                            {suggestedItems.length > 5 && (
+                                <button
+                                    onClick={onNavigateToRecords}
+                                    className="w-full text-center py-2 text-sm font-bold text-emerald-600 hover:underline"
+                                >
+                                    View all {suggestedItems.length} suggestions →
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -428,3 +481,5 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
         </div>
     );
 };
+
+export default MaintenanceDashboard;
