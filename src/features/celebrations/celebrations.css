@@ -1,0 +1,38 @@
+/* src/features/celebrations/celebrations.css */
+
+/* --- Confetti Animations --- */
+@keyframes confetti-fall {
+    0% {
+        transform: translateY(0) translateX(0);
+        opacity: 1;
+    }
+    100% {
+        /* Use a CSS variable for the random drift */
+        transform: translateY(100vh) translateX(var(--fall-drift));
+        opacity: 0;
+    }
+}
+
+@keyframes confetti-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(720deg); }
+}
+
+.animate-confetti-fall {
+    animation: confetti-fall linear forwards;
+}
+
+.animate-confetti-spin {
+    animation: confetti-spin linear infinite 1s;
+}
+
+/* --- Pop-up Animations --- */
+@keyframes celebration-pop {
+    0% { transform: scale(0.8); opacity: 0; }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-celebration-pop {
+    animation: celebration-pop 0.4s ease-out;
+}
