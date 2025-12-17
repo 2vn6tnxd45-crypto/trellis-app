@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { 
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, 
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
-    ArrowRight, Check, X, Phone, MessageCircle, Mail, User 
+    ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
@@ -41,7 +41,7 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
         : 'Pending';
 
     return (
-        <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all`}>
+        <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all hover:shadow-sm`}>
             {/* Header Section */}
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
@@ -65,16 +65,16 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                             {Math.abs(task.daysUntil)} DAYS LATE
                         </span>
                     ) : (
-                        <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1">
-                            Due {formattedDate.split(',')[0]}
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1 ${task.daysUntil <= 30 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                            Due {formattedDate}
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* Contractor Info (if available) */}
+            {/* Contractor Info (Smart Lookup) */}
             {task.contractor && (
-                <div className="flex items-center gap-1.5 mb-4 text-xs text-slate-500 bg-white/50 p-1.5 rounded-lg w-fit">
+                <div className="flex items-center gap-1.5 mb-4 text-xs text-slate-500 bg-white/50 p-1.5 rounded-lg w-fit border border-slate-100/50">
                     <User size={12} className="text-slate-400"/>
                     <span className="font-semibold text-slate-600">{task.contractor}</span>
                 </div>
@@ -108,7 +108,7 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                 
                 <button 
                     onClick={() => onComplete && onComplete(task)}
-                    className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm"
+                    className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm active:scale-95"
                 >
                     <Check size={14} /> Mark Done
                 </button>
@@ -127,17 +127,35 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
     const healthData = useHomeHealth(records) || { score: 0, breakdown: { profile: 0, maintenance: 0 } };
     const { score, breakdown } = healthData;
 
-    // Process Tasks
-    const { upcomingTasks, overdueTasks, historyItems } = useMemo(() => {
+    // 1. Build Contractor Directory (Look up info across ALL records)
+    const contractorDirectory = useMemo(() => {
+        const dir = {};
+        records.forEach(r => {
+            if (r.contractor && r.contractor.trim().length > 0) {
+                const name = r.contractor.trim();
+                // Initialize if not exists
+                if (!dir[name]) dir[name] = { phone: null, email: null };
+                
+                // Save phone/email if found (prioritize finding ANY valid contact info)
+                if (r.contractorPhone) dir[name].phone = r.contractorPhone;
+                if (r.contractorEmail) dir[name].email = r.contractorEmail;
+            }
+        });
+        return dir;
+    }, [records]);
+
+    // 2. Process Tasks & Enrich with Directory Data
+    const { soonTasks, futureTasks, overdueTasks, historyItems } = useMemo(() => {
         const now = new Date();
-        const upcoming = [];
+        const soon = [];
+        const future = [];
         const overdue = [];
         const history = [];
 
-        if (!records) return { upcomingTasks: [], overdueTasks: [], historyItems: [] };
+        if (!records) return { soonTasks: [], futureTasks: [], overdueTasks: [], historyItems: [] };
 
         records.forEach(record => {
-            // 1. Collect History
+            // Collect History
             if (record.maintenanceHistory && Array.isArray(record.maintenanceHistory)) {
                 record.maintenanceHistory.forEach(h => {
                     history.push({
@@ -148,11 +166,15 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                 });
             }
 
-            // 2. Collect Active Tasks
+            // Collect Active Tasks
             const processTask = (taskName, freq, nextDateStr, isGranular) => {
                 if (!nextDateStr || freq === 'none') return;
                 const nextDate = new Date(nextDateStr);
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                
+                // Enrich contractor info from directory
+                const cName = record.contractor ? record.contractor.trim() : null;
+                const dirEntry = cName ? contractorDirectory[cName] : null;
                 
                 const taskItem = {
                     id: `${record.id}-${taskName}`,
@@ -164,14 +186,21 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                     daysUntil: daysUntil,
                     frequency: freq,
                     isGranular: isGranular,
-                    // Pass contractor info down to task
+                    // Use record info, fallback to directory info
                     contractor: record.contractor,
-                    contractorPhone: record.contractorPhone,
-                    contractorEmail: record.contractorEmail
+                    contractorPhone: record.contractorPhone || dirEntry?.phone,
+                    contractorEmail: record.contractorEmail || dirEntry?.email
                 };
 
-                if (daysUntil < 0) overdue.push(taskItem);
-                else upcoming.push(taskItem);
+                if (daysUntil < 0) {
+                    overdue.push(taskItem);
+                } else if (daysUntil <= 90) {
+                    // Items due in the next 3 months
+                    soon.push(taskItem);
+                } else {
+                    // Items further out (Future Schedule)
+                    future.push(taskItem);
+                }
             };
 
             if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
@@ -182,20 +211,22 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
             }
         });
 
-        // Sort
+        // Sort Helper
+        const byDate = (a, b) => a.daysUntil - b.daysUntil;
+
         return {
-            upcomingTasks: upcoming.sort((a, b) => a.daysUntil - b.daysUntil),
-            overdueTasks: overdue.sort((a, b) => a.daysUntil - b.daysUntil),
+            soonTasks: soon.sort(byDate),
+            futureTasks: future.sort(byDate),
+            overdueTasks: overdue.sort(byDate),
             historyItems: history.sort((a, b) => {
                 const dateA = new Date(a.completedDate);
                 const dateB = new Date(b.completedDate);
-                // Handle invalid dates safely
                 if (isNaN(dateA)) return 1;
                 if (isNaN(dateB)) return -1;
                 return dateB - dateA;
             })
         };
-    }, [records]);
+    }, [records, contractorDirectory]);
 
     const suggestedItems = useMemo(() => {
         if (!records) return [];
@@ -254,8 +285,8 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
 
             {/* CONTENT AREA */}
             {viewMode === 'upcoming' ? (
-                <div className="space-y-6">
-                    {/* Overdue */}
+                <div className="space-y-8">
+                    {/* 1. Overdue Items */}
                     {overdueTasks.length > 0 && (
                         <div className="space-y-3">
                             <h3 className="font-bold text-red-700 flex items-center text-sm uppercase tracking-wider">
@@ -273,19 +304,17 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                         </div>
                     )}
 
-                    {/* Upcoming */}
+                    {/* 2. Coming Soon (Next 90 Days) */}
                     <div className="space-y-3">
-                        <h3 className="font-bold text-slate-500 flex items-center text-sm uppercase tracking-wider">
-                            <Calendar className="h-4 w-4 mr-2" /> Upcoming
+                        <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wider">
+                            <Calendar className="h-4 w-4 mr-2" /> Coming Soon (90 Days)
                         </h3>
-                        {upcomingTasks.length === 0 && overdueTasks.length === 0 ? (
-                            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                                <CheckCircle className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
-                                <p className="text-slate-500 font-medium">No pending maintenance.</p>
-                                <button onClick={() => setShowSuggestions(true)} className="text-emerald-600 font-bold text-sm mt-2 hover:underline">Browse Suggestions</button>
+                        {soonTasks.length === 0 ? (
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                                <p className="text-slate-400 text-sm font-medium">No tasks due in the next 3 months.</p>
                             </div>
                         ) : (
-                            upcomingTasks.map(task => (
+                            soonTasks.map(task => (
                                 <MaintenanceCard 
                                     key={task.id} 
                                     task={task} 
@@ -295,6 +324,32 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                             ))
                         )}
                     </div>
+
+                    {/* 3. Future Schedule (Later) - This is where completed "Annual" items go */}
+                    {futureTasks.length > 0 && (
+                        <div className="space-y-3 opacity-80 hover:opacity-100 transition-opacity">
+                            <h3 className="font-bold text-slate-400 flex items-center text-sm uppercase tracking-wider">
+                                <Hourglass className="h-4 w-4 mr-2" /> Future Schedule
+                            </h3>
+                            {futureTasks.map(task => (
+                                <MaintenanceCard 
+                                    key={task.id} 
+                                    task={task} 
+                                    onBook={onBookService} 
+                                    onComplete={onMarkTaskDone}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Empty State */}
+                    {overdueTasks.length === 0 && soonTasks.length === 0 && futureTasks.length === 0 && (
+                        <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                            <CheckCircle className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
+                            <p className="text-slate-500 font-medium">No maintenance scheduled.</p>
+                            <button onClick={() => setShowSuggestions(true)} className="text-emerald-600 font-bold text-sm mt-2 hover:underline">Browse Suggestions</button>
+                        </div>
+                    )}
                 </div>
             ) : (
                 /* HISTORY VIEW */
