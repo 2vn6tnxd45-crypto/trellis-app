@@ -1,6 +1,6 @@
 // src/features/records/SmartScan.jsx
 import React, { useRef, useState } from 'react';
-import { ScanLine, Camera, ListChecks, Save, XCircle, FileText, Loader2, Sparkles, Armchair, UploadCloud } from 'lucide-react';
+import { ScanLine, Camera, ListChecks, Save, XCircle, FileText, Loader2, Sparkles, Armchair, UploadCloud, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
@@ -57,19 +57,9 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 if (data.store) setGlobalStore(data.store);
                 if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) setGlobalCategory(data.primaryCategory);
                 if (data.primaryArea && ROOMS.includes(data.primaryArea)) setGlobalArea(data.primaryArea);
-
-                if (data.items.length === 1) {
-                    onAutoFill({
-                        ...data.items[0],
-                        category: data.items[0].category || data.primaryCategory,
-                        area: data.items[0].area || data.primaryArea,
-                        cost: data.items[0].cost || ''
-                    });
-                    setScannedItems([]);
-                    toast.success('Details filled automatically!', { icon: '✨' });
-                } else {
-                    toast.success(`Found ${data.items.length} items!`, { icon: '📝' });
-                }
+                
+                // FIX 3: Removed single item redirect, now always goes to review
+                toast.success(`Found ${data.items.length} items!`, { icon: '📝' });
             } else {
                 toast.error("Couldn't detect items. Try a clearer image.");
             }
@@ -97,7 +87,6 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         const loadingToast = toast.loading(`Analyzing ${files.length} photos & deduplicating...`);
         
         try {
-            // Compress all images in parallel
             const base64Promises = files.map(f => compressImage(f));
             const base64Results = await Promise.all(base64Promises);
             
@@ -123,6 +112,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setGlobalCategory(val);
         setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
     };
+    
+    // FIX 4: Helper to handle room changes globally
+    const handleGlobalAreaChange = (val) => {
+        setGlobalArea(val);
+        setScannedItems(prev => prev.map(item => ({ ...item, area: val })));
+    };
 
     const handleSaveAll = async () => {
         setIsSaving(true);
@@ -133,12 +128,11 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 dateInstalled: globalDate || item.dateInstalled,
                 contractor: globalStore || item.contractor,
                 area: item.area || globalArea,
-                category: globalCategory || item.category
+                category: item.category || globalCategory
             }));
             
             await onBatchSave(finalItems, currentFile);
             
-            // Reset
             setScannedItems([]);
             setScannedImagePreview(null);
             setCurrentFile(null);
@@ -175,37 +169,18 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95">
                         <div className="text-center mb-6">
-                            <div className="bg-indigo-100 p-3 rounded-full inline-flex mb-3">
-                                <Sparkles className="h-6 w-6 text-indigo-600" />
-                            </div>
+                            <div className="bg-indigo-100 p-3 rounded-full inline-flex mb-3"><Sparkles className="h-6 w-6 text-indigo-600" /></div>
                             <h3 className="text-xl font-bold text-slate-800">Scan an Entire Area</h3>
-                            <p className="text-slate-500 text-sm mt-2">
-                                Take a series of photos to capture everything at once. Our AI will find the items and remove duplicates.
-                            </p>
+                            <p className="text-slate-500 text-sm mt-2">Take a series of photos to capture everything at once. Our AI will find the items and remove duplicates.</p>
                         </div>
-                        
                         <div className="space-y-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm text-slate-600">
-                            <div className="flex gap-3">
-                                <span className="font-bold text-indigo-600">1.</span>
-                                <span>Stand in the center and rotate.</span>
-                            </div>
-                            <div className="flex gap-3">
-                                <span className="font-bold text-indigo-600">2.</span>
-                                <span>Take 3-5 overlapping photos.</span>
-                            </div>
-                            <div className="flex gap-3">
-                                <span className="font-bold text-indigo-600">3.</span>
-                                <span>Open cabinets to scan inside.</span>
-                            </div>
+                            <div className="flex gap-3"><span className="font-bold text-indigo-600">1.</span><span>Stand in the center and rotate.</span></div>
+                            <div className="flex gap-3"><span className="font-bold text-indigo-600">2.</span><span>Take 3-5 overlapping photos.</span></div>
+                            <div className="flex gap-3"><span className="font-bold text-indigo-600">3.</span><span>Open cabinets to scan inside.</span></div>
                         </div>
-
                         <div className="grid grid-cols-2 gap-3">
-                            <button onClick={() => setShowRoomGuide(false)} className="py-3 px-4 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
-                                Cancel
-                            </button>
-                            <button onClick={() => roomInputRef.current?.click()} className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center">
-                                <Camera className="mr-2 h-4 w-4"/> Start Camera
-                            </button>
+                            <button onClick={() => setShowRoomGuide(false)} className="py-3 px-4 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
+                            <button onClick={() => roomInputRef.current?.click()} className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center"><Camera className="mr-2 h-4 w-4"/> Start Camera</button>
                         </div>
                     </div>
                 </div>
@@ -213,74 +188,103 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             {/* SCAN TRIGGER AREA */}
             <div className="bg-white rounded-2xl p-1 border border-slate-200 shadow-sm mb-4 flex relative shrink-0">
-                 {/* Tabs */}
-                <button 
-                    onClick={() => setScanMode('receipt')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'receipt' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <ScanLine className="mr-2 h-4 w-4"/> Scan Receipt
-                </button>
-                <button 
-                    onClick={() => setScanMode('room')}
-                    className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'room' ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                    <Armchair className="mr-2 h-4 w-4"/> Scan Area
-                </button>
+                <button onClick={() => setScanMode('receipt')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'receipt' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}><ScanLine className="mr-2 h-4 w-4"/> Scan Receipt</button>
+                <button onClick={() => setScanMode('room')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'room' ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}><Armchair className="mr-2 h-4 w-4"/> Scan Area</button>
             </div>
 
             <div className={`rounded-2xl p-6 border flex flex-col justify-between gap-4 transition-colors flex-grow ${scanMode === 'receipt' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
                 <div>
                     <div className="flex justify-between items-start mb-2">
-                        <h3 className={`font-bold ${scanMode === 'receipt' ? 'text-emerald-900' : 'text-indigo-900'}`}>
-                            {scanMode === 'receipt' ? 'Upload Receipt or Invoice' : 'Upload Area Photos'}
-                        </h3>
-                        
-                        {/* CENTERED BADGE IMPLEMENTATION */}
+                        <h3 className={`font-bold ${scanMode === 'receipt' ? 'text-emerald-900' : 'text-indigo-900'}`}>{scanMode === 'receipt' ? 'Upload Receipt or Invoice' : 'Upload Area Photos'}</h3>
                         {scanMode === 'receipt' && <span className="text-[10px] bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase">AI Cost Extraction</span>}
                         {scanMode === 'room' && <span className="text-[10px] bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full font-bold uppercase flex items-center justify-center">Multi-Photo Support</span>}
                     </div>
-                    
-                    <p className={`text-xs mt-1 ${scanMode === 'receipt' ? 'text-emerald-600' : 'text-indigo-600'}`}>
-                        {scanMode === 'receipt' 
-                            ? "We'll extract items, costs, and dates automatically." 
-                            : "Upload multiple photos. We'll identify fixtures, appliances, and furniture."}
-                    </p>
+                    <p className={`text-xs mt-1 ${scanMode === 'receipt' ? 'text-emerald-600' : 'text-indigo-600'}`}>{scanMode === 'receipt' ? "We'll extract items, costs, and dates automatically." : "Upload multiple photos. We'll identify fixtures, appliances, and furniture."}</p>
                 </div>
-
                 <div>
                     {scanMode === 'receipt' ? (
-                        <button 
-                            type="button" 
-                            onClick={() => fileInputRef.current?.click()} 
-                            disabled={isScanning} 
-                            className="w-full px-5 py-3 bg-white text-emerald-700 font-bold rounded-xl shadow-sm border border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 transition flex items-center justify-center disabled:opacity-50"
-                        >
-                            {isScanning ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Camera className="mr-2 h-4 w-4" />}
-                            {isScanning ? 'Analyzing...' : 'Select File'}
-                        </button>
+                        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isScanning} className="w-full px-5 py-3 bg-white text-emerald-700 font-bold rounded-xl shadow-sm border border-emerald-200 hover:bg-emerald-50 hover:border-emerald-300 transition flex items-center justify-center disabled:opacity-50">{isScanning ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Camera className="mr-2 h-4 w-4" />}{isScanning ? 'Analyzing...' : 'Select File'}</button>
                     ) : (
-                        <button 
-                            type="button" 
-                            onClick={handleRoomScanTrigger} 
-                            disabled={isScanning} 
-                            className="w-full px-5 py-3 bg-white text-indigo-700 font-bold rounded-xl shadow-sm border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition flex items-center justify-center disabled:opacity-50"
-                        >
-                            {isScanning ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <UploadCloud className="mr-2 h-4 w-4" />}
-                            {isScanning ? 'Scanning...' : 'Select Photos'}
-                        </button>
+                        <button type="button" onClick={handleRoomScanTrigger} disabled={isScanning} className="w-full px-5 py-3 bg-white text-indigo-700 font-bold rounded-xl shadow-sm border border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300 transition flex items-center justify-center disabled:opacity-50">{isScanning ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <UploadCloud className="mr-2 h-4 w-4" />}{isScanning ? 'Scanning...' : 'Select Photos'}</button>
                     )}
                 </div>
-                
-                {/* Hidden Inputs */}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleReceiptScan} />
                 <input type="file" ref={roomInputRef} className="hidden" accept="image/*" multiple onChange={handleRoomScanFiles} />
             </div>
 
-            {/* REVIEW PANEL - (Same as before, not shown for brevity in this snippet as it handles result display) */}
+            {/* RECONSTRUCTED REVIEW PANEL */}
             {scannedItems.length > 0 && (
-               // ... (existing review panel code)
                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4 mt-6">
-                    {/* ... */}
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-emerald-100 p-2 rounded-xl text-emerald-700"><ListChecks size={24} /></div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-800">Review & Save</h3>
+                                <p className="text-xs text-slate-500">{scannedItems.length} items found • ${totalExtractedValue.toFixed(2)} total value</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setScannedItems([])} className="text-slate-400 hover:text-red-500 transition-colors p-2"><XCircle size={24} /></button>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+                        <div className="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <input type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full" />
+                            <input type="text" placeholder="Store / Contractor" value={globalStore} onChange={(e) => setGlobalStore(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full" />
+                            <select value={globalCategory} onChange={(e) => handleGlobalCategoryChange(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full">
+                                <option value="">Auto-Assign Categories</option>
+                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            <select value={globalArea} onChange={(e) => handleGlobalAreaChange(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full">
+                                {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                            </select>
+                        </div>
+                        
+                        <div className="max-h-96 overflow-y-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead className="bg-slate-50 sticky top-0 z-10">
+                                    <tr>
+                                        <th className="p-3 text-xs font-bold text-slate-500 uppercase">Item</th>
+                                        <th className="p-3 text-xs font-bold text-slate-500 uppercase w-24">Cost</th>
+                                        <th className="p-3 text-xs font-bold text-slate-500 uppercase w-40">Room</th>
+                                        <th className="p-3 text-xs font-bold text-slate-500 uppercase w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {scannedItems.map((item, i) => (
+                                        <tr key={i} className="hover:bg-slate-50 group">
+                                            <td className="p-3">
+                                                <input type="text" value={item.item} onChange={(e) => updateItem(i, 'item', e.target.value)} className="w-full text-sm font-medium bg-transparent border-none focus:ring-0 p-0" />
+                                                <div className="flex gap-2 mt-1">
+                                                    <select value={item.category || globalCategory || 'Other'} onChange={(e) => updateItem(i, 'category', e.target.value)} className="text-[10px] bg-slate-100 rounded px-1 py-0.5 border-none text-slate-500">
+                                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                </div>
+                                            </td>
+                                            <td className="p-3">
+                                                <div className="relative">
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">$</span>
+                                                    <input type="number" value={item.cost} onChange={(e) => updateItem(i, 'cost', e.target.value)} className="w-full pl-5 text-sm bg-slate-50 border-none rounded-lg py-1" placeholder="0.00" />
+                                                </div>
+                                            </td>
+                                            {/* FIX 4: ROOM COLUMN */}
+                                            <td className="p-3">
+                                                <select value={item.area || globalArea} onChange={(e) => updateItem(i, 'area', e.target.value)} className="w-full text-xs bg-slate-50 border-none rounded-lg py-1">
+                                                    {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                                </select>
+                                            </td>
+                                            <td className="p-3 text-center">
+                                                <button onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <button onClick={handleSaveAll} disabled={isSaving} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                        {isSaving ? <Loader2 className="animate-spin" /> : <Save />} Save {scannedItems.length} Items
+                    </button>
                </div>
             )}
         </div>
