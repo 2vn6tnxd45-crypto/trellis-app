@@ -3,11 +3,12 @@ import React, { useMemo, useState } from 'react';
 import { 
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, 
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
-    ArrowRight, Check, X, Phone 
+    ArrowRight, Check, X, Phone, MessageCircle, Mail, User 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
 import { useHomeHealth } from '../../hooks/useHomeHealth'; 
+import { toProperCase } from '../../lib/utils';
 
 // --- HELPER FUNCTIONS ---
 
@@ -23,35 +24,88 @@ const getNextServiceDate = (record) => {
     return next;
 };
 
-// --- SUB-COMPONENTS (Must be defined BEFORE usage) ---
+const cleanPhoneForLink = (phone) => {
+    if (!phone) return '';
+    return phone.replace(/[^\d+]/g, '');
+};
+
+// --- SUB-COMPONENTS ---
 
 const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
+    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
+    const hasPhone = !!cleanPhone;
+    
+    // Format the date (e.g., "Oct 15, 2024")
+    const formattedDate = task.nextDate 
+        ? task.nextDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Pending';
+
     return (
         <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all`}>
+            {/* Header Section */}
             <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-white text-red-500' : 'bg-slate-50 text-emerald-600'}`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-white text-red-500 shadow-sm' : 'bg-slate-50 text-emerald-600'}`}>
                         <Wrench size={20} />
                     </div>
                     <div>
-                        <h4 className="font-bold text-slate-800">{task.taskName}</h4>
-                        <p className="text-xs text-slate-500 font-medium">{task.item} • {task.frequency}</p>
+                        <h4 className="font-bold text-slate-800 text-sm">{task.taskName}</h4>
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-0.5">
+                            <span>{task.item}</span>
+                            <span>•</span>
+                            <span>{toProperCase(task.frequency)}</span>
+                        </div>
                     </div>
                 </div>
-                {isOverdue && (
-                    <span className="bg-red-200 text-red-800 text-[10px] font-bold px-2 py-1 rounded-full">
-                        {Math.abs(task.daysUntil)} DAYS OVERDUE
-                    </span>
-                )}
+                
+                {/* Due Date Badge */}
+                <div className="text-right">
+                    {isOverdue ? (
+                         <span className="bg-red-200 text-red-800 text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1">
+                            {Math.abs(task.daysUntil)} DAYS LATE
+                        </span>
+                    ) : (
+                        <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-1 rounded-full inline-block mb-1">
+                            Due {formattedDate.split(',')[0]}
+                        </span>
+                    )}
+                </div>
             </div>
+
+            {/* Contractor Info (if available) */}
+            {task.contractor && (
+                <div className="flex items-center gap-1.5 mb-4 text-xs text-slate-500 bg-white/50 p-1.5 rounded-lg w-fit">
+                    <User size={12} className="text-slate-400"/>
+                    <span className="font-semibold text-slate-600">{task.contractor}</span>
+                </div>
+            )}
             
-            <div className="grid grid-cols-2 gap-2 mt-4">
-                <button 
-                    onClick={() => onBook && onBook(task)}
-                    className="flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                    <Phone size={14} /> Book Pro
-                </button>
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-2 mt-2">
+                {hasPhone ? (
+                    <div className="flex gap-2">
+                        <a 
+                            href={`tel:${cleanPhone}`} 
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors"
+                        >
+                            <Phone size={14} /> Call
+                        </a>
+                        <a 
+                            href={`sms:${cleanPhone}`} 
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                        >
+                            <MessageCircle size={14} /> Text
+                        </a>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={() => onBook && onBook(task)}
+                        className="flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                        <Phone size={14} /> Book Pro
+                    </button>
+                )}
+                
                 <button 
                     onClick={() => onComplete && onComplete(task)}
                     className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm"
@@ -110,7 +164,10 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                     daysUntil: daysUntil,
                     frequency: freq,
                     isGranular: isGranular,
-                    contractor: record.contractor
+                    // Pass contractor info down to task
+                    contractor: record.contractor,
+                    contractorPhone: record.contractorPhone,
+                    contractorEmail: record.contractorEmail
                 };
 
                 if (daysUntil < 0) overdue.push(taskItem);
@@ -260,6 +317,9 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                                     <p className="font-bold text-slate-800 decoration-slate-300">{item.taskName}</p>
                                     <p className="text-xs text-slate-500">
                                         Completed on {new Date(item.completedDate).toLocaleDateString()}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                        {item.performedBy} {item.notes && `• ${item.notes}`}
                                     </p>
                                 </div>
                             </div>
