@@ -259,6 +259,34 @@ const AppContent = () => {
         }
     }, [records, user, celebrations]);
 
+    // 3. Handle "Delete" click (Remove History Item) - NEW FIX
+    const handleDeleteHistoryItem = useCallback(async (historyItem) => {
+        try {
+            if (!historyItem.recordId) {
+                toast.error("Could not delete - missing record ID");
+                return;
+            }
+            
+            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId);
+            const record = records.find(r => r.id === historyItem.recordId);
+            if (!record) {
+                toast.error("Record not found");
+                return;
+            }
+            
+            // Filter out the history item to delete
+            const currentHistory = record.maintenanceHistory || [];
+            const newHistory = currentHistory.filter(h => h.id !== historyItem.id);
+            
+            await updateDoc(recordRef, { maintenanceHistory: newHistory });
+            toast.success("History item removed", { icon: '🗑️' });
+            
+        } catch (e) {
+            console.error('[App] handleDeleteHistoryItem error:', e);
+            toast.error("Failed to delete: " + e.message);
+        }
+    }, [records, user]);
+
     // ============================================
 
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
@@ -344,28 +372,48 @@ const AppContent = () => {
     if (loading) return <AppShellSkeleton />;
     if (!user) return <AuthScreen onLogin={handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
     if (!profile && !loading) return <SetupPropertyForm onSave={handleSaveProperty} isSaving={isSavingProperty} onSignOut={() => signOut(auth)} />;
-    if (isAddingProperty) return <div className="relative"><button onClick={() => setIsAddingProperty(false)} className="absolute top-6 left-6 z-50 text-slate-500 font-bold flex items-center bg-white px-4 py-2 rounded-xl shadow-sm"><X className="mr-2 h-4 w-4"/> Cancel</button><SetupPropertyForm onSave={handleSaveProperty} isSaving={isSavingProperty} onSignOut={() => {}} /></div>;
-    if (!activeProperty) return <div className="p-10 text-center">Loading...</div>;
 
+    const isNewUser = activePropertyRecords.length === 0 && !hasSeenWelcome;
     const totalNotifications = dueTasks.length + newSubmissions.length;
-    const isNewUser = records.length === 0 && !hasSeenWelcome;
-    const filteredRecords = activePropertyRecords.filter(r => {
-        const searchLower = searchTerm.toLowerCase();
-        return ((r.item||'').toLowerCase().includes(searchLower) || (r.brand||'').toLowerCase().includes(searchLower)) && (filterCategory === 'All' || r.category === filterCategory);
+
+    // Grouping logic for inventory view
+    const groupKey = inventoryView === 'room' ? 'area' : 'category';
+    const filtered = activePropertyRecords.filter(r => {
+        const matchSearch = !searchTerm || r.item?.toLowerCase().includes(searchTerm.toLowerCase()) || r.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchCategory = filterCategory === 'All' || r.category === filterCategory;
+        return matchSearch && matchCategory;
     });
+    const grouped = filtered.reduce((acc, r) => {
+        const key = r[groupKey] || 'Other';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(r);
+        return acc;
+    }, {});
 
     return (
         <>
         <Toaster position="top-center" />
-        <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} itemName={lastAddedItem} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
-
-        {showScanner && <SmartScanner onClose={() => setShowScanner(false)} onProcessComplete={handleScanComplete} analyzeImage={handleAnalyzeImage} />}
-
-        <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-warm-100 pb-24">
-            <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-100 shadow-sm px-4 py-3">
-                <div className="max-w-5xl mx-auto flex justify-between items-center">
-                    <button onClick={() => setIsSwitchingProp(true)} className="flex items-center gap-2 text-left hover:bg-slate-50 p-2 -ml-2 rounded-xl transition-colors"><Logo className="h-8" /><span className="font-bold text-emerald-950 hidden sm:inline">{activeProperty?.name || 'My Home'}</span><ChevronDown size={16} className="text-slate-400"/></button>
-                    <div className="flex items-center gap-2"><button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 hover:bg-slate-100 rounded-full transition-colors"><Bell size={20} className="text-slate-600"/>{totalNotifications > 0 && <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalNotifications}</span>}</button><button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><Menu size={20} className="text-slate-600"/></button></div>
+        <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
+        {showScanner && <SmartScanner onClose={() => setShowScanner(false)} onProcessComplete={handleScanComplete} onAnalyze={handleAnalyzeImage} />}
+        
+        <div className="min-h-screen bg-slate-50 pb-24">
+            <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-slate-100">
+                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Logo className="h-9 w-9" />
+                        <button onClick={() => setIsSwitchingProp(true)} className="flex items-center gap-1 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors">
+                            <span className="font-bold text-emerald-950 text-lg">{activeProperty?.name || 'My Home'}</span>
+                            <ChevronDown size={16} className="text-slate-400"/>
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                        <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 hover:bg-slate-100 rounded-full transition-colors relative">
+                            <Bell size={20} className="text-slate-600"/>{totalNotifications > 0 && <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalNotifications}</span>}
+                        </button>
+                        <button onClick={() => setShowUserMenu(!showUserMenu)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                            <Menu size={20} className="text-slate-600"/>
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -399,13 +447,14 @@ const AppContent = () => {
                                 <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
                             </button>
                             <h2 className="text-2xl font-bold text-emerald-950">Maintenance Schedule</h2>
-                            {/* UPDATED: Passing required props */}
+                            {/* UPDATED: Passing required props including onDeleteHistoryItem */}
                             <MaintenanceDashboard 
                                 records={activePropertyRecords} 
                                 onAddRecord={openAddModal} 
                                 onNavigateToRecords={() => setActiveTab('Items')}
                                 onBookService={handleBookService}
                                 onMarkTaskDone={handleMarkTaskDone}
+                                onDeleteHistoryItem={handleDeleteHistoryItem}
                             />
                         </div>
                     </FeatureErrorBoundary>
@@ -416,38 +465,36 @@ const AppContent = () => {
                 {activeTab === 'Items' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                         <div className="flex flex-col gap-4">
-                            <div className="flex justify-between items-center"><h2 className="text-2xl font-bold text-emerald-950">Inventory</h2><div className="bg-slate-100 p-1 rounded-xl flex"><button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'category' ? 'bg-white shadow' : 'text-slate-500'}`}>Category</button><button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'room' ? 'bg-white shadow' : 'text-slate-500'}`}>Room</button></div></div>
-                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4"><input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/><button onClick={() => setIsSelectionMode(!isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{isSelectionMode ? 'Cancel' : 'Select'}</button></div>
-                        </div>
-                        {filteredRecords.length === 0 ? (<EmptyState icon={Package} title="No Items Found" description="Add your first item to get started." />) : inventoryView === 'category' ? (
-                            <div className="space-y-8">
-                                {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.category || 'Other'] = [...(acc[r.category || 'Other'] || []), r]; return acc; }, {})).map(([cat, items]) => (
-                                    <div key={cat} className="space-y-4">
-                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2 bg-white/50 backdrop-blur-sm sticky top-20 z-10 p-2 rounded-xl">
-                                            <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{cat}</h3>
-                                            <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {items.map(r => (
-                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
-                                                    {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-2xl font-bold text-emerald-950">Inventory</h2>
+                                <div className="bg-slate-100 p-1 rounded-xl flex">
+                                    <button onClick={() => setInventoryView('category')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'category' ? 'bg-white shadow' : 'text-slate-500'}`}>Category</button>
+                                    <button onClick={() => setInventoryView('room')} className={`px-4 py-2 rounded-lg text-sm font-bold ${inventoryView === 'room' ? 'bg-white shadow' : 'text-slate-500'}`}>Room</button>
+                                </div>
                             </div>
+                            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4">
+                                <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/>
+                                <button onClick={() => setIsSelectionMode(!isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{isSelectionMode ? 'Done' : 'Select'}</button>
+                            </div>
+                            {isSelectionMode && selectedRecords.size > 0 && (
+                                <button onClick={handleBatchDelete} className="w-full py-3 bg-red-500 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+                                    <Trash2 size={18}/> Delete {selectedRecords.size} items
+                                </button>
+                            )}
+                        </div>
+                        
+                        {Object.keys(grouped).length === 0 ? (
+                            <EmptyState title="No items found" description="Try adjusting your search or add some items." />
                         ) : (
                             <div className="space-y-8">
-                                {Object.entries(filteredRecords.reduce((acc, r) => { acc[r.area || 'General'] = [...(acc[r.area || 'General'] || []), r]; return acc; }, {})).map(([room, items]) => (
-                                    <div key={room} className="space-y-4">
-                                        <div className="flex items-center gap-2 border-b border-slate-100 pb-2 bg-white/50 backdrop-blur-sm sticky top-20 z-10 p-2 rounded-xl">
-                                            <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">{room}</h3>
-                                            <span className="text-xs font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0])).map(([group, items]) => (
+                                    <div key={group}>
+                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                            {group} <span className="text-sm font-normal text-slate-400">({items.length})</span>
+                                        </h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {items.map(r => (
-                                                <div key={r.id} className={isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
+                                                <div key={r.id} className={`${isSelectionMode && selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'}`} onClick={() => isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
                                                 </div>
                                             ))}
@@ -582,16 +629,18 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
                      contractorAddress: editingRecord?.contractorAddress || '',
                      warranty: item.warranty || editingRecord?.warranty || '',
                      imageUrl: sharedImageUrl || '', 
-                     attachments: sharedFileUrl ? [{ name: fileToUpload.name || 'Scanned Source', type: sharedFileType, url: sharedFileUrl }] : [], 
+                     attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
                      timestamp: serverTimestamp() 
-                };
-                batch.set(newDocRef, docData);
+                 };
+                 batch.set(newDocRef, docData);
             });
+            
             await batch.commit();
+            toast.success(`${items.length} items saved!`);
             onSuccess();
         } catch (error) { 
-            console.error("Batch Save Error:", error); 
-            toast.error(`Save failed. Error: ${error.code || error.message}`); 
+            console.error("Batch Save Error:", error);
+            toast.error(`Error: ${error.code || error.message}`); 
         } finally { setSaving(false); }
     };
 
