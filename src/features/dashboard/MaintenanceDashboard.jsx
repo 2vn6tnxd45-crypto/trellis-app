@@ -235,7 +235,8 @@ export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRe
                                     onBook={onBookService} 
                                     onComplete={onMarkTaskDone}
                                 />
-                            ))}
+                            ))
+                        )}
                     </div>
                 </div>
             ) : (
