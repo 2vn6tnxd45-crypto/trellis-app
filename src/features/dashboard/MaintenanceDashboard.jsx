@@ -9,6 +9,22 @@ import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
 import { useHomeHealth } from '../../hooks/useHomeHealth'; 
 
+// --- HELPER FUNCTIONS (Must be defined before usage) ---
+
+const getNextServiceDate = (record) => {
+    if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
+    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
+    if (!freq || freq.months === 0) return null;
+    const installed = new Date(record.dateInstalled);
+    const next = new Date(installed);
+    next.setMonth(next.getMonth() + freq.months);
+    const now = new Date();
+    while (next < now) next.setMonth(next.getMonth() + freq.months);
+    return next;
+};
+
+// --- COMPONENT ---
+
 export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords, onBookService, onMarkTaskDone }) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -282,16 +298,4 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
             </div>
         </div>
     );
-};
-
-const getNextServiceDate = (record) => {
-    if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
-    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
-    if (!freq || freq.months === 0) return null;
-    const installed = new Date(record.dateInstalled);
-    const next = new Date(installed);
-    next.setMonth(next.getMonth() + freq.months);
-    const now = new Date();
-    while (next < now) next.setMonth(next.getMonth() + freq.months);
-    return next;
 };
