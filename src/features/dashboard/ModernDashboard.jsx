@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
+import { useHomeHealth } from '../../hooks/useHomeHealth';
 
 // --- CONFIG & HELPERS ---
 
@@ -27,27 +28,6 @@ const safeDate = (dateStr) => {
     if (!dateStr) return null;
     const d = new Date(dateStr);
     return isNaN(d.getTime()) ? null : d;
-};
-
-const getNextServiceDate = (record) => {
-    if (!record?.dateInstalled || record?.maintenanceFrequency === 'none') return null;
-    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
-    if (!freq || freq.months === 0) return null;
-    
-    try {
-        const installed = safeDate(record.dateInstalled);
-        if (!installed) return null;
-        
-        const next = new Date(installed);
-        next.setMonth(next.getMonth() + freq.months);
-        
-        const now = new Date();
-        while (next < now) next.setMonth(next.getMonth() + freq.months);
-        
-        return next;
-    } catch (e) {
-        return null;
-    }
 };
 
 const formatCurrency = (amount) => {
@@ -84,16 +64,14 @@ const cleanPhoneForLink = (phone) => {
     return phone.replace(/[^\d+]/g, '');
 };
 
-// --- NEW COMPONENT: Task Action Modal ---
-// Opens when a card is clicked. Contains robust actions.
 const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContractors }) => {
     if (!task) return null;
 
     const isOverdue = (task.daysUntil || 0) < 0;
     const days = Math.abs(task.daysUntil || 0);
     const hasContractor = !!task.contractor;
-    const hasPhone = !!task.contractorPhone;
     const cleanPhone = cleanPhoneForLink(task.contractorPhone);
+    const hasPhone = !!cleanPhone;
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
@@ -204,11 +182,11 @@ const HealthScoreCard = ({ breakdown, score }) => (
         <div className="space-y-3">
             <div className="flex justify-between items-center text-sm">
                 <div className="flex items-center gap-2"><Wrench size={16} className="text-slate-400" /> <span className="text-slate-600">Maintenance</span></div>
-                <span className={`font-bold ${breakdown.maintenance.penalty > 0 ? 'text-red-600' : 'text-emerald-600'}`}>{breakdown.maintenance.penalty > 0 ? `-${breakdown.maintenance.penalty}` : 'OK'}</span>
+                <span className={`font-bold ${breakdown.maintenance === 50 ? 'text-emerald-600' : 'text-amber-600'}`}>{breakdown.maintenance}/50</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Coverage</span></div>
-                <span className={`font-bold ${breakdown.coverage.penalty > 0 ? 'text-blue-600' : 'text-emerald-600'}`}>{breakdown.coverage.penalty > 0 ? `-${breakdown.coverage.penalty}` : 'OK'}</span>
+                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Profile Depth</span></div>
+                <span className={`font-bold ${breakdown.profile === 50 ? 'text-emerald-600' : 'text-blue-600'}`}>{breakdown.profile}/50</span>
             </div>
         </div>
     </div>
@@ -244,7 +222,6 @@ const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default'
     </button>
 );
 
-// Updated AttentionCard: No inline buttons. Entire card opens modal.
 const AttentionCard = ({ task, onClick }) => {
     if (!task) return null;
     const isOverdue = (task.daysUntil || 0) < 0;
@@ -330,11 +307,13 @@ export const ModernDashboard = ({
     const [showFullInsights, setShowFullInsights] = useState(false);
     const [selectedTask, setSelectedTask] = useState(null);
 
+    // 1. Use centralized hook for scoring
+    const healthData = useHomeHealth(records);
+
+    // 2. Calculate Dashboard-specific metrics (Tasks list + Total Spent)
     const metrics = useMemo(() => {
         try {
             const now = new Date();
-            let overdueCount = 0;
-            let upcomingCount = 0;
             const overdueTasks = [];
             const upcomingTasks = [];
             const scheduledTasks = [];
@@ -368,8 +347,6 @@ export const ModernDashboard = ({
                     if (!nextDate) return;
                     const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
                     
-                    // --- CRITICAL FIX: STABLE ID GENERATION ---
-                    // Removed Math.random(). ID is now deterministic based on record ID + task name.
                     const taskItem = {
                         id: `${record.id}-${taskName.replace(/\s+/g, '_')}`,
                         recordId: record.id,
@@ -384,9 +361,9 @@ export const ModernDashboard = ({
                         isGranular
                     };
 
-                    if (daysUntil < 0) { overdueCount++; overdueTasks.push(taskItem); }
-                    else if (daysUntil <= 30) { upcomingCount++; upcomingTasks.push(taskItem); }
-                    else if (daysUntil <= 180) { scheduledTasks.push(taskItem); }
+                    if (daysUntil < 0) overdueTasks.push(taskItem);
+                    else if (daysUntil <= 30) upcomingTasks.push(taskItem);
+                    else if (daysUntil <= 180) scheduledTasks.push(taskItem);
                 };
 
                 if (Array.isArray(record.maintenanceTasks) && record.maintenanceTasks.length > 0) {
@@ -396,19 +373,17 @@ export const ModernDashboard = ({
                 }
             });
 
-            const total = validRecords.length;
-            let coveragePenalty = total < 5 ? (5 - total) * 10 : 0;
-            const score = Math.max(0, 100 - coveragePenalty - (overdueCount * 15));
             const totalSpent = validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
 
             return {
-                score, overdueCount, upcomingCount, totalSpent,
-                overdueTasks, upcomingTasks, scheduledTasks: scheduledTasks.sort((a,b) => a.daysUntil - b.daysUntil),
-                breakdown: { coverage: { penalty: coveragePenalty, needed: Math.max(0, 5 - total) }, maintenance: { penalty: overdueCount * 15 } }
+                totalSpent,
+                overdueTasks,
+                upcomingTasks,
+                scheduledTasks: scheduledTasks.sort((a,b) => a.daysUntil - b.daysUntil),
             };
         } catch (e) {
             console.error("Metrics Error", e);
-            return { score: 0, overdueTasks: [], upcomingTasks: [], scheduledTasks: [], breakdown: { coverage: {}, maintenance: {} } };
+            return { totalSpent: 0, overdueTasks: [], upcomingTasks: [], scheduledTasks: [] };
         }
     }, [records, contractors]);
 
@@ -434,7 +409,8 @@ export const ModernDashboard = ({
                         <div><p className="text-white/60 text-sm font-bold uppercase tracking-wider mb-1">{season.icon} {season.name} Season</p><h1 className="text-3xl font-bold tracking-tight">{greeting},<br/>{activeProperty?.name || 'Homeowner'}</h1></div>
                         <button onClick={onScanReceipt} className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-3 rounded-2xl border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-lg"><Camera size={24} /></button>
                     </div>
-                    <div className="flex flex-col items-center py-2"><HealthRing score={metrics.score} theme={season} breakdown={metrics.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">Your home health score.</p></div>
+                    {/* Using Shared Health Data */}
+                    <div className="flex flex-col items-center py-2"><HealthRing score={healthData.score} theme={season} breakdown={healthData.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">Your home health score.</p></div>
                     <div className="grid grid-cols-3 gap-3 mt-8">
                         <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{records.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
                         <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
@@ -443,28 +419,41 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {(metrics.overdueCount > 0 || metrics.upcomingCount > 0) && (
+            {(metrics.overdueTasks.length > 0 || metrics.upcomingTasks.length > 0) && (
                 <div className="space-y-4">
                     <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
                     {metrics.overdueTasks.map((task) => (
                         <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
-                    {metrics.overdueCount === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
+                    {metrics.overdueTasks.length === 0 && metrics.upcomingTasks.slice(0, 2).map((task) => (
                         <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />
                     ))}
                 </div>
             )}
             
-            {metrics.scheduledTasks.length > 0 && (
-                <div className="space-y-4">
-                    <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
+            {/* UPDATED: Always showing calendar section */}
+            <div className="space-y-4">
+                <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
+                
+                {metrics.scheduledTasks.length > 0 ? (
                     <div className="space-y-3">
                         {metrics.scheduledTasks.slice(0, 3).map((task) => (
                             <ScheduledTaskRow key={task.id} task={task} onClick={setSelectedTask} />
                         ))}
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-6 text-center">
+                         <div className="inline-flex p-3 bg-white rounded-full mb-3 shadow-sm">
+                            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                         </div>
+                         <p className="text-slate-600 font-bold text-sm">No upcoming tasks</p>
+                         <p className="text-slate-400 text-xs mt-1">Check the full calendar to plan ahead.</p>
+                         <button onClick={onNavigateToMaintenance} className="mt-3 text-emerald-600 text-xs font-bold hover:underline">
+                            Open Calendar
+                         </button>
+                    </div>
+                )}
+            </div>
             
             <div>
                 <SectionHeader title="Quick Actions" />
