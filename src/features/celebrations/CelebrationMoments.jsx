@@ -10,6 +10,7 @@ import {
     Sparkles, Star, Home, Trophy, Target, Zap,
     CheckCircle2, PartyPopper, Gift, Crown, Award
 } from 'lucide-react';
+import './celebrations.css'; // Import the new CSS file
 
 // ============================================
 // CONFETTI COMPONENT
@@ -28,6 +29,8 @@ const Confetti = ({ count = 50, duration = 3000 }) => {
             duration: 2 + Math.random() * 2,
             size: 8 + Math.random() * 8,
             rotation: Math.random() * 360,
+            // Calculate random drift for this specific particle
+            drift: `${Math.random() > 0.5 ? '' : '-'}${20 + Math.random() * 30}px`
         }));
         setParticles(newParticles);
         
@@ -48,6 +51,7 @@ const Confetti = ({ count = 50, duration = 3000 }) => {
                         top: '-20px',
                         animationDelay: `${p.delay}s`,
                         animationDuration: `${p.duration}s`,
+                        '--fall-drift': p.drift // Pass the random drift as a CSS variable
                     }}
                 >
                     <div
@@ -62,29 +66,6 @@ const Confetti = ({ count = 50, duration = 3000 }) => {
                     />
                 </div>
             ))}
-            
-            <style jsx>{`
-                @keyframes confetti-fall {
-                    0% {
-                        transform: translateY(0) translateX(0);
-                        opacity: 1;
-                    }
-                    100% {
-                        transform: translateY(100vh) translateX(${Math.random() > 0.5 ? '' : '-'}${20 + Math.random() * 30}px);
-                        opacity: 0;
-                    }
-                }
-                @keyframes confetti-spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(720deg); }
-                }
-                .animate-confetti-fall {
-                    animation: confetti-fall linear forwards;
-                }
-                .animate-confetti-spin {
-                    animation: confetti-spin linear infinite 1s;
-                }
-            `}</style>
         </div>
     );
 };
@@ -161,17 +142,6 @@ export const FirstItemCelebration = ({ itemName, onClose, onContinue }) => {
                     </button>
                 </div>
             </div>
-            
-            <style jsx>{`
-                @keyframes celebration-pop {
-                    0% { transform: scale(0.8); opacity: 0; }
-                    50% { transform: scale(1.05); }
-                    100% { transform: scale(1); opacity: 1; }
-                }
-                .animate-celebration-pop {
-                    animation: celebration-pop 0.4s ease-out;
-                }
-            `}</style>
         </>
     );
 };
@@ -187,7 +157,7 @@ const MILESTONES = {
         subtitle: 'Your Home Health Score is now active',
         description: 'With 5 items tracked, we can now calculate your maintenance health.',
         color: 'emerald',
-        badge: '🎯',
+        badge: '🛡️',
     },
     10: {
         icon: Trophy,
@@ -260,17 +230,6 @@ export const MilestoneCelebration = ({ milestone, onClose }) => {
                     </button>
                 </div>
             </div>
-            
-            <style jsx>{`
-                @keyframes celebration-pop {
-                    0% { transform: scale(0.8); opacity: 0; }
-                    50% { transform: scale(1.05); }
-                    100% { transform: scale(1); opacity: 1; }
-                }
-                .animate-celebration-pop {
-                    animation: celebration-pop 0.4s ease-out;
-                }
-            `}</style>
         </>
     );
 };
