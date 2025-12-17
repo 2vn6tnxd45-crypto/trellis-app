@@ -204,8 +204,8 @@ const AppContent = () => {
         setShowQuickService(true);
     }, [records]);
 
-    // 2. Handle "Done" click (Complete Task)
-    const handleMarkTaskDone = useCallback(async (task) => {
+    // 2. Handle "Done" click (Complete Task) - UPDATED FOR HISTORY
+    const handleMarkTaskDone = useCallback(async (task, notes = '') => {
         try {
             if (!task.recordId) {
                 toast.error("Could not update - missing record ID");
@@ -214,29 +214,45 @@ const AppContent = () => {
             
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
-            if (!record) {
-                toast.error("Could not find the record to update");
-                return;
-            }
+            if (!record) return;
             
-            const now = new Date().toISOString().split('T')[0];
-            const nextDate = calculateNextDate(now, task.frequency || 'annual');
+            const completedDate = new Date().toISOString();
+            const completedDateShort = completedDate.split('T')[0];
+            
+            // 1. Create History Entry
+            const historyEntry = {
+                taskName: task.taskName,
+                completedDate: completedDate,
+                performedBy: 'User',
+                notes: notes,
+                id: Date.now().toString()
+            };
+            
+            const currentHistory = record.maintenanceHistory || [];
+            const newHistory = [historyEntry, ...currentHistory];
 
+            // 2. Calculate Next Due Date
+            let updates = { maintenanceHistory: newHistory };
+            
             if (task.isGranular) {
                 // Update specific task in the maintenanceTasks array
                 const updatedTasks = (record.maintenanceTasks || []).map(t => {
                     if (t.task === task.taskName) {
+                        const nextDate = calculateNextDate(completedDateShort, t.frequency || 'annual');
                         return { ...t, nextDue: nextDate };
                     }
                     return t;
                 });
-                await updateDoc(recordRef, { maintenanceTasks: updatedTasks });
+                updates.maintenanceTasks = updatedTasks;
             } else {
                 // Legacy: update dateInstalled to effectively reset the cycle
-                await updateDoc(recordRef, { dateInstalled: now }); 
+                updates.dateInstalled = completedDateShort; 
             }
-            toast.success("Maintenance recorded!");
-            celebrations.showToast("Task Complete!", Check);
+
+            await updateDoc(recordRef, updates);
+            toast.success("Task complete! History saved.", { icon: '🎉' });
+            celebrations.showToast("Maintenance Recorded!", Check);
+            
         } catch (e) {
             console.error('[App] handleMarkTaskDone error:', e);
             toast.error("Failed to update: " + e.message);
@@ -383,10 +399,13 @@ const AppContent = () => {
                                 <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
                             </button>
                             <h2 className="text-2xl font-bold text-emerald-950">Maintenance Schedule</h2>
+                            {/* UPDATED: Passing required props */}
                             <MaintenanceDashboard 
                                 records={activePropertyRecords} 
                                 onAddRecord={openAddModal} 
                                 onNavigateToRecords={() => setActiveTab('Items')}
+                                onBookService={handleBookService}
+                                onMarkTaskDone={handleMarkTaskDone}
                             />
                         </div>
                     </FeatureErrorBoundary>
