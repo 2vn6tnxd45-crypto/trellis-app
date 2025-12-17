@@ -74,74 +74,83 @@ const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContra
     const hasPhone = !!cleanPhone;
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose}>
-            <div className="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
                 {/* Header */}
-                <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'} border-b ${isOverdue ? 'border-red-100' : 'border-emerald-100'}`}>
-                    <div className="flex justify-between items-start mb-2">
-                        <div className={`p-3 rounded-2xl ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                            {isOverdue ? <AlertTriangle size={24} /> : <Clock size={24} />}
+                <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'}`}>
+                    <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-white/50 rounded-full transition-colors">
+                        <X size={20} className="text-slate-500" />
+                    </button>
+                    <div className="flex items-start gap-4">
+                        <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                            <Wrench size={28} />
                         </div>
-                        <button onClick={onClose} className="p-2 bg-white/50 hover:bg-white rounded-full transition-colors">
-                            <X size={20} className="text-slate-500" />
-                        </button>
+                        <div>
+                            <h2 className="font-bold text-xl text-slate-900">{task.taskName}</h2>
+                            <p className="text-sm text-slate-600 font-medium">{task.item}</p>
+                            <span className={`inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}
+                            </span>
+                        </div>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 leading-tight">{task.taskName}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {isOverdue ? `${days} DAYS OVERDUE` : `DUE IN ${days} DAYS`}
-                        </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-3 font-medium flex items-center">
-                        <Package size={12} className="mr-1"/> {task.item}
-                    </p>
                 </div>
 
-                {/* Body - Actions */}
-                <div className="p-6 space-y-6">
-                    
-                    {/* Contractor Section */}
+                {/* Body */}
+                <div className="p-6 space-y-5">
+                    {/* Contractor Info Section */}
                     <div>
-                        <div className="flex justify-between items-end mb-3">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Service Provider</h4>
-                            {!hasContractor && (
-                                <button onClick={() => { onNavigateToContractors(); onClose(); }} className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
-                                    Find Pro
-                                </button>
-                            )}
-                        </div>
-                        
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Service Provider</h4>
                         {hasContractor ? (
-                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold">
-                                        {task.contractor.charAt(0)}
+                            <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center shadow-sm">
+                                        <User size={18} className="text-slate-400" />
                                     </div>
                                     <div>
-                                        <p className="font-bold text-slate-800 text-sm">{task.contractor}</p>
-                                        <p className="text-[10px] text-slate-500 uppercase">Linked Pro</p>
+                                        <p className="font-bold text-slate-800">{task.contractor}</p>
+                                        {task.contractorPhone && <p className="text-xs text-slate-500">{task.contractorPhone}</p>}
+                                        {task.contractorEmail && <p className="text-xs text-slate-500">{task.contractorEmail}</p>}
                                     </div>
                                 </div>
                                 
-                                <div className="grid grid-cols-2 gap-2">
-                                    {hasPhone ? (
+                                {/* Contact Actions */}
+                                <div className="flex gap-2 pt-2">
+                                    {hasPhone && (
                                         <>
-                                            <a href={`tel:${cleanPhone}`} className="flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 transition-colors">
-                                                <Phone size={14} /> Call
+                                            <a 
+                                                href={`tel:${cleanPhone}`}
+                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 transition-colors"
+                                            >
+                                                <Phone size={16} /> Call
                                             </a>
-                                            <a href={`sms:${cleanPhone}`} className="flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-200 transition-colors">
-                                                <MessageCircle size={14} /> Text
+                                            <a 
+                                                href={`sms:${cleanPhone}`}
+                                                className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-colors"
+                                            >
+                                                <MessageCircle size={16} /> Text
                                             </a>
                                         </>
-                                    ) : (
-                                        <button 
-                                            onClick={() => { onBook(task); onClose(); }}
-                                            className="col-span-2 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-purple-50 hover:border-purple-200 transition-colors"
+                                    )}
+                                    {task.contractorEmail && (
+                                        <a 
+                                            href={`mailto:${task.contractorEmail}`}
+                                            className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 transition-colors"
                                         >
-                                            <LinkIcon size={14} /> Create Request Link
-                                        </button>
+                                            <Mail size={16} /> Email
+                                        </a>
                                     )}
                                 </div>
+                                
+                                {/* Create Link Option */}
+                                {!hasPhone && !task.contractorEmail && (
+                                    <button 
+                                        onClick={() => { onBook(task); onClose(); }}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-purple-50 hover:border-purple-200 transition-colors"
+                                    >
+                                        <LinkIcon size={14} /> Create Request Link
+                                    </button>
+                                )}
                             </div>
                         ) : (
                             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 border-dashed text-center">
@@ -182,41 +191,18 @@ const HealthScoreCard = ({ breakdown, score }) => (
         <div className="space-y-3">
             <div className="flex justify-between items-center text-sm">
                 <div className="flex items-center gap-2"><Wrench size={16} className="text-slate-400" /> <span className="text-slate-600">Maintenance</span></div>
-                <span className={`font-bold ${breakdown.maintenance === 50 ? 'text-emerald-600' : 'text-amber-600'}`}>{breakdown.maintenance}/50</span>
+                <span className={`font-bold ${breakdown.maintenance === 50 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.maintenance}/50</span>
             </div>
             <div className="flex justify-between items-center text-sm">
-                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Profile Depth</span></div>
-                <span className={`font-bold ${breakdown.profile === 50 ? 'text-emerald-600' : 'text-blue-600'}`}>{breakdown.profile}/50</span>
+                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Coverage</span></div>
+                <span className={`font-bold ${breakdown.profile >= 40 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.profile}/50</span>
             </div>
         </div>
     </div>
 );
 
-const HealthRing = ({ score, theme, breakdown }) => {
-    const [showBreakdown, setShowBreakdown] = useState(false);
-    const size = 150, strokeWidth = 12, radius = (size - strokeWidth) / 2;
-    const circumference = radius * 2 * Math.PI;
-    const safeScore = Math.max(0, Math.min(100, score || 0));
-    const strokeDashoffset = circumference - (safeScore / 100) * circumference;
-    const strokeColor = safeScore >= 80 ? '#10b981' : safeScore >= 60 ? '#f59e0b' : '#ef4444';
-    
-    return (
-        <div className="relative group cursor-pointer" style={{ width: size, height: size }} onClick={() => setShowBreakdown(!showBreakdown)}>
-            <svg className="transform -rotate-90 transition-all duration-300 group-hover:scale-105" width={size} height={size}>
-                <circle cx={size/2} cy={size/2} r={radius} stroke="currentColor" strokeWidth="12" fill="none" className="text-white/10" />
-                <circle cx={size/2} cy={size/2} r={radius} stroke={strokeColor} strokeWidth="12" fill="none" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} style={{ transition: 'stroke-dashoffset 1s ease-out' }} />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white pointer-events-none">
-                <span className="text-5xl font-black tracking-tight">{safeScore}</span>
-                <span className={`text-xs font-bold uppercase tracking-widest mt-1 opacity-80 ${theme.accent}`}>Health</span>
-            </div>
-            {showBreakdown && <HealthScoreCard breakdown={breakdown} score={safeScore} />}
-        </div>
-    );
-};
-
-const QuickAction = ({ icon: Icon, label, sublabel, onClick, variant = 'default' }) => (
-    <button onClick={onClick} className={`group flex items-center gap-3 p-4 rounded-2xl border-2 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:shadow-sm w-full text-left ${variant === 'primary' ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}>
+const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default' }) => (
+    <button onClick={onClick} className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all group hover:shadow-md active:scale-[0.98] ${variant === 'primary' ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}>
         <div className={`p-2.5 rounded-xl transition-transform duration-200 group-hover:scale-110 group-active:scale-95 ${variant === 'primary' ? 'bg-emerald-100' : 'bg-slate-100'}`}><Icon size={22} /></div>
         <div><p className="font-bold text-sm">{label}</p>{sublabel && <p className="text-xs opacity-70 font-medium">{sublabel}</p>}</div>
     </button>
@@ -310,6 +296,26 @@ export const ModernDashboard = ({
     // 1. Use centralized hook for scoring
     const healthData = useHomeHealth(records);
 
+    // FIX: Build contractor directory from records for better enrichment
+    const contractorDirectory = useMemo(() => {
+        const dir = {};
+        records.forEach(r => {
+            if (r.contractor && r.contractor.trim().length > 0) {
+                const name = r.contractor.trim().toLowerCase();
+                if (!dir[name]) {
+                    dir[name] = { phone: null, email: null };
+                }
+                if (r.contractorPhone && r.contractorPhone.trim()) {
+                    dir[name].phone = r.contractorPhone.trim();
+                }
+                if (r.contractorEmail && r.contractorEmail.trim()) {
+                    dir[name].email = r.contractorEmail.trim();
+                }
+            }
+        });
+        return dir;
+    }, [records]);
+
     // 2. Calculate Dashboard-specific metrics (Tasks list + Total Spent)
     const metrics = useMemo(() => {
         try {
@@ -320,14 +326,29 @@ export const ModernDashboard = ({
             const validRecords = Array.isArray(records) ? records : [];
             const validContractors = Array.isArray(contractors) ? contractors : [];
             
+            // FIX: Improved getContractorInfo that checks multiple sources
             const getContractorInfo = (name) => {
                 if (!name) return {};
-                const match = validContractors.find(c => c.name?.toLowerCase().includes(name.toLowerCase()));
+                const normalizedName = name.trim().toLowerCase();
+                
+                // First, check the directory built from records
+                const fromDirectory = contractorDirectory[normalizedName];
+                if (fromDirectory && (fromDirectory.phone || fromDirectory.email)) {
+                    return { phone: fromDirectory.phone, email: fromDirectory.email };
+                }
+                
+                // Then, check the contractors list
+                const match = validContractors.find(c => 
+                    c.name?.toLowerCase().includes(normalizedName) ||
+                    normalizedName.includes(c.name?.toLowerCase())
+                );
                 return match ? { phone: match.phone, email: match.email } : {};
             };
 
             validRecords.forEach(record => {
                 if (!record) return;
+                
+                // FIX: Get contractor info with better fallbacks
                 const contact = getContractorInfo(record.contractor);
                 const phone = record.contractorPhone || contact.phone || '';
                 const email = record.contractorEmail || contact.email || '';
@@ -385,7 +406,7 @@ export const ModernDashboard = ({
             console.error("Metrics Error", e);
             return { totalSpent: 0, overdueTasks: [], upcomingTasks: [], scheduledTasks: [] };
         }
-    }, [records, contractors]);
+    }, [records, contractors, contractorDirectory]);
 
     return (
         <div className="space-y-8 pb-8">
@@ -400,18 +421,30 @@ export const ModernDashboard = ({
             )}
 
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
-                <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden">
-                    <div className={`absolute inset-0 bg-gradient-to-br ${season.gradient}`} />
-                    <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]" />
-                </div>
-                <div className="relative z-10 p-8 text-white">
-                    <div className="flex items-start justify-between mb-8">
-                        <div><p className="text-white/60 text-sm font-bold uppercase tracking-wider mb-1">{season.icon} {season.name} Season</p><h1 className="text-3xl font-bold tracking-tight">{greeting},<br/>{activeProperty?.name || 'Homeowner'}</h1></div>
-                        <button onClick={onScanReceipt} className="bg-white/10 hover:bg-white/20 backdrop-blur-md p-3 rounded-2xl border border-white/10 transition-all hover:scale-105 active:scale-95 shadow-lg"><Camera size={24} /></button>
+                <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
+                <div className="relative p-6 text-white">
+                    <div className="flex items-start justify-between mb-6">
+                        <div>
+                            <p className="text-white/60 text-sm font-bold">{greeting}</p>
+                            <h1 className="text-2xl font-extrabold tracking-tight">{activeProperty?.name || 'My Home'}</h1>
+                        </div>
+                        <div className="relative group">
+                            <div className="flex flex-col items-center cursor-pointer">
+                                <div className="relative h-20 w-20">
+                                    <svg className="transform -rotate-90" viewBox="0 0 100 100">
+                                        <circle cx="50" cy="50" r="45" className="stroke-white/20" strokeWidth="10" fill="none" />
+                                        <circle cx="50" cy="50" r="45" className={healthData?.score >= 80 ? 'stroke-emerald-400' : healthData?.score >= 50 ? 'stroke-amber-400' : 'stroke-red-400'} strokeWidth="10" fill="none" strokeDasharray={`${(healthData?.score || 0) * 2.83} 283`} strokeLinecap="round" />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-2xl font-black">{healthData?.score || 0}</span>
+                                    </div>
+                                </div>
+                                <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider mt-1">Home Score</p>
+                            </div>
+                            <HealthScoreCard breakdown={healthData?.breakdown || {profile: 0, maintenance: 0}} score={healthData?.score || 0} />
+                        </div>
                     </div>
-                    {/* Using Shared Health Data */}
-                    <div className="flex flex-col items-center py-2"><HealthRing score={healthData.score} theme={season} breakdown={healthData.breakdown} /><p className="text-white/80 text-sm mt-4 text-center font-medium max-w-[200px]">Your home health score.</p></div>
-                    <div className="grid grid-cols-3 gap-3 mt-8">
+                    <div className="grid grid-cols-3 gap-3">
                         <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{records.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
                         <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
                         <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(metrics.totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
@@ -431,51 +464,53 @@ export const ModernDashboard = ({
                 </div>
             )}
             
-            {/* UPDATED: Always showing calendar section */}
+            {/* Maintenance Forecast */}
             <div className="space-y-4">
                 <SectionHeader title="Maintenance Forecast" action={onNavigateToMaintenance} actionLabel="Full Calendar" />
                 
                 {metrics.scheduledTasks.length > 0 ? (
-                    <div className="space-y-3">
-                        {metrics.scheduledTasks.slice(0, 3).map((task) => (
+                    <div className="space-y-2">
+                        {metrics.scheduledTasks.slice(0, 4).map(task => (
                             <ScheduledTaskRow key={task.id} task={task} onClick={setSelectedTask} />
                         ))}
+                        {metrics.scheduledTasks.length > 4 && (
+                            <button onClick={onNavigateToMaintenance} className="w-full py-3 text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center justify-center gap-1">
+                                View {metrics.scheduledTasks.length - 4} more <ArrowRight size={14} />
+                            </button>
+                        )}
                     </div>
                 ) : (
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-6 text-center">
-                         <div className="inline-flex p-3 bg-white rounded-full mb-3 shadow-sm">
-                            <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                         </div>
-                         <p className="text-slate-600 font-bold text-sm">No upcoming tasks</p>
-                         <p className="text-slate-400 text-xs mt-1">Check the full calendar to plan ahead.</p>
-                         <button onClick={onNavigateToMaintenance} className="mt-3 text-emerald-600 text-xs font-bold hover:underline">
-                            Open Calendar
-                         </button>
+                    <div className="bg-slate-50 rounded-2xl p-8 text-center border border-dashed border-slate-200">
+                        <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                        <p className="text-slate-500 font-medium text-sm">No upcoming maintenance</p>
+                        <p className="text-slate-400 text-xs mt-1">Add items with maintenance schedules</p>
                     </div>
                 )}
             </div>
-            
-            <div>
+
+            {/* Quick Actions */}
+            <div className="space-y-4">
                 <SectionHeader title="Quick Actions" />
                 <div className="grid grid-cols-2 gap-3">
-                    <QuickAction icon={Camera} label="Scan Receipt" sublabel="Auto-extract info" onClick={onScanReceipt} variant="primary" />
-                    <QuickAction icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
-                    <QuickAction icon={Wrench} label="Request Pro" sublabel="Send job link" onClick={onCreateContractorLink} />
-                    <QuickAction icon={FileText} label="Property Report" sublabel="For insurance/sale" onClick={onNavigateToReports} />
+                    <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
+                    <ActionButton icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
+                    <ActionButton icon={FileText} label="View Report" sublabel="Home pedigree" onClick={onNavigateToReports} />
+                    <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
                 </div>
             </div>
 
-            <div className="space-y-4">
-                <SectionHeader title="Property Intelligence" />
-                <div className="bg-white rounded-2xl border border-slate-200 p-1 shadow-sm">
-                    <button onClick={() => setShowFullInsights(!showFullInsights)} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 rounded-xl transition-colors">
-                        <div className="flex items-center gap-4"><div className="bg-indigo-50 p-3 rounded-xl"><Shield className="h-6 w-6 text-indigo-600" /></div><div className="text-left"><h3 className="font-bold text-slate-800">Home Profile & Risks</h3><p className="text-xs text-slate-500 font-medium">{showFullInsights ? 'Tap to hide details' : 'Environmental, County & Risk Data'}</p></div></div>
-                        <div className={`p-2 bg-slate-100 rounded-full transition-transform duration-300 ${showFullInsights ? 'rotate-180' : ''}`}><ChevronDown size={20} className="text-slate-500" /></div>
-                    </button>
-                    {showFullInsights && (
-                        <div className="p-4 pt-0 border-t border-slate-100 mt-2 animate-in slide-in-from-top-2 fade-in"><div className="space-y-8 pt-6"><EnvironmentalInsights propertyProfile={activeProperty} /><CountyData propertyProfile={activeProperty} /></div></div>
-                    )}
-                </div>
+            {/* Environmental Insights Toggle */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <button onClick={() => setShowFullInsights(!showFullInsights)} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center"><Info size={20} className="text-blue-600" /></div>
+                        <div className="text-left"><p className="font-bold text-slate-800">Local Insights</p><p className="text-xs text-slate-500">{showFullInsights ? 'Tap to hide details' : 'Environmental, County & Risk Data'}</p></div>
+                    </div>
+                    <div className={`p-2 bg-slate-100 rounded-full transition-transform duration-300 ${showFullInsights ? 'rotate-180' : ''}`}><ChevronDown size={20} className="text-slate-500" /></div>
+                </button>
+                {showFullInsights && (
+                    <div className="p-4 pt-0 border-t border-slate-100 mt-2 animate-in slide-in-from-top-2 fade-in"><div className="space-y-8 pt-6"><EnvironmentalInsights propertyProfile={activeProperty} /><CountyData propertyProfile={activeProperty} /></div></div>
+                )}
             </div>
         </div>
     );
