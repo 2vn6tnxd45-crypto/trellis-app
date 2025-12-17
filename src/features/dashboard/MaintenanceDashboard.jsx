@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
 import { useHomeHealth } from '../../hooks/useHomeHealth'; 
 
-// --- HELPER FUNCTIONS (Must be defined before usage) ---
+// --- HELPER FUNCTIONS ---
 
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
@@ -23,14 +23,55 @@ const getNextServiceDate = (record) => {
     return next;
 };
 
-// --- COMPONENT ---
+// --- SUB-COMPONENTS (Must be defined BEFORE usage) ---
 
-export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords, onBookService, onMarkTaskDone }) => {
+const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
+    return (
+        <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all`}>
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-white text-red-500' : 'bg-slate-50 text-emerald-600'}`}>
+                        <Wrench size={20} />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-slate-800">{task.taskName}</h4>
+                        <p className="text-xs text-slate-500 font-medium">{task.item} • {task.frequency}</p>
+                    </div>
+                </div>
+                {isOverdue && (
+                    <span className="bg-red-200 text-red-800 text-[10px] font-bold px-2 py-1 rounded-full">
+                        {Math.abs(task.daysUntil)} DAYS OVERDUE
+                    </span>
+                )}
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 mt-4">
+                <button 
+                    onClick={() => onBook && onBook(task)}
+                    className="flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                    <Phone size={14} /> Book Pro
+                </button>
+                <button 
+                    onClick={() => onComplete && onComplete(task)}
+                    className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm"
+                >
+                    <Check size={14} /> Mark Done
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN COMPONENT ---
+
+export const MaintenanceDashboard = ({ records = [], onAddRecord, onNavigateToRecords, onBookService, onMarkTaskDone }) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [showSuggestions, setShowSuggestions] = useState(false);
     
     // Shared Logic
-    const { score, breakdown } = useHomeHealth(records);
+    const healthData = useHomeHealth(records) || { score: 0, breakdown: { profile: 0, maintenance: 0 } };
+    const { score, breakdown } = healthData;
 
     // Process Tasks
     const { upcomingTasks, overdueTasks, historyItems } = useMemo(() => {
@@ -38,6 +79,8 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
         const upcoming = [];
         const overdue = [];
         const history = [];
+
+        if (!records) return { upcomingTasks: [], overdueTasks: [], historyItems: [] };
 
         records.forEach(record => {
             // 1. Collect History
@@ -86,12 +129,20 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
         return {
             upcomingTasks: upcoming.sort((a, b) => a.daysUntil - b.daysUntil),
             overdueTasks: overdue.sort((a, b) => a.daysUntil - b.daysUntil),
-            historyItems: history.sort((a, b) => new Date(b.completedDate) - new Date(a.completedDate))
+            historyItems: history.sort((a, b) => {
+                const dateA = new Date(a.completedDate);
+                const dateB = new Date(b.completedDate);
+                // Handle invalid dates safely
+                if (isNaN(dateA)) return 1;
+                if (isNaN(dateB)) return -1;
+                return dateB - dateA;
+            })
         };
     }, [records]);
 
     const suggestedItems = useMemo(() => {
-        const existingItems = new Set(records.map(r => r.item.toLowerCase()));
+        if (!records) return [];
+        const existingItems = new Set(records.map(r => r.item ? r.item.toLowerCase() : ''));
         return STANDARD_MAINTENANCE_ITEMS.filter(item => !existingItems.has(item.item.toLowerCase()));
     }, [records]);
 
@@ -119,10 +170,10 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                     </p>
                     <div className="flex gap-2 justify-center md:justify-start">
                         <div className="bg-slate-50 px-3 py-1 rounded-lg text-xs font-bold text-slate-600">
-                            🛡️ {breakdown.profile}/50 Profile
+                            🛡️ {breakdown?.profile || 0}/50 Profile
                         </div>
                         <div className="bg-slate-50 px-3 py-1 rounded-lg text-xs font-bold text-slate-600">
-                            🔧 {breakdown.maintenance}/50 Tasks
+                            🔧 {breakdown?.maintenance || 0}/50 Tasks
                         </div>
                     </div>
                 </div>
@@ -258,44 +309,6 @@ export const MaintenanceDashboard = ({ records, onAddRecord, onNavigateToRecords
                     )}
                 </div>
             )}
-        </div>
-    );
-};
-
-const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
-    return (
-        <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all`}>
-            <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-white text-red-500' : 'bg-slate-50 text-emerald-600'}`}>
-                        <Wrench size={20} />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-slate-800">{task.taskName}</h4>
-                        <p className="text-xs text-slate-500 font-medium">{task.item} • {task.frequency}</p>
-                    </div>
-                </div>
-                {isOverdue && (
-                    <span className="bg-red-200 text-red-800 text-[10px] font-bold px-2 py-1 rounded-full">
-                        {Math.abs(task.daysUntil)} DAYS OVERDUE
-                    </span>
-                )}
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 mt-4">
-                <button 
-                    onClick={() => onBook(task)}
-                    className="flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                    <Phone size={14} /> Book Pro
-                </button>
-                <button 
-                    onClick={() => onComplete(task)}
-                    className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm"
-                >
-                    <Check size={14} /> Mark Done
-                </button>
-            </div>
         </div>
     );
 };
