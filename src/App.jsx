@@ -1,15 +1,15 @@
 // src/App.jsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, LayoutDashboard, Package, MapPin, Trash2, Menu, CheckSquare, DoorOpen, ArrowLeft, RotateCcw } from 'lucide-react'; 
+import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, RotateCcw } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
-import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES, MAINTENANCE_FREQUENCIES } from './config/constants';
+import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
-import { compressImage, fileToBase64 } from './lib/images';
+import { fileToBase64 } from './lib/images';
 import { generatePDFThumbnail } from './lib/pdfUtils';
 
 // Feature Imports
@@ -76,7 +76,7 @@ const AppContent = () => {
     
     // Scanner & Celebration
     const [showScanner, setShowScanner] = useState(false);
-    const [lastAddedItem, setLastAddedItem] = useState(null);
+    const [lastAddedItem, setLastAddedItem] = useState(null); // Kept for celebration context
     const celebrations = useCelebrations();
     const { scanReceipt } = useGemini();
 
@@ -191,11 +191,9 @@ const AppContent = () => {
     const handleBookService = useCallback((task) => {
         const record = records.find(r => r.id === task.recordId);
         if (!record) {
-            console.warn("Record not found for booking:", task.recordId);
             toast.error("Could not find the related record");
             return;
         }
-        
         setQuickServiceRecord(record);
         setQuickServiceDescription(`Maintenance: ${task.taskName || 'General Service'}`);
         setShowQuickService(true);
@@ -216,13 +214,13 @@ const AppContent = () => {
             const completedDate = new Date().toISOString();
             const completedDateShort = completedDate.split('T')[0];
             
-            // 1. Create History Entry
+            // 1. Create History Entry (ENSURE ID IS PRESENT)
             const historyEntry = {
                 taskName: task.taskName,
                 completedDate: completedDate,
                 performedBy: 'User',
                 notes: notes,
-                id: Date.now().toString()
+                id: Date.now().toString() 
             };
             
             const currentHistory = record.maintenanceHistory || [];
@@ -232,7 +230,6 @@ const AppContent = () => {
             let updates = { maintenanceHistory: newHistory };
             
             if (task.isGranular) {
-                // Update specific task in the maintenanceTasks array
                 const updatedTasks = (record.maintenanceTasks || []).map(t => {
                     if (t.task === task.taskName) {
                         const nextDate = calculateNextDate(completedDateShort, t.frequency || 'annual');
@@ -242,14 +239,10 @@ const AppContent = () => {
                 });
                 updates.maintenanceTasks = updatedTasks;
             } else {
-                // Legacy: update dateInstalled to effectively reset the cycle
                 updates.dateInstalled = completedDateShort; 
-                
                 const frequency = record.maintenanceFrequency || 'annual';
                 const nextDate = calculateNextDate(completedDateShort, frequency);
-                if (nextDate) {
-                    updates.nextServiceDate = nextDate;
-                }
+                if (nextDate) updates.nextServiceDate = nextDate;
             }
 
             await updateDoc(recordRef, updates);
@@ -262,7 +255,7 @@ const AppContent = () => {
         }
     }, [records, user, celebrations]);
 
-    // 3. Handle "Delete History" click (Permanent Delete)
+    // 3. Handle "Delete History" click (Permanent Delete - ROBUST)
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             if (!historyItem.recordId) {
@@ -277,8 +270,13 @@ const AppContent = () => {
                 return;
             }
             
+            // ROBUST FILTER: Matches by ID if present, otherwise by content (Task + Date)
             const currentHistory = record.maintenanceHistory || [];
-            const newHistory = currentHistory.filter(h => h.id !== historyItem.id);
+            const newHistory = currentHistory.filter(h => {
+                if (h.id && historyItem.id) return h.id !== historyItem.id;
+                // Fallback for legacy items
+                return !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate);
+            });
             
             await updateDoc(recordRef, { maintenanceHistory: newHistory });
             toast.success("History item removed", { icon: '🗑️' });
@@ -289,7 +287,7 @@ const AppContent = () => {
         }
     }, [records, user]);
 
-    // 4. Handle "Restore" (Undo/Undelete)
+    // 4. Handle "Restore" (Undo/Undelete - ROBUST)
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
             if (!historyItem.recordId) {
@@ -303,39 +301,45 @@ const AppContent = () => {
                 return;
             }
 
-            // A. Remove from history
+            // A. Remove from history (using Robust Filter)
             const currentHistory = record.maintenanceHistory || [];
-            const newHistory = currentHistory.filter(h => h.id !== historyItem.id);
+            const newHistory = currentHistory.filter(h => {
+                if (h.id && historyItem.id) return h.id !== historyItem.id;
+                return !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate);
+            });
 
-            // B. Rewind the "Due Date" to trigger the task again
+            // B. Rewind the "Due Date"
             let updates = { maintenanceHistory: newHistory };
             
-            // Check for granular task first
             const taskIndex = (record.maintenanceTasks || []).findIndex(t => t.task === historyItem.taskName);
             
             if (taskIndex >= 0) {
-                 // Granular Task: Set nextDue to the completed date (making it due immediately)
+                 // Granular: Set due date to today so it appears as "Due Now"
                  const updatedTasks = [...record.maintenanceTasks];
+                 // Use today's date so it isn't skipped by "future only" logic, but is imminent
                  updatedTasks[taskIndex] = {
                      ...updatedTasks[taskIndex],
-                     nextDue: historyItem.completedDate.split('T')[0] 
+                     nextDue: new Date().toISOString().split('T')[0] 
                  };
                  updates.maintenanceTasks = updatedTasks;
             } else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
-                // Legacy Task: Rewind dateInstalled by one frequency cycle
+                // Legacy: Rewind dateInstalled
                 const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
                 if (freq && freq.months) {
                      const currentLastDate = new Date(record.dateInstalled);
+                     // Rewind full cycle
                      currentLastDate.setMonth(currentLastDate.getMonth() - freq.months);
+                     
+                     // FIX: Add 1 day buffer to ensure it is technically "Future" relative to 'now'
+                     // so the dashboard doesn't skip it, making it appear as "Due Tomorrow"
+                     currentLastDate.setDate(currentLastDate.getDate() + 1);
                      
                      const newLastDateStr = currentLastDate.toISOString().split('T')[0];
                      updates.dateInstalled = newLastDateStr;
                      
-                     // Recalculate next service date
+                     // Recalculate next service date based on this new "old" date
                      const nextDate = calculateNextDate(newLastDateStr, record.maintenanceFrequency);
-                     if (nextDate) {
-                         updates.nextServiceDate = nextDate;
-                     }
+                     if (nextDate) updates.nextServiceDate = nextDate;
                 }
             }
             
@@ -349,7 +353,7 @@ const AppContent = () => {
         }
     }, [records, user]);
 
-    // ... (Scan logic) ...
+    // ... (Scan logic remains unchanged) ...
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
@@ -600,6 +604,7 @@ const AppContent = () => {
     );
 };
 
+// ... (WrapperAddRecord remains unchanged from previous step, but include it if you are replacing the whole file) ...
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
