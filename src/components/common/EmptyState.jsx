@@ -1,19 +1,20 @@
-// src/components/common/EmptyState.jsx
 import React from 'react';
+import { PackageOpen } from 'lucide-react';
 
-export const EmptyState = ({ icon: Icon, title, description, actions }) => (
-    <div className="text-center py-12 px-6 bg-white rounded-3xl border border-dashed border-slate-200 flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
-        <div className="bg-emerald-50 rounded-full p-4 mb-4">
-            <Icon className="h-8 w-8 text-emerald-600" />
+// Use "export const" (Named Export) to match the "import { EmptyState }" in App.jsx
+export const EmptyState = ({ title, description, action }) => {
+  return (
+    <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 border-dashed h-64">
+      <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+        <PackageOpen size={32} className="text-slate-400" />
+      </div>
+      <h3 className="text-lg font-bold text-slate-700 mb-1">{title}</h3>
+      <p className="text-slate-500 max-w-xs mb-6 mx-auto">{description}</p>
+      {action && (
+        <div className="mt-2">
+          {action}
         </div>
-        <h3 className="text-xl font-bold text-slate-800 mb-2">{title}</h3>
-        <p className="text-slate-500 max-w-xs mb-8 text-sm leading-relaxed">
-            {description}
-        </p>
-        {actions && (
-            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-                {actions}
-            </div>
-        )}
+      )}
     </div>
-);
+  );
+};
