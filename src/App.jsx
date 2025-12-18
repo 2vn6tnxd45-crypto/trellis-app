@@ -519,7 +519,15 @@ const AppContent = () => {
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={newSubmissions.length} />
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {isAddModalOpen && <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none"><div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div><div className="relative w-full max-w-5xl bg-white sm:rounded-[2rem] rounded-t-[2rem] shadow-2xl pointer-events-auto max-h-[90vh] overflow-y-auto"><WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} existingRecords={records} /></div></div>}
+            {/* ✅ UPDATED MODAL CONTAINER: Removed visual styles so AddRecordForm can handle them */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
+                    <div className="relative w-full max-w-5xl m-4 pointer-events-auto">
+                        <WrapperAddRecord user={user} db={db} appId={appId} profile={profile} activeProperty={activeProperty} editingRecord={editingRecord} onClose={closeAddModal} onSuccess={handleSaveSuccess} existingRecords={records} />
+                    </div>
+                </div>
+            )}
             
             {showQuickService && (
                 <QuickServiceRequest 
@@ -536,13 +544,9 @@ const AppContent = () => {
     );
 };
 
+// ✅ UPDATED WRAPPER: Removed redundant header and div wrapper
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
     // ... WrapperAddRecord remains mostly the same, ensure calculateNextDate is imported
-    // To save space, I am reusing the exact logic from your original file, as no errors were found in this component.
-    // The critical fixes were in AppContent. 
-    // Please retain the original WrapperAddRecord code here.
-    
-    // (Re-pasted for completeness if you need to copy the whole file)
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
@@ -722,11 +726,19 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         } finally { setSaving(false); }
     };
 
+    // ✅ RETURN IS NOW JUST THE FORM COMPONENT, NO EXTRA DIVS/HEADERS
     return (
-        <div className="relative">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-white sticky top-0 z-10 rounded-t-[2rem]"><h3 className="text-xl font-bold text-slate-800">{editingRecord ? 'Edit Item' : 'Add New Item'}</h3><button onClick={onClose} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200"><X size={20}/></button></div>
-            <AddRecordForm onSave={handleSave} onBatchSave={handleBatchSave} isSaving={saving} newRecord={newRecord} onInputChange={handleChange} onAttachmentsChange={handleAttachmentsChange} isEditing={!!editingRecord} onCancelEdit={onClose} existingRecords={existingRecords} />
-        </div>
+        <AddRecordForm 
+            onSave={handleSave} 
+            onBatchSave={handleBatchSave} 
+            isSaving={saving} 
+            newRecord={newRecord} 
+            onInputChange={handleChange} 
+            onAttachmentsChange={handleAttachmentsChange} 
+            isEditing={!!editingRecord} 
+            onCancelEdit={onClose} 
+            existingRecords={existingRecords} 
+        />
     );
 };
 
