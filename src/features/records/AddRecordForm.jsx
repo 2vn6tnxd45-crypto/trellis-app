@@ -18,7 +18,16 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     // Batch Mode State
     const hasBatchItems = newRecord.isBatch && newRecord.items && newRecord.items.length > 0;
     const [scanMode, setScanMode] = useState(hasBatchItems ? 'room-results' : null);
-    const [roomScanResults, setRoomScanResults] = useState(hasBatchItems ? newRecord.items : []);
+    
+    // Initialize batch items with a 'isCustomArea' flag if the AI guess isn't in our standard list
+    const initializeBatchItems = (items) => {
+        return items.map(i => ({
+            ...i,
+            isCustomArea: i.area && !ROOMS.includes(i.area) && i.area !== 'General'
+        }));
+    };
+
+    const [roomScanResults, setRoomScanResults] = useState(hasBatchItems ? initializeBatchItems(newRecord.items) : []);
     
     const [showSmartScanner, setShowSmartScanner] = useState(false);
     const [suggestedTasks, setSuggestedTasks] = useState([]);
@@ -32,15 +41,17 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     useEffect(() => {
         const hasBatch = newRecord.isBatch && newRecord.items && newRecord.items.length > 0;
         if (hasBatch) {
-            setRoomScanResults(newRecord.items);
+            setRoomScanResults(initializeBatchItems(newRecord.items));
             setScanMode('room-results');
             if (newRecord.attachments && newRecord.attachments.length > 0 && newRecord.attachments[0].fileRef) {
                 setRoomScanFile(newRecord.attachments[0].fileRef);
             }
         }
         
+        // Manual Form Custom Area Check
         if (newRecord.area && !ROOMS.includes(newRecord.area)) setIsCustomArea(true);
         else if (!newRecord.area) setIsCustomArea(false);
+        
         if (newRecord.attachments) setLocalAttachments(newRecord.attachments);
     }, [newRecord]);
 
@@ -60,7 +71,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         setShowSmartScanner(false);
         
         if (data.items && data.items.length > 1) {
-            setRoomScanResults(data.items);
+            setRoomScanResults(initializeBatchItems(data.items));
             setScanMode('room-results');
             if (data.attachments && data.attachments.length > 0 && data.attachments[0].fileRef) {
                 setRoomScanFile(data.attachments[0].fileRef);
@@ -72,6 +83,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
             const fieldsToUpdate = {
                 item: singleItem.item || data.item || '',
                 category: singleItem.category || data.category || '',
+                area: singleItem.area || data.area || 'General',
                 brand: singleItem.brand || data.brand || '',
                 model: singleItem.model || data.model || '',
                 cost: singleItem.cost || data.cost || '',
@@ -115,7 +127,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
             const base64Str = await compressImage(file);
             const data = await scanRoom([file], [base64Str]); 
             if (data && data.items) {
-                setRoomScanResults(data.items);
+                setRoomScanResults(initializeBatchItems(data.items));
                 toast.success(`Found ${data.items.length} items!`);
                 setScanMode('room-results');
             } else toast.error("Could not identify items.");
@@ -124,13 +136,29 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
     const handleSaveRoomItems = async () => {
         if (roomScanResults.length === 0) return;
-        await onBatchSave(roomScanResults, roomScanFile);
+        // Clean up internal flags before saving
+        const cleanItems = roomScanResults.map(({ isCustomArea, ...item }) => item);
+        await onBatchSave(cleanItems, roomScanFile);
         setRoomScanResults([]); setRoomScanFile(null); setScanMode(null);
     };
 
     const handleRoomChange = (e) => {
         if (e.target.value === "Other (Custom)") { setIsCustomArea(true); onInputChange({ target: { name: 'area', value: '' } }); } 
         else { setIsCustomArea(false); onInputChange(e); }
+    };
+
+    // Helper for Batch Row Updates
+    const updateBatchItem = (idx, field, value) => {
+        const u = [...roomScanResults];
+        u[idx][field] = value;
+        setRoomScanResults(u);
+    };
+
+    const toggleBatchCustomArea = (idx, isCustom) => {
+        const u = [...roomScanResults];
+        u[idx].isCustomArea = isCustom;
+        if (isCustom) u[idx].area = ''; // Clear for typing
+        setRoomScanResults(u);
     };
 
     const handleSuggest = async () => {
@@ -165,30 +193,55 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         return (
                             <div key={idx} className={`flex flex-col gap-2 p-4 border rounded-xl items-start ${duplicate ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
                                 <div className="flex flex-col md:flex-row gap-4 w-full">
-                                    <div className="bg-slate-100 p-2 rounded-lg h-fit hidden md:block"><Tag size={16} className="text-slate-400"/></div>
+                                    <div className="bg-slate-100 p-2 rounded-lg h-fit hidden md:block mt-6"><Tag size={16} className="text-slate-400"/></div>
                                     
                                     {/* Item Name */}
                                     <div className="flex-grow">
-                                        <input value={item.item} onChange={(e) => { const u = [...roomScanResults]; u[idx].item = e.target.value; setRoomScanResults(u); }} className="w-full font-bold text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent" placeholder="Item Name"/>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Item Name</label>
+                                        <input value={item.item} onChange={(e) => updateBatchItem(idx, 'item', e.target.value)} className="w-full font-bold text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent" placeholder="Item Name"/>
                                     </div>
 
                                     {/* Category Select */}
                                     <div className="w-full md:w-1/4">
-                                        <select value={item.category} onChange={(e) => { const u = [...roomScanResults]; u[idx].category = e.target.value; setRoomScanResults(u); }} className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent">
-                                            <option value="">Category...</option>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Category</label>
+                                        <select value={item.category} onChange={(e) => updateBatchItem(idx, 'category', e.target.value)} className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent">
+                                            <option value="">Select...</option>
                                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
                                     
-                                    {/* NEW: Area Select */}
+                                    {/* Area Select (Improved for Custom Handling) */}
                                     <div className="w-full md:w-1/4">
-                                        <select value={item.area || ''} onChange={(e) => { const u = [...roomScanResults]; u[idx].area = e.target.value; setRoomScanResults(u); }} className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent">
-                                            <option value="">Area...</option>
-                                            {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                                        </select>
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Area/Room</label>
+                                        {!item.isCustomArea ? (
+                                            <select 
+                                                value={ROOMS.includes(item.area) ? item.area : ''} 
+                                                onChange={(e) => {
+                                                    if (e.target.value === 'Other (Custom)') toggleBatchCustomArea(idx, true);
+                                                    else updateBatchItem(idx, 'area', e.target.value);
+                                                }} 
+                                                className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent"
+                                            >
+                                                <option value="">General</option>
+                                                {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                                <option value="Other (Custom)">Other...</option>
+                                            </select>
+                                        ) : (
+                                            <div className="flex">
+                                                <input 
+                                                    type="text" 
+                                                    value={item.area} 
+                                                    onChange={(e) => updateBatchItem(idx, 'area', e.target.value)} 
+                                                    placeholder="Name..." 
+                                                    className="w-full text-sm text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent"
+                                                    autoFocus
+                                                />
+                                                <button onClick={() => toggleBatchCustomArea(idx, false)} className="ml-1 text-slate-400 hover:text-slate-600"><X size={14}/></button>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <button onClick={() => { const u = [...roomScanResults]; u.splice(idx, 1); setRoomScanResults(u); }} className="text-slate-300 hover:text-red-500 md:self-center"><X size={18}/></button>
+                                    <button onClick={() => { const u = [...roomScanResults]; u.splice(idx, 1); setRoomScanResults(u); }} className="text-slate-300 hover:text-red-500 md:self-center mt-4"><X size={18}/></button>
                                 </div>
                                 {duplicate && (
                                     <div className="flex items-center text-xs text-amber-600 md:ml-12">
@@ -204,7 +257,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         );
     }
 
-    // ... (The rest of the standard form Step 1/2/3 remains unchanged below)
+    // ... (The rest of the standard form remains unchanged)
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white sticky top-0 z-10"><div><h2 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Item' : 'Add New Item'}</h2>{!isEditing && <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mt-1">Step {step} of 3</p>}</div>{isEditing ? <button type="button" onClick={onCancelEdit} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button> : <button type="button" onClick={onCancelEdit} className="text-sm font-bold text-slate-400 hover:text-slate-600">Cancel</button>}</div>
