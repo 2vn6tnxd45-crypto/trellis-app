@@ -1,7 +1,6 @@
 // src/hooks/useAppLogic.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-// REMOVED deleteDoc and writeBatch from this import as they are not used in this file
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
 import { auth, db } from '../config/firebase';
@@ -40,7 +39,7 @@ export const useAppLogic = (celebrations) => {
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
     const [inventoryView, setInventoryView] = useState('category'); 
 
-    // Derived State
+    // Derived State (Memoized to prevent effect loops)
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
@@ -49,7 +48,11 @@ export const useAppLogic = (celebrations) => {
     };
     const properties = getPropertiesList();
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
-    const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
+    
+    // MEMOIZED: This fixes the linting "missing dependency" error
+    const activePropertyRecords = useMemo(() => {
+        return records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
+    }, [records, activeProperty]);
 
     // Effects
     useEffect(() => {
@@ -93,7 +96,7 @@ export const useAppLogic = (celebrations) => {
             return diff <= 30;
         }).map(r => ({ ...r, diffDays: Math.ceil((new Date(r.nextServiceDate) - now) / (86400000)) })).sort((a,b) => a.diffDays - b.diffDays);
         setDueTasks(upcoming);
-    }, [records, activeProperty]);
+    }, [records, activeProperty, activePropertyRecords]);
 
     // Actions
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
