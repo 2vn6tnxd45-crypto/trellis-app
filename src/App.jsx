@@ -95,7 +95,6 @@ const AppContent = () => {
     const handleTabChange = (tabId) => tabId === 'More' ? app.setShowMoreMenu(true) : app.setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { app.setActiveTab(dest); app.setShowMoreMenu(false); };
 
-    // REMOVED useCallback here to prevent linter errors (dependencies change on every render anyway)
     const handleBookService = (task) => {
         const record = app.records.find(r => r.id === task.recordId);
         if (!record) { toast.error("Could not find the related record"); return; }
@@ -104,8 +103,6 @@ const AppContent = () => {
         app.setShowQuickService(true);
     };
 
-    // -- Scanner Logic --
-    // REMOVED useCallback here to prevent linter errors
     const handleAnalyzeImage = async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
@@ -113,7 +110,6 @@ const AppContent = () => {
         return await scanReceipt(blob, base64, app.activeProperty?.address);
     };
 
-    // REMOVED useCallback here to prevent linter errors
     const handleScanComplete = async (extractedData) => {
         app.setShowScanner(false);
         const validAttachments = extractedData.attachments || [];
