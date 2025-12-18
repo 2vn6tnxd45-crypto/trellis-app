@@ -3,11 +3,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously, deleteUser } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, serverTimestamp, writeBatch, limit, orderBy, where } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, LayoutDashboard, Package, MapPin, Trash2, Menu, CheckSquare, DoorOpen, ArrowLeft } from 'lucide-react'; 
+import { LogOut, Camera, Search, Filter, XCircle, Plus, X, Bell, ChevronDown, PlusCircle, Check, LayoutDashboard, Package, MapPin, Trash2, Menu, CheckSquare, DoorOpen, ArrowLeft, RotateCcw } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
-import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES } from './config/constants';
+import { appId, REQUESTS_COLLECTION_PATH, CATEGORIES, MAINTENANCE_FREQUENCIES } from './config/constants';
 import { calculateNextDate } from './lib/utils';
 import { compressImage, fileToBase64 } from './lib/images';
 import { generatePDFThumbnail } from './lib/pdfUtils';
@@ -18,7 +18,6 @@ import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard'
 import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
-// REMOVED REDUNDANT IMPORT: import './styles/krib-theme.css'; 
 
 // Component Imports
 import { Logo } from './components/common/Logo';
@@ -60,7 +59,6 @@ const AppContent = () => {
     const [activePropertyId, setActivePropertyId] = useState(null);
     const [isSwitchingProp, setIsSwitchingProp] = useState(false);
     const [isAddingProperty, setIsAddingProperty] = useState(false);
-    // REMOVED: const [recordsLimit, setRecordsLimit] = useState(50); // Fetch all records to ensure maintenance dates are seen
     const [editingRecord, setEditingRecord] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('All');
@@ -134,7 +132,6 @@ const AppContent = () => {
                     } else setProfile(null);
                     
                     if (unsubRecords) unsubRecords();
-                    // FIX: Removed limit(recordsLimit) so older items with maintenance needs are not hidden
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
                     unsubRecords = onSnapshot(q, (snap) => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
 
@@ -148,7 +145,7 @@ const AppContent = () => {
             } catch (error) { console.error(error); toast.error("Error: " + error.message); } finally { setLoading(false); }
         });
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
-    }, []); // Removed recordsLimit dependency
+    }, []);
 
     useEffect(() => {
         if (!activeProperty || records.length === 0) { setDueTasks([]); return; }
@@ -248,7 +245,6 @@ const AppContent = () => {
                 // Legacy: update dateInstalled to effectively reset the cycle
                 updates.dateInstalled = completedDateShort; 
                 
-                // FIX: Calculate next date for legacy items
                 const frequency = record.maintenanceFrequency || 'annual';
                 const nextDate = calculateNextDate(completedDateShort, frequency);
                 if (nextDate) {
@@ -266,6 +262,7 @@ const AppContent = () => {
         }
     }, [records, user, celebrations]);
 
+    // 3. Handle "Delete History" click (Permanent Delete)
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             if (!historyItem.recordId) {
@@ -292,7 +289,67 @@ const AppContent = () => {
         }
     }, [records, user]);
 
-    // ... (Remainder of scan logic remains the same) ...
+    // 4. Handle "Restore" (Undo/Undelete)
+    const handleRestoreHistoryItem = useCallback(async (historyItem) => {
+        try {
+            if (!historyItem.recordId) {
+                toast.error("Could not restore - missing record ID");
+                return;
+            }
+            
+            const record = records.find(r => r.id === historyItem.recordId);
+            if (!record) {
+                toast.error("Record not found");
+                return;
+            }
+
+            // A. Remove from history
+            const currentHistory = record.maintenanceHistory || [];
+            const newHistory = currentHistory.filter(h => h.id !== historyItem.id);
+
+            // B. Rewind the "Due Date" to trigger the task again
+            let updates = { maintenanceHistory: newHistory };
+            
+            // Check for granular task first
+            const taskIndex = (record.maintenanceTasks || []).findIndex(t => t.task === historyItem.taskName);
+            
+            if (taskIndex >= 0) {
+                 // Granular Task: Set nextDue to the completed date (making it due immediately)
+                 const updatedTasks = [...record.maintenanceTasks];
+                 updatedTasks[taskIndex] = {
+                     ...updatedTasks[taskIndex],
+                     nextDue: historyItem.completedDate.split('T')[0] 
+                 };
+                 updates.maintenanceTasks = updatedTasks;
+            } else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
+                // Legacy Task: Rewind dateInstalled by one frequency cycle
+                const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
+                if (freq && freq.months) {
+                     const currentLastDate = new Date(record.dateInstalled);
+                     currentLastDate.setMonth(currentLastDate.getMonth() - freq.months);
+                     
+                     const newLastDateStr = currentLastDate.toISOString().split('T')[0];
+                     updates.dateInstalled = newLastDateStr;
+                     
+                     // Recalculate next service date
+                     const nextDate = calculateNextDate(newLastDateStr, record.maintenanceFrequency);
+                     if (nextDate) {
+                         updates.nextServiceDate = nextDate;
+                     }
+                }
+            }
+            
+            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', record.id);
+            await updateDoc(recordRef, updates);
+            toast.success("Task restored to dashboard", { icon: <RotateCcw size={18}/> });
+            
+        } catch (e) {
+            console.error('[App] handleRestoreHistoryItem error:', e);
+            toast.error("Failed to restore: " + e.message);
+        }
+    }, [records, user]);
+
+    // ... (Scan logic) ...
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
@@ -445,7 +502,6 @@ const AppContent = () => {
                 
                 {activeTab === 'Maintenance' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                        {/* Navigation moved OUTSIDE the ErrorBoundary */}
                         <button onClick={() => setActiveTab('Dashboard')} className="flex items-center text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">
                             <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
                         </button>
@@ -459,6 +515,7 @@ const AppContent = () => {
                                     onBookService={handleBookService}
                                     onMarkTaskDone={handleMarkTaskDone}
                                     onDeleteHistoryItem={handleDeleteHistoryItem}
+                                    onRestoreHistoryItem={handleRestoreHistoryItem}
                                 />
                             </div>
                         </FeatureErrorBoundary>
@@ -519,7 +576,6 @@ const AppContent = () => {
             <BottomNav activeTab={activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={newSubmissions.length} />
             <MoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {/* ✅ UPDATED MODAL CONTAINER: Removed visual styles so AddRecordForm can handle them */}
             {isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={closeAddModal}></div>
@@ -544,9 +600,7 @@ const AppContent = () => {
     );
 };
 
-// ✅ UPDATED WRAPPER: Removed redundant header and div wrapper
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
-    // ... WrapperAddRecord remains mostly the same, ensure calculateNextDate is imported
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
@@ -726,7 +780,6 @@ const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRec
         } finally { setSaving(false); }
     };
 
-    // ✅ RETURN IS NOW JUST THE FORM COMPONENT, NO EXTRA DIVS/HEADERS
     return (
         <AddRecordForm 
             onSave={handleSave} 
