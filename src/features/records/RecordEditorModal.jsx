@@ -16,7 +16,6 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
     useEffect(() => { if (editingRecord) setNewRecord(editingRecord); }, [editingRecord]);
     const handleChange = (e) => setNewRecord({...newRecord, [e.target.name]: e.target.value});
     
-    // ... Copy handleAttachmentsChange from your original file ...
     const handleAttachmentsChange = async (files) => {
         const placeholders = await Promise.all(files.map(async f => {
             const isPdf = f.type.includes('pdf');
@@ -34,7 +33,6 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
         return isNaN(num) ? 0 : num;
     };
 
-    // ... Copy handleBatchSave from your original file ...
     const handleBatchSave = async (items, file) => {
         if (!items || items.length === 0) return;
         setSaving(true);
@@ -92,7 +90,6 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
         } finally { setSaving(false); }
     };
 
-    // ... Copy handleSave from your original file ...
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
         try {
