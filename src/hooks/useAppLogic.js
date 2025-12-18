@@ -1,0 +1,199 @@
+// src/hooks/useAppLogic.js
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, orderBy, where } from 'firebase/firestore'; 
+import toast from 'react-hot-toast';
+import { auth, db } from '../config/firebase';
+import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
+import { calculateNextDate } from '../lib/utils';
+import { Check, RotateCcw } from 'lucide-react';
+
+export const useAppLogic = (celebrations) => {
+    // State
+    const [user, setUser] = useState(null);
+    const [profile, setProfile] = useState(null);
+    const [records, setRecords] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('Dashboard'); 
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [showUserMenu, setShowUserMenu] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [dueTasks, setDueTasks] = useState([]);
+    const [newSubmissions, setNewSubmissions] = useState([]);
+    const [activePropertyId, setActivePropertyId] = useState(null);
+    const [isSwitchingProp, setIsSwitchingProp] = useState(false);
+    const [isAddingProperty, setIsAddingProperty] = useState(false);
+    const [editingRecord, setEditingRecord] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategory, setFilterCategory] = useState('All');
+    const [isSavingProperty, setIsSavingProperty] = useState(false);
+    const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedRecords, setSelectedRecords] = useState(new Set());
+    const [quickServiceRecord, setQuickServiceRecord] = useState(null);
+    const [quickServiceDescription, setQuickServiceDescription] = useState(''); 
+    const [showQuickService, setShowQuickService] = useState(false);
+    const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
+    const [showScanner, setShowScanner] = useState(false);
+    const [useEnhancedCards, setUseEnhancedCards] = useState(true);
+    const [inventoryView, setInventoryView] = useState('category'); 
+
+    // Derived State
+    const getPropertiesList = () => {
+        if (!profile) return [];
+        if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
+        if (profile.name) return [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
+        return [];
+    };
+    const properties = getPropertiesList();
+    const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
+    const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
+
+    // Effects
+    useEffect(() => {
+        let unsubRecords = null;
+        let unsubRequests = null;
+        const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
+            try {
+                setUser(currentUser);
+                if (currentUser) {
+                    if (!appId) throw new Error("appId is missing");
+                    const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
+                    const profileSnap = await getDoc(profileRef);
+                    if (profileSnap.exists()) {
+                        const data = profileSnap.data();
+                        setProfile(data);
+                        if (data.hasSeenWelcome) setHasSeenWelcome(true);
+                        setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
+                    } else setProfile(null);
+                    
+                    if (unsubRecords) unsubRecords();
+                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
+                    unsubRecords = onSnapshot(q, (snap) => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+
+                    if (unsubRequests) unsubRequests();
+                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
+                    unsubRequests = onSnapshot(qReq, (snap) => setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted')), (e) => console.error(e));
+                } else {
+                    setProfile(null); setRecords([]); setNewSubmissions([]);
+                }
+            } catch (error) { console.error(error); toast.error("Error: " + error.message); } finally { setLoading(false); }
+        });
+        return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
+    }, []);
+
+    useEffect(() => {
+        if (!activeProperty || records.length === 0) { setDueTasks([]); return; }
+        const now = new Date();
+        const upcoming = activePropertyRecords.filter(r => {
+            if (!r.nextServiceDate) return false;
+            const diff = Math.ceil((new Date(r.nextServiceDate) - now) / (86400000));
+            return diff <= 30;
+        }).map(r => ({ ...r, diffDays: Math.ceil((new Date(r.nextServiceDate) - now) / (86400000)) })).sort((a,b) => a.diffDays - b.diffDays);
+        setDueTasks(upcoming);
+    }, [records, activeProperty]);
+
+    // Actions
+    const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
+    
+    const handleSaveProperty = async (formData) => {
+        if (!user) return;
+        setIsSavingProperty(true);
+        try {
+            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+            await setDoc(profileRef, { name: formData.name, address: formData.address, coordinates: formData.coordinates || null, activePropertyId: 'legacy', createdAt: serverTimestamp() }, { merge: true });
+            const snap = await getDoc(profileRef); if (snap.exists()) setProfile(snap.data()); toast.success("Krib created!");
+        } catch (error) { toast.error("Failed: " + error.message); } finally { setIsSavingProperty(false); setIsAddingProperty(false); }
+    }; 
+
+    const handleMarkTaskDone = useCallback(async (task, notes = '') => {
+        try {
+            if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
+            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
+            const record = records.find(r => r.id === task.recordId);
+            if (!record) return;
+            
+            const completedDate = new Date().toISOString();
+            const completedDateShort = completedDate.split('T')[0];
+            const historyEntry = { taskName: task.taskName, completedDate: completedDate, performedBy: 'User', notes: notes, id: Date.now().toString() };
+            const currentHistory = record.maintenanceHistory || [];
+            const newHistory = [historyEntry, ...currentHistory];
+
+            let updates = { maintenanceHistory: newHistory };
+            if (task.isGranular) {
+                const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                    if (t.task === task.taskName) {
+                        return { ...t, nextDue: calculateNextDate(completedDateShort, t.frequency || 'annual') };
+                    }
+                    return t;
+                });
+                updates.maintenanceTasks = updatedTasks;
+            } else {
+                updates.dateInstalled = completedDateShort; 
+                const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
+                if (nextDate) updates.nextServiceDate = nextDate;
+            }
+            await updateDoc(recordRef, updates);
+            toast.success("Task complete! History saved.", { icon: '🎉' });
+            if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
+        } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
+    }, [records, user, celebrations]);
+
+    const handleDeleteHistoryItem = useCallback(async (historyItem) => {
+        try {
+            const record = records.find(r => r.id === historyItem.recordId);
+            if (!record) return;
+            const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), { maintenanceHistory: newHistory });
+            toast.success("History item removed", { icon: '🗑️' });
+        } catch (e) { toast.error("Failed to delete: " + e.message); }
+    }, [records, user]);
+
+    const handleRestoreHistoryItem = useCallback(async (historyItem) => {
+        try {
+            const record = records.find(r => r.id === historyItem.recordId);
+            if (!record) return;
+            const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
+            
+            let updates = { maintenanceHistory: newHistory };
+            const taskIndex = (record.maintenanceTasks || []).findIndex(t => t.task === historyItem.taskName);
+            
+            if (taskIndex >= 0) {
+                 const updatedTasks = [...record.maintenanceTasks];
+                 updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], nextDue: new Date().toISOString().split('T')[0] };
+                 updates.maintenanceTasks = updatedTasks;
+            } else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
+                const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
+                if (freq && freq.months) {
+                     const currentLastDate = new Date(record.dateInstalled);
+                     currentLastDate.setMonth(currentLastDate.getMonth() - freq.months);
+                     currentLastDate.setDate(currentLastDate.getDate() + 1);
+                     const newLastDateStr = currentLastDate.toISOString().split('T')[0];
+                     updates.dateInstalled = newLastDateStr;
+                     const nextDate = calculateNextDate(newLastDateStr, record.maintenanceFrequency);
+                     if (nextDate) updates.nextServiceDate = nextDate;
+                }
+            }
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', record.id), updates);
+            toast.success("Task restored to dashboard", { icon: <RotateCcw size={18}/> });
+        } catch (e) { toast.error("Failed to restore: " + e.message); }
+    }, [records, user]);
+
+    // Return everything needed by the UI
+    return {
+        user, profile, records, loading, activeTab, setActiveTab,
+        isAddModalOpen, setIsAddModalOpen, showNotifications, setShowNotifications,
+        showUserMenu, setShowUserMenu, showMoreMenu, setShowMoreMenu,
+        dueTasks, newSubmissions, activePropertyId, setActivePropertyId,
+        isSwitchingProp, setIsSwitchingProp, isAddingProperty, setIsAddingProperty,
+        editingRecord, setEditingRecord, searchTerm, setSearchTerm,
+        filterCategory, setFilterCategory, isSavingProperty, hasSeenWelcome, setHasSeenWelcome,
+        isSelectionMode, setIsSelectionMode, selectedRecords, setSelectedRecords,
+        quickServiceRecord, setQuickServiceRecord, quickServiceDescription, setQuickServiceDescription,
+        showQuickService, setShowQuickService, showGuidedOnboarding, setShowGuidedOnboarding,
+        showScanner, setShowScanner, useEnhancedCards, setUseEnhancedCards, inventoryView, setInventoryView,
+        properties, activeProperty, activePropertyRecords,
+        handleAuth, handleSaveProperty, handleMarkTaskDone, handleDeleteHistoryItem, handleRestoreHistoryItem
+    };
+};
