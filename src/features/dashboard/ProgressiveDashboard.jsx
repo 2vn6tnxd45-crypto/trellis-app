@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { ReportTeaser } from './ReportTeaser';
 import { ModernDashboard } from './ModernDashboard';
+import { MaintenanceDashboard } from './MaintenanceDashboard'; // ✅ IMPORTED
 
 // --- SUB-COMPONENTS ---
 
@@ -39,7 +40,16 @@ const EmptyHomeState = ({ propertyName, onAddItem, onScanReceipt }) => (
     </div>
 );
 
-const GettingStartedDashboard = ({ records, propertyName, onAddItem, onScanReceipt, onNavigateToItems }) => {
+const GettingStartedDashboard = ({ 
+    records, 
+    propertyName, 
+    onAddItem, 
+    onScanReceipt, 
+    onNavigateToItems,
+    // ✅ NEW PROPS ACCEPTED
+    onBookService,
+    onMarkTaskDone
+}) => {
     const progress = Math.min(100, (records.length / 5) * 100);
     const remaining = 5 - records.length;
 
@@ -97,6 +107,21 @@ const GettingStartedDashboard = ({ records, propertyName, onAddItem, onScanRecei
                 </button>
             </div>
 
+            {/* ✅ ALWAYS VISIBLE MAINTENANCE SCHEDULE */}
+            {/* We place it here so it's prominent, right after the main actions */}
+            <div className="pt-2">
+                <div className="flex items-center justify-between mb-2 px-1">
+                    <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
+                </div>
+                <MaintenanceDashboard 
+                    records={records}
+                    onAddRecord={onAddItem}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onNavigateToRecords={onNavigateToItems}
+                />
+            </div>
+
             {/* Report Teaser */}
             <ReportTeaser 
                 recordCount={records.length} 
@@ -143,7 +168,6 @@ export const ProgressiveDashboard = ({
     onNavigateToReports,
     onCreateContractorLink,
     onNavigateToMaintenance,
-    // ⬇️ THESE WERE LIKELY MISSING IN YOUR FILE ⬇️
     onBookService, 
     onMarkTaskDone 
 }) => {
@@ -171,6 +195,9 @@ export const ProgressiveDashboard = ({
                     onAddItem={onAddRecord} 
                     onScanReceipt={onScanReceipt} 
                     onNavigateToItems={onNavigateToItems} 
+                    // ✅ PASSING PROPS DOWN
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
                 />
             );
         
@@ -188,7 +215,6 @@ export const ProgressiveDashboard = ({
                     onNavigateToReports={onNavigateToReports}
                     onCreateContractorLink={onCreateContractorLink}
                     onNavigateToMaintenance={onNavigateToMaintenance}
-                    // ⬇️ CRITICAL: PASSING THEM DOWN ⬇️
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                 />
