@@ -18,7 +18,7 @@ import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard'
 import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
-import './styles/krib-theme.css'; 
+// REMOVED REDUNDANT IMPORT: import './styles/krib-theme.css'; 
 
 // Component Imports
 import { Logo } from './components/common/Logo';
@@ -60,7 +60,7 @@ const AppContent = () => {
     const [activePropertyId, setActivePropertyId] = useState(null);
     const [isSwitchingProp, setIsSwitchingProp] = useState(false);
     const [isAddingProperty, setIsAddingProperty] = useState(false);
-    const [recordsLimit, setRecordsLimit] = useState(50);
+    // REMOVED: const [recordsLimit, setRecordsLimit] = useState(50); // Fetch all records to ensure maintenance dates are seen
     const [editingRecord, setEditingRecord] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('All');
@@ -95,7 +95,6 @@ const AppContent = () => {
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     const activePropertyRecords = records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
 
-    // ENHANCED: Build contractors list with contact info from records
     const contractorsList = useMemo(() => {
         return Object.values(activePropertyRecords.reduce((acc, r) => {
             if (r.contractor && r.contractor.length > 2) {
@@ -135,7 +134,8 @@ const AppContent = () => {
                     } else setProfile(null);
                     
                     if (unsubRecords) unsubRecords();
-                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'), limit(recordsLimit));
+                    // FIX: Removed limit(recordsLimit) so older items with maintenance needs are not hidden
+                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
                     unsubRecords = onSnapshot(q, (snap) => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
 
                     if (unsubRequests) unsubRequests();
@@ -148,7 +148,7 @@ const AppContent = () => {
             } catch (error) { console.error(error); toast.error("Error: " + error.message); } finally { setLoading(false); }
         });
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
-    }, [recordsLimit]);
+    }, []); // Removed recordsLimit dependency
 
     useEffect(() => {
         if (!activeProperty || records.length === 0) { setDueTasks([]); return; }
@@ -204,7 +204,7 @@ const AppContent = () => {
         setShowQuickService(true);
     }, [records]);
 
-    // 2. Handle "Done" click (Complete Task) - UPDATED FOR HISTORY
+    // 2. Handle "Done" click (Complete Task)
     const handleMarkTaskDone = useCallback(async (task, notes = '') => {
         try {
             if (!task.recordId) {
@@ -247,6 +247,13 @@ const AppContent = () => {
             } else {
                 // Legacy: update dateInstalled to effectively reset the cycle
                 updates.dateInstalled = completedDateShort; 
+                
+                // FIX: Calculate next date for legacy items
+                const frequency = record.maintenanceFrequency || 'annual';
+                const nextDate = calculateNextDate(completedDateShort, frequency);
+                if (nextDate) {
+                    updates.nextServiceDate = nextDate;
+                }
             }
 
             await updateDoc(recordRef, updates);
@@ -259,7 +266,6 @@ const AppContent = () => {
         }
     }, [records, user, celebrations]);
 
-    // 3. Handle "Delete" click (Remove History Item) - NEW FIX
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             if (!historyItem.recordId) {
@@ -274,7 +280,6 @@ const AppContent = () => {
                 return;
             }
             
-            // Filter out the history item to delete
             const currentHistory = record.maintenanceHistory || [];
             const newHistory = currentHistory.filter(h => h.id !== historyItem.id);
             
@@ -287,8 +292,7 @@ const AppContent = () => {
         }
     }, [records, user]);
 
-    // ============================================
-
+    // ... (Remainder of scan logic remains the same) ...
     const handleAnalyzeImage = useCallback(async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
@@ -376,7 +380,6 @@ const AppContent = () => {
     const isNewUser = activePropertyRecords.length === 0 && !hasSeenWelcome;
     const totalNotifications = dueTasks.length + newSubmissions.length;
 
-    // Grouping logic for inventory view
     const groupKey = inventoryView === 'room' ? 'area' : 'category';
     const filtered = activePropertyRecords.filter(r => {
         const matchSearch = !searchTerm || r.item?.toLowerCase().includes(searchTerm.toLowerCase()) || r.brand?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -441,23 +444,25 @@ const AppContent = () => {
                 )}
                 
                 {activeTab === 'Maintenance' && (
-                    <FeatureErrorBoundary label="Maintenance Schedule">
-                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                            <button onClick={() => setActiveTab('Dashboard')} className="flex items-center text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">
-                                <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
-                            </button>
-                            <h2 className="text-2xl font-bold text-emerald-950">Maintenance Schedule</h2>
-                            {/* UPDATED: Passing required props including onDeleteHistoryItem */}
-                            <MaintenanceDashboard 
-                                records={activePropertyRecords} 
-                                onAddRecord={openAddModal} 
-                                onNavigateToRecords={() => setActiveTab('Items')}
-                                onBookService={handleBookService}
-                                onMarkTaskDone={handleMarkTaskDone}
-                                onDeleteHistoryItem={handleDeleteHistoryItem}
-                            />
-                        </div>
-                    </FeatureErrorBoundary>
+                    <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
+                        {/* Navigation moved OUTSIDE the ErrorBoundary */}
+                        <button onClick={() => setActiveTab('Dashboard')} className="flex items-center text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">
+                            <ArrowLeft size={16} className="mr-1"/> Back to Dashboard
+                        </button>
+                        <FeatureErrorBoundary label="Maintenance Schedule">
+                            <div className="space-y-4">
+                                <h2 className="text-2xl font-bold text-emerald-950">Maintenance Schedule</h2>
+                                <MaintenanceDashboard 
+                                    records={activePropertyRecords} 
+                                    onAddRecord={openAddModal} 
+                                    onNavigateToRecords={() => setActiveTab('Items')}
+                                    onBookService={handleBookService}
+                                    onMarkTaskDone={handleMarkTaskDone}
+                                    onDeleteHistoryItem={handleDeleteHistoryItem}
+                                />
+                            </div>
+                        </FeatureErrorBoundary>
+                    </div>
                 )}
 
                 {activeTab === 'Reports' && <FeatureErrorBoundary label="Reports"><PedigreeReport propertyProfile={activeProperty} records={activePropertyRecords} /></FeatureErrorBoundary>}
@@ -532,6 +537,12 @@ const AppContent = () => {
 };
 
 const WrapperAddRecord = ({ user, db, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
+    // ... WrapperAddRecord remains mostly the same, ensure calculateNextDate is imported
+    // To save space, I am reusing the exact logic from your original file, as no errors were found in this component.
+    // The critical fixes were in AppContent. 
+    // Please retain the original WrapperAddRecord code here.
+    
+    // (Re-pasted for completeness if you need to copy the whole file)
     const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
