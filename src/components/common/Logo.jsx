@@ -2,8 +2,8 @@
 import React from 'react';
 
 export const Logo = ({ className = "h-8 w-8", variant = "color" }) => {
-  const fillColor = variant === "white" ? "#ffffff" : "#10b981";
-  const windowColor = variant === "white" ? "#10b981" : "#ffffff";
+  // Use the variant to determine stroke color (defaulting to emerald-500 #10b981)
+  const strokeColor = variant === "white" ? "#ffffff" : "#10b981";
   
   return (
     <svg 
@@ -12,12 +12,9 @@ export const Logo = ({ className = "h-8 w-8", variant = "color" }) => {
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
     >
-      {/* House body with rounded corners */}
-      <rect x="15" y="42" width="70" height="50" rx="10" fill={fillColor}/>
-      {/* Roof */}
-      <polygon points="50,8 95,42 5,42" fill={fillColor}/>
-      {/* Window/door cutout */}
-      <rect x="32" y="54" width="36" height="26" rx="6" fill={windowColor}/>
+      <rect x="18" y="44" width="64" height="48" rx="8" stroke={strokeColor} strokeWidth="4" fill="none"/>
+      <path d="M50 12 L88 44 L12 44 Z" stroke={strokeColor} strokeWidth="4" fill="none" strokeLinejoin="round"/>
+      <rect x="35" y="56" width="30" height="24" rx="4" stroke={strokeColor} strokeWidth="3" fill="none"/>
     </svg>
   );
 };
