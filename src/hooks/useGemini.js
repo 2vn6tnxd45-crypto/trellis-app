@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { geminiModel } from '../config/firebase';
 import { getBase64Data } from '../lib/images';
 import { toProperCase } from '../lib/utils';
-import { CATEGORIES } from '../config/constants';
+import { CATEGORIES, ROOMS } from '../config/constants';
 
 export const useGemini = () => {
     const [isSuggesting, setIsSuggesting] = useState(false);
@@ -26,6 +26,18 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
+    // --- NEW HELPER: Match AI guess to Constants ---
+    const findBestRoomMatch = (guess) => {
+        if (!guess) return '';
+        const lowerGuess = guess.toLowerCase();
+        // Exact match (insensitive)
+        const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
+        if (exact) return exact;
+        // Partial match (e.g. "Master Bath" -> "Master Bathroom")
+        const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
+        return partial || guess; // Return guess (as custom) if no match
+    };
+
     // --- UPDATED SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
@@ -37,8 +49,9 @@ export const useGemini = () => {
             const base64Data = getBase64Data(base64Str);
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
+            const roomsStr = ROOMS.join(', '); // NEW: List of rooms for AI context
 
-            // --- REFINED ADDRESS EXCLUSION ---
+            // --- REFINED ADDRESS EXCLUSION (Preserved Original) ---
             // Only exclude the specific street address to avoid blocking local pros in the same city.
             let userStreet = "";
             let fullUserAddress = "";
@@ -55,7 +68,7 @@ export const useGemini = () => {
             }
             // --------------------------------
 
-            // UPDATED PROMPT: CONTEXT AWARENESS OVER BLUNT FORCE
+            // UPDATED PROMPT: Original text preserved, Section 6 inserted.
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
@@ -89,7 +102,12 @@ export const useGemini = () => {
                    - Example: If Refrigerator, suggest "Clean Coils" (annual) AND "Change Water Filter" (semiannual).
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
-                6. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
+                6. **INFER ROOM/AREA**:
+                   - Guess the room this item belongs in based on context.
+                   - Options: ${roomsStr}.
+                   - Examples: "Dishwasher" -> "Kitchen", "Vanity" -> "Bathroom", "Water Heater" -> "Garage".
+
+                7. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
                 Return JSON:
                 {
@@ -105,6 +123,7 @@ export const useGemini = () => {
                     { 
                       "item": "String", 
                       "category": "String (Best match from: ${categoriesStr})",
+                      "area": "String (Best match from: ${roomsStr})",
                       "brand": "String", 
                       "model": "String", 
                       "serial": "String",
@@ -149,11 +168,13 @@ export const useGemini = () => {
                 item: toProperCase(String(item.item || 'Unknown Item')),
                 brand: toProperCase(String(item.brand || '')),
                 category: item.category || "Other",
+                // NEW: Map AI guess to Room Constants
+                area: findBestRoomMatch(item.area) || "General",
                 cost: item.cost || 0,
                 warranty: item.warranty || data.warranty || '',
                 maintenanceFrequency: item.maintenanceFrequency || 'annual',
                 maintenanceNotes: item.maintenanceNotes || '',
-                // NEW: Ensure tasks array is present
+                // Ensure tasks array is present
                 suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
             }));
 
