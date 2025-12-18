@@ -1,7 +1,7 @@
-// src/hooks/useAppLogic.js
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, writeBatch, orderBy, where } from 'firebase/firestore'; 
+// src/hooks/useAppLogic.jsx
+import React, { useState, useEffect, useCallback } from 'react'; // Added React import
+import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
 import { auth, db } from '../config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
@@ -180,7 +180,6 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { toast.error("Failed to restore: " + e.message); }
     }, [records, user]);
 
-    // Return everything needed by the UI
     return {
         user, profile, records, loading, activeTab, setActiveTab,
         isAddModalOpen, setIsAddModalOpen, showNotifications, setShowNotifications,
