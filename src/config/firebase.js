@@ -6,24 +6,25 @@ import {
     persistentLocalCache, 
     persistentMultipleTabManager 
 } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage'; // NEW IMPORT
+import { getStorage } from 'firebase/storage';
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
 
+// Use Environment Variables
 const firebaseConfig = {
-  apiKey: "AIzaSyCS2JMaEpI_npBXkHjhjOk10ffZVg5ypaI",
-  authDomain: "trellis-6cd18.firebaseapp.com",
-  projectId: "trellis-6cd18",
-  storageBucket: "trellis-6cd18.firebasestorage.app",
-  messagingSenderId: "669423260428",
-  appId: "1:669423260428:web:64a5452413682c257cef29",
-  measurementId: "G-JBP9F27RN1"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
 let app;
 let auth;
 let db;
-let storage; // NEW
+let storage;
 let geminiModel = null;
 
 try {
@@ -38,7 +39,7 @@ try {
     });
     
     // Initialize Storage
-    storage = getStorage(app); // NEW
+    storage = getStorage(app);
     
     // Initialize Vertex AI
     try {
@@ -52,5 +53,4 @@ try {
     console.error("Firebase Init Error:", e);
 }
 
-// Export these so other files can use them
-export { app, auth, db, storage, geminiModel }; // Added storage to export
+export { app, auth, db, storage, geminiModel };
