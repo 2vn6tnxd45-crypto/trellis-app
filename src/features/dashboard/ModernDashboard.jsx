@@ -11,19 +11,9 @@ import {
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
-import { MaintenanceDashboard } from './MaintenanceDashboard'; // 1. Import the "Good" Dashboard
+import { MaintenanceDashboard } from './MaintenanceDashboard'; //
 
-// --- CONFIG & HELPERS (Unchanged) ---
-const MAINTENANCE_FREQUENCIES = [
-    { value: 'monthly', label: 'Monthly', months: 1 },
-    { value: 'quarterly', label: 'Quarterly', months: 3 },
-    { value: 'biannual', label: 'Every 6 months', months: 6 },
-    { value: 'annual', label: 'Annually', months: 12 },
-    { value: '2years', label: 'Every 2 years', months: 24 },
-    { value: '5years', label: 'Every 5 years', months: 60 },
-    { value: 'none', label: 'No maintenance', months: 0 },
-];
-
+// --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
     try {
@@ -44,7 +34,7 @@ const getGreeting = () => {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
 
-// 2. Modified HealthScoreCard to handle closing/rendering cleanly
+// HealthScoreCard with Close Option
 const HealthScoreCard = ({ breakdown, score, onClose }) => (
     <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
         <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
@@ -61,8 +51,12 @@ const HealthScoreCard = ({ breakdown, score, onClose }) => (
                 <span className={`font-bold ${breakdown.profile >= 40 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.profile}/50</span>
             </div>
         </div>
-        {/* Added a close helper for clarity */}
-        <p className="text-xs text-center text-slate-400 mt-4 pt-2 border-t border-slate-50 cursor-pointer hover:text-slate-600" onClick={onClose}>Tap to close</p>
+        <button 
+            onClick={(e) => { e.stopPropagation(); onClose(); }} 
+            className="w-full mt-4 pt-2 border-t border-slate-50 text-xs text-slate-400 font-medium hover:text-slate-600 transition-colors"
+        >
+            Tap to close
+        </button>
     </div>
 );
 
@@ -89,14 +83,12 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
     
-    // 3. New state to toggle the health score card
+    // Toggle state for health score
     const [showScoreDetails, setShowScoreDetails] = useState(false);
     
-    // Safety check for empty records to prevent crash
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
 
-    // We only need totalSpent from the old metrics logic now
     const totalSpent = useMemo(() => {
         return validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
     }, [validRecords]);
@@ -109,7 +101,7 @@ export const ModernDashboard = ({
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
                     <h1 className="text-3xl font-extrabold tracking-tight mb-6">{activeProperty?.name || 'My Home'}</h1>
                     
-                    {/* 4. Modified Score Circle with Toggle */}
+                    {/* Health Score Circle with Toggle */}
                     <div className="relative group mb-8">
                         <div 
                             className="relative h-24 w-24 cursor-pointer hover:scale-105 transition-transform"
@@ -125,7 +117,7 @@ export const ModernDashboard = ({
                         </div>
                         <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider mt-2">Health Score</p>
                         
-                        {/* Only show if toggled */}
+                        {/* Popup Card */}
                         {showScoreDetails && (
                             <HealthScoreCard 
                                 breakdown={healthData?.breakdown || {profile: 0, maintenance: 0}} 
@@ -143,11 +135,14 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {/* 5. REPLACED "Needs Attention" with full MaintenanceDashboard logic */}
+            {/* Maintenance Schedule (Using the Unified Component) */}
             <div>
                 <div className="flex items-center justify-between mb-2 px-1">
                     <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
                 </div>
+                {/* This component contains the logic for rendering the 
+                   Call / Text / Email buttons for contractors.
+                */}
                 <MaintenanceDashboard 
                     records={records}
                     onAddRecord={onAddRecord}
