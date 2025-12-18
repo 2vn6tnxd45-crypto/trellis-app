@@ -1,6 +1,7 @@
 // src/hooks/useAppLogic.jsx
-import React, { useState, useEffect, useCallback } from 'react'; // Added React import
+import React, { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+// REMOVED deleteDoc and writeBatch from this import as they are not used in this file
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
 import { auth, db } from '../config/firebase';
