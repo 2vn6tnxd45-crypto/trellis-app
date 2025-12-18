@@ -5,14 +5,15 @@ import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimest
 import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
-import { auth, db, storage } from './config/firebase'; // storage needed for modal
-import { appId, MAINTENANCE_FREQUENCIES } from './config/constants'; // MAINTENANCE_FREQUENCIES needed for logic
+import { auth, db, storage } from './config/firebase';
+import { appId } from './config/constants'; // FIXED: Removed unused MAINTENANCE_FREQUENCIES
 import { fileToBase64 } from './lib/images';
+import { calculateNextDate } from './lib/utils'; // FIXED: Added this import
 
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
-import { useAppLogic } from './hooks/useAppLogic'; // IMPORT THE NEW HOOK
-import { RecordEditorModal } from './features/records/RecordEditorModal'; // IMPORT THE NEW COMPONENT
+import { useAppLogic } from './hooks/useAppLogic'; // Ensure file is useAppLogic.jsx
+import { RecordEditorModal } from './features/records/RecordEditorModal';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
 import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
 import { SmartScanner } from './features/scanner/SmartScanner';
@@ -48,7 +49,7 @@ const AppContent = () => {
     // Use the Logic Hook
     const app = useAppLogic(celebrations);
     
-    // -- Derived UI Helpers (keep these here as they are purely transformative for UI) --
+    // -- Derived UI Helpers --
     const contractorsList = useMemo(() => {
         return Object.values(app.activePropertyRecords.reduce((acc, r) => {
             if (r.contractor && r.contractor.length > 2) {
@@ -66,7 +67,7 @@ const AppContent = () => {
 
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     
-    // -- UI Handlers (Simple triggers that call the Logic Hook or Local State) --
+    // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
     const toggleRecordSelection = (id) => { const newSet = new Set(app.selectedRecords); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); app.setSelectedRecords(newSet); };
     
@@ -113,7 +114,6 @@ const AppContent = () => {
     const handleScanComplete = useCallback(async (extractedData) => {
         app.setShowScanner(false);
         const validAttachments = extractedData.attachments || [];
-        // Helper to process frequency
         const processMaintenance = (freq, installDate) => ({ frequency: freq || 'annual', nextDate: calculateNextDate(installDate, freq || 'annual') });
 
         if (extractedData.items && extractedData.items.length > 0) {
