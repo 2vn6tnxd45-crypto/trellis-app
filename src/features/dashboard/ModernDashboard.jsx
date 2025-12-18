@@ -11,6 +11,7 @@ import {
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
+import { MaintenanceDashboard } from './MaintenanceDashboard'; // 1. Import the "Good" Dashboard
 
 // --- CONFIG & HELPERS (Unchanged) ---
 const MAINTENANCE_FREQUENCIES = [
@@ -22,12 +23,6 @@ const MAINTENANCE_FREQUENCIES = [
     { value: '5years', label: 'Every 5 years', months: 60 },
     { value: 'none', label: 'No maintenance', months: 0 },
 ];
-
-const safeDate = (dateStr) => {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? null : d;
-};
 
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -49,65 +44,25 @@ const getGreeting = () => {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
 
-const cleanPhoneForLink = (phone) => phone ? phone.replace(/[^\d+]/g, '') : '';
-
-const TaskActionModal = ({ task, onClose, onMarkDone, onBook, onNavigateToContractors }) => {
-    if (!task) return null;
-    const isOverdue = (task.daysUntil || 0) < 0;
-    const days = Math.abs(task.daysUntil || 0);
-    const hasContractor = !!task.contractor;
-    const cleanPhone = cleanPhoneForLink(task.contractorPhone);
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
-                <div className={`p-6 ${isOverdue ? 'bg-red-50' : 'bg-emerald-50'}`}>
-                    <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-white/50 rounded-full transition-colors"><X size={20} className="text-slate-500" /></button>
-                    <div className="flex items-start gap-4">
-                        <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}><Wrench size={28} /></div>
-                        <div>
-                            <h2 className="font-bold text-xl text-slate-900">{task.taskName}</h2>
-                            <p className="text-sm text-slate-600 font-medium">{task.item}</p>
-                            <span className={`inline-block mt-2 text-xs font-bold px-3 py-1 rounded-full ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="p-6 space-y-5">
-                    <div>
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Service Provider</h4>
-                        {hasContractor ? (
-                            <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center shadow-sm"><User size={18} className="text-slate-400" /></div>
-                                    <div><p className="font-bold text-slate-800">{task.contractor}</p>{task.contractorPhone && <p className="text-xs text-slate-500">{task.contractorPhone}</p>}</div>
-                                </div>
-                                <div className="flex gap-2 pt-2">
-                                    {cleanPhone && <a href={`tel:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"><Phone size={16} /> Call</a>}
-                                    {!cleanPhone && !task.contractorEmail && <button onClick={() => { onBook(task); onClose(); }} className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"><LinkIcon size={14} /> Create Request Link</button>}
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 border-dashed text-center">
-                                <p className="text-xs text-slate-400 mb-2">No contractor linked.</p>
-                                <button onClick={() => { onBook(task); onClose(); }} className="text-xs font-bold text-emerald-600 bg-white border border-emerald-200 px-3 py-1.5 rounded-lg shadow-sm">Generate Service Link</button>
-                            </div>
-                        )}
-                    </div>
-                    <button onClick={() => { onMarkDone(task); onClose(); }} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-lg"><CheckCircle2 size={24} className="text-emerald-400" /> Mark as Complete</button>
-                </div>
+// 2. Modified HealthScoreCard to handle closing/rendering cleanly
+const HealthScoreCard = ({ breakdown, score, onClose }) => (
+    <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
+        <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
+            <h3 className="font-bold text-slate-900">Score Breakdown</h3>
+            <span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span>
+        </div>
+        <div className="space-y-3">
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2"><Wrench size={16} className="text-slate-400" /> <span className="text-slate-600">Maintenance</span></div>
+                <span className={`font-bold ${breakdown.maintenance === 50 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.maintenance}/50</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+                <div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Coverage</span></div>
+                <span className={`font-bold ${breakdown.profile >= 40 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.profile}/50</span>
             </div>
         </div>
-    );
-};
-
-const HealthScoreCard = ({ breakdown, score }) => (
-    <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
-        <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2"><h3 className="font-bold text-slate-900">Score Breakdown</h3><span className={`font-black text-lg ${score >= 80 ? 'text-emerald-600' : 'text-amber-500'}`}>{score}</span></div>
-        <div className="space-y-3">
-            <div className="flex justify-between items-center text-sm"><div className="flex items-center gap-2"><Wrench size={16} className="text-slate-400" /> <span className="text-slate-600">Maintenance</span></div><span className={`font-bold ${breakdown.maintenance === 50 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.maintenance}/50</span></div>
-            <div className="flex justify-between items-center text-sm"><div className="flex items-center gap-2"><Package size={16} className="text-slate-400" /> <span className="text-slate-600">Coverage</span></div><span className={`font-bold ${breakdown.profile >= 40 ? 'text-emerald-600' : 'text-amber-500'}`}>{breakdown.profile}/50</span></div>
-        </div>
+        {/* Added a close helper for clarity */}
+        <p className="text-xs text-center text-slate-400 mt-4 pt-2 border-t border-slate-50 cursor-pointer hover:text-slate-600" onClick={onClose}>Tap to close</p>
     </div>
 );
 
@@ -117,27 +72,6 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
         <div><p className="font-bold text-sm">{label}</p>{sublabel && <p className="text-xs opacity-70 font-medium">{sublabel}</p>}</div>
     </button>
 );
-
-const AttentionCard = ({ task, onClick }) => {
-    if (!task) return null;
-    const isOverdue = (task.daysUntil || 0) < 0;
-    const days = Math.abs(task.daysUntil || 0);
-    return (
-        <button onClick={() => onClick(task)} className="w-full bg-white border border-slate-200 rounded-2xl p-5 hover:border-emerald-200 hover:shadow-md transition-all group text-left relative overflow-hidden active:scale-[0.98] duration-150">
-            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${isOverdue ? 'bg-red-500' : 'bg-amber-500'}`} />
-            <div className="flex items-center gap-4 pl-2">
-                <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${isOverdue ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}><AlertTriangle size={24} /></div>
-                <div className="flex-grow min-w-0">
-                    <div className="flex justify-between items-start">
-                        <div><h3 className="font-bold text-slate-800 text-base">{task.taskName}</h3><p className="text-xs text-slate-500 font-medium">{task.item}</p></div>
-                        <ChevronRight size={16} className="text-slate-400" />
-                    </div>
-                    <div className="flex items-center mt-2"><span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wide ${isOverdue ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{isOverdue ? `${days} Days Overdue` : `Due in ${days} Days`}</span></div>
-                </div>
-            </div>
-        </button>
-    );
-};
 
 const SectionHeader = ({ title, action, actionLabel }) => (
     <div className="flex items-center justify-between mb-4 mt-8 first:mt-0">
@@ -154,61 +88,33 @@ export const ModernDashboard = ({
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showFullInsights, setShowFullInsights] = useState(false);
-    const [selectedTask, setSelectedTask] = useState(null);
+    
+    // 3. New state to toggle the health score card
+    const [showScoreDetails, setShowScoreDetails] = useState(false);
     
     // Safety check for empty records to prevent crash
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
 
-    const metrics = useMemo(() => {
-        const now = new Date();
-        const overdueTasks = [], upcomingTasks = [], scheduledTasks = [];
-        
-        validRecords.forEach(record => {
-            const processTask = (taskName, freq, dateStr, isGranular) => {
-                if (!dateStr || freq === 'none') return;
-                let nextDate = safeDate(dateStr);
-                if (!isGranular && nextDate) {
-                    const f = MAINTENANCE_FREQUENCIES.find(x => x.value === freq);
-                    if (f && f.months > 0) {
-                        const next = new Date(nextDate);
-                        next.setMonth(next.getMonth() + f.months);
-                        while (next < now) next.setMonth(next.getMonth() + f.months);
-                        nextDate = next;
-                    }
-                }
-                if (!nextDate) return;
-                const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
-                const task = { id: `${record.id}-${taskName}`, taskName, item: record.item, recordId: record.id, contractor: record.contractor, contractorPhone: record.contractorPhone, contractorEmail: record.contractorEmail, nextDate, daysUntil, isGranular };
-                
-                if (daysUntil < 0) overdueTasks.push(task);
-                else if (daysUntil <= 30) upcomingTasks.push(task);
-                else if (daysUntil <= 180) scheduledTasks.push(task);
-            };
-
-            if (record.maintenanceTasks?.length) record.maintenanceTasks.forEach(t => processTask(t.task, t.frequency, t.nextDue, true));
-            else processTask('General Maintenance', record.maintenanceFrequency, record.dateInstalled, false);
-        });
-
-        return {
-            totalSpent: validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
-            overdueTasks, upcomingTasks, scheduledTasks: scheduledTasks.sort((a,b) => a.daysUntil - b.daysUntil)
-        };
+    // We only need totalSpent from the old metrics logic now
+    const totalSpent = useMemo(() => {
+        return validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
     }, [validRecords]);
 
     return (
         <div className="space-y-8 pb-8">
-            {selectedTask && <TaskActionModal task={selectedTask} onClose={() => setSelectedTask(null)} onMarkDone={onMarkTaskDone} onBook={onBookService} onNavigateToContractors={onNavigateToContractors} />}
-
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
-                {/* CENTERED LAYOUT FIX HERE */}
                 <div className="relative p-8 text-white flex flex-col items-center text-center">
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
                     <h1 className="text-3xl font-extrabold tracking-tight mb-6">{activeProperty?.name || 'My Home'}</h1>
                     
+                    {/* 4. Modified Score Circle with Toggle */}
                     <div className="relative group mb-8">
-                        <div className="relative h-24 w-24 cursor-pointer">
+                        <div 
+                            className="relative h-24 w-24 cursor-pointer hover:scale-105 transition-transform"
+                            onClick={() => setShowScoreDetails(!showScoreDetails)}
+                        >
                             <svg className="transform -rotate-90" viewBox="0 0 100 100">
                                 <circle cx="50" cy="50" r="45" className="stroke-white/20" strokeWidth="10" fill="none" />
                                 <circle cx="50" cy="50" r="45" className={healthData?.score >= 80 ? 'stroke-emerald-400' : healthData?.score >= 50 ? 'stroke-amber-400' : 'stroke-red-400'} strokeWidth="10" fill="none" strokeDasharray={`${(healthData?.score || 0) * 2.83} 283`} strokeLinecap="round" />
@@ -218,23 +124,38 @@ export const ModernDashboard = ({
                             </div>
                         </div>
                         <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider mt-2">Health Score</p>
-                        <HealthScoreCard breakdown={healthData?.breakdown || {profile: 0, maintenance: 0}} score={healthData?.score || 0} />
+                        
+                        {/* Only show if toggled */}
+                        {showScoreDetails && (
+                            <HealthScoreCard 
+                                breakdown={healthData?.breakdown || {profile: 0, maintenance: 0}} 
+                                score={healthData?.score || 0} 
+                                onClose={() => setShowScoreDetails(false)}
+                            />
+                        )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-3 w-full max-w-lg">
                         <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{validRecords.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
                         <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
-                        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(metrics.totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
+                        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
                     </div>
                 </div>
             </div>
             
-            {(metrics.overdueTasks.length > 0 || metrics.upcomingTasks.length > 0) && (
-                <div className="space-y-4">
-                    <SectionHeader title="Needs Attention" action={onNavigateToMaintenance} actionLabel="View Schedule" />
-                    {[...metrics.overdueTasks, ...metrics.upcomingTasks].slice(0, 3).map(task => <AttentionCard key={task.id} task={task} onClick={setSelectedTask} />)}
+            {/* 5. REPLACED "Needs Attention" with full MaintenanceDashboard logic */}
+            <div>
+                <div className="flex items-center justify-between mb-2 px-1">
+                    <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
                 </div>
-            )}
+                <MaintenanceDashboard 
+                    records={records}
+                    onAddRecord={onAddRecord}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onNavigateToRecords={onNavigateToItems}
+                />
+            </div>
             
             <div className="space-y-4">
                 <SectionHeader title="Quick Actions" />
