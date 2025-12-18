@@ -4,7 +4,7 @@ import {
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, 
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
     ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
-    Trash2
+    Trash2, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
@@ -78,7 +78,6 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                     {task.contractorPhone && (
                         <span className="text-xs text-slate-400">• {task.contractorPhone}</span>
                     )}
-                    {/* Tiny email indicator if space permits, though the button below is the main actor */}
                 </div>
             )}
 
@@ -115,7 +114,7 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     );
 };
 
-const HistoryItemCard = ({ item, onDelete }) => {
+const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     const [showConfirm, setShowConfirm] = useState(false);
 
     const handleDelete = () => {
@@ -124,7 +123,7 @@ const HistoryItemCard = ({ item, onDelete }) => {
     };
 
     return (
-        <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 opacity-75 hover:opacity-100 transition-opacity group">
+        <div className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 group">
             <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
                 <Check className="h-5 w-5 text-emerald-600" />
             </div>
@@ -132,16 +131,31 @@ const HistoryItemCard = ({ item, onDelete }) => {
                 <p className="font-bold text-slate-800 decoration-slate-300">{item.taskName}</p>
                 <p className="text-xs text-slate-500">Completed on {new Date(item.completedDate).toLocaleDateString()}</p>
             </div>
-            {showConfirm ? (
-                <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors">Confirm</button>
-                    <button onClick={() => setShowConfirm(false)} className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors">Cancel</button>
-                </div>
-            ) : (
-                <button onClick={() => setShowConfirm(true)} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100" title="Remove from history">
-                    <Trash2 size={16} />
+            
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={() => onRestore && onRestore(item)}
+                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                    title="Restore to active tasks"
+                >
+                    <RotateCcw size={16} />
                 </button>
-            )}
+
+                {showConfirm ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors">Confirm</button>
+                        <button onClick={() => setShowConfirm(false)} className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors">Cancel</button>
+                    </div>
+                ) : (
+                    <button 
+                        onClick={() => setShowConfirm(true)} 
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" 
+                        title="Delete permanently"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
@@ -154,7 +168,8 @@ export const MaintenanceDashboard = ({
     onNavigateToRecords, 
     onBookService, 
     onMarkTaskDone,
-    onDeleteHistoryItem 
+    onDeleteHistoryItem,
+    onRestoreHistoryItem // Added prop for undelete functionality
 }) => {
     const [viewMode, setViewMode] = useState('upcoming');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -284,8 +299,14 @@ export const MaintenanceDashboard = ({
                         </div>
                      ) : (
                         <>
-                            <p className="text-xs text-slate-400 text-center mb-2">Hover over an item to reveal the delete option</p>
-                            {historyItems.map((item, i) => <HistoryItemCard key={item.id || i} item={item} onDelete={onDeleteHistoryItem} />)}
+                            {historyItems.map((item, i) => (
+                                <HistoryItemCard 
+                                    key={item.id || i} 
+                                    item={item} 
+                                    onDelete={onDeleteHistoryItem}
+                                    onRestore={onRestoreHistoryItem}
+                                />
+                            ))}
                         </>
                      )}
                 </div>
