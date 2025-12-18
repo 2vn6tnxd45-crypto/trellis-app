@@ -1,6 +1,6 @@
 // src/features/records/AddRecordForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info, ScanLine, ArrowLeft, CheckCircle2, Image as ImageIcon, AlertTriangle, ExternalLink, Sparkles } from 'lucide-react'; 
+import { ChevronDown, Zap, Wrench, Camera, Pencil, PlusCircle, X, ChevronRight, FileText, Trash2, Paperclip, Armchair, Loader2, Save, ListChecks, Tag, Info, ScanLine, ArrowLeft, CheckCircle2, Image as ImageIcon, AlertTriangle, ExternalLink, Sparkles, MapPin } from 'lucide-react'; 
 import toast from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useGemini } from '../../hooks/useGemini';
@@ -34,10 +34,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (hasBatch) {
             setRoomScanResults(newRecord.items);
             setScanMode('room-results');
-            
-            // --- FIX APPLIED HERE ---
-            // If the batch came from SmartScanner, grab the fileRef from the first attachment
-            // so onBatchSave has the actual file to upload.
             if (newRecord.attachments && newRecord.attachments.length > 0 && newRecord.attachments[0].fileRef) {
                 setRoomScanFile(newRecord.attachments[0].fileRef);
             }
@@ -51,7 +47,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const handleNext = () => setStep(s => s + 1);
     const handleBack = () => setStep(s => s - 1);
 
-    // --- HELPER: DUPLICATE CHECKER ---
     const checkDuplicate = (itemName) => {
         if (!itemName) return false;
         const match = existingRecords.find(r => 
@@ -67,12 +62,9 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         if (data.items && data.items.length > 1) {
             setRoomScanResults(data.items);
             setScanMode('room-results');
-            
-            // Ensure we capture the file if passed back
             if (data.attachments && data.attachments.length > 0 && data.attachments[0].fileRef) {
                 setRoomScanFile(data.attachments[0].fileRef);
             }
-            
             toast.success(`Imported ${data.items.length} items from scan!`);
         } 
         else {
@@ -85,11 +77,9 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                 cost: singleItem.cost || data.cost || '',
                 dateInstalled: data.date || new Date().toISOString().split('T')[0],
                 contractor: data.store || data.contractor || '',
-                
                 warranty: data.warranty || '',
-                maintenanceFrequency: singleItem.maintenanceFrequency || 'none', // Capture maintenance
+                maintenanceFrequency: singleItem.maintenanceFrequency || 'none',
                 notes: singleItem.notes || '',
-                
                 attachments: data.attachments || [],
                 contractorPhone: data.contractorPhone,
                 contractorEmail: data.contractorEmail,
@@ -134,7 +124,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
 
     const handleSaveRoomItems = async () => {
         if (roomScanResults.length === 0) return;
-        // Now roomScanFile should be populated correctly from useEffect or handleRoomScan
         await onBatchSave(roomScanResults, roomScanFile);
         setRoomScanResults([]); setRoomScanFile(null); setScanMode(null);
     };
@@ -175,16 +164,34 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                         const duplicate = checkDuplicate(item.item);
                         return (
                             <div key={idx} className={`flex flex-col gap-2 p-4 border rounded-xl items-start ${duplicate ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'}`}>
-                                <div className="flex gap-4 w-full">
-                                    <div className="bg-slate-100 p-2 rounded-lg h-fit"><Tag size={16} className="text-slate-400"/></div>
-                                    <div className="flex-grow grid grid-cols-2 gap-4">
-                                        <input value={item.item} onChange={(e) => { const u = [...roomScanResults]; u[idx].item = e.target.value; setRoomScanResults(u); }} className="font-bold text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent" placeholder="Item Name"/>
-                                        <input value={item.category} onChange={(e) => { const u = [...roomScanResults]; u[idx].category = e.target.value; setRoomScanResults(u); }} className="text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent" placeholder="Category"/>
+                                <div className="flex flex-col md:flex-row gap-4 w-full">
+                                    <div className="bg-slate-100 p-2 rounded-lg h-fit hidden md:block"><Tag size={16} className="text-slate-400"/></div>
+                                    
+                                    {/* Item Name */}
+                                    <div className="flex-grow">
+                                        <input value={item.item} onChange={(e) => { const u = [...roomScanResults]; u[idx].item = e.target.value; setRoomScanResults(u); }} className="w-full font-bold text-slate-800 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent" placeholder="Item Name"/>
                                     </div>
-                                    <button onClick={() => { const u = [...roomScanResults]; u.splice(idx, 1); setRoomScanResults(u); }} className="text-slate-300 hover:text-red-500"><X size={18}/></button>
+
+                                    {/* Category Select */}
+                                    <div className="w-full md:w-1/4">
+                                        <select value={item.category} onChange={(e) => { const u = [...roomScanResults]; u[idx].category = e.target.value; setRoomScanResults(u); }} className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent">
+                                            <option value="">Category...</option>
+                                            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    
+                                    {/* NEW: Area Select */}
+                                    <div className="w-full md:w-1/4">
+                                        <select value={item.area || ''} onChange={(e) => { const u = [...roomScanResults]; u[idx].area = e.target.value; setRoomScanResults(u); }} className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent">
+                                            <option value="">Area...</option>
+                                            {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <button onClick={() => { const u = [...roomScanResults]; u.splice(idx, 1); setRoomScanResults(u); }} className="text-slate-300 hover:text-red-500 md:self-center"><X size={18}/></button>
                                 </div>
                                 {duplicate && (
-                                    <div className="flex items-center text-xs text-amber-600 ml-12">
+                                    <div className="flex items-center text-xs text-amber-600 md:ml-12">
                                         <AlertTriangle size={12} className="mr-1"/>
                                         <span>Possible duplicate: You already have "{duplicate.item}".</span>
                                     </div>
@@ -197,6 +204,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
         );
     }
 
+    // ... (The rest of the standard form Step 1/2/3 remains unchanged below)
     return (
         <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-6 border-b border-slate-50 flex justify-between items-center bg-white sticky top-0 z-10"><div><h2 className="text-xl font-bold text-slate-800">{isEditing ? 'Edit Item' : 'Add New Item'}</h2>{!isEditing && <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mt-1">Step {step} of 3</p>}</div>{isEditing ? <button type="button" onClick={onCancelEdit} className="p-2 hover:bg-slate-100 rounded-full text-slate-400"><X size={20}/></button> : <button type="button" onClick={onCancelEdit} className="text-sm font-bold text-slate-400 hover:text-slate-600">Cancel</button>}</div>
@@ -224,7 +232,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                     {(step === 2 || isEditing) && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                             
-                            {/* ATTACHMENT GALLERY (Supports Preview & Existing URLs) */}
+                            {/* ATTACHMENT GALLERY */}
                             {localAttachments.length > 0 && (
                                 <div className="space-y-3 mb-4">
                                     <div className="flex justify-between items-end">
@@ -240,47 +248,24 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                             
                                             return (
                                                 <div key={index} className="relative group bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
-                                                    {/* Preview Area */}
                                                     <div className="h-32 bg-slate-100 flex items-center justify-center relative overflow-hidden">
                                                         {displayUrl && isImage ? (
-                                                            <img 
-                                                                src={displayUrl} 
-                                                                alt={att.name} 
-                                                                className="w-full h-full object-cover" 
-                                                            />
+                                                            <img src={displayUrl} alt={att.name} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="flex flex-col items-center justify-center text-slate-400 p-4 text-center">
                                                                 <FileText className="h-8 w-8 mb-2" />
                                                                 <span className="text-[10px] font-bold uppercase">Document</span>
                                                             </div>
                                                         )}
-                                                        
-                                                        {/* Overlay Actions */}
                                                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 gap-2">
                                                             {displayUrl && (
-                                                                <a 
-                                                                    href={displayUrl} 
-                                                                    target="_blank" 
-                                                                    rel="noreferrer" 
-                                                                    className="p-2 bg-white rounded-full text-slate-700 shadow-sm hover:text-emerald-600 hover:scale-110 transition-all"
-                                                                    title="View Original"
-                                                                >
-                                                                    <ExternalLink size={16} />
-                                                                </a>
+                                                                <a href={displayUrl} target="_blank" rel="noreferrer" className="p-2 bg-white rounded-full text-slate-700 shadow-sm hover:text-emerald-600 hover:scale-110 transition-all" title="View Original"><ExternalLink size={16} /></a>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    
-                                                    {/* Footer info */}
                                                     <div className="p-2 bg-white border-t border-slate-100 flex justify-between items-center">
                                                         <span className="text-xs font-bold text-slate-700 truncate max-w-[80%]">{att.name || 'File'}</span>
-                                                        <button 
-                                                            type="button" 
-                                                            onClick={() => removeAttachment(index)} 
-                                                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
+                                                        <button type="button" onClick={() => removeAttachment(index)} className="text-slate-400 hover:text-red-500 transition-colors p-1"><Trash2 size={14} /></button>
                                                     </div>
                                                 </div>
                                             );
@@ -289,14 +274,11 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 </div>
                             )}
                             
-                            {/* Fallback add button if no attachments */}
                             {localAttachments.length === 0 && (
                                 <button type="button" onClick={() => photoInputRef.current?.click()} className="w-full py-3 border-2 border-dashed border-slate-200 rounded-xl text-slate-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-all flex items-center justify-center gap-2">
                                     <Paperclip size={16} /> Attach Photo or Document
                                 </button>
                             )}
-                            
-                            {/* Hidden Input for adding more files */}
                             <input ref={photoInputRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handlePhotoUpload} />
 
                             <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">What is it? *</label><input type="text" name="item" value={newRecord.item} onChange={onInputChange} required placeholder="e.g. Living Room Sofa" className="block w-full rounded-xl border-slate-200 bg-slate-50 p-4 border focus:ring-emerald-500 focus:bg-white transition-all font-bold text-lg text-slate-800 placeholder:font-normal"/></div>
@@ -313,7 +295,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 <div className="flex justify-between items-center">
                                     <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wider flex items-center"><Wrench size={12} className="mr-1"/> Maintenance</h4>
                                     
-                                    {/* Visual cue that AI did this */}
                                     {newRecord.maintenanceFrequency !== 'none' && (
                                         <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-bold flex items-center">
                                             <Sparkles size={10} className="mr-1"/> Auto-Scheduled
@@ -333,7 +314,6 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                 {suggestedTasks.length > 0 && (<div className="bg-white p-3 rounded-xl border border-emerald-100 text-xs text-emerald-800"><p className="font-bold mb-1">Recommended Tasks:</p><ul className="list-disc pl-4 space-y-0.5">{suggestedTasks.map((t,i) => <li key={i}>{t}</li>)}</ul></div>)}
                             </div>
                             
-                            {/* WARRANTY FIELD */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Warranty Information</label>
                                 <input type="text" name="warranty" value={newRecord.warranty || ''} onChange={onInputChange} placeholder="e.g. 10 Year Parts, 1 Year Labor" className="block w-full rounded-xl border-slate-200 bg-white p-3 border focus:ring-emerald-500 text-sm" />
