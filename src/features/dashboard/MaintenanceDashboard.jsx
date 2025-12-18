@@ -35,6 +35,7 @@ const cleanPhoneForLink = (phone) => {
 const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     const cleanPhone = cleanPhoneForLink(task.contractorPhone);
     const hasPhone = !!cleanPhone;
+    const hasEmail = !!task.contractorEmail;
     
     const formattedDate = task.nextDate 
         ? task.nextDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -77,18 +78,28 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                     {task.contractorPhone && (
                         <span className="text-xs text-slate-400">• {task.contractorPhone}</span>
                     )}
+                    {/* Tiny email indicator if space permits, though the button below is the main actor */}
                 </div>
             )}
 
             <div className="flex gap-2">
-                {hasPhone ? (
+                {(hasPhone || hasEmail) ? (
                     <div className="flex gap-2 flex-1">
-                        <a href={`tel:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
-                            <Phone size={14} /> Call
-                        </a>
-                        <a href={`sms:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors">
-                            <MessageCircle size={14} /> Text
-                        </a>
+                        {hasPhone && (
+                            <>
+                                <a href={`tel:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
+                                    <Phone size={14} /> Call
+                                </a>
+                                <a href={`sms:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                                    <MessageCircle size={14} /> Text
+                                </a>
+                            </>
+                        )}
+                        {hasEmail && (
+                            <a href={`mailto:${task.contractorEmail}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors">
+                                <Mail size={14} /> Email
+                            </a>
+                        )}
                     </div>
                 ) : (
                     <button onClick={() => onBook && onBook(task)} className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
