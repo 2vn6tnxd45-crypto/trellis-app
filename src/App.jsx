@@ -1,18 +1,18 @@
 // src/App.jsx
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore'; 
 import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
-import { appId } from './config/constants'; // FIXED: Removed unused MAINTENANCE_FREQUENCIES
+import { appId } from './config/constants';
 import { fileToBase64 } from './lib/images';
-import { calculateNextDate } from './lib/utils'; // FIXED: Added this import
+import { calculateNextDate } from './lib/utils';
 
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
-import { useAppLogic } from './hooks/useAppLogic'; // Ensure file is useAppLogic.jsx
+import { useAppLogic } from './hooks/useAppLogic'; 
 import { RecordEditorModal } from './features/records/RecordEditorModal';
 import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
 import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
@@ -95,23 +95,26 @@ const AppContent = () => {
     const handleTabChange = (tabId) => tabId === 'More' ? app.setShowMoreMenu(true) : app.setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { app.setActiveTab(dest); app.setShowMoreMenu(false); };
 
-    const handleBookService = useCallback((task) => {
+    // REMOVED useCallback here to prevent linter errors (dependencies change on every render anyway)
+    const handleBookService = (task) => {
         const record = app.records.find(r => r.id === task.recordId);
         if (!record) { toast.error("Could not find the related record"); return; }
         app.setQuickServiceRecord(record);
         app.setQuickServiceDescription(`Maintenance: ${task.taskName || 'General Service'}`);
         app.setShowQuickService(true);
-    }, [app.records]);
+    };
 
     // -- Scanner Logic --
-    const handleAnalyzeImage = useCallback(async (imageBlob) => {
+    // REMOVED useCallback here to prevent linter errors
+    const handleAnalyzeImage = async (imageBlob) => {
         const response = await fetch(imageBlob);
         const blob = await response.blob();
         const base64 = await fileToBase64(blob);
         return await scanReceipt(blob, base64, app.activeProperty?.address);
-    }, [scanReceipt, app.activeProperty]);
+    };
 
-    const handleScanComplete = useCallback(async (extractedData) => {
+    // REMOVED useCallback here to prevent linter errors
+    const handleScanComplete = async (extractedData) => {
         app.setShowScanner(false);
         const validAttachments = extractedData.attachments || [];
         const processMaintenance = (freq, installDate) => ({ frequency: freq || 'annual', nextDate: calculateNextDate(installDate, freq || 'annual') });
@@ -130,7 +133,7 @@ const AppContent = () => {
             toast.success(`Maintenance schedule created for ${extractedData.store || 'contractor'}`, { icon: '🤝' });
         }
         app.setIsAddModalOpen(true);
-    }, []);
+    };
 
     const handleSaveSuccess = () => {
         const prevCount = app.records.length;
