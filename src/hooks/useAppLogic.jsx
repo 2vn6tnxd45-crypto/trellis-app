@@ -144,7 +144,7 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
-    // UPDATED: Added error logging and toast feedback for silent failure
+    // NEW FUNCTION: Handles permanent deletion of history items
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Deleting history item:', historyItem);
@@ -158,7 +158,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === historyItem.recordId);
             
             if (!record) {
-                console.error(`[App] Delete failed: Record ${historyItem.recordId} not found in ${records.length} records`);
+                console.error(`[App] Delete failed: Record ${historyItem.recordId} not found`);
                 toast.error("Could not find the original record. Try refreshing.");
                 return;
             }
@@ -169,7 +169,7 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { toast.error("Failed to delete: " + e.message); }
     }, [records, user]);
 
-    // UPDATED: Added error logging and toast feedback for silent failure
+    // NEW FUNCTION: Handles restoring history items to active tasks
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Restoring history item:', historyItem);
@@ -183,8 +183,8 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === historyItem.recordId);
             
             if (!record) {
-                console.error(`[App] Restore failed: Record ${historyItem.recordId} not found in ${records.length} records`);
-                toast.error("Could not find the original record to restore task.");
+                console.error(`[App] Restore failed: Record ${historyItem.recordId} not found`);
+                toast.error("Could not find the original record.");
                 return;
             }
 
@@ -214,6 +214,7 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { toast.error("Failed to restore: " + e.message); }
     }, [records, user]);
 
+    // IMPORTANT: THESE FUNCTIONS MUST BE IN THE RETURN OBJECT
     return {
         user, profile, records, loading, activeTab, setActiveTab,
         isAddModalOpen, setIsAddModalOpen, showNotifications, setShowNotifications,
@@ -227,6 +228,8 @@ export const useAppLogic = (celebrations) => {
         showQuickService, setShowQuickService, showGuidedOnboarding, setShowGuidedOnboarding,
         showScanner, setShowScanner, useEnhancedCards, setUseEnhancedCards, inventoryView, setInventoryView,
         properties, activeProperty, activePropertyRecords,
-        handleAuth, handleSaveProperty, handleMarkTaskDone, handleDeleteHistoryItem, handleRestoreHistoryItem
+        handleAuth, handleSaveProperty, handleMarkTaskDone, 
+        handleDeleteHistoryItem, // ENSURE THIS IS HERE
+        handleRestoreHistoryItem // ENSURE THIS IS HERE
     };
 };
