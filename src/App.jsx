@@ -252,8 +252,8 @@ const AppContent = () => {
                                     onNavigateToRecords={() => app.setActiveTab('Items')}
                                     onBookService={handleBookService}
                                     onMarkTaskDone={app.handleMarkTaskDone}
-                                    onDeleteHistoryItem={app.handleDeleteHistoryItem} // ADDED THIS
-                                    onRestoreHistoryItem={app.handleRestoreHistoryItem} // ADDED THIS
+                                    onDeleteHistoryItem={app.handleDeleteHistoryItem} // <-- THIS CONNECTS IT
+                                    onRestoreHistoryItem={app.handleRestoreHistoryItem} // <-- THIS CONNECTS IT
                                 />
                             </div>
                         </FeatureErrorBoundary>
