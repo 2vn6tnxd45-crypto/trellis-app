@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore'; 
-import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu } from 'lucide-react'; 
+import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
@@ -287,6 +287,57 @@ const AppContent = () => {
 
             <BottomNav activeTab={app.activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={app.newSubmissions.length} />
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
+
+            {/* NEW: Property Switcher Modal */}
+            {app.isSwitchingProp && (
+                <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 px-4">
+                    <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => app.setIsSwitchingProp(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-slate-50 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800">My Properties</h3>
+                            <button onClick={() => app.setIsSwitchingProp(false)} className="p-1 hover:bg-slate-100 rounded-full"><X size={18} className="text-slate-400"/></button>
+                        </div>
+                        <div className="p-2 max-h-60 overflow-y-auto">
+                            {app.properties.map(p => (
+                                <button 
+                                    key={p.id} 
+                                    onClick={() => handleSwitchProperty(p.id)}
+                                    className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-colors ${app.activeProperty?.id === p.id ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100' : 'hover:bg-slate-50 text-slate-700'}`}
+                                >
+                                    <div className={`p-2 rounded-full ${app.activeProperty?.id === p.id ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                        <Home size={18} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-bold text-sm">{p.name}</p>
+                                        <p className="text-xs opacity-70 truncate">{p.address?.street}</p>
+                                    </div>
+                                    {app.activeProperty?.id === p.id && <Check size={16} className="text-emerald-600" />}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="p-2 border-t border-slate-50">
+                             <button 
+                                onClick={() => { app.setIsSwitchingProp(false); app.setIsAddingProperty(true); }}
+                                className="w-full p-3 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-emerald-600 font-bold text-sm transition-colors"
+                            >
+                                <Plus size={18} /> Add New Property
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* NEW: Add Property Overlay */}
+            {app.isAddingProperty && (
+                <div className="fixed inset-0 z-[70] bg-white">
+                    <div className="absolute top-4 right-4 z-10">
+                         <button onClick={() => app.setIsAddingProperty(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
+                            <X size={20} className="text-slate-600" />
+                         </button>
+                    </div>
+                    <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} />
+                </div>
+            )}
 
             {app.isAddModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
