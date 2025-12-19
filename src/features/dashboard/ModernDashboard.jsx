@@ -77,7 +77,9 @@ const SectionHeader = ({ title, action, actionLabel }) => (
 export const ModernDashboard = ({
     records = [], contractors = [], activeProperty, onScanReceipt, onAddRecord,
     onNavigateToItems, onNavigateToContractors, onNavigateToReports, onCreateContractorLink,
-    onNavigateToMaintenance, onBookService, onMarkTaskDone
+    onNavigateToMaintenance, onBookService, onMarkTaskDone,
+    onDeleteHistoryItem, // <-- ADDED THIS
+    onRestoreHistoryItem // <-- ADDED THIS
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
@@ -159,6 +161,8 @@ export const ModernDashboard = ({
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                     onNavigateToRecords={onNavigateToItems}
+                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
+                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
                 />
             </div>
             
