@@ -95,6 +95,39 @@ const AppContent = () => {
     const handleTabChange = (tabId) => tabId === 'More' ? app.setShowMoreMenu(true) : app.setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { app.setActiveTab(dest); app.setShowMoreMenu(false); };
 
+    // --- NEW: Handlers for Task Actions (Add/Edit/Delete) ---
+    const handleAddTask = (record) => {
+        // We reuse the existing RecordEditorModal, which handles tasks
+        app.setEditingRecord(record);
+        app.setIsAddModalOpen(true);
+    };
+
+    const handleEditTask = (task) => {
+        const record = app.activePropertyRecords.find(r => r.id === task.recordId);
+        if (record) {
+            app.setEditingRecord(record);
+            app.setIsAddModalOpen(true);
+        }
+    };
+
+    const handleDeleteTask = async (task) => {
+        if (!confirm(`Delete task "${task.taskName}"?`)) return;
+        const record = app.activePropertyRecords.find(r => r.id === task.recordId);
+        if (record) {
+            const updatedTasks = (record.maintenanceTasks || []).filter(t => t.task !== task.taskName);
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', record.id), {
+                    maintenanceTasks: updatedTasks
+                });
+                toast.success("Task deleted");
+            } catch (e) {
+                console.error("Error deleting task", e);
+                toast.error("Could not delete task");
+            }
+        }
+    };
+    // ---------------------------------------------------------
+
     const handleBookService = (task) => {
         const record = app.records.find(r => r.id === task.recordId);
         if (!record) { toast.error("Could not find the related record"); return; }
@@ -234,8 +267,8 @@ const AppContent = () => {
                             onCreateContractorLink={() => handleOpenQuickService(null)}
                             onBookService={handleBookService}
                             onMarkTaskDone={app.handleMarkTaskDone}
-                            onDeleteHistoryItem={app.handleDeleteHistoryItem} // <-- ADDED THIS
-                            onRestoreHistoryItem={app.handleRestoreHistoryItem} // <-- ADDED THIS
+                            onDeleteHistoryItem={app.handleDeleteHistoryItem} 
+                            onRestoreHistoryItem={app.handleRestoreHistoryItem}
                         />
                     </FeatureErrorBoundary>
                 )}
@@ -297,7 +330,23 @@ const AppContent = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {items.map(r => (
                                                 <div key={r.id} className={`${app.isSelectionMode && app.selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'}`} onClick={() => app.isSelectionMode && toggleRecordSelection(r.id)}>
-                                                    {app.useEnhancedCards ? <EnhancedRecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} onRequestService={handleOpenQuickService} /> : <RecordCard record={r} onDeleteClick={handleDeleteRecord} onEditClick={openAddModal} />}
+                                                    {app.useEnhancedCards ? (
+                                                        <EnhancedRecordCard 
+                                                            record={r} 
+                                                            onDeleteRecord={handleDeleteRecord} 
+                                                            onEditRecord={openAddModal} 
+                                                            onAddTask={handleAddTask}
+                                                            onEditTask={handleEditTask}
+                                                            onDeleteTask={handleDeleteTask}
+                                                            onCompleteTask={app.handleMarkTaskDone}
+                                                        />
+                                                    ) : (
+                                                        <RecordCard 
+                                                            record={r} 
+                                                            onDeleteClick={handleDeleteRecord} 
+                                                            onEditClick={openAddModal} 
+                                                        />
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
