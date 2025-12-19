@@ -114,12 +114,29 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     );
 };
 
+// UPDATED: Added debugging and safer handlers
 const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     const [showConfirm, setShowConfirm] = useState(false);
 
-    const handleDelete = () => {
-        if (onDelete) onDelete(item);
+    const handleDelete = (e) => {
+        e.stopPropagation();
+        if (onDelete) {
+            onDelete(item);
+        } else {
+            console.error("HistoryItemCard: onDelete prop is missing");
+            toast.error("Error: Delete function not connected");
+        }
         setShowConfirm(false);
+    };
+
+    const handleRestore = (e) => {
+        e.stopPropagation();
+        if (onRestore) {
+            onRestore(item);
+        } else {
+            console.error("HistoryItemCard: onRestore prop is missing");
+            toast.error("Error: Restore function not connected");
+        }
     };
 
     return (
@@ -134,7 +151,7 @@ const HistoryItemCard = ({ item, onDelete, onRestore }) => {
             
             <div className="flex items-center gap-2">
                 <button 
-                    onClick={() => onRestore && onRestore(item)}
+                    onClick={handleRestore}
                     className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                     title="Restore to active tasks"
                 >
@@ -144,11 +161,11 @@ const HistoryItemCard = ({ item, onDelete, onRestore }) => {
                 {showConfirm ? (
                     <div className="flex items-center gap-2 shrink-0">
                         <button onClick={handleDelete} className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors">Confirm</button>
-                        <button onClick={() => setShowConfirm(false)} className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors">Cancel</button>
+                        <button onClick={(e) => { e.stopPropagation(); setShowConfirm(false); }} className="px-3 py-1.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300 transition-colors">Cancel</button>
                     </div>
                 ) : (
                     <button 
-                        onClick={() => setShowConfirm(true)} 
+                        onClick={(e) => { e.stopPropagation(); setShowConfirm(true); }}
                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" 
                         title="Delete permanently"
                     >
@@ -168,8 +185,8 @@ export const MaintenanceDashboard = ({
     onNavigateToRecords, 
     onBookService, 
     onMarkTaskDone,
-    onDeleteHistoryItem,
-    onRestoreHistoryItem // Added prop for undelete functionality
+    onDeleteHistoryItem,   // ENSURE THIS IS PASSED FROM APP.JSX
+    onRestoreHistoryItem   // ENSURE THIS IS PASSED FROM APP.JSX
 }) => {
     const [viewMode, setViewMode] = useState('upcoming');
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -196,7 +213,12 @@ export const MaintenanceDashboard = ({
 
         safeRecords.forEach(record => {
             if (record.maintenanceHistory && Array.isArray(record.maintenanceHistory)) {
-                record.maintenanceHistory.forEach(h => history.push({ ...h, item: record.item, recordId: record.id }));
+                // Ensure recordId is attached to every history item so onDelete/onRestore works
+                record.maintenanceHistory.forEach(h => history.push({ 
+                    ...h, 
+                    item: record.item, 
+                    recordId: record.id 
+                }));
             }
 
             const processTask = (taskName, freq, nextDateStr, isGranular) => {
