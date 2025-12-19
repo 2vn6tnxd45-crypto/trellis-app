@@ -37,6 +37,10 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     const hasPhone = !!cleanPhone;
     const hasEmail = !!task.contractorEmail;
     
+    // UPDATED LOGIC: If a contractor is assigned, we NEVER show "Book Pro".
+    // We only show contact buttons.
+    const isAssigned = !!task.contractor;
+
     const formattedDate = task.nextDate 
         ? task.nextDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Pending';
@@ -82,25 +86,21 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
             )}
 
             <div className="flex gap-2">
-                {(hasPhone || hasEmail) ? (
+                {isAssigned ? (
+                    // CONTRACTOR ASSIGNED: Show Contact Buttons (even if missing data, so user knows)
                     <div className="flex gap-2 flex-1">
-                        {hasPhone && (
-                            <>
-                                <a href={`tel:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors">
-                                    <Phone size={14} /> Call
-                                </a>
-                                <a href={`sms:${cleanPhone}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors">
-                                    <MessageCircle size={14} /> Text
-                                </a>
-                            </>
-                        )}
-                        {hasEmail && (
-                            <a href={`mailto:${task.contractorEmail}`} className="flex-1 flex items-center justify-center gap-1.5 py-2 px-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors">
-                                <Mail size={14} /> Email
-                            </a>
-                        )}
+                        <a href={hasPhone ? `tel:${cleanPhone}` : '#'} onClick={(e) => !hasPhone && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasPhone ? 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
+                            <Phone size={14} /> Call
+                        </a>
+                        <a href={hasPhone ? `sms:${cleanPhone}` : '#'} onClick={(e) => !hasPhone && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasPhone ? 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
+                            <MessageCircle size={14} /> Text
+                        </a>
+                        <a href={hasEmail ? `mailto:${task.contractorEmail}` : '#'} onClick={(e) => !hasEmail && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasEmail ? 'bg-white border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
+                            <Mail size={14} /> Email
+                        </a>
                     </div>
                 ) : (
+                    // UNASSIGNED: Show Book Pro
                     <button onClick={() => onBook && onBook(task)} className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
                         <Phone size={14} /> Book Pro
                     </button>
