@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore'; 
-import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home } from 'lucide-react'; 
+import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home, MapPin } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
@@ -170,7 +170,8 @@ const AppContent = () => {
         <div className="min-h-screen bg-slate-50 pb-24">
             {/* Header */}
             <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-lg border-b border-slate-100">
-                <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+                <div className="max-w-5xl mx-auto px-4 py-3 relative flex items-center justify-between">
+                    {/* Left: Logo and Property Selector */}
                     <div className="flex items-center gap-3">
                         <Logo className="h-9 w-9" />
                         <button onClick={() => app.setIsSwitchingProp(true)} className="flex items-center gap-1 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors">
@@ -178,6 +179,21 @@ const AppContent = () => {
                             <ChevronDown size={16} className="text-slate-400"/>
                         </button>
                     </div>
+
+                    {/* CENTER: Prominent Address (Desktop) */}
+                    {app.activeProperty?.address && (
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center pointer-events-none">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                                <MapPin size={12} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Location</span>
+                            </div>
+                            <p className="font-bold text-slate-800 text-sm whitespace-nowrap">
+                                {app.activeProperty.address.street}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Right: Actions */}
                     <div className="flex items-center gap-1">
                         <button onClick={() => app.setShowNotifications(!app.showNotifications)} className="p-2 hover:bg-slate-100 rounded-full transition-colors relative">
                             <Bell size={20} className="text-slate-600"/>{totalNotifications > 0 && <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalNotifications}</span>}
@@ -187,6 +203,16 @@ const AppContent = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* MOBILE SUB-HEADER: Address (Visible only on mobile) */}
+                {app.activeProperty?.address && (
+                    <div className="md:hidden py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-2">
+                        <MapPin size={10} className="text-slate-400" />
+                        <p className="text-xs font-bold text-slate-600">
+                            {app.activeProperty.address.street}, {app.activeProperty.address.city}
+                        </p>
+                    </div>
+                )}
             </header>
 
             <main className="max-w-5xl mx-auto px-4 py-6">
@@ -288,7 +314,7 @@ const AppContent = () => {
             <BottomNav activeTab={app.activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={app.newSubmissions.length} />
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {/* NEW: Property Switcher Modal */}
+            {/* Property Switcher Modal */}
             {app.isSwitchingProp && (
                 <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 px-4">
                     <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => app.setIsSwitchingProp(false)} />
@@ -327,7 +353,7 @@ const AppContent = () => {
                 </div>
             )}
 
-            {/* NEW: Add Property Overlay */}
+            {/* Add Property Overlay */}
             {app.isAddingProperty && (
                 <div className="fixed inset-0 z-[70] bg-white">
                     <div className="absolute top-4 right-4 z-10">
