@@ -6,12 +6,12 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer
+    X, ExternalLink, Hammer, MapPin 
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
-import { MaintenanceDashboard } from './MaintenanceDashboard'; //
+import { MaintenanceDashboard } from './MaintenanceDashboard'; 
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
@@ -99,7 +99,17 @@ export const ModernDashboard = ({
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
                 <div className="relative p-8 text-white flex flex-col items-center text-center">
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
-                    <h1 className="text-3xl font-extrabold tracking-tight mb-6">{activeProperty?.name || 'My Home'}</h1>
+                    <h1 className="text-3xl font-extrabold tracking-tight mb-2">{activeProperty?.name || 'My Home'}</h1>
+                    
+                    {/* NEW: Address Display */}
+                    {activeProperty?.address && (
+                        <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 mb-6 animate-in fade-in zoom-in-95 duration-500">
+                            <MapPin size={14} className="text-white/80" />
+                            <p className="text-white/90 text-sm font-medium">
+                                {activeProperty.address.city}, {activeProperty.address.state}
+                            </p>
+                        </div>
+                    )}
                     
                     {/* Health Score Circle with Toggle */}
                     <div className="relative group mb-8">
