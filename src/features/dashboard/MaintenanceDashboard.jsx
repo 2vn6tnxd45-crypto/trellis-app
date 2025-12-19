@@ -1,14 +1,13 @@
 // src/features/dashboard/MaintenanceDashboard.jsx
 import React, { useMemo, useState } from 'react';
 import { 
-    Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, 
+    Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, ChevronDown,
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
     ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
-    Trash2, RotateCcw
+    Trash2, RotateCcw, Layers, Filter
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
-import { useHomeHealth } from '../../hooks/useHomeHealth'; 
 import { toProperCase } from '../../lib/utils';
 
 // --- HELPER FUNCTIONS ---
@@ -38,7 +37,6 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     const hasEmail = !!task.contractorEmail;
     
     // UPDATED LOGIC: If a contractor is assigned, we NEVER show "Book Pro".
-    // We only show contact buttons.
     const isAssigned = !!task.contractor;
 
     const formattedDate = task.nextDate 
@@ -87,7 +85,6 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
 
             <div className="flex gap-2">
                 {isAssigned ? (
-                    // CONTRACTOR ASSIGNED: Show Contact Buttons (even if missing data, so user knows)
                     <div className="flex gap-2 flex-1">
                         <a href={hasPhone ? `tel:${cleanPhone}` : '#'} onClick={(e) => !hasPhone && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasPhone ? 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
                             <Phone size={14} /> Call
@@ -100,7 +97,6 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                         </a>
                     </div>
                 ) : (
-                    // UNASSIGNED: Show Book Pro
                     <button onClick={() => onBook && onBook(task)} className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
                         <Phone size={14} /> Book Pro
                     </button>
@@ -114,7 +110,47 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
     );
 };
 
-// UPDATED: Added debugging and safer handlers
+// NEW: Collapsible Category Group
+const CategoryGroup = ({ category, tasks, onBook, onComplete }) => {
+    const [isOpen, setIsOpen] = useState(true); // Default open for better visibility
+    const overdueCount = tasks.filter(t => t.daysUntil < 0).length;
+    const hasOverdue = overdueCount > 0;
+
+    return (
+        <div className={`rounded-2xl border transition-all overflow-hidden ${hasOverdue ? 'border-red-200 bg-red-50/30' : 'border-slate-200 bg-white'}`}>
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className={`w-full flex items-center justify-between p-4 ${hasOverdue ? 'bg-red-50 text-red-900' : 'bg-slate-50 text-slate-700'} transition-colors`}
+            >
+                <div className="flex items-center gap-3">
+                    <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${hasOverdue ? 'bg-white text-red-500' : 'bg-white text-emerald-600'} shadow-sm`}>
+                        {hasOverdue ? <AlertTriangle size={16} /> : <Layers size={16} />}
+                    </div>
+                    <div className="text-left">
+                        <h4 className="font-bold text-sm">{category}</h4>
+                        <p className="text-[10px] font-medium opacity-70">{tasks.length} tasks {hasOverdue && `• ${overdueCount} Overdue`}</p>
+                    </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''} ${hasOverdue ? 'text-red-400' : 'text-slate-400'}`} />
+            </button>
+            
+            {isOpen && (
+                <div className="p-3 space-y-3 bg-slate-50/50">
+                    {tasks.map(task => (
+                        <MaintenanceCard 
+                            key={task.id} 
+                            task={task} 
+                            isOverdue={task.daysUntil < 0} 
+                            onBook={onBook} 
+                            onComplete={onComplete} 
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     const [showConfirm, setShowConfirm] = useState(false);
 
@@ -185,10 +221,11 @@ export const MaintenanceDashboard = ({
     onNavigateToRecords, 
     onBookService, 
     onMarkTaskDone,
-    onDeleteHistoryItem,   // ENSURE THIS IS PASSED FROM APP.JSX
-    onRestoreHistoryItem   // ENSURE THIS IS PASSED FROM APP.JSX
+    onDeleteHistoryItem,
+    onRestoreHistoryItem
 }) => {
-    const [viewMode, setViewMode] = useState('upcoming');
+    const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
+    const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
     const [showSuggestions, setShowSuggestions] = useState(false);
     
     // Safety check for records
@@ -207,13 +244,12 @@ export const MaintenanceDashboard = ({
         return dir;
     }, [safeRecords]);
 
-    const { soonTasks, futureTasks, overdueTasks, historyItems } = useMemo(() => {
+    const { soonTasks, futureTasks, overdueTasks, historyItems, allActiveTasks } = useMemo(() => {
         const now = new Date();
-        const soon = [], future = [], overdue = [], history = [];
+        const soon = [], future = [], overdue = [], history = [], allActive = [];
 
         safeRecords.forEach(record => {
             if (record.maintenanceHistory && Array.isArray(record.maintenanceHistory)) {
-                // Ensure recordId is attached to every history item so onDelete/onRestore works
                 record.maintenanceHistory.forEach(h => history.push({ 
                     ...h, 
                     item: record.item, 
@@ -235,7 +271,7 @@ export const MaintenanceDashboard = ({
                     recordId: record.id,
                     item: record.item,
                     taskName: taskName,
-                    category: record.category,
+                    category: record.category || "General",
                     nextDate: nextDate,
                     daysUntil: daysUntil,
                     frequency: freq,
@@ -244,6 +280,8 @@ export const MaintenanceDashboard = ({
                     contractorPhone: record.contractorPhone || dirEntry?.phone || null,
                     contractorEmail: record.contractorEmail || dirEntry?.email || null
                 };
+
+                allActive.push(taskItem);
 
                 if (daysUntil < 0) overdue.push(taskItem);
                 else if (daysUntil <= 90) soon.push(taskItem);
@@ -263,9 +301,28 @@ export const MaintenanceDashboard = ({
             soonTasks: soon.sort(byDate),
             futureTasks: future.sort(byDate),
             overdueTasks: overdue.sort(byDate),
+            allActiveTasks: allActive.sort(byDate), // Sorted by date by default
             historyItems: history.sort((a, b) => new Date(b.completedDate) - new Date(a.completedDate))
         };
     }, [safeRecords, contractorDirectory]);
+
+    // Group tasks by Category for "System View"
+    const tasksByCategory = useMemo(() => {
+        const groups = {};
+        allActiveTasks.forEach(task => {
+            const cat = task.category || "Other";
+            if (!groups[cat]) groups[cat] = [];
+            groups[cat].push(task);
+        });
+        // Sort categories: Categories with Overdue items first, then alphabetical
+        return Object.entries(groups).sort(([catA, tasksA], [catB, tasksB]) => {
+            const aHasOverdue = tasksA.some(t => t.daysUntil < 0);
+            const bHasOverdue = tasksB.some(t => t.daysUntil < 0);
+            if (aHasOverdue && !bHasOverdue) return -1;
+            if (!aHasOverdue && bHasOverdue) return 1;
+            return catA.localeCompare(catB);
+        });
+    }, [allActiveTasks]);
 
     const suggestedItems = useMemo(() => {
         const existingItems = new Set(safeRecords.map(r => r.item ? r.item.toLowerCase() : ''));
@@ -274,37 +331,82 @@ export const MaintenanceDashboard = ({
 
     return (
         <div className="space-y-6">
+            {/* Top Navigation: Toggle between Upcoming and History */}
             <div className="bg-slate-100 p-1.5 rounded-xl flex">
                 <button onClick={() => setViewMode('upcoming')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${viewMode === 'upcoming' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}>Upcoming & Due</button>
                 <button onClick={() => setViewMode('history')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${viewMode === 'history' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}>Completed History</button>
             </div>
 
             {viewMode === 'upcoming' ? (
-                <div className="space-y-8">
-                    {overdueTasks.length > 0 && (
-                        <div className="space-y-3">
-                            <h3 className="font-bold text-red-700 flex items-center text-sm uppercase tracking-wider"><AlertTriangle className="h-4 w-4 mr-2" /> Needs Attention</h3>
-                            {overdueTasks.map(task => <MaintenanceCard key={task.id} task={task} isOverdue onBook={onBookService} onComplete={onMarkTaskDone} />)}
-                        </div>
-                    )}
-
-                    <div className="space-y-3">
-                        <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wider"><Calendar className="h-4 w-4 mr-2" /> Coming Soon (90 Days)</h3>
-                        {soonTasks.length === 0 ? (
-                            <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center"><p className="text-slate-400 text-sm font-medium">No tasks due in the next 3 months.</p></div>
-                        ) : (
-                            soonTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)
-                        )}
+                <div className="space-y-6">
+                    {/* Sub-Navigation: Toggle between Timeline and System View */}
+                    <div className="flex justify-end gap-2">
+                        <button 
+                            onClick={() => setSortMode('timeline')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${sortMode === 'timeline' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <Calendar size={14} /> Timeline
+                        </button>
+                        <button 
+                            onClick={() => setSortMode('system')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${sortMode === 'system' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                        >
+                            <Layers size={14} /> By System
+                        </button>
                     </div>
 
-                    {futureTasks.length > 0 && (
-                        <div className="space-y-3 opacity-80 hover:opacity-100 transition-opacity">
-                            <h3 className="font-bold text-slate-400 flex items-center text-sm uppercase tracking-wider"><Hourglass className="h-4 w-4 mr-2" /> Future Schedule</h3>
-                            {futureTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)}
+                    {/* TIMELINE VIEW (Original Functionality) */}
+                    {sortMode === 'timeline' && (
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {overdueTasks.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="font-bold text-red-700 flex items-center text-sm uppercase tracking-wider"><AlertTriangle className="h-4 w-4 mr-2" /> Needs Attention</h3>
+                                    {overdueTasks.map(task => <MaintenanceCard key={task.id} task={task} isOverdue onBook={onBookService} onComplete={onMarkTaskDone} />)}
+                                </div>
+                            )}
+
+                            <div className="space-y-3">
+                                <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wider"><Clock className="h-4 w-4 mr-2" /> Coming Soon (90 Days)</h3>
+                                {soonTasks.length === 0 ? (
+                                    <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center"><p className="text-slate-400 text-sm font-medium">No tasks due in the next 3 months.</p></div>
+                                ) : (
+                                    soonTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)
+                                )}
+                            </div>
+
+                            {futureTasks.length > 0 && (
+                                <div className="space-y-3 opacity-80 hover:opacity-100 transition-opacity">
+                                    <h3 className="font-bold text-slate-400 flex items-center text-sm uppercase tracking-wider"><Hourglass className="h-4 w-4 mr-2" /> Future Schedule</h3>
+                                    {futureTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)}
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    {overdueTasks.length === 0 && soonTasks.length === 0 && futureTasks.length === 0 && (
+                    {/* SYSTEM VIEW (New "Dropdown" Functionality) */}
+                    {sortMode === 'system' && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                             {tasksByCategory.length === 0 ? (
+                                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                    <CheckCircle className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
+                                    <p className="text-slate-500 font-medium">No maintenance scheduled.</p>
+                                </div>
+                             ) : (
+                                 tasksByCategory.map(([category, tasks]) => (
+                                     <CategoryGroup 
+                                        key={category} 
+                                        category={category} 
+                                        tasks={tasks} 
+                                        onBook={onBookService} 
+                                        onComplete={onMarkTaskDone} 
+                                     />
+                                 ))
+                             )}
+                        </div>
+                    )}
+
+                    {/* Empty State / Suggestions (Shared) */}
+                    {allActiveTasks.length === 0 && (
                         <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                             <CheckCircle className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
                             <p className="text-slate-500 font-medium">No maintenance scheduled.</p>
@@ -313,6 +415,7 @@ export const MaintenanceDashboard = ({
                     )}
                 </div>
             ) : (
+                /* HISTORY VIEW (Unchanged) */
                 <div className="space-y-4">
                      {historyItems.length === 0 ? (
                         <div className="text-center py-12">
@@ -334,7 +437,8 @@ export const MaintenanceDashboard = ({
                 </div>
             )}
 
-            {suggestedItems.length > 0 && (
+            {/* Suggestions Block (Shared) */}
+            {suggestedItems.length > 0 && viewMode === 'upcoming' && (
                 <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mt-8">
                     <button onClick={() => setShowSuggestions(!showSuggestions)} className="w-full flex justify-between items-center">
                         <h3 className="font-bold text-emerald-900 flex items-center"><Sparkles className="h-5 w-5 mr-2" /> Suggested Maintenance Items</h3>
