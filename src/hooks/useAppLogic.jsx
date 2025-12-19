@@ -144,20 +144,50 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
+    // UPDATED: Added error logging and toast feedback for silent failure
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
+            console.log('[App] Deleting history item:', historyItem);
+            
+            if (!historyItem.recordId) {
+                console.error('[App] Delete failed: History item missing recordId');
+                toast.error("Cannot delete: Item missing record ID");
+                return;
+            }
+
             const record = records.find(r => r.id === historyItem.recordId);
-            if (!record) return;
+            
+            if (!record) {
+                console.error(`[App] Delete failed: Record ${historyItem.recordId} not found in ${records.length} records`);
+                toast.error("Could not find the original record. Try refreshing.");
+                return;
+            }
+
             const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), { maintenanceHistory: newHistory });
             toast.success("History item removed", { icon: '🗑️' });
         } catch (e) { toast.error("Failed to delete: " + e.message); }
     }, [records, user]);
 
+    // UPDATED: Added error logging and toast feedback for silent failure
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
+            console.log('[App] Restoring history item:', historyItem);
+
+            if (!historyItem.recordId) {
+                console.error('[App] Restore failed: History item missing recordId');
+                toast.error("Cannot restore: Item missing record ID");
+                return;
+            }
+
             const record = records.find(r => r.id === historyItem.recordId);
-            if (!record) return;
+            
+            if (!record) {
+                console.error(`[App] Restore failed: Record ${historyItem.recordId} not found in ${records.length} records`);
+                toast.error("Could not find the original record to restore task.");
+                return;
+            }
+
             const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
             
             let updates = { maintenanceHistory: newHistory };
