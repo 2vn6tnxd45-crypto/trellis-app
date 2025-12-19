@@ -48,7 +48,9 @@ const GettingStartedDashboard = ({
     onNavigateToItems,
     // ✅ NEW PROPS ACCEPTED
     onBookService,
-    onMarkTaskDone
+    onMarkTaskDone,
+    onDeleteHistoryItem, // <-- ADDED THIS
+    onRestoreHistoryItem // <-- ADDED THIS
 }) => {
     const progress = Math.min(100, (records.length / 5) * 100);
     const remaining = 5 - records.length;
@@ -119,6 +121,8 @@ const GettingStartedDashboard = ({
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                     onNavigateToRecords={onNavigateToItems}
+                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
+                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
                 />
             </div>
 
@@ -169,7 +173,9 @@ export const ProgressiveDashboard = ({
     onCreateContractorLink,
     onNavigateToMaintenance,
     onBookService, 
-    onMarkTaskDone 
+    onMarkTaskDone,
+    onDeleteHistoryItem, // <-- ADDED THIS
+    onRestoreHistoryItem // <-- ADDED THIS
 }) => {
     const stage = useMemo(() => {
         if (!records || records.length === 0) return 'empty';
@@ -198,6 +204,8 @@ export const ProgressiveDashboard = ({
                     // ✅ PASSING PROPS DOWN
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
+                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
+                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
                 />
             );
         
@@ -217,6 +225,8 @@ export const ProgressiveDashboard = ({
                     onNavigateToMaintenance={onNavigateToMaintenance}
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
+                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
+                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
                 />
             );
     }
