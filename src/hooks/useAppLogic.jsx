@@ -124,10 +124,17 @@ export const useAppLogic = (celebrations) => {
     });
     
     try {
-            if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
-            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
-            const record = records.find(r => r.id === task.recordId);
-            if (!record) return;
+        if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
+        const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
+        const record = records.find(r => r.id === task.recordId);
+        if (!record) return;
+        
+        // ADD THIS NEW DEBUG BLOCK:
+        console.log('[DEBUG] Found record:', {
+            recordId: record.id,
+            maintenanceTasks: record.maintenanceTasks,
+            taskNamesInRecord: record.maintenanceTasks?.map(t => t.task)
+        });
             
             const completedDate = new Date().toISOString();
             const completedDateShort = completedDate.split('T')[0];
