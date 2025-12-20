@@ -144,14 +144,18 @@ export const useAppLogic = (celebrations) => {
 
             let updates = { maintenanceHistory: newHistory };
             if (task.isGranular) {
-                const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                    if (t.task === task.taskName) {
-                        return { ...t, nextDue: calculateNextDate(completedDateShort, t.frequency || 'annual') };
-                    }
-                    return t;
-                });
-                updates.maintenanceTasks = updatedTasks;
-            } else {
+    const updatedTasks = (record.maintenanceTasks || []).map(t => {
+        if (t.task === task.taskName) {
+            // Use the later of: today or current due date, as the base for next calculation
+            const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
+            const today = new Date(completedDateShort);
+            const baseDate = currentDue > today ? t.nextDue : completedDateShort;
+            return { ...t, nextDue: calculateNextDate(baseDate, t.frequency || 'annual') };
+        }
+        return t;
+    });
+    updates.maintenanceTasks = updatedTasks;
+} else {
                 updates.dateInstalled = completedDateShort; 
                 const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
                 if (nextDate) updates.nextServiceDate = nextDate;
