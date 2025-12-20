@@ -150,8 +150,49 @@ export const useAppLogic = (celebrations) => {
                 if (nextDate) updates.nextServiceDate = nextDate;
             }
             await updateDoc(recordRef, updates);
-            toast.success("Task complete! History saved.", { icon: '🎉' });
-            if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
+
+// Calculate what the next date will be for the toast message
+const nextDateStr = task.isGranular 
+    ? calculateNextDate(completedDateShort, task.frequency || 'annual')
+    : calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
+
+const formattedNextDate = nextDateStr 
+    ? new Date(nextDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'next cycle';
+
+// Store previous state for undo
+const previousState = {
+    maintenanceHistory: currentHistory,
+    maintenanceTasks: record.maintenanceTasks || [],
+    dateInstalled: record.dateInstalled,
+    nextServiceDate: record.nextServiceDate
+};
+
+// Show toast with undo option
+toast.success(
+    (t) => (
+        <div className="flex items-center gap-3">
+            <span>Done! Next: {formattedNextDate}</span>
+            <button
+                onClick={async () => {
+                    toast.dismiss(t.id);
+                    try {
+                        await updateDoc(recordRef, previousState);
+                        toast.success("Undone!", { duration: 2000 });
+                    } catch (err) {
+                        toast.error("Couldn't undo: " + err.message);
+                    }
+                }}
+                className="font-bold underline hover:no-underline"
+            >
+                Undo
+            </button>
+        </div>
+    ),
+    { duration: 6000, icon: '🎉' }
+);
+
+if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
         } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
