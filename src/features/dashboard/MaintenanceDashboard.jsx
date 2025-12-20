@@ -102,9 +102,11 @@ const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
                     </button>
                 )}
                 
-                <button onClick={() => onComplete && onComplete(task)} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm active:scale-95">
-                    <Check size={14} /> Mark Done
-                </button>
+                {task.daysUntil <= 90 && (
+    <button onClick={() => onComplete && onComplete(task)} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm active:scale-95">
+        <Check size={14} /> Mark Done
+    </button>
+)}
             </div>
         </div>
     );
