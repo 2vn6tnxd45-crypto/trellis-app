@@ -26,7 +26,7 @@ export const calculateNextDate = (startDate, frequency) => {
         '5years': 60        // current app standard
     };
     
-    const monthsToAdd = freqMap[frequency];
+    const monthsToAdd = freqMap[frequency.toLowerCase()];
     if (!monthsToAdd) return null;
     
     const nextDate = new Date(start);
