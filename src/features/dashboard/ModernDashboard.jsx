@@ -35,7 +35,7 @@ const getGreeting = () => {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
 
-// --- LOGIC HELPERS (Replicated for Summary Calculation) ---
+// --- LOGIC HELPERS ---
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
@@ -48,7 +48,7 @@ const getNextServiceDate = (record) => {
     return next;
 };
 
-// --- NEW COMPONENT: Collapsible Dashboard Section ---
+// --- UPDATED COMPONENT: DashboardSection with Enhanced Styling ---
 const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, summary = null }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -56,15 +56,20 @@ const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, su
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-all">
             <button 
                 onClick={() => setIsOpen(!isOpen)} 
-                className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                className={`w-full p-4 flex items-center justify-between transition-all duration-200 group ${
+                    isOpen 
+                        ? 'bg-slate-50/80 border-b border-slate-100' // Darker + Border when OPEN
+                        : 'bg-white hover:bg-slate-50'              // White + Hover when CLOSED
+                }`}
             >
                 <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
+                        isOpen ? 'bg-white text-emerald-600 shadow-sm' : 'bg-slate-50 text-slate-500 group-hover:bg-white group-hover:text-emerald-600'
+                    }`}>
                         <Icon size={20} />
                     </div>
                     <div className="text-left">
-                        <p className="font-bold text-slate-800">{title}</p>
-                        {/* Show summary ONLY when collapsed, or if provided as a subtitle */}
+                        <p className={`font-bold transition-colors ${isOpen ? 'text-slate-900' : 'text-slate-700'}`}>{title}</p>
                         {!isOpen && summary && (
                             <div className="flex items-center gap-2 mt-0.5 animate-in fade-in slide-in-from-left-1">
                                 {summary}
@@ -72,16 +77,20 @@ const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, su
                         )}
                     </div>
                 </div>
-                <div className={`p-2 rounded-full transition-all duration-300 ${isOpen ? 'rotate-180 bg-slate-100' : ''}`}>
-                    <ChevronDown size={20} className="text-slate-400" />
+                
+                {/* Chevron with circular background for button-feel */}
+                <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    isOpen 
+                        ? 'rotate-180 bg-slate-200 text-slate-600' 
+                        : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
+                }`}>
+                    <ChevronDown size={18} />
                 </div>
             </button>
             
             {isOpen && (
-                <div className="p-4 pt-0 border-t border-slate-100 animate-in slide-in-from-top-2 fade-in duration-300">
-                    <div className="pt-4">
-                        {children}
-                    </div>
+                <div className="p-4 animate-in slide-in-from-top-2 fade-in duration-300">
+                    {children}
                 </div>
             )}
         </div>
@@ -130,8 +139,6 @@ export const ModernDashboard = ({
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
-    
-    // Toggle state for health score
     const [showScoreDetails, setShowScoreDetails] = useState(false);
     
     const validRecords = Array.isArray(records) ? records : [];
@@ -141,8 +148,6 @@ export const ModernDashboard = ({
         return validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
     }, [validRecords]);
 
-    // --- SMART SUMMARY CALCULATION ---
-    // We calculate this here so we can show a summary badge on the collapsed header
     const maintenanceSummary = useMemo(() => {
         let overdue = 0;
         let dueSoon = 0;
@@ -152,7 +157,6 @@ export const ModernDashboard = ({
             if (!dateStr) return;
             const date = new Date(dateStr);
             if (isNaN(date.getTime())) return;
-            // Calculate days diff
             const diffTime = date - now;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
@@ -161,13 +165,11 @@ export const ModernDashboard = ({
         };
 
         validRecords.forEach(record => {
-            // Check sub-tasks if they exist
             if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
                 record.maintenanceTasks.forEach(t => {
                    if (t.frequency !== 'none') checkDate(t.nextDue);
                 });
             } else {
-                // Check main record
                 const nextDate = getNextServiceDate(record);
                 if (nextDate) checkDate(nextDate);
             }
