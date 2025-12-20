@@ -35,6 +35,7 @@ import { PedigreeReport } from './features/report/PedigreeReport';
 import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
+import { CookieConsent } from './components/common/CookieConsent'; // NEW: Import Cookie Consent
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -197,6 +198,10 @@ const AppContent = () => {
     return (
         <>
         <Toaster position="top-center" />
+        
+        {/* NEW: Cookie Consent Banner */}
+        <CookieConsent />
+
         <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
         {app.showScanner && <SmartScanner onClose={() => app.setShowScanner(false)} onProcessComplete={handleScanComplete} onAnalyze={handleAnalyzeImage} />}
         
