@@ -156,6 +156,7 @@ export const useAppLogic = (celebrations) => {
                 const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
                 if (nextDate) updates.nextServiceDate = nextDate;
             }
+        console.log('[DEBUG] About to update with:', updates);
             await updateDoc(recordRef, updates);
 
 // Calculate what the next date will be for the toast message
