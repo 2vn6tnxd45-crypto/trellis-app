@@ -130,14 +130,15 @@ export const EnhancedRecordCard = ({
     const [isExpanded, setIsExpanded] = useState(false);
     
     // Safety check for tasks array
-    // CRITICAL FIX: Attach recordId to each task so handlers can find the parent record
+    // CRITICAL FIX: Attach recordId and isGranular to each task so handlers work correctly
     const tasks = (record.maintenanceTasks || []).map(t => ({
         ...t,
         recordId: record.id,
         taskName: t.task || t.taskName, // normalize task name field
         frequency: t.frequency || 'annual',
         nextDue: t.nextDue,
-        daysUntil: t.nextDue ? Math.ceil((new Date(t.nextDue) - new Date()) / (1000 * 60 * 60 * 24)) : null
+        daysUntil: t.nextDue ? Math.ceil((new Date(t.nextDue) - new Date()) / (1000 * 60 * 60 * 24)) : null,
+        isGranular: true // CRITICAL: This tells handleMarkTaskDone to update the task's nextDue date
     }));
     
     const overdueCount = tasks.filter(t => (t.daysUntil || 0) < 0).length;
@@ -288,7 +289,7 @@ export const EnhancedRecordCard = ({
                             <Edit2 size={14} /> Edit Details
                         </button>
                         <button 
-                            onClick={(e) => { e.stopPropagation(); onDeleteRecord(record); }}
+                            onClick={(e) => { e.stopPropagation(); onDeleteRecord(record.id); }}
                             className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors"
                         >
                             <Trash2 size={14} />
