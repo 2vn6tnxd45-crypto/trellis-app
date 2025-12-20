@@ -112,7 +112,18 @@ export const useAppLogic = (celebrations) => {
     }; 
 
     const handleMarkTaskDone = useCallback(async (task, notes = '') => {
-        try {
+    // DIAGNOSTIC: Remove after debugging
+    console.log('[DEBUG] handleMarkTaskDone called with:', {
+        task,
+        recordId: task.recordId,
+        taskName: task.taskName,
+        isGranular: task.isGranular,
+        frequency: task.frequency,
+        nextDue: task.nextDue,
+        daysUntil: task.daysUntil
+    });
+    
+    try {
             if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
