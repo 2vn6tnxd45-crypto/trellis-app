@@ -12,6 +12,7 @@ import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MaintenanceDashboard } from './MaintenanceDashboard'; 
+import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
@@ -34,7 +35,60 @@ const getGreeting = () => {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
 
-// HealthScoreCard with Close Option
+// --- LOGIC HELPERS (Replicated for Summary Calculation) ---
+const getNextServiceDate = (record) => {
+    if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
+    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
+    if (!freq || freq.months === 0) return null;
+    const installed = new Date(record.dateInstalled);
+    const next = new Date(installed);
+    next.setMonth(next.getMonth() + freq.months);
+    const now = new Date();
+    while (next < now) next.setMonth(next.getMonth() + freq.months);
+    return next;
+};
+
+// --- NEW COMPONENT: Collapsible Dashboard Section ---
+const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, summary = null }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-all">
+            <button 
+                onClick={() => setIsOpen(!isOpen)} 
+                className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-600">
+                        <Icon size={20} />
+                    </div>
+                    <div className="text-left">
+                        <p className="font-bold text-slate-800">{title}</p>
+                        {/* Show summary ONLY when collapsed, or if provided as a subtitle */}
+                        {!isOpen && summary && (
+                            <div className="flex items-center gap-2 mt-0.5 animate-in fade-in slide-in-from-left-1">
+                                {summary}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className={`p-2 rounded-full transition-all duration-300 ${isOpen ? 'rotate-180 bg-slate-100' : ''}`}>
+                    <ChevronDown size={20} className="text-slate-400" />
+                </div>
+            </button>
+            
+            {isOpen && (
+                <div className="p-4 pt-0 border-t border-slate-100 animate-in slide-in-from-top-2 fade-in duration-300">
+                    <div className="pt-4">
+                        {children}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- SUB-COMPONENTS (Unchanged) ---
 const HealthScoreCard = ({ breakdown, score, onClose }) => (
     <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
         <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
@@ -63,27 +117,19 @@ const HealthScoreCard = ({ breakdown, score, onClose }) => (
 const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default' }) => (
     <button onClick={onClick} className={`flex items-center gap-3 w-full p-3 rounded-2xl border transition-all group hover:shadow-md active:scale-[0.98] ${variant === 'primary' ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 hover:border-slate-300 text-slate-600'}`}>
         <div className={`p-2.5 rounded-xl transition-transform duration-200 group-hover:scale-110 ${variant === 'primary' ? 'bg-emerald-100' : 'bg-slate-100'}`}><Icon size={22} /></div>
-        <div><p className="font-bold text-sm">{label}</p>{sublabel && <p className="text-xs opacity-70 font-medium">{sublabel}</p>}</div>
+        <div><p className="font-bold text-sm text-left">{label}</p>{sublabel && <p className="text-xs opacity-70 font-medium text-left">{sublabel}</p>}</div>
     </button>
-);
-
-const SectionHeader = ({ title, action, actionLabel }) => (
-    <div className="flex items-center justify-between mb-4 mt-8 first:mt-0">
-        <h2 className="text-lg font-bold text-slate-800">{title}</h2>
-        {action && <button onClick={action} className="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors">{actionLabel} <ChevronRight size={16} /></button>}
-    </div>
 );
 
 export const ModernDashboard = ({
     records = [], contractors = [], activeProperty, onScanReceipt, onAddRecord,
     onNavigateToItems, onNavigateToContractors, onNavigateToReports, onCreateContractorLink,
     onNavigateToMaintenance, onBookService, onMarkTaskDone,
-    onDeleteHistoryItem, // <-- ADDED THIS
-    onRestoreHistoryItem // <-- ADDED THIS
+    onDeleteHistoryItem, 
+    onRestoreHistoryItem 
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
-    const [showFullInsights, setShowFullInsights] = useState(false);
     
     // Toggle state for health score
     const [showScoreDetails, setShowScoreDetails] = useState(false);
@@ -95,15 +141,52 @@ export const ModernDashboard = ({
         return validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
     }, [validRecords]);
 
+    // --- SMART SUMMARY CALCULATION ---
+    // We calculate this here so we can show a summary badge on the collapsed header
+    const maintenanceSummary = useMemo(() => {
+        let overdue = 0;
+        let dueSoon = 0;
+        const now = new Date();
+
+        const checkDate = (dateStr) => {
+            if (!dateStr) return;
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return;
+            // Calculate days diff
+            const diffTime = date - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 0) overdue++;
+            else if (diffDays <= 30) dueSoon++;
+        };
+
+        validRecords.forEach(record => {
+            // Check sub-tasks if they exist
+            if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
+                record.maintenanceTasks.forEach(t => {
+                   if (t.frequency !== 'none') checkDate(t.nextDue);
+                });
+            } else {
+                // Check main record
+                const nextDate = getNextServiceDate(record);
+                if (nextDate) checkDate(nextDate);
+            }
+        });
+
+        if (overdue > 0) return <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={10} /> {overdue} Needs Attention</span>;
+        if (dueSoon > 0) return <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> {dueSoon} Due Soon</span>;
+        return <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> All Caught Up</span>;
+    }, [validRecords]);
+
     return (
-        <div className="space-y-8 pb-8">
-            <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20">
+        <div className="space-y-6 pb-8">
+            {/* HERO SECTION (Always Visible) */}
+            <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
                 <div className="relative p-8 text-white flex flex-col items-center text-center">
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
                     <h1 className="text-3xl font-extrabold tracking-tight mb-2">{activeProperty?.name || 'My Home'}</h1>
                     
-                    {/* NEW: Address Display */}
                     {activeProperty?.address && (
                         <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 mb-6 animate-in fade-in zoom-in-95 duration-500">
                             <MapPin size={14} className="text-white/80" />
@@ -129,7 +212,6 @@ export const ModernDashboard = ({
                         </div>
                         <p className="text-[10px] font-bold text-white/60 uppercase tracking-wider mt-2">Health Score</p>
                         
-                        {/* Popup Card */}
                         {showScoreDetails && (
                             <HealthScoreCard 
                                 breakdown={healthData?.breakdown || {profile: 0, maintenance: 0}} 
@@ -147,42 +229,46 @@ export const ModernDashboard = ({
                 </div>
             </div>
             
-            {/* Maintenance Schedule (Using the Unified Component) */}
-            <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                    <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
-                </div>
-                {/* This component contains the logic for rendering the 
-                   Call / Text / Email buttons for contractors.
-                */}
-                <MaintenanceDashboard 
-                    records={records}
-                    onAddRecord={onAddRecord}
-                    onBookService={onBookService}
-                    onMarkTaskDone={onMarkTaskDone}
-                    onNavigateToRecords={onNavigateToItems}
-                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
-                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
-                />
-            </div>
-            
-            <div className="space-y-4">
-                <SectionHeader title="Quick Actions" />
+            {/* 1. QUICK ACTIONS SECTION */}
+            <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
                 <div className="grid grid-cols-2 gap-3">
                     <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
                     <ActionButton icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
                     <ActionButton icon={FileText} label="View Report" sublabel="Home pedigree" onClick={onNavigateToReports} />
                     <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
                 </div>
-            </div>
+            </DashboardSection>
 
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <button onClick={() => setShowFullInsights(!showFullInsights)} className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center gap-3"><div className="h-10 w-10 bg-blue-50 rounded-xl flex items-center justify-center"><Info size={20} className="text-blue-600" /></div><div className="text-left"><p className="font-bold text-slate-800">Local Insights</p><p className="text-xs text-slate-500">{showFullInsights ? 'Tap to hide details' : 'Environmental, County & Risk Data'}</p></div></div>
-                    <div className={`p-2 bg-slate-100 rounded-full transition-transform duration-300 ${showFullInsights ? 'rotate-180' : ''}`}><ChevronDown size={20} className="text-slate-500" /></div>
-                </button>
-                {showFullInsights && <div className="p-4 pt-0 border-t border-slate-100 mt-2 animate-in slide-in-from-top-2 fade-in"><div className="space-y-8 pt-6"><EnvironmentalInsights propertyProfile={activeProperty} /><CountyData propertyProfile={activeProperty} /></div></div>}
-            </div>
+            {/* 2. MAINTENANCE SCHEDULE SECTION */}
+            <DashboardSection 
+                title="Maintenance Schedule" 
+                icon={Calendar} 
+                defaultOpen={true}
+                summary={maintenanceSummary}
+            >
+                <MaintenanceDashboard 
+                    records={records}
+                    onAddRecord={onAddRecord}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onNavigateToRecords={onNavigateToItems}
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                />
+            </DashboardSection>
+
+            {/* 3. LOCAL INSIGHTS SECTION */}
+            <DashboardSection 
+                title="Local Insights" 
+                icon={Info} 
+                defaultOpen={false}
+                summary={<span className="text-xs text-slate-400 font-medium">Environmental, County & Risk Data</span>}
+            >
+                <div className="space-y-8">
+                    <EnvironmentalInsights propertyProfile={activeProperty} />
+                    <CountyData propertyProfile={activeProperty} />
+                </div>
+            </DashboardSection>
         </div>
     );
 };
