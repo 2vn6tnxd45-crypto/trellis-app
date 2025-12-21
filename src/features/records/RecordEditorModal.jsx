@@ -81,16 +81,14 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
                      maintenanceFrequency: item.maintenanceFrequency || 'none', nextServiceDate: nextDate, 
                      maintenanceTasks: item.maintenanceTasks || [], 
                      
-                     // === FIX: ROBUST FALLBACK CHAIN ===
-                     // 1. Item-specific (rarely exists for phone)
-                     // 2. newRecord (if user just typed it in)
-                     // 3. editingRecord (the original scan data - CRITICAL FALLBACK)
-                     contractor: item.contractor || newRecord.contractor || editingRecord.contractor || '',
-                     contractorPhone: newRecord.contractorPhone || editingRecord.contractorPhone || '',
-                     contractorEmail: newRecord.contractorEmail || editingRecord.contractorEmail || '',
-                     contractorAddress: newRecord.contractorAddress || editingRecord.contractorAddress || '',
-                     warranty: item.warranty || newRecord.warranty || editingRecord.warranty || '',
-                     // ===================================
+                     // === FIX: SAFE NAVIGATION (?. prop) ===
+                     // We now use ?. to safely access properties even if editingRecord is null
+                     contractor: item.contractor || newRecord?.contractor || editingRecord?.contractor || '',
+                     contractorPhone: newRecord?.contractorPhone || editingRecord?.contractorPhone || '',
+                     contractorEmail: newRecord?.contractorEmail || editingRecord?.contractorEmail || '',
+                     contractorAddress: newRecord?.contractorAddress || editingRecord?.contractorAddress || '',
+                     warranty: item.warranty || newRecord?.warranty || editingRecord?.warranty || '',
+                     // =======================================
 
                      imageUrl: sharedImageUrl || '', attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
                      timestamp: serverTimestamp() 
