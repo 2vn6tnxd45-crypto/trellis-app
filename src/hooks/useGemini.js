@@ -29,46 +29,59 @@ export const useGemini = () => {
     // --- NEW HELPER: Match AI guess to Constants ---
     // Smart room matching with item-based inference as fallback
 const findBestRoomMatch = (guess, itemName = '', category = '') => {
+    // ===== DEBUG =====
+    console.log(`🔍 findBestRoomMatch called:`, { guess, itemName, category });
+    // ===== END DEBUG =====
+    
     // First, try to match the AI's guess
     if (guess && guess.toLowerCase() !== 'general') {
         const lowerGuess = guess.toLowerCase();
         const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
-        if (exact) return exact;
+        if (exact) {
+            console.log(`   ✅ Exact match: "${exact}"`);
+            return exact;
+        }
         const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
-        if (partial) return partial;
-        // If AI returned something not in our list, trust it as custom
-        if (guess.trim()) return guess;
+        if (partial) {
+            console.log(`   ✅ Partial match: "${partial}"`);
+            return partial;
+        }
+        if (guess.trim()) {
+            console.log(`   ⚠️ No match, using AI guess as custom: "${guess}"`);
+            return guess;
+        }
     }
     
-    // Fallback: infer from item name or category if AI didn't provide good answer
+    // Fallback: infer from item name or category
     const searchText = `${itemName} ${category}`.toLowerCase();
+    console.log(`   🔎 Fallback search text: "${searchText}"`);
     
-    // Kitchen items
     if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal|kitchen/.test(searchText)) {
+        console.log(`   ✅ Inferred: Kitchen`);
         return 'Kitchen';
     }
-    // Bathroom items  
     if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
+        console.log(`   ✅ Inferred: Bathroom`);
         return 'Bathroom';
     }
-    // Laundry items
     if (/washer|dryer|laundry/.test(searchText)) {
+        console.log(`   ✅ Inferred: Laundry Room`);
         return 'Laundry Room';
     }
-    // Garage items
     if (/water heater|garage door|opener|water softener/.test(searchText)) {
+        console.log(`   ✅ Inferred: Garage`);
         return 'Garage';
     }
-    // Attic items
     if (/air handler|furnace|attic/.test(searchText)) {
+        console.log(`   ✅ Inferred: Attic`);
         return 'Attic';
     }
-    // Exterior items
     if (/condenser|heat pump|compressor|pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
+        console.log(`   ✅ Inferred: Exterior`);
         return 'Exterior';
     }
     
-    // If we get here and AI said "General", keep it
+    console.log(`   ❌ No inference possible, returning: "${guess || 'General'}"`);
     return guess || 'General';
 };
 
@@ -203,12 +216,20 @@ const findBestRoomMatch = (guess, itemName = '', category = '') => {
             const text = result.response.text().replace(/```json|```/g, '').trim();
             
             let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                console.error("JSON Parse Error:", text);
-                return null;
-            }
+try {
+    data = JSON.parse(text);
+} catch (e) {
+    console.error("JSON Parse Error:", text);
+    return null;
+}
+
+// ===== DEBUG: Log raw AI response =====
+console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
+console.log("📍 AI returned these areas for items:");
+data.items?.forEach((item, i) => {
+    console.log(`   Item ${i + 1}: "${item.item}" → area: "${item.area}"`);
+});
+// ===== END DEBUG =====
             
             // Validate Structure
             if (!Array.isArray(data.items)) data.items = [];
