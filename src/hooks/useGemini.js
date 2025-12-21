@@ -157,29 +157,47 @@ export const useGemini = () => {
                    - Example: If HVAC, suggest "Replace Filter" (quarterly) AND "Professional Tune-up" (annual).
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
-                6. **EXTRACT INSTALLATION LOCATION**:
-                   - **STEP 1 - SEARCH FOR EXPLICIT LOCATIONS**: Carefully read the ENTIRE invoice text for phrases that indicate WHERE the item was installed. Look for:
-                     - "in attic", "in garage", "in basement", "in crawlspace"
-                     - "side of house", "backyard", "front yard", "exterior"
-                     - "master bedroom", "master bathroom", "kitchen", "laundry room"
-                     - "relocated to...", "installed in...", "moved to..."
-                     - Any room name mentioned near the item description
-                   - **STEP 2 - MAP TO CLOSEST OPTION**: Match what you find to the closest option from: ${roomsStr}
-                     - "in attic" -> "Attic"
-                     - "side of house", "backyard", "exterior", "outside" -> "Exterior"  
-                     - "garage" -> "Garage"
-                     - "basement" -> "Basement"
-                     - "laundry" -> "Laundry Room"
-                     - "master bath" -> "Master Bathroom"
-                     - "kitchen" -> "Kitchen"
-                   - **STEP 3 - SMART INFERENCE (only if no location mentioned)**: If NO location is explicitly stated, infer based on item type:
-                     - HVAC outdoor units (condenser, heat pump) -> "Exterior"
-                     - HVAC indoor units (air handler, furnace) -> Check document, often "Attic" or "Garage"
-                     - Water heaters -> "Garage" (most common) or "Utility Room"
-                     - Dishwashers, refrigerators, ovens -> "Kitchen"
-                     - Washers, dryers -> "Laundry Room"
-                     - Toilets, vanities, showers -> "Bathroom"
-                   - **IMPORTANT**: Do NOT default to "General" if you can find or reasonably infer a location. "General" should only be used for whole-house items like "Roof" or when truly ambiguous.
+                6. **EXTRACT INSTALLATION LOCATION (CRITICAL)**:
+   - **ABSOLUTE PRIORITY: READ THE INVOICE TEXT FIRST**
+   - Search for EXPLICIT location phrases ANYWHERE in the invoice, especially in:
+     - Service description lines (e.g., "Install heat pump in attic")
+     - Line item descriptions
+     - Notes or comments sections
+   
+   - **LOCATION KEYWORDS TO SEARCH FOR**:
+     - "in attic", "attic install", "relocate to attic", "attic unit" → "Attic"
+     - "in garage", "garage install" → "Garage"
+     - "side of house", "exterior", "outside", "outdoor unit", "backyard" → "Exterior"
+     - "basement", "crawlspace" → "Basement"
+     - "laundry room", "utility room" → "Laundry Room"
+     - "master bath", "master bathroom" → "Master Bathroom"
+     - "kitchen" → "Kitchen"
+   
+   - **HVAC-SPECIFIC RULES**:
+     - If the invoice says "heat pump system in attic" or "heat pump installed in attic":
+       → The HEAT PUMP item should be "Attic" (NOT Exterior!)
+     - If there's a SEPARATE line for "condenser" or "outdoor unit" being installed outside:
+       → That specific item (if you create it) should be "Exterior"
+     - **Air Handlers** are almost always indoor units → default to "Attic" or "Garage"
+     - **Heat Pump** refers to the SYSTEM, not just the outdoor unit. If invoice says "heat pump in attic", use "Attic"
+   
+   - **CONTEXT MATTERS**: A "Heat Pump System" installed "in attic" means the main unit is in the attic, 
+     even though the outdoor condenser is outside. The SYSTEM location should be where the main work was done.
+   
+   - **ONLY USE INFERENCE** if NO explicit location is mentioned in the invoice:
+     - Generic "HVAC condenser" with no location → "Exterior"
+     - Generic "Air Handler" with no location → "Attic"
+     - Generic "Water Heater" with no location → "Garage"
+   
+   - **NEVER default to "General"** if you can determine or infer a location.
+
+   EXAMPLE:
+   Invoice text: "Installation of 4 ton Heat-pump system in attic"
+   Items to create:
+   - Air Handler → area: "Attic" (explicit from "in attic")
+   - Heat Pump → area: "Attic" (explicit from "heat-pump system in attic")
+   
+   WRONG: Setting Heat Pump to "Exterior" when invoice says "in attic"
 
                 7. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
