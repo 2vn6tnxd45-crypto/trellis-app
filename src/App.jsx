@@ -201,18 +201,42 @@ const AppContent = () => {
     };
 
     const handleScanComplete = async (extractedData) => {
-        app.setShowScanner(false);
-        const validAttachments = extractedData.attachments || [];
-        if (extractedData.items && extractedData.items.length > 1) {
-            app.setEditingRecord({ multipleItems: extractedData.items, defaultDate: extractedData.date, defaultContractor: extractedData.store, attachments: validAttachments, contractorPhone: extractedData.contractorPhone, contractorEmail: extractedData.contractorEmail, contractorAddress: extractedData.contractorAddress });
-        } else {
-            const singleItem = extractedData.items?.[0] || {};
-            const maint = processMaintenance(singleItem.maintenanceFrequency || 'annual', extractedData.date);
-            app.setEditingRecord({ item: singleItem.item || extractedData.item || '', category: singleItem.category || extractedData.category || 'Other', brand: singleItem.brand || extractedData.brand || '', model: singleItem.model || extractedData.model || '', cost: singleItem.cost || extractedData.cost || '', dateInstalled: extractedData.date || new Date().toISOString().split('T')[0], maintenanceFrequency: maint.frequency, nextServiceDate: maint.nextDate, notes: singleItem.notes || '', maintenanceTasks: singleItem.maintenanceTasks || [], contractor: extractedData.store || '', contractorPhone: extractedData.contractorPhone, contractorEmail: extractedData.contractorEmail, contractorAddress: extractedData.contractorAddress, warranty: extractedData.warranty || '', attachments: validAttachments });
-            toast.success(`Maintenance schedule created for ${extractedData.store || 'contractor'}`, { icon: '🤝' });
-        }
-        app.setIsAddModalOpen(true);
-    };
+    app.setShowScanner(false);
+    const validAttachments = extractedData.attachments || [];
+    
+    // UPDATED: Route ALL scans (1+ items) to batch view
+    if (extractedData.items && extractedData.items.length >= 1) {
+        app.setEditingRecord({ 
+            isBatch: true,                              // ✅ ADD: Flag for batch mode
+            items: extractedData.items,                 // ✅ RENAMED: from 'multipleItems' to 'items'
+            defaultDate: extractedData.date, 
+            defaultContractor: extractedData.store, 
+            attachments: validAttachments, 
+            contractorPhone: extractedData.contractorPhone, 
+            contractorEmail: extractedData.contractorEmail, 
+            contractorAddress: extractedData.contractorAddress,
+            warranty: extractedData.warranty || ''
+        });
+    } else {
+        // Fallback for scans with 0 items (edge case)
+        app.setEditingRecord({ 
+            item: extractedData.item || '', 
+            category: extractedData.category || 'Other', 
+            brand: extractedData.brand || '', 
+            model: extractedData.model || '', 
+            cost: extractedData.cost || '', 
+            dateInstalled: extractedData.date || new Date().toISOString().split('T')[0], 
+            maintenanceFrequency: 'annual', 
+            contractor: extractedData.store || '', 
+            contractorPhone: extractedData.contractorPhone, 
+            contractorEmail: extractedData.contractorEmail, 
+            contractorAddress: extractedData.contractorAddress, 
+            warranty: extractedData.warranty || '', 
+            attachments: validAttachments 
+        });
+    }
+    app.setIsAddModalOpen(true);
+};
 
     const handleSaveSuccess = () => {
         const prevCount = app.records.length;
