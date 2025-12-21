@@ -307,21 +307,40 @@ const findBestRoomMatch = (aiGuess, itemName = '', category = '', invoiceContext
             ]);
             
             const text = result.response.text().replace(/```json|```/g, '').trim();
-            
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                console.error("JSON Parse Error:", text);
-                return null;
-            }
 
-            // ===== DEBUG: Log raw AI response =====
-            console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
-            console.log("📍 AI returned these areas for items:");
-            data.items?.forEach((item, i) => {
-                console.log(`   Item ${i + 1}: "${item.item}" → area: "${item.area}"`);
-            });
+let data;
+try {
+    data = JSON.parse(text);
+} catch (e) {
+    console.error("JSON Parse Error:", text);
+    return null;
+}
+
+// ===== DEBUG: Log raw AI response =====
+console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
+
+// ===== ADD THIS BLOCK HERE =====
+// Post-process item locations with full context from the job description
+if (data.items && data.items.length > 0) {
+    data.items = data.items.map(item => {
+        const resolvedArea = findBestRoomMatch(
+            item.area,                          // AI's guess
+            item.item,                          // Item name (e.g., "Heat Pump")
+            item.category || '',                // Category
+            data.primaryJobDescription || ''    // THIS is the context - e.g., "Installation of 4 ton Heat-pump system in attic"
+        );
+        
+        if (item.area !== resolvedArea) {
+            console.log(`📍 LOCATION CORRECTED: "${item.item}" from "${item.area}" → "${resolvedArea}"`);
+        }
+        
+        return { ...item, area: resolvedArea };
+    });
+}
+// ===== END OF ADDED BLOCK =====
+
+// Continue with existing code...
+console.log("📍 AI returned these areas for items:");
             // ===== END DEBUG =====
             
             // Validate Structure
