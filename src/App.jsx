@@ -31,6 +31,7 @@ import { WelcomeScreen } from './features/onboarding/WelcomeScreen';
 import { GuidedOnboarding } from './features/onboarding/GuidedOnboarding';
 import { EnhancedRecordCard } from './features/records/EnhancedRecordCard';
 import { RecordCard } from './features/records/RecordCard';
+import { DeleteConfirmModal } from './components/common/DeleteConfirmModal';
 import { PedigreeReport } from './features/report/PedigreeReport';
 import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
@@ -45,6 +46,14 @@ class ErrorBoundary extends React.Component {
 
 const AppContent = () => {
     const celebrations = useCelebrations();
+  // Delete confirmation state
+const [deleteConfirmState, setDeleteConfirmState] = React.useState({
+    isOpen: false,
+    itemId: null,
+    itemName: '',
+    isBatch: false,
+    isLoading: false
+});
     const { scanReceipt } = useGemini();
     
     // Use the Logic Hook
@@ -72,14 +81,55 @@ const AppContent = () => {
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
     const toggleRecordSelection = (id) => { const newSet = new Set(app.selectedRecords); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); app.setSelectedRecords(newSet); };
     
-    const handleBatchDelete = async () => { 
-        if (app.selectedRecords.size === 0 || !confirm("Delete items?")) return; 
-        const batch = writeBatch(db); 
-        app.selectedRecords.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', id))); 
-        try { await batch.commit(); toast.success("Deleted"); app.setSelectedRecords(new Set()); app.setIsSelectionMode(false); } catch (e) { toast.error("Failed"); } 
-    };
+    const handleBatchDelete = () => { 
+    if (app.selectedRecords.size === 0) return;
+    setDeleteConfirmState({
+        isOpen: true,
+        itemId: null,
+        itemName: '',
+        isBatch: true,
+        isLoading: false
+    });
+};
 
-    const handleDeleteRecord = async (id) => deleteDoc(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', id));
+const confirmBatchDelete = async () => {
+    setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
+    const batch = writeBatch(db); 
+    app.selectedRecords.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', id))); 
+    try { 
+        await batch.commit(); 
+        toast.success(`Deleted ${app.selectedRecords.size} items`); 
+        app.setSelectedRecords(new Set()); 
+        app.setIsSelectionMode(false);
+        setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
+    } catch (e) { 
+        toast.error("Failed to delete items"); 
+        setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
+    } 
+};
+
+    const handleDeleteRecord = (id, itemName = 'this item') => {
+    setDeleteConfirmState({
+        isOpen: true,
+        itemId: id,
+        itemName: itemName,
+        isBatch: false,
+        isLoading: false
+    });
+};
+
+const confirmSingleDelete = async () => {
+    if (!deleteConfirmState.itemId) return;
+    setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
+    try {
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', deleteConfirmState.itemId));
+        toast.success("Item deleted");
+        setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
+    } catch (e) {
+        toast.error("Failed to delete item");
+        setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
+    }
+};
     
     const handleRequestImport = (req) => { app.setEditingRecord({...req, id: null, originalRequestId: req.id}); app.setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { app.setEditingRecord(rec); app.setIsAddModalOpen(true); };
@@ -338,7 +388,7 @@ const AppContent = () => {
                                                     {app.useEnhancedCards ? (
                                                         <EnhancedRecordCard 
                                                             record={r} 
-                                                            onDeleteRecord={handleDeleteRecord} 
+                                                            onDeleteRecord={(id) => handleDeleteRecord(id, r.item || r.name || 'this item')} 
                                                             onEditRecord={openAddModal} 
                                                             onAddTask={handleAddTask}
                                                             onEditTask={handleEditTask}
@@ -348,7 +398,7 @@ const AppContent = () => {
                                                     ) : (
                                                         <RecordCard 
                                                             record={r} 
-                                                            onDeleteClick={handleDeleteRecord} 
+                                                            onDeleteClick={(id) => handleDeleteRecord(id, r.item || r.name || 'this item')} 
                                                             onEditClick={openAddModal} 
                                                         />
                                                     )}
@@ -438,5 +488,15 @@ const AppContent = () => {
     );
 };
 
-const App = () => <ErrorBoundary><AppContent /></ErrorBoundary>;
+const App = () => <ErrorBoundary><AppContent />
+{/* Delete Confirmation Modal */}
+<DeleteConfirmModal
+    isOpen={deleteConfirmState.isOpen}
+    onClose={() => setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false })}
+    onConfirm={deleteConfirmState.isBatch ? confirmBatchDelete : confirmSingleDelete}
+    title={`Delete "${deleteConfirmState.itemName}"?`}
+    message="This item and all its maintenance history will be permanently removed."
+    itemCount={deleteConfirmState.isBatch ? app.selectedRecords.size : 1}
+    isLoading={deleteConfirmState.isLoading}
+/></ErrorBoundary>;
 export default App;
