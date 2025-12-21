@@ -120,35 +120,41 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     };
 
     const handleSaveAll = async () => {
-        setIsSaving(true);
-        const savingToast = toast.loading(`Saving ${scannedItems.length} items...`);
-        try {
-            const finalItems = scannedItems.map(item => ({
-                ...item,
-                dateInstalled: globalDate || item.dateInstalled,
-                contractor: globalStore || item.contractor,
-                area: item.area || globalArea,
-                category: item.category || globalCategory
-            }));
-            
-            await onBatchSave(finalItems, currentFile);
-            
-            setScannedItems([]);
-            setScannedImagePreview(null);
-            setCurrentFile(null);
-            setGlobalCategory("");
-            setGlobalStore("");
-            setGlobalArea("General");
-            
-            toast.dismiss(savingToast);
-        } catch (e) {
-            console.error("SmartScan Save Error:", e);
-            toast.dismiss(savingToast);
-            toast.error("Failed to save items.");
-        } finally {
-            setIsSaving(false);
-        }
-    };
+    setIsSaving(true);
+    const savingToast = toast.loading(`Saving ${scannedItems.length} items...`);
+    try {
+        const finalItems = scannedItems.map(item => ({
+            ...item,
+            dateInstalled: globalDate || item.dateInstalled,
+            contractor: globalStore || item.contractor,
+            area: item.area || globalArea,
+            category: item.category || globalCategory,
+            // ============ PROPAGATE CONTRACTOR INFO TO EACH ITEM ============
+            contractorPhone: item.contractorPhone || '',
+            contractorEmail: item.contractorEmail || '',
+            contractorAddress: item.contractorAddress || '',
+            warranty: item.warranty || '',
+            // ================================================================
+        }));
+        
+        await onBatchSave(finalItems, currentFile);
+        
+        setScannedItems([]);
+        setScannedImagePreview(null);
+        setCurrentFile(null);
+        setGlobalCategory("");
+        setGlobalStore("");
+        setGlobalArea("General");
+        
+        toast.dismiss(savingToast);
+    } catch (e) {
+        console.error("SmartScan Save Error:", e);
+        toast.dismiss(savingToast);
+        toast.error("Failed to save items.");
+    } finally {
+        setIsSaving(false);
+    }
+};
 
     const updateItem = (index, field, val) => {
         const newItems = [...scannedItems];
