@@ -28,62 +28,74 @@ export const useGemini = () => {
 
     // --- NEW HELPER: Match AI guess to Constants ---
     // Smart room matching with item-based inference as fallback
-const findBestRoomMatch = (guess, itemName = '', category = '') => {
-    // ===== DEBUG =====
-    console.log(`🔍 findBestRoomMatch called:`, { guess, itemName, category });
-    // ===== END DEBUG =====
-    
-    // First, try to match the AI's guess
-    if (guess && guess.toLowerCase() !== 'general') {
-        const lowerGuess = guess.toLowerCase();
-        const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
-        if (exact) {
-            console.log(`   ✅ Exact match: "${exact}"`);
-            return exact;
+    const findBestRoomMatch = (guess, itemName = '', category = '') => {
+        // ===== DEBUG =====
+        console.log(`🔍 findBestRoomMatch called:`, { guess, itemName, category });
+        // ===== END DEBUG =====
+        
+        // First, try to match the AI's guess
+        if (guess && guess.toLowerCase() !== 'general') {
+            const lowerGuess = guess.toLowerCase();
+            const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
+            if (exact) {
+                console.log(`   ✅ Exact match: "${exact}"`);
+                return exact;
+            }
+            const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
+            if (partial) {
+                console.log(`   ✅ Partial match: "${partial}"`);
+                return partial;
+            }
+            if (guess.trim()) {
+                console.log(`   ⚠️ No match, using AI guess as custom: "${guess}"`);
+                return guess;
+            }
         }
-        const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
-        if (partial) {
-            console.log(`   ✅ Partial match: "${partial}"`);
-            return partial;
+        
+        // Fallback: infer from item name or category
+        const searchText = `${itemName} ${category}`.toLowerCase();
+        console.log(`   🔎 Fallback search text: "${searchText}"`);
+        
+        if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal|kitchen/.test(searchText)) {
+            console.log(`   ✅ Inferred: Kitchen`);
+            return 'Kitchen';
         }
-        if (guess.trim()) {
-            console.log(`   ⚠️ No match, using AI guess as custom: "${guess}"`);
-            return guess;
+        if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
+            console.log(`   ✅ Inferred: Bathroom`);
+            return 'Bathroom';
         }
-    }
-    
-    // Fallback: infer from item name or category
-    const searchText = `${itemName} ${category}`.toLowerCase();
-    console.log(`   🔎 Fallback search text: "${searchText}"`);
-    
-    if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal|kitchen/.test(searchText)) {
-        console.log(`   ✅ Inferred: Kitchen`);
-        return 'Kitchen';
-    }
-    if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
-        console.log(`   ✅ Inferred: Bathroom`);
-        return 'Bathroom';
-    }
-    if (/washer|dryer|laundry/.test(searchText)) {
-        console.log(`   ✅ Inferred: Laundry Room`);
-        return 'Laundry Room';
-    }
-    if (/water heater|garage door|opener|water softener/.test(searchText)) {
-        console.log(`   ✅ Inferred: Garage`);
-        return 'Garage';
-    }
-    if (/air handler|furnace|attic/.test(searchText)) {
-        console.log(`   ✅ Inferred: Attic`);
-        return 'Attic';
-    }
-    if (/condenser|heat pump|compressor|pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
-        console.log(`   ✅ Inferred: Exterior`);
-        return 'Exterior';
-    }
-    
-    console.log(`   ❌ No inference possible, returning: "${guess || 'General'}"`);
-    return guess || 'General';
-};
+        if (/washer|dryer|laundry/.test(searchText)) {
+            console.log(`   ✅ Inferred: Laundry Room`);
+            return 'Laundry Room';
+        }
+        if (/water heater|garage door|opener|water softener/.test(searchText)) {
+            console.log(`   ✅ Inferred: Garage`);
+            return 'Garage';
+        }
+        if (/air handler|furnace|attic/.test(searchText)) {
+            console.log(`   ✅ Inferred: Attic`);
+            return 'Attic';
+        }
+        if (/condenser|heat pump|compressor|pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
+            console.log(`   ✅ Inferred: Exterior`);
+            return 'Exterior';
+        }
+        
+        console.log(`   ❌ No inference possible, returning: "${guess || 'General'}"`);
+        return guess || 'General';
+    };
+
+    // --- NEW: Bulletproof Address Check Helper ---
+    const isSameAddress = (vendorAddr, userStreet) => {
+        if (!vendorAddr || !userStreet) return false;
+        // Normalize: remove spaces, punctuation, make lowercase
+        const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const v = normalize(vendorAddr);
+        const u = normalize(userStreet);
+        // If the normalized vendor address contains the normalized user street, it's a match.
+        return v.includes(u);
+    };
+    // ---------------------------------------------
 
     // --- UPDATED SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
@@ -216,43 +228,51 @@ const findBestRoomMatch = (guess, itemName = '', category = '') => {
             const text = result.response.text().replace(/```json|```/g, '').trim();
             
             let data;
-try {
-    data = JSON.parse(text);
-} catch (e) {
-    console.error("JSON Parse Error:", text);
-    return null;
-}
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("JSON Parse Error:", text);
+                return null;
+            }
 
-// ===== DEBUG: Log raw AI response =====
-console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
-console.log("📍 AI returned these areas for items:");
-data.items?.forEach((item, i) => {
-    console.log(`   Item ${i + 1}: "${item.item}" → area: "${item.area}"`);
-});
-// ===== END DEBUG =====
+            // ===== DEBUG: Log raw AI response =====
+            console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
+            console.log("📍 AI returned these areas for items:");
+            data.items?.forEach((item, i) => {
+                console.log(`   Item ${i + 1}: "${item.item}" → area: "${item.area}"`);
+            });
+            // ===== END DEBUG =====
             
             // Validate Structure
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
+
+            // === BULLETPROOF CHECK: Remove Vendor Address if it matches User Address ===
+            // This runs immediately after parsing to sanitize the data before it touches the app
+            if (data.vendorAddress && userStreet && isSameAddress(data.vendorAddress, userStreet)) {
+                console.warn(`⚠️ Safety Trigger: AI identified user address (${userStreet}) as vendor address. Clearing field.`);
+                data.vendorAddress = ''; // Wipe it out so we don't save bad data
+            }
+            // ===========================================================================
             
             // Clean up items
             data.items = data.items.map(item => {
-    const itemName = toProperCase(String(item.item || 'Unknown Item'));
-    const category = item.category || "Other";
-    return {
-        ...item,
-        item: itemName,
-        brand: toProperCase(String(item.brand || '')),
-        category: category,
-        area: findBestRoomMatch(item.area, itemName, category),
-        cost: item.cost || 0,
-        warranty: item.warranty || data.warranty || '',
-        maintenanceFrequency: item.maintenanceFrequency || 'annual',
-        maintenanceNotes: item.maintenanceNotes || '',
-        suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
-    };
-});
+                const itemName = toProperCase(String(item.item || 'Unknown Item'));
+                const category = item.category || "Other";
+                return {
+                    ...item,
+                    item: itemName,
+                    brand: toProperCase(String(item.brand || '')),
+                    category: category,
+                    area: findBestRoomMatch(item.area, itemName, category),
+                    cost: item.cost || 0,
+                    warranty: item.warranty || data.warranty || '',
+                    maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                    maintenanceNotes: item.maintenanceNotes || '',
+                    suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
+                };
+            });
 
             return data;
 
