@@ -38,6 +38,10 @@ import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
 import { CookieConsent } from './components/common/CookieConsent';
 
+// NEW: Import NotificationPanel and UserMenu components
+import { NotificationPanel } from './components/navigation/NotificationPanel';
+import { UserMenu } from './components/navigation/UserMenu';
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -201,42 +205,42 @@ const AppContent = () => {
     };
 
     const handleScanComplete = async (extractedData) => {
-    app.setShowScanner(false);
-    const validAttachments = extractedData.attachments || [];
-    
-    // UPDATED: Route ALL scans (1+ items) to batch view
-    if (extractedData.items && extractedData.items.length >= 1) {
-        app.setEditingRecord({ 
-            isBatch: true,                              // ✅ ADD: Flag for batch mode
-            items: extractedData.items,                 // ✅ RENAMED: from 'multipleItems' to 'items'
-            defaultDate: extractedData.date, 
-            defaultContractor: extractedData.store, 
-            attachments: validAttachments, 
-            contractorPhone: extractedData.contractorPhone, 
-            contractorEmail: extractedData.contractorEmail, 
-            contractorAddress: extractedData.contractorAddress,
-            warranty: extractedData.warranty || ''
-        });
-    } else {
-        // Fallback for scans with 0 items (edge case)
-        app.setEditingRecord({ 
-            item: extractedData.item || '', 
-            category: extractedData.category || 'Other', 
-            brand: extractedData.brand || '', 
-            model: extractedData.model || '', 
-            cost: extractedData.cost || '', 
-            dateInstalled: extractedData.date || new Date().toISOString().split('T')[0], 
-            maintenanceFrequency: 'annual', 
-            contractor: extractedData.store || '', 
-            contractorPhone: extractedData.contractorPhone, 
-            contractorEmail: extractedData.contractorEmail, 
-            contractorAddress: extractedData.contractorAddress, 
-            warranty: extractedData.warranty || '', 
-            attachments: validAttachments 
-        });
-    }
-    app.setIsAddModalOpen(true);
-};
+        app.setShowScanner(false);
+        const validAttachments = extractedData.attachments || [];
+        
+        // UPDATED: Route ALL scans (1+ items) to batch view
+        if (extractedData.items && extractedData.items.length >= 1) {
+            app.setEditingRecord({ 
+                isBatch: true,
+                items: extractedData.items,
+                defaultDate: extractedData.date, 
+                defaultContractor: extractedData.store, 
+                attachments: validAttachments, 
+                contractorPhone: extractedData.contractorPhone, 
+                contractorEmail: extractedData.contractorEmail, 
+                contractorAddress: extractedData.contractorAddress,
+                warranty: extractedData.warranty || ''
+            });
+        } else {
+            // Fallback for scans with 0 items (edge case)
+            app.setEditingRecord({ 
+                item: extractedData.item || '', 
+                category: extractedData.category || 'Other', 
+                brand: extractedData.brand || '', 
+                model: extractedData.model || '', 
+                cost: extractedData.cost || '', 
+                dateInstalled: extractedData.date || new Date().toISOString().split('T')[0], 
+                maintenanceFrequency: 'annual', 
+                contractor: extractedData.store || '', 
+                contractorPhone: extractedData.contractorPhone, 
+                contractorEmail: extractedData.contractorEmail, 
+                contractorAddress: extractedData.contractorAddress, 
+                warranty: extractedData.warranty || '', 
+                attachments: validAttachments 
+            });
+        }
+        app.setIsAddModalOpen(true);
+    };
 
     const handleSaveSuccess = () => {
         const prevCount = app.records.length;
@@ -375,27 +379,28 @@ const AppContent = () => {
                             </div>
                             <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-4">
                                 <input type="text" placeholder="Search..." value={app.searchTerm} onChange={(e) => app.setSearchTerm(e.target.value)} className="w-full pl-4 pr-4 py-3 bg-emerald-50 border rounded-xl"/>
-                                <button onClick={() => app.setIsSelectionMode(!app.isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{app.isSelectionMode ? 'Done' : 'Select'}</button>
+                                <button onClick={() => app.setIsSelectionMode(!app.isSelectionMode)} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">{app.isSelectionMode ? 'Cancel' : 'Select'}</button>
                             </div>
-                            {app.isSelectionMode && app.selectedRecords.size > 0 && (
-                                <button onClick={handleBatchDelete} className="w-full py-3 bg-red-500 text-white rounded-xl font-bold flex items-center justify-center gap-2">
-                                    <Trash2 size={18}/> Delete {app.selectedRecords.size} items
-                                </button>
-                            )}
                         </div>
-                        
+                        {app.isSelectionMode && app.selectedRecords.size > 0 && (
+                            <div className="bg-red-50 p-4 rounded-xl flex items-center justify-between border border-red-100">
+                                <span className="font-bold text-red-700">{app.selectedRecords.size} selected</span>
+                                <button onClick={handleBatchDelete} className="px-4 py-2 bg-red-600 text-white font-bold rounded-lg flex items-center gap-2"><Trash2 size={16}/> Delete</button>
+                            </div>
+                        )}
                         {Object.keys(grouped).length === 0 ? (
-                            <EmptyState title="No items found" description="Try adjusting your search or add some items." />
+                            <EmptyState title="No items yet" description="Add your first home item to get started." action={<button onClick={() => openAddModal()} className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl">Add Item</button>} />
                         ) : (
                             <div className="space-y-8">
-                                {Object.entries(grouped).sort((a,b) => a[0].localeCompare(b[0])).map(([group, items]) => (
-                                    <div key={group}>
-                                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                            {group} <span className="text-sm font-normal text-slate-400">({items.length})</span>
+                                {Object.entries(grouped).sort(([a],[b]) => a.localeCompare(b)).map(([group, items]) => (
+                                    <div key={group} className="space-y-4">
+                                        <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                                            <span className="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded-full">{items.length}</span>
+                                            {group}
                                         </h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
                                             {items.map(r => (
-                                                <div key={r.id} className={`${app.isSelectionMode && app.selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'}`} onClick={() => app.isSelectionMode && toggleRecordSelection(r.id)}>
+                                                <div key={r.id} className={`cursor-pointer ${app.isSelectionMode && app.selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'}`} onClick={() => app.isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {app.useEnhancedCards ? (
                                                         <EnhancedRecordCard 
                                                             record={r} 
@@ -430,6 +435,31 @@ const AppContent = () => {
 
             <BottomNav activeTab={app.activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={app.newSubmissions.length} />
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
+
+            {/* NEW: Notification Panel - renders when bell icon is clicked */}
+            <NotificationPanel 
+                isOpen={app.showNotifications} 
+                onClose={() => app.setShowNotifications(false)} 
+                dueTasks={app.dueTasks}
+                newSubmissions={app.newSubmissions}
+                onTaskClick={(task) => {
+                    // Navigate to maintenance tab when a task is clicked
+                    app.setActiveTab('Maintenance');
+                }}
+                onSubmissionClick={(submission) => {
+                    // Navigate to contractors tab when a submission is clicked
+                    app.setActiveTab('Contractors');
+                }}
+            />
+
+            {/* NEW: User Menu - renders when hamburger menu icon is clicked (desktop) */}
+            <UserMenu 
+                isOpen={app.showUserMenu} 
+                onClose={() => app.setShowUserMenu(false)} 
+                onNavigate={handleMoreNavigate}
+                onSignOut={() => signOut(auth)}
+                userName={app.profile?.name || app.activeProperty?.name}
+            />
 
             {/* Property Switcher Modal */}
             {app.isSwitchingProp && (
@@ -495,7 +525,7 @@ const AppContent = () => {
                 <QuickServiceRequest record={app.quickServiceRecord} userId={app.user.uid} propertyName={app.activeProperty?.name} propertyAddress={app.activeProperty?.address} onClose={handleCloseQuickService} initialDescription={app.quickServiceDescription} />
             )}
             
-            {/* Delete Confirmation Modal - FIXED: Now inside AppContent where state is accessible */}
+            {/* Delete Confirmation Modal */}
             <DeleteConfirmModal
                 isOpen={deleteConfirmState.isOpen}
                 onClose={() => setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false })}
