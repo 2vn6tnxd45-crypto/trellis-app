@@ -36,7 +36,7 @@ import { PedigreeReport } from './features/report/PedigreeReport';
 import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
-import { CookieConsent } from './components/common/CookieConsent'; // NEW: Import Cookie Consent
+import { CookieConsent } from './components/common/CookieConsent';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -46,14 +46,16 @@ class ErrorBoundary extends React.Component {
 
 const AppContent = () => {
     const celebrations = useCelebrations();
-  // Delete confirmation state
-const [deleteConfirmState, setDeleteConfirmState] = React.useState({
-    isOpen: false,
-    itemId: null,
-    itemName: '',
-    isBatch: false,
-    isLoading: false
-});
+    
+    // Delete confirmation state
+    const [deleteConfirmState, setDeleteConfirmState] = React.useState({
+        isOpen: false,
+        itemId: null,
+        itemName: '',
+        isBatch: false,
+        isLoading: false
+    });
+    
     const { scanReceipt } = useGemini();
     
     // Use the Logic Hook
@@ -82,54 +84,54 @@ const [deleteConfirmState, setDeleteConfirmState] = React.useState({
     const toggleRecordSelection = (id) => { const newSet = new Set(app.selectedRecords); if (newSet.has(id)) newSet.delete(id); else newSet.add(id); app.setSelectedRecords(newSet); };
     
     const handleBatchDelete = () => { 
-    if (app.selectedRecords.size === 0) return;
-    setDeleteConfirmState({
-        isOpen: true,
-        itemId: null,
-        itemName: '',
-        isBatch: true,
-        isLoading: false
-    });
-};
+        if (app.selectedRecords.size === 0) return;
+        setDeleteConfirmState({
+            isOpen: true,
+            itemId: null,
+            itemName: '',
+            isBatch: true,
+            isLoading: false
+        });
+    };
 
-const confirmBatchDelete = async () => {
-    setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
-    const batch = writeBatch(db); 
-    app.selectedRecords.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', id))); 
-    try { 
-        await batch.commit(); 
-        toast.success(`Deleted ${app.selectedRecords.size} items`); 
-        app.setSelectedRecords(new Set()); 
-        app.setIsSelectionMode(false);
-        setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
-    } catch (e) { 
-        toast.error("Failed to delete items"); 
-        setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
-    } 
-};
+    const confirmBatchDelete = async () => {
+        setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
+        const batch = writeBatch(db); 
+        app.selectedRecords.forEach(id => batch.delete(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', id))); 
+        try { 
+            await batch.commit(); 
+            toast.success(`Deleted ${app.selectedRecords.size} items`); 
+            app.setSelectedRecords(new Set()); 
+            app.setIsSelectionMode(false);
+            setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
+        } catch (e) { 
+            toast.error("Failed to delete items"); 
+            setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
+        } 
+    };
 
     const handleDeleteRecord = (id, itemName = 'this item') => {
-    setDeleteConfirmState({
-        isOpen: true,
-        itemId: id,
-        itemName: itemName,
-        isBatch: false,
-        isLoading: false
-    });
-};
+        setDeleteConfirmState({
+            isOpen: true,
+            itemId: id,
+            itemName: itemName,
+            isBatch: false,
+            isLoading: false
+        });
+    };
 
-const confirmSingleDelete = async () => {
-    if (!deleteConfirmState.itemId) return;
-    setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
-    try {
-        await deleteDoc(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', deleteConfirmState.itemId));
-        toast.success("Item deleted");
-        setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
-    } catch (e) {
-        toast.error("Failed to delete item");
-        setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
-    }
-};
+    const confirmSingleDelete = async () => {
+        if (!deleteConfirmState.itemId) return;
+        setDeleteConfirmState(prev => ({ ...prev, isLoading: true }));
+        try {
+            await deleteDoc(doc(db, 'artifacts', appId, 'users', app.user.uid, 'house_records', deleteConfirmState.itemId));
+            toast.success("Item deleted");
+            setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false });
+        } catch (e) {
+            toast.error("Failed to delete item");
+            setDeleteConfirmState(prev => ({ ...prev, isLoading: false }));
+        }
+    };
     
     const handleRequestImport = (req) => { app.setEditingRecord({...req, id: null, originalRequestId: req.id}); app.setIsAddModalOpen(true); };
     const openAddModal = (rec = null) => { app.setEditingRecord(rec); app.setIsAddModalOpen(true); };
@@ -146,9 +148,8 @@ const confirmSingleDelete = async () => {
     const handleTabChange = (tabId) => tabId === 'More' ? app.setShowMoreMenu(true) : app.setActiveTab(tabId);
     const handleMoreNavigate = (dest) => { app.setActiveTab(dest); app.setShowMoreMenu(false); };
 
-    // --- NEW: Handlers for Task Actions (Add/Edit/Delete) ---
+    // --- Handlers for Task Actions (Add/Edit/Delete) ---
     const handleAddTask = (record) => {
-        // We reuse the existing RecordEditorModal, which handles tasks
         app.setEditingRecord(record);
         app.setIsAddModalOpen(true);
     };
@@ -177,7 +178,6 @@ const confirmSingleDelete = async () => {
             }
         }
     };
-    // ---------------------------------------------------------
 
     const handleBookService = (task) => {
         const record = app.records.find(r => r.id === task.recordId);
@@ -194,18 +194,17 @@ const confirmSingleDelete = async () => {
         return await scanReceipt(blob, base64, app.activeProperty?.address);
     };
 
+    const processMaintenance = (frequency, dateStr) => {
+        if (!frequency || frequency === 'none') return { frequency: 'none', nextDate: null };
+        const nextDate = calculateNextDate(dateStr || new Date().toISOString().split('T')[0], frequency);
+        return { frequency, nextDate };
+    };
+
     const handleScanComplete = async (extractedData) => {
         app.setShowScanner(false);
         const validAttachments = extractedData.attachments || [];
-        const processMaintenance = (freq, installDate) => ({ frequency: freq || 'annual', nextDate: calculateNextDate(installDate, freq || 'annual') });
-
-        if (extractedData.items && extractedData.items.length > 0) {
-            const processedItems = extractedData.items.map(item => {
-                const maint = processMaintenance(item.maintenanceFrequency, extractedData.date);
-                return { ...item, maintenanceFrequency: maint.frequency, nextServiceDate: maint.nextDate, notes: item.notes || '', maintenanceTasks: item.maintenanceTasks || [] };
-            });
-            app.setEditingRecord({ isBatch: true, items: processedItems, dateInstalled: extractedData.date || new Date().toISOString().split('T')[0], contractor: extractedData.store || '', contractorPhone: extractedData.contractorPhone, contractorEmail: extractedData.contractorEmail, contractorAddress: extractedData.contractorAddress, warranty: extractedData.warranty || '', attachments: validAttachments });
-            toast.success(`Found ${extractedData.items.length} items with maintenance schedules!`, { icon: '📅' });
+        if (extractedData.items && extractedData.items.length > 1) {
+            app.setEditingRecord({ multipleItems: extractedData.items, defaultDate: extractedData.date, defaultContractor: extractedData.store, attachments: validAttachments, contractorPhone: extractedData.contractorPhone, contractorEmail: extractedData.contractorEmail, contractorAddress: extractedData.contractorAddress });
         } else {
             const singleItem = extractedData.items?.[0] || {};
             const maint = processMaintenance(singleItem.maintenanceFrequency || 'annual', extractedData.date);
@@ -249,7 +248,7 @@ const confirmSingleDelete = async () => {
         <>
         <Toaster position="top-center" />
         
-        {/* NEW: Cookie Consent Banner */}
+        {/* Cookie Consent Banner */}
         <CookieConsent />
 
         <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
@@ -263,30 +262,18 @@ const confirmSingleDelete = async () => {
                     <div className="flex items-center gap-3">
                         <Logo className="h-9 w-9" />
                         <button onClick={() => app.setIsSwitchingProp(true)} className="flex items-center gap-1 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors">
-                            <span className="font-bold text-emerald-950 text-lg">{app.activeProperty?.name || 'My Home'}</span>
+                            <span className="font-bold text-slate-800 text-sm hidden md:inline">{app.activeProperty?.name || 'My Home'}</span>
                             <ChevronDown size={16} className="text-slate-400"/>
                         </button>
                     </div>
-
-                    {/* CENTER: Prominent Address (Desktop) */}
-                    {app.activeProperty?.address && (
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden md:flex flex-col items-center pointer-events-none">
-                            <div className="flex items-center gap-1.5 text-slate-400">
-                                <MapPin size={12} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Location</span>
-                            </div>
-                            <p className="font-bold text-slate-800 text-sm whitespace-nowrap">
-                                {app.activeProperty.address.street}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Right: Actions */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={() => app.setShowNotifications(!app.showNotifications)} className="p-2 hover:bg-slate-100 rounded-full transition-colors relative">
-                            <Bell size={20} className="text-slate-600"/>{totalNotifications > 0 && <span className="absolute top-0.5 right-0.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">{totalNotifications}</span>}
+                    
+                    {/* Right: Notifications and Menu */}
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => app.setShowNotifications(!app.showNotifications)} className="p-2 hover:bg-slate-100 rounded-lg relative">
+                            <Bell size={20} className="text-slate-600"/>
+                            {totalNotifications > 0 && <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>}
                         </button>
-                        <button onClick={() => app.setShowUserMenu(!app.showUserMenu)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                        <button onClick={() => app.setShowUserMenu(!app.showUserMenu)} className="p-2 hover:bg-slate-100 rounded-lg hidden md:flex items-center">
                             <Menu size={20} className="text-slate-600"/>
                         </button>
                     </div>
@@ -483,20 +470,26 @@ const confirmSingleDelete = async () => {
             {app.showQuickService && (
                 <QuickServiceRequest record={app.quickServiceRecord} userId={app.user.uid} propertyName={app.activeProperty?.name} propertyAddress={app.activeProperty?.address} onClose={handleCloseQuickService} initialDescription={app.quickServiceDescription} />
             )}
+            
+            {/* Delete Confirmation Modal - FIXED: Now inside AppContent where state is accessible */}
+            <DeleteConfirmModal
+                isOpen={deleteConfirmState.isOpen}
+                onClose={() => setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false })}
+                onConfirm={deleteConfirmState.isBatch ? confirmBatchDelete : confirmSingleDelete}
+                title={deleteConfirmState.isBatch ? `Delete ${app.selectedRecords.size} items?` : `Delete "${deleteConfirmState.itemName}"?`}
+                message="This item and all its maintenance history will be permanently removed."
+                itemCount={deleteConfirmState.isBatch ? app.selectedRecords.size : 1}
+                isLoading={deleteConfirmState.isLoading}
+            />
         </div>
         </>
     );
 };
 
-const App = () => <ErrorBoundary><AppContent />
-{/* Delete Confirmation Modal */}
-<DeleteConfirmModal
-    isOpen={deleteConfirmState.isOpen}
-    onClose={() => setDeleteConfirmState({ isOpen: false, itemId: null, itemName: '', isBatch: false, isLoading: false })}
-    onConfirm={deleteConfirmState.isBatch ? confirmBatchDelete : confirmSingleDelete}
-    title={`Delete "${deleteConfirmState.itemName}"?`}
-    message="This item and all its maintenance history will be permanently removed."
-    itemCount={deleteConfirmState.isBatch ? app.selectedRecords.size : 1}
-    isLoading={deleteConfirmState.isLoading}
-/></ErrorBoundary>;
+const App = () => (
+    <ErrorBoundary>
+        <AppContent />
+    </ErrorBoundary>
+);
+
 export default App;
