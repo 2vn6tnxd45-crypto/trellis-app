@@ -102,10 +102,29 @@ export const useGemini = () => {
                    - Example: If Refrigerator, suggest "Clean Coils" (annual) AND "Change Water Filter" (semiannual).
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
-                6. **INFER ROOM/AREA**:
-                   - Guess the room this item belongs in based on context.
-                   - Options: ${roomsStr}.
-                   - Examples: "Dishwasher" -> "Kitchen", "Vanity" -> "Bathroom", "Water Heater" -> "Garage".
+                6. **EXTRACT INSTALLATION LOCATION (CRITICAL - READ THE DOCUMENT)**:
+                   - **STEP 1 - SEARCH FOR EXPLICIT LOCATIONS**: Carefully read the ENTIRE invoice text for phrases that indicate WHERE the item was installed. Look for:
+                     - "in attic", "in garage", "in basement", "in crawlspace"
+                     - "side of house", "backyard", "front yard", "exterior"
+                     - "master bedroom", "master bathroom", "kitchen", "laundry room"
+                     - "relocated to...", "installed in...", "moved to..."
+                     - Any room name mentioned near the item description
+                   - **STEP 2 - MAP TO CLOSEST OPTION**: Match what you find to the closest option from: ${roomsStr}
+                     - "in attic" -> "Attic"
+                     - "side of house", "backyard", "exterior", "outside" -> "Exterior"  
+                     - "garage" -> "Garage"
+                     - "basement" -> "Basement"
+                     - "laundry" -> "Laundry Room"
+                     - "master bath" -> "Master Bathroom"
+                     - "kitchen" -> "Kitchen"
+                   - **STEP 3 - SMART INFERENCE (only if no location mentioned)**: If NO location is explicitly stated, infer based on item type:
+                     - HVAC outdoor units (condenser, heat pump) -> "Exterior"
+                     - HVAC indoor units (air handler, furnace) -> Check document, often "Attic" or "Garage"
+                     - Water heaters -> "Garage" (most common) or "Utility Room"
+                     - Dishwashers, refrigerators, ovens -> "Kitchen"
+                     - Washers, dryers -> "Laundry Room"
+                     - Toilets, vanities, showers -> "Bathroom"
+                   - **IMPORTANT**: Do NOT default to "General" if you can find or reasonably infer a location. "General" should only be used for whole-house items like "Roof" or when truly ambiguous.
 
                 7. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
