@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, collection, addDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import toast from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { calculateNextDate } from '../../lib/utils';
 import { generatePDFThumbnail } from '../../lib/pdfUtils';
 import { AddRecordForm } from './AddRecordForm';
@@ -67,17 +67,27 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 const nextDate = calculateNextDate(item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], item.maintenanceFrequency || 'none');
+                 // Fix: Use newRecord.dateInstalled as fallback to capture form edits
+                 const nextDate = calculateNextDate(item.dateInstalled || newRecord?.dateInstalled || new Date().toISOString().split('T')[0], item.maintenanceFrequency || 'none');
+                 
                  const docData = { 
                      userId: user.uid, propertyId: activeProperty.id, propertyLocation: activeProperty.name, 
                      category: item.category || 'Other', item: item.item || 'Unknown Item', brand: item.brand || '', 
                      model: item.model || '', serialNumber: item.serial || '', cost: parseCost(item.cost), 
                      area: item.area || 'General', notes: item.notes || '', 
-                     dateInstalled: item.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
+                     // Fix: Use newRecord.dateInstalled
+                     dateInstalled: item.dateInstalled || newRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
                      maintenanceFrequency: item.maintenanceFrequency || 'none', nextServiceDate: nextDate, 
-                     maintenanceTasks: item.maintenanceTasks || [], contractor: item.contractor || editingRecord?.contractor || '',
-                     contractorPhone: editingRecord?.contractorPhone || '', contractorEmail: editingRecord?.contractorEmail || '',
-                     contractorAddress: editingRecord?.contractorAddress || '', warranty: item.warranty || editingRecord?.warranty || '',
+                     maintenanceTasks: item.maintenanceTasks || [], 
+                     
+                     // === FIX: Use newRecord (current form state) instead of editingRecord (initial props) ===
+                     contractor: item.contractor || newRecord.contractor || '',
+                     contractorPhone: newRecord.contractorPhone || '',
+                     contractorEmail: newRecord.contractorEmail || '',
+                     contractorAddress: newRecord.contractorAddress || '',
+                     warranty: item.warranty || newRecord.warranty || '',
+                     // ========================================================================================
+
                      imageUrl: sharedImageUrl || '', attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
                      timestamp: serverTimestamp() 
                  };
