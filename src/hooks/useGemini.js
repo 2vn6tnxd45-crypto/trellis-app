@@ -142,10 +142,12 @@ export const useGemini = () => {
                    - **ADDRESS CLEANING**: Check for missing spaces (e.g. "123 Main StSanta Ana" -> "123 Main St, Santa Ana").
                    - Extract: Vendor Name, Phone, Email, Address.
                 
-                2. **EXTRACT PHYSICAL ITEMS**:
+                2. **EXTRACT PHYSICAL ITEMS (CRITICAL UPDATE)**:
                    - Look for physical equipment (HVAC units, Water Heaters, Appliances).
                    - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
-                   - **EXCLUDE**: Do NOT create items for warranties, labor, permits, or miscellaneous materials.
+                   - **LABOR & SERVICES**: Do NOT create separate items for "Installation", "Labor", or "Permits", BUT...
+                   - **CONTEXT RULE**: You MUST read the "Labor" or "Service" descriptions to find the LOCATION of the item. 
+                     - Example: If a line says "Install Heat Pump in Attic", do not create an item called "Install", but DO create an item called "Heat Pump" and set its area to "Attic".
 
                 3. **EXTRACT WARRANTY INFO**:
                    - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
