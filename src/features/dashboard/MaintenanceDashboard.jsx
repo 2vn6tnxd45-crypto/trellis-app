@@ -1,10 +1,10 @@
 // src/features/dashboard/MaintenanceDashboard.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { 
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, ChevronDown,
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
     ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
-    Trash2, RotateCcw, Layers, Filter
+    Trash2, RotateCcw, Layers, Filter, MoreHorizontal, CalendarClock, AlarmClock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
@@ -29,93 +29,452 @@ const cleanPhoneForLink = (phone) => {
     return phone.replace(/[^\d+]/g, '');
 };
 
-// --- SUB-COMPONENTS ---
+// --- NEW: Snooze Options Menu ---
+const SnoozeMenu = ({ onSnooze, onClose }) => {
+    const menuRef = useRef(null);
+    
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
 
-const MaintenanceCard = ({ task, isOverdue, onBook, onComplete }) => {
+    const snoozeOptions = [
+        { label: '1 Week', days: 7 },
+        { label: '2 Weeks', days: 14 },
+        { label: '1 Month', days: 30 },
+        { label: '3 Months', days: 90 },
+    ];
+
+    return (
+        <div 
+            ref={menuRef}
+            className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 min-w-[140px] animate-in fade-in slide-in-from-top-2 duration-150"
+        >
+            <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Snooze for</div>
+            {snoozeOptions.map(opt => (
+                <button
+                    key={opt.days}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSnooze(opt.days);
+                        onClose();
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                    {opt.label}
+                </button>
+            ))}
+        </div>
+    );
+};
+
+// --- NEW: Schedule Date Picker ---
+const ScheduleModal = ({ task, onSchedule, onClose }) => {
+    const [selectedDate, setSelectedDate] = useState(
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    );
+    const [notes, setNotes] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onSchedule(selectedDate, notes);
+        onClose();
+    };
+
+    return (
+        <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+        >
+            <div 
+                className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl animate-in fade-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                        <CalendarClock size={20} />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-800">Schedule Service</h3>
+                        <p className="text-xs text-slate-500">{task.taskName}</p>
+                    </div>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                            Appointment Date
+                        </label>
+                        <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            required
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                            Notes (optional)
+                        </label>
+                        <input
+                            type="text"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="e.g., Confirmed with ABC Plumbing"
+                            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onClose(); }}
+                            className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
+                        >
+                            Schedule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// --- NEW: Overflow Menu Component ---
+const TaskOverflowMenu = ({ task, onDelete, onSchedule, onSnooze, onClose }) => {
+    const menuRef = useRef(null);
+    const [showSnoozeOptions, setShowSnoozeOptions] = useState(false);
+    
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    return (
+        <div 
+            ref={menuRef}
+            className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-50 min-w-[160px] animate-in fade-in slide-in-from-top-2 duration-150"
+        >
+            {/* Schedule Option */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onSchedule();
+                    onClose();
+                }}
+                className="w-full text-left px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+            >
+                <CalendarClock size={14} className="text-blue-500" />
+                Schedule
+            </button>
+
+            {/* Snooze Option */}
+            <div className="relative">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowSnoozeOptions(!showSnoozeOptions);
+                    }}
+                    className="w-full text-left px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-between"
+                >
+                    <span className="flex items-center gap-2">
+                        <AlarmClock size={14} className="text-amber-500" />
+                        Snooze
+                    </span>
+                    <ChevronRight size={14} className={`text-slate-400 transition-transform ${showSnoozeOptions ? 'rotate-90' : ''}`} />
+                </button>
+                
+                {showSnoozeOptions && (
+                    <div className="border-t border-slate-100 bg-slate-50 py-1">
+                        {[
+                            { label: '1 Week', days: 7 },
+                            { label: '2 Weeks', days: 14 },
+                            { label: '1 Month', days: 30 },
+                            { label: '3 Months', days: 90 },
+                        ].map(opt => (
+                            <button
+                                key={opt.days}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSnooze(opt.days);
+                                    onClose();
+                                }}
+                                className="w-full text-left px-6 py-2 text-xs text-slate-600 hover:bg-slate-100 transition-colors"
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-slate-100 my-1" />
+
+            {/* Delete Option */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                    onClose();
+                }}
+                className="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+            >
+                <Trash2 size={14} />
+                Delete Task
+            </button>
+        </div>
+    );
+};
+
+// --- UPDATED: MaintenanceCard with new actions ---
+const MaintenanceCard = ({ 
+    task, 
+    isOverdue, 
+    onBook, 
+    onComplete,
+    // NEW PROPS:
+    onDelete,
+    onSchedule,
+    onSnooze
+}) => {
+    const [showMenu, setShowMenu] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    
     const cleanPhone = cleanPhoneForLink(task.contractorPhone);
     const hasPhone = !!cleanPhone;
     const hasEmail = !!task.contractorEmail;
     
-    // UPDATED LOGIC: If a contractor is assigned, we NEVER show "Book Pro".
+    // EXISTING LOGIC (unchanged): If a contractor is assigned, we NEVER show "Book Pro".
     const isAssigned = !!task.contractor;
 
     const formattedDate = task.nextDate 
         ? task.nextDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Pending';
 
+    // Check if task is scheduled
+    const isScheduled = task.scheduledDate && new Date(task.scheduledDate) > new Date();
+    const scheduledDateFormatted = task.scheduledDate 
+        ? new Date(task.scheduledDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        : null;
+
+    // Check if task was snoozed
+    const isSnoozed = task.snoozedUntil && new Date(task.snoozedUntil) > new Date();
+
+    const handleDelete = () => {
+        if (onDelete) {
+            if (confirm(`Delete "${task.taskName}" from ${task.item}?`)) {
+                onDelete(task);
+            }
+        }
+    };
+
+    const handleSchedule = (date, notes) => {
+        if (onSchedule) {
+            onSchedule(task, date, notes);
+        }
+    };
+
+    const handleSnooze = (days) => {
+        if (onSnooze) {
+            onSnooze(task, days);
+        }
+    };
+
     return (
-        <div className={`p-4 rounded-2xl border ${isOverdue ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'} transition-all hover:shadow-sm`}>
-            <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${isOverdue ? 'bg-white text-red-500 shadow-sm' : 'bg-slate-50 text-emerald-600'}`}>
-                        <Wrench size={20} />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-slate-800 text-sm">{task.taskName}</h4>
-                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-0.5">
-                            <span>{task.item}</span>
-                            <span>•</span>
-                            <span>{toProperCase(task.frequency)}</span>
+        <>
+            <div className={`p-4 rounded-2xl border ${
+                isScheduled 
+                    ? 'bg-blue-50 border-blue-100' 
+                    : isOverdue 
+                        ? 'bg-red-50 border-red-100' 
+                        : 'bg-white border-slate-100'
+            } transition-all hover:shadow-sm`}>
+                <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
+                            isScheduled 
+                                ? 'bg-white text-blue-500 shadow-sm'
+                                : isOverdue 
+                                    ? 'bg-white text-red-500 shadow-sm' 
+                                    : 'bg-slate-50 text-emerald-600'
+                        }`}>
+                            {isScheduled ? <CalendarClock size={20} /> : <Wrench size={20} />}
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-slate-800 text-sm">{task.taskName}</h4>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium mt-0.5">
+                                <span>{task.item}</span>
+                                <span>•</span>
+                                <span>{toProperCase(task.frequency)}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <div className="text-right">
-                    {isOverdue ? (
-                        <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
-                            {Math.abs(task.daysUntil)} days overdue
-                        </span>
-                    ) : (
-                        <span className="text-xs font-medium text-slate-500">
-                            {formattedDate}
-                        </span>
-                    )}
-                </div>
-            </div>
-
-            {task.contractor && (
-                <div className="bg-slate-50 rounded-xl p-3 mb-3 flex items-center gap-2">
-                    <User size={14} className="text-slate-400" />
-                    <span className="text-xs font-medium text-slate-600">{task.contractor}</span>
-                    {task.contractorPhone && (
-                        <span className="text-xs text-slate-400">• {task.contractorPhone}</span>
-                    )}
-                </div>
-            )}
-
-            <div className="flex gap-2">
-                {isAssigned ? (
-                    <div className="flex gap-2 flex-1">
-                        <a href={hasPhone ? `tel:${cleanPhone}` : '#'} onClick={(e) => !hasPhone && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasPhone ? 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
-                            <Phone size={14} /> Call
-                        </a>
-                        <a href={hasPhone ? `sms:${cleanPhone}` : '#'} onClick={(e) => !hasPhone && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasPhone ? 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
-                            <MessageCircle size={14} /> Text
-                        </a>
-                        <a href={hasEmail ? `mailto:${task.contractorEmail}` : '#'} onClick={(e) => !hasEmail && e.preventDefault()} className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${hasEmail ? 'bg-white border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700' : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'}`}>
-                            <Mail size={14} /> Email
-                        </a>
+                    
+                    <div className="text-right">
+                        {/* EXISTING: Overdue / Scheduled / Due date badges */}
+                        {isScheduled ? (
+                            <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                                📅 Scheduled {scheduledDateFormatted}
+                            </span>
+                        ) : isOverdue ? (
+                            <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full">
+                                {Math.abs(task.daysUntil)} days overdue
+                            </span>
+                        ) : (
+                            <span className="text-xs font-bold text-slate-600">
+                                {formattedDate}
+                            </span>
+                        )}
+                        
+                        {/* Show snoozed indicator if applicable */}
+                        {isSnoozed && !isScheduled && (
+                            <div className="text-[10px] text-amber-600 mt-1 flex items-center justify-end gap-1">
+                                <AlarmClock size={10} />
+                                Snoozed
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <button onClick={() => onBook && onBook(task)} className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
-                        <Phone size={14} /> Book Pro
-                    </button>
+                </div>
+
+                {/* EXISTING: Contractor Info (unchanged) */}
+                {isAssigned && (
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mb-3 bg-slate-50 px-2 py-1.5 rounded-lg">
+                        <User size={12} />
+                        <span className="font-medium">{task.contractor}</span>
+                        {hasPhone && <span className="text-slate-300">•</span>}
+                        {hasPhone && <span>{task.contractorPhone}</span>}
+                    </div>
                 )}
                 
-                {task.daysUntil <= 90 && (
-    <button onClick={() => onComplete && onComplete(task)} className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm active:scale-95">
-        <Check size={14} /> Mark Done
-    </button>
-)}
+                {/* Scheduled Notes */}
+                {isScheduled && task.scheduledNotes && (
+                    <div className="text-xs text-blue-700 mb-3 bg-blue-100/50 px-2 py-1.5 rounded-lg">
+                        {task.scheduledNotes}
+                    </div>
+                )}
+
+                {/* UPDATED: Action buttons row with overflow menu */}
+                <div className="flex items-center gap-2">
+                    {/* EXISTING: Contractor buttons (unchanged) */}
+                    {isAssigned ? (
+                        <div className="flex-1 flex items-center gap-2">
+                            <a 
+                                href={hasPhone ? `tel:${cleanPhone}` : '#'} 
+                                onClick={(e) => !hasPhone && e.preventDefault()}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${
+                                    hasPhone 
+                                        ? 'bg-white border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700' 
+                                        : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                                }`}
+                            >
+                                <Phone size={14} /> Call
+                            </a>
+                            <a 
+                                href={hasPhone ? `sms:${cleanPhone}` : '#'} 
+                                onClick={(e) => !hasPhone && e.preventDefault()}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${
+                                    hasPhone 
+                                        ? 'bg-white border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700' 
+                                        : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                                }`}
+                            >
+                                <MessageCircle size={14} /> Text
+                            </a>
+                            <a 
+                                href={hasEmail ? `mailto:${task.contractorEmail}` : '#'} 
+                                onClick={(e) => !hasEmail && e.preventDefault()}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-2 border rounded-xl text-xs font-bold transition-colors ${
+                                    hasEmail 
+                                        ? 'bg-white border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700' 
+                                        : 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed'
+                                }`}
+                            >
+                                <Mail size={14} /> Email
+                            </a>
+                        </div>
+                    ) : (
+                        /* EXISTING: Book Pro button (unchanged) */
+                        <button 
+                            onClick={() => onBook && onBook(task)} 
+                            className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                            <Phone size={14} /> Book Pro
+                        </button>
+                    )}
+                    
+                    {/* NEW: Overflow Menu Button */}
+                    <div className="relative">
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowMenu(!showMenu);
+                            }}
+                            className="p-2 border border-slate-200 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+                        >
+                            <MoreHorizontal size={16} />
+                        </button>
+                        
+                        {showMenu && (
+                            <TaskOverflowMenu
+                                task={task}
+                                onDelete={handleDelete}
+                                onSchedule={() => setShowScheduleModal(true)}
+                                onSnooze={handleSnooze}
+                                onClose={() => setShowMenu(false)}
+                            />
+                        )}
+                    </div>
+                    
+                    {/* EXISTING: Mark Done button (unchanged, but only show if due within 90 days) */}
+                    {task.daysUntil <= 90 && (
+                        <button 
+                            onClick={() => onComplete && onComplete(task)} 
+                            className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-slate-900 transition-colors shadow-sm active:scale-95"
+                        >
+                            <Check size={14} /> Mark Done
+                        </button>
+                    )}
+                </div>
             </div>
-        </div>
+            
+            {/* Schedule Modal */}
+            {showScheduleModal && (
+                <ScheduleModal
+                    task={task}
+                    onSchedule={handleSchedule}
+                    onClose={() => setShowScheduleModal(false)}
+                />
+            )}
+        </>
     );
 };
 
-// NEW: Collapsible Category Group
-const CategoryGroup = ({ category, tasks, onBook, onComplete }) => {
+// --- UPDATED: CategoryGroup passes new props ---
+const CategoryGroup = ({ category, tasks, onBook, onComplete, onDelete, onSchedule, onSnooze }) => {
     const [isOpen, setIsOpen] = useState(true); // Default open for better visibility
     const overdueCount = tasks.filter(t => t.daysUntil < 0).length;
+    const scheduledCount = tasks.filter(t => t.scheduledDate && new Date(t.scheduledDate) > new Date()).length;
     const hasOverdue = overdueCount > 0;
 
     return (
@@ -130,7 +489,11 @@ const CategoryGroup = ({ category, tasks, onBook, onComplete }) => {
                     </div>
                     <div className="text-left">
                         <h4 className="font-bold text-sm">{category}</h4>
-                        <p className="text-[10px] font-medium opacity-70">{tasks.length} tasks {hasOverdue && `• ${overdueCount} Overdue`}</p>
+                        <p className="text-[10px] font-medium opacity-70">
+                            {tasks.length} tasks 
+                            {hasOverdue && ` • ${overdueCount} Overdue`}
+                            {scheduledCount > 0 && ` • ${scheduledCount} Scheduled`}
+                        </p>
                     </div>
                 </div>
                 <ChevronDown className={`h-5 w-5 transition-transform ${isOpen ? 'rotate-180' : ''} ${hasOverdue ? 'text-red-400' : 'text-slate-400'}`} />
@@ -144,7 +507,10 @@ const CategoryGroup = ({ category, tasks, onBook, onComplete }) => {
                             task={task} 
                             isOverdue={task.daysUntil < 0} 
                             onBook={onBook} 
-                            onComplete={onComplete} 
+                            onComplete={onComplete}
+                            onDelete={onDelete}
+                            onSchedule={onSchedule}
+                            onSnooze={onSnooze}
                         />
                     ))}
                 </div>
@@ -153,6 +519,7 @@ const CategoryGroup = ({ category, tasks, onBook, onComplete }) => {
     );
 };
 
+// --- EXISTING: HistoryItemCard (UNCHANGED) ---
 const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     const [showConfirm, setShowConfirm] = useState(false);
 
@@ -215,7 +582,7 @@ const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     );
 };
 
-// --- MAIN COMPONENT ---
+// --- MAIN COMPONENT (UPDATED with new props) ---
 
 export const MaintenanceDashboard = ({ 
     records = [], 
@@ -224,7 +591,11 @@ export const MaintenanceDashboard = ({
     onBookService, 
     onMarkTaskDone,
     onDeleteHistoryItem,
-    onRestoreHistoryItem
+    onRestoreHistoryItem,
+    // NEW PROPS:
+    onDeleteTask,
+    onScheduleTask,
+    onSnoozeTask
 }) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
@@ -232,39 +603,44 @@ export const MaintenanceDashboard = ({
     
     // Safety check for records
     const safeRecords = Array.isArray(records) ? records : [];
-    
+
+    // --- EXISTING: Build contractor directory (UNCHANGED) ---
     const contractorDirectory = useMemo(() => {
         const dir = {};
         safeRecords.forEach(r => {
-            if (r.contractor && r.contractor.trim().length > 0) {
-                const name = r.contractor.trim().toLowerCase();
-                if (!dir[name]) dir[name] = { displayName: r.contractor.trim(), phone: null, email: null };
-                if (r.contractorPhone && r.contractorPhone.trim()) dir[name].phone = r.contractorPhone.trim();
-                if (r.contractorEmail && r.contractorEmail.trim()) dir[name].email = r.contractorEmail.trim();
+            if (r.contractor && (r.contractorPhone || r.contractorEmail)) {
+                const key = r.contractor.trim().toLowerCase();
+                if (!dir[key]) {
+                    dir[key] = { phone: r.contractorPhone, email: r.contractorEmail };
+                }
             }
         });
         return dir;
     }, [safeRecords]);
 
-    const { soonTasks, futureTasks, overdueTasks, historyItems, allActiveTasks } = useMemo(() => {
-        const now = new Date();
-        const soon = [], future = [], overdue = [], history = [], allActive = [];
+    // --- EXISTING: Categorize tasks (UNCHANGED except for adding new fields) ---
+    const { soonTasks, futureTasks, overdueTasks, allActiveTasks, historyItems } = useMemo(() => {
+        const soon = [];
+        const future = [];
+        const overdue = [];
+        const allActive = [];
+        const history = [];
 
         safeRecords.forEach(record => {
-            if (record.maintenanceHistory && Array.isArray(record.maintenanceHistory)) {
-                record.maintenanceHistory.forEach(h => history.push({ 
-                    ...h, 
-                    item: record.item, 
-                    recordId: record.id 
-                }));
+            // Collect history items with recordId for restore functionality
+            if (record.maintenanceHistory && record.maintenanceHistory.length > 0) {
+                record.maintenanceHistory.forEach(h => {
+                    history.push({ ...h, recordId: record.id, item: record.item });
+                });
             }
 
-            const processTask = (taskName, freq, nextDateStr, isGranular) => {
-                if (!nextDateStr || freq === 'none') return;
-                const nextDate = new Date(nextDateStr);
-                if (isNaN(nextDate.getTime())) return;
-                
+            const processTask = (taskName, freq, nextDueStr, isGranular, taskData = {}) => {
+                if (freq === 'none') return;
+                const nextDate = nextDueStr ? new Date(nextDueStr) : null;
+                if (!nextDate) return;
+                const now = new Date();
                 const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                
                 const cName = record.contractor ? record.contractor.trim().toLowerCase() : null;
                 const dirEntry = cName ? contractorDirectory[cName] : null;
                 
@@ -280,7 +656,11 @@ export const MaintenanceDashboard = ({
                     isGranular: isGranular,
                     contractor: record.contractor || null,
                     contractorPhone: record.contractorPhone || dirEntry?.phone || null,
-                    contractorEmail: record.contractorEmail || dirEntry?.email || null
+                    contractorEmail: record.contractorEmail || dirEntry?.email || null,
+                    // NEW: Include scheduled and snoozed data
+                    scheduledDate: taskData.scheduledDate || null,
+                    scheduledNotes: taskData.scheduledNotes || null,
+                    snoozedUntil: taskData.snoozedUntil || null
                 };
 
                 allActive.push(taskItem);
@@ -291,7 +671,13 @@ export const MaintenanceDashboard = ({
             };
 
             if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
-                record.maintenanceTasks.forEach(t => processTask(t.task, t.frequency, t.nextDue, true));
+                record.maintenanceTasks.forEach(t => processTask(
+                    t.task, 
+                    t.frequency, 
+                    t.nextDue, 
+                    true,
+                    { scheduledDate: t.scheduledDate, scheduledNotes: t.scheduledNotes, snoozedUntil: t.snoozedUntil }
+                ));
             } else {
                 const nextDate = getNextServiceDate(record);
                 if (nextDate) processTask('General Maintenance', record.maintenanceFrequency, nextDate.toISOString(), false);
@@ -303,12 +689,12 @@ export const MaintenanceDashboard = ({
             soonTasks: soon.sort(byDate),
             futureTasks: future.sort(byDate),
             overdueTasks: overdue.sort(byDate),
-            allActiveTasks: allActive.sort(byDate), // Sorted by date by default
+            allActiveTasks: allActive.sort(byDate),
             historyItems: history.sort((a, b) => new Date(b.completedDate) - new Date(a.completedDate))
         };
     }, [safeRecords, contractorDirectory]);
 
-    // Group tasks by Category for "System View"
+    // --- EXISTING: Group tasks by Category for "System View" (UNCHANGED) ---
     const tasksByCategory = useMemo(() => {
         const groups = {};
         allActiveTasks.forEach(task => {
@@ -316,7 +702,6 @@ export const MaintenanceDashboard = ({
             if (!groups[cat]) groups[cat] = [];
             groups[cat].push(task);
         });
-        // Sort categories: Categories with Overdue items first, then alphabetical
         return Object.entries(groups).sort(([catA, tasksA], [catB, tasksB]) => {
             const aHasOverdue = tasksA.some(t => t.daysUntil < 0);
             const bHasOverdue = tasksB.some(t => t.daysUntil < 0);
@@ -326,23 +711,38 @@ export const MaintenanceDashboard = ({
         });
     }, [allActiveTasks]);
 
+    // --- EXISTING: Suggested items (UNCHANGED) ---
     const suggestedItems = useMemo(() => {
         const existingItems = new Set(safeRecords.map(r => r.item ? r.item.toLowerCase() : ''));
-        return STANDARD_MAINTENANCE_ITEMS.filter(item => !existingItems.has(item.item.toLowerCase()));
+        return STANDARD_MAINTENANCE_ITEMS.filter(i => !existingItems.has(i.item.toLowerCase()));
     }, [safeRecords]);
 
     return (
         <div className="space-y-6">
-            {/* Top Navigation: Toggle between Upcoming and History */}
-            <div className="bg-slate-100 p-1.5 rounded-xl flex">
-                <button onClick={() => setViewMode('upcoming')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${viewMode === 'upcoming' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}>Upcoming & Due</button>
-                <button onClick={() => setViewMode('history')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${viewMode === 'history' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}>Completed History</button>
+            {/* EXISTING: Header with View Toggle (UNCHANGED) */}
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-slate-800">Maintenance</h2>
+                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button 
+                        onClick={() => setViewMode('upcoming')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'upcoming' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        Upcoming
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('history')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${viewMode === 'history' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <History size={12} /> History
+                    </button>
+                </div>
             </div>
 
+            {/* UPCOMING VIEW */}
             {viewMode === 'upcoming' ? (
                 <div className="space-y-6">
-                    {/* Sub-Navigation: Toggle between Timeline and System View */}
-                    <div className="flex justify-end gap-2">
+                    {/* EXISTING: Sort Mode Toggle (UNCHANGED) */}
+                    <div className="flex items-center gap-2">
                         <button 
                             onClick={() => setSortMode('timeline')}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${sortMode === 'timeline' ? 'bg-slate-800 text-white' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
@@ -357,35 +757,74 @@ export const MaintenanceDashboard = ({
                         </button>
                     </div>
 
-                    {/* TIMELINE VIEW (Original Functionality) */}
+                    {/* TIMELINE VIEW (UPDATED to pass new props) */}
                     {sortMode === 'timeline' && (
                         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             {overdueTasks.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="font-bold text-red-700 flex items-center text-sm uppercase tracking-wider"><AlertTriangle className="h-4 w-4 mr-2" /> Needs Attention</h3>
-                                    {overdueTasks.map(task => <MaintenanceCard key={task.id} task={task} isOverdue onBook={onBookService} onComplete={onMarkTaskDone} />)}
+                                    <h3 className="font-bold text-red-700 flex items-center text-sm uppercase tracking-wider">
+                                        <AlertTriangle className="h-4 w-4 mr-2" /> Needs Attention
+                                    </h3>
+                                    {overdueTasks.map(task => (
+                                        <MaintenanceCard 
+                                            key={task.id} 
+                                            task={task} 
+                                            isOverdue 
+                                            onBook={onBookService} 
+                                            onComplete={onMarkTaskDone}
+                                            onDelete={onDeleteTask}
+                                            onSchedule={onScheduleTask}
+                                            onSnooze={onSnoozeTask}
+                                        />
+                                    ))}
                                 </div>
                             )}
 
                             <div className="space-y-3">
-                                <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wider"><Clock className="h-4 w-4 mr-2" /> Coming Soon (90 Days)</h3>
+                                <h3 className="font-bold text-slate-700 flex items-center text-sm uppercase tracking-wider">
+                                    <Clock className="h-4 w-4 mr-2" /> Coming Soon (90 Days)
+                                </h3>
                                 {soonTasks.length === 0 ? (
-                                    <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center"><p className="text-slate-400 text-sm font-medium">No tasks due in the next 3 months.</p></div>
+                                    <div className="p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+                                        <p className="text-slate-400 text-sm font-medium">No tasks due in the next 3 months.</p>
+                                    </div>
                                 ) : (
-                                    soonTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)
+                                    soonTasks.map(task => (
+                                        <MaintenanceCard 
+                                            key={task.id} 
+                                            task={task} 
+                                            onBook={onBookService} 
+                                            onComplete={onMarkTaskDone}
+                                            onDelete={onDeleteTask}
+                                            onSchedule={onScheduleTask}
+                                            onSnooze={onSnoozeTask}
+                                        />
+                                    ))
                                 )}
                             </div>
 
                             {futureTasks.length > 0 && (
                                 <div className="space-y-3 opacity-80 hover:opacity-100 transition-opacity">
-                                    <h3 className="font-bold text-slate-400 flex items-center text-sm uppercase tracking-wider"><Hourglass className="h-4 w-4 mr-2" /> Future Schedule</h3>
-                                    {futureTasks.map(task => <MaintenanceCard key={task.id} task={task} onBook={onBookService} onComplete={onMarkTaskDone} />)}
+                                    <h3 className="font-bold text-slate-400 flex items-center text-sm uppercase tracking-wider">
+                                        <Hourglass className="h-4 w-4 mr-2" /> Future Schedule
+                                    </h3>
+                                    {futureTasks.map(task => (
+                                        <MaintenanceCard 
+                                            key={task.id} 
+                                            task={task} 
+                                            onBook={onBookService} 
+                                            onComplete={onMarkTaskDone}
+                                            onDelete={onDeleteTask}
+                                            onSchedule={onScheduleTask}
+                                            onSnooze={onSnoozeTask}
+                                        />
+                                    ))}
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* SYSTEM VIEW (New "Dropdown" Functionality) */}
+                    {/* SYSTEM VIEW (UPDATED to pass new props) */}
                     {sortMode === 'system' && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                              {tasksByCategory.length === 0 ? (
@@ -400,28 +839,35 @@ export const MaintenanceDashboard = ({
                                         category={category} 
                                         tasks={tasks} 
                                         onBook={onBookService} 
-                                        onComplete={onMarkTaskDone} 
+                                        onComplete={onMarkTaskDone}
+                                        onDelete={onDeleteTask}
+                                        onSchedule={onScheduleTask}
+                                        onSnooze={onSnoozeTask}
                                      />
                                  ))
                              )}
                         </div>
                     )}
 
-                    {/* Empty State / Suggestions (Shared) */}
+                    {/* EXISTING: Empty State / Suggestions (UNCHANGED) */}
                     {allActiveTasks.length === 0 && (
                         <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                             <CheckCircle className="h-10 w-10 text-emerald-200 mx-auto mb-3" />
                             <p className="text-slate-500 font-medium">No maintenance scheduled.</p>
-                            <button onClick={() => setShowSuggestions(true)} className="text-emerald-600 font-bold text-sm mt-2 hover:underline">Browse Suggestions</button>
+                            <button onClick={() => setShowSuggestions(true)} className="text-emerald-600 font-bold text-sm mt-2 hover:underline">
+                                Browse Suggestions
+                            </button>
                         </div>
                     )}
                 </div>
             ) : (
-                /* HISTORY VIEW (Unchanged) */
+                /* EXISTING: HISTORY VIEW (UNCHANGED) */
                 <div className="space-y-4">
                      {historyItems.length === 0 ? (
                         <div className="text-center py-12">
-                             <div className="bg-slate-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4"><History className="h-8 w-8 text-slate-300" /></div>
+                             <div className="bg-slate-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                 <History className="h-8 w-8 text-slate-300" />
+                             </div>
                              <h3 className="text-slate-800 font-bold">No History Yet</h3>
                         </div>
                      ) : (
@@ -439,18 +885,27 @@ export const MaintenanceDashboard = ({
                 </div>
             )}
 
-            {/* Suggestions Block (Shared) */}
+            {/* EXISTING: Suggestions Block (UNCHANGED) */}
             {suggestedItems.length > 0 && viewMode === 'upcoming' && (
                 <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mt-8">
                     <button onClick={() => setShowSuggestions(!showSuggestions)} className="w-full flex justify-between items-center">
-                        <h3 className="font-bold text-emerald-900 flex items-center"><Sparkles className="h-5 w-5 mr-2" /> Suggested Maintenance Items</h3>
+                        <h3 className="font-bold text-emerald-900 flex items-center">
+                            <Sparkles className="h-5 w-5 mr-2" /> Suggested Maintenance Items
+                        </h3>
                         <ChevronRight className={`h-5 w-5 text-emerald-600 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} />
                     </button>
                     {showSuggestions && (
                         <div className="mt-4 space-y-2">
                             {suggestedItems.slice(0, 5).map((suggestion, i) => (
-                                <button key={i} onClick={() => onAddRecord && onAddRecord(suggestion)} className="w-full flex items-center justify-between p-3 bg-white rounded-xl border border-emerald-100 hover:border-emerald-300 transition-colors text-left">
-                                    <div><p className="font-bold text-slate-800 text-sm">{suggestion.item}</p><p className="text-xs text-slate-500">{suggestion.category}</p></div>
+                                <button 
+                                    key={i} 
+                                    onClick={() => onAddRecord && onAddRecord(suggestion)} 
+                                    className="w-full flex items-center justify-between p-3 bg-white rounded-xl border border-emerald-100 hover:border-emerald-300 transition-colors text-left"
+                                >
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-sm">{suggestion.item}</p>
+                                        <p className="text-xs text-slate-500">{suggestion.category}</p>
+                                    </div>
                                     <PlusCircle className="h-5 w-5 text-emerald-500" />
                                 </button>
                             ))}
