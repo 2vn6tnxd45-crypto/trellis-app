@@ -26,8 +26,7 @@ export const useGemini = () => {
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
 
-    // --- NEW HELPER: Match AI guess to Constants ---
-    // Smart room matching with item-based inference as fallback
+    // --- HELPER: Match AI guess to Constants ---
     const findBestRoomMatch = (guess, itemName = '', category = '') => {
         // ===== DEBUG =====
         console.log(`🔍 findBestRoomMatch called:`, { guess, itemName, category });
@@ -85,7 +84,7 @@ export const useGemini = () => {
         return guess || 'General';
     };
 
-    // --- NEW: Bulletproof Address Check Helper ---
+    // --- Bulletproof Address Check Helper ---
     const isSameAddress = (vendorAddr, userStreet) => {
         if (!vendorAddr || !userStreet) return false;
         // Normalize: remove spaces, punctuation, make lowercase
@@ -97,7 +96,7 @@ export const useGemini = () => {
     };
     // ---------------------------------------------
 
-    // --- UPDATED SCANNER LOGIC ---
+    // --- SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
             console.error("Gemini Model or File missing");
@@ -108,26 +107,22 @@ export const useGemini = () => {
             const base64Data = getBase64Data(base64Str);
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
-            const roomsStr = ROOMS.join(', '); // NEW: List of rooms for AI context
+            const roomsStr = ROOMS.join(', '); 
 
-            // --- REFINED ADDRESS EXCLUSION (Preserved Original) ---
-            // Only exclude the specific street address to avoid blocking local pros in the same city.
+            // Address Context
             let userStreet = "";
             let fullUserAddress = "";
             
             if (userAddress) {
                 if (typeof userAddress === 'string') {
                     fullUserAddress = userAddress;
-                    // Try to grab just the street part (e.g., "123 Main St")
                     userStreet = userAddress.split(',')[0]; 
                 } else if (typeof userAddress === 'object') {
                     fullUserAddress = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
                     userStreet = userAddress.street || "";
                 }
             }
-            // --------------------------------
 
-            // UPDATED PROMPT: Original text preserved, Section 6 inserted.
             const prompt = `
                 Analyze this invoice/receipt for a Home Inventory App.
                 
@@ -142,7 +137,7 @@ export const useGemini = () => {
                    - **ADDRESS CLEANING**: Check for missing spaces (e.g. "123 Main StSanta Ana" -> "123 Main St, Santa Ana").
                    - Extract: Vendor Name, Phone, Email, Address.
                 
-                2. **EXTRACT PHYSICAL ITEMS (CRITICAL UPDATE)**:
+                2. **EXTRACT PHYSICAL ITEMS (UPDATED)**:
                    - Look for physical equipment (HVAC units, Water Heaters, Appliances).
                    - **SPLIT RULE**: If a line lists multiple distinct models (e.g. Air Handler AND Heat Pump), create separate items for them.
                    - **LABOR & SERVICES**: Do NOT create separate items for "Installation", "Labor", or "Permits", BUT...
@@ -157,13 +152,12 @@ export const useGemini = () => {
                    - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
                    - Assign 0.00 to secondary components to avoid double-counting.
                 
-                5. **INTELLIGENT MAINTENANCE TASKS (CRITICAL)**:
+                5. **INTELLIGENT MAINTENANCE TASKS**:
                    - Based on the item, suggest specific maintenance tasks.
                    - Example: If HVAC, suggest "Replace Filter" (quarterly) AND "Professional Tune-up" (annual).
-                   - Example: If Refrigerator, suggest "Clean Coils" (annual) AND "Change Water Filter" (semiannual).
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
-                6. **EXTRACT INSTALLATION LOCATION (CRITICAL - READ THE DOCUMENT)**:
+                6. **EXTRACT INSTALLATION LOCATION**:
                    - **STEP 1 - SEARCH FOR EXPLICIT LOCATIONS**: Carefully read the ENTIRE invoice text for phrases that indicate WHERE the item was installed. Look for:
                      - "in attic", "in garage", "in basement", "in crawlspace"
                      - "side of house", "backyard", "front yard", "exterior"
@@ -251,10 +245,9 @@ export const useGemini = () => {
             data.totalAmount = data.totalAmount || 0;
 
             // === BULLETPROOF CHECK: Remove Vendor Address if it matches User Address ===
-            // This runs immediately after parsing to sanitize the data before it touches the app
             if (data.vendorAddress && userStreet && isSameAddress(data.vendorAddress, userStreet)) {
                 console.warn(`⚠️ Safety Trigger: AI identified user address (${userStreet}) as vendor address. Clearing field.`);
-                data.vendorAddress = ''; // Wipe it out so we don't save bad data
+                data.vendorAddress = ''; 
             }
             // ===========================================================================
             
