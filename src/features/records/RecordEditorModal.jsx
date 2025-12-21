@@ -33,74 +33,150 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
         return isNaN(num) ? 0 : num;
     };
 
-    const handleBatchSave = async (items, file) => {
-        if (!items || items.length === 0) return;
-        setSaving(true);
-        try {
-            let sharedImageUrl = null;
-            let sharedFileType = 'Photo';
-            let sharedFileUrl = null;
-            const fileToUpload = file || editingRecord?.attachments?.[0]?.fileRef;
+    const handleBatchSave = async (items, file, contractorOverrides = {}) => {
+    if (!items || items.length === 0) return;
+    setSaving(true);
+    try {
+        let sharedImageUrl = null;
+        let sharedFileType = 'Photo';
+        let sharedFileUrl = null;
+        const fileToUpload = file || editingRecord?.attachments?.[0]?.fileRef;
 
-            if (fileToUpload) {
-                const isPdf = fileToUpload.type?.includes('pdf');
-                const ext = isPdf ? 'pdf' : 'jpg'; 
-                sharedFileType = isPdf ? 'Document' : 'Photo';
-                const filename = `batch_scan_${Date.now()}.${ext}`;
-                const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
-                await uploadBytes(storageRef, fileToUpload);
-                sharedFileUrl = await getDownloadURL(storageRef);
+        if (fileToUpload) {
+            const isPdf = fileToUpload.type?.includes('pdf');
+            const ext = isPdf ? 'pdf' : 'jpg'; 
+            sharedFileType = isPdf ? 'Document' : 'Photo';
+            const filename = `batch_scan_${Date.now()}.${ext}`;
+            const storageRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${filename}`);
+            await uploadBytes(storageRef, fileToUpload);
+            sharedFileUrl = await getDownloadURL(storageRef);
 
-                if (isPdf) {
-                    const thumbnailBlob = await generatePDFThumbnail(fileToUpload);
-                    if (thumbnailBlob) {
-                         const thumbFilename = `batch_scan_thumb_${Date.now()}.jpg`;
-                         const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${thumbFilename}`);
-                         await uploadBytes(thumbRef, thumbnailBlob);
-                         sharedImageUrl = await getDownloadURL(thumbRef);
-                    }
-                } else { sharedImageUrl = sharedFileUrl; }
+            if (isPdf) {
+                const thumbnailBlob = await generatePDFThumbnail(fileToUpload);
+                if (thumbnailBlob) {
+                     const thumbFilename = `batch_scan_thumb_${Date.now()}.jpg`;
+                     const thumbRef = ref(storage, `artifacts/${appId}/users/${user.uid}/uploads/${thumbFilename}`);
+                     await uploadBytes(thumbRef, thumbnailBlob);
+                     sharedImageUrl = await getDownloadURL(thumbRef);
+                }
+            } else { sharedImageUrl = sharedFileUrl; }
+        }
+        
+        const batch = writeBatch(db);
+        const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
+        
+        // ============ BULLETPROOF CONTRACTOR DATA RESOLUTION ============
+        // Priority: 1. Explicit override  2. Item-level  3. newRecord  4. editingRecord  5. Empty
+        const resolveContractor = () => {
+            return contractorOverrides.contractor 
+                || items[0]?.contractor 
+                || newRecord?.contractor 
+                || editingRecord?.contractor 
+                || '';
+        };
+        
+        const resolveContractorPhone = () => {
+            return contractorOverrides.contractorPhone 
+                || items[0]?.contractorPhone 
+                || newRecord?.contractorPhone 
+                || editingRecord?.contractorPhone 
+                || '';
+        };
+        
+        const resolveContractorEmail = () => {
+            return contractorOverrides.contractorEmail 
+                || items[0]?.contractorEmail 
+                || newRecord?.contractorEmail 
+                || editingRecord?.contractorEmail 
+                || '';
+        };
+        
+        const resolveContractorAddress = () => {
+            return contractorOverrides.contractorAddress 
+                || items[0]?.contractorAddress 
+                || newRecord?.contractorAddress 
+                || editingRecord?.contractorAddress 
+                || '';
+        };
+        
+        const resolveWarranty = () => {
+            return contractorOverrides.warranty 
+                || items[0]?.warranty 
+                || newRecord?.warranty 
+                || editingRecord?.warranty 
+                || '';
+        };
+        
+        // Pre-resolve once (not per item) for consistency
+        const sharedContractor = resolveContractor();
+        const sharedContractorPhone = resolveContractorPhone();
+        const sharedContractorEmail = resolveContractorEmail();
+        const sharedContractorAddress = resolveContractorAddress();
+        const sharedWarranty = resolveWarranty();
+        
+        // ============ DEBUG LOG ============
+        console.log('📋 BATCH SAVE - Contractor Resolution:', {
+            contractor: sharedContractor,
+            phone: sharedContractorPhone,
+            email: sharedContractorEmail,
+            address: sharedContractorAddress,
+            sources: { 
+                override: contractorOverrides, 
+                firstItem: items[0], 
+                newRecord, 
+                editingRecord 
             }
-            
-            const batch = writeBatch(db);
-            const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
-            
-            items.forEach((item) => {
-                 const newDocRef = doc(collectionRef);
-                 // Fallback Priority: 1. Item Specific -> 2. Current Form State -> 3. Original Scanned Data -> 4. Default
-                 const dateInstalled = item.dateInstalled || newRecord?.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0];
-                 const nextDate = calculateNextDate(dateInstalled, item.maintenanceFrequency || 'none');
+        });
+        // ===================================
+        
+        items.forEach((item) => {
+             const newDocRef = doc(collectionRef);
+             const dateInstalled = item.dateInstalled || newRecord?.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0];
+             const nextDate = calculateNextDate(dateInstalled, item.maintenanceFrequency || 'none');
+             
+             const docData = { 
+                 userId: user.uid, 
+                 propertyId: activeProperty.id, 
+                 propertyLocation: activeProperty.name, 
+                 category: item.category || 'Other', 
+                 item: item.item || 'Unknown Item', 
+                 brand: item.brand || '', 
+                 model: item.model || '', 
+                 serialNumber: item.serial || item.serialNumber || '', 
+                 cost: parseCost(item.cost), 
+                 area: item.area || 'General', 
+                 notes: item.notes || '', 
                  
-                 const docData = { 
-                     userId: user.uid, propertyId: activeProperty.id, propertyLocation: activeProperty.name, 
-                     category: item.category || 'Other', item: item.item || 'Unknown Item', brand: item.brand || '', 
-                     model: item.model || '', serialNumber: item.serial || '', cost: parseCost(item.cost), 
-                     area: item.area || 'General', notes: item.notes || '', 
-                     
-                     dateInstalled: dateInstalled, 
-                     maintenanceFrequency: item.maintenanceFrequency || 'none', nextServiceDate: nextDate, 
-                     maintenanceTasks: item.maintenanceTasks || [], 
-                     
-                     // === FIX: SAFE NAVIGATION (?. prop) ===
-                     // We now use ?. to safely access properties even if editingRecord is null
-                     contractor: item.contractor || newRecord?.contractor || editingRecord?.contractor || '',
-                     contractorPhone: newRecord?.contractorPhone || editingRecord?.contractorPhone || '',
-                     contractorEmail: newRecord?.contractorEmail || editingRecord?.contractorEmail || '',
-                     contractorAddress: newRecord?.contractorAddress || editingRecord?.contractorAddress || '',
-                     warranty: item.warranty || newRecord?.warranty || editingRecord?.warranty || '',
-                     // =======================================
+                 dateInstalled: dateInstalled, 
+                 maintenanceFrequency: item.maintenanceFrequency || 'none', 
+                 nextServiceDate: nextDate, 
+                 maintenanceTasks: item.maintenanceTasks || [], 
+                 
+                 // ============ BULLETPROOF CONTRACTOR FIELDS ============
+                 contractor: sharedContractor,
+                 contractorPhone: sharedContractorPhone,
+                 contractorEmail: sharedContractorEmail,
+                 contractorAddress: sharedContractorAddress,
+                 warranty: sharedWarranty,
+                 // =======================================================
 
-                     imageUrl: sharedImageUrl || '', attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
-                     timestamp: serverTimestamp() 
-                 };
-                 batch.set(newDocRef, docData);
-            });
-            await batch.commit();
-            toast.success(`${items.length} items saved!`);
-            onSuccess();
-        } catch (error) { console.error("Batch Save Error:", error); toast.error(`Error: ${error.code || error.message}`); 
-        } finally { setSaving(false); }
-    };
+                 imageUrl: sharedImageUrl || '', 
+                 attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
+                 timestamp: serverTimestamp() 
+             };
+             batch.set(newDocRef, docData);
+        });
+        
+        await batch.commit();
+        toast.success(`${items.length} items saved!`);
+        onSuccess();
+    } catch (error) { 
+        console.error("Batch Save Error:", error); 
+        toast.error(`Error: ${error.code || error.message}`); 
+    } finally { 
+        setSaving(false); 
+    }
+};
 
     const handleSave = async (e) => {
         e.preventDefault(); setSaving(true);
