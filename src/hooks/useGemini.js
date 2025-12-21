@@ -27,62 +27,129 @@ export const useGemini = () => {
     };
 
     // --- HELPER: Match AI guess to Constants ---
-    const findBestRoomMatch = (guess, itemName = '', category = '') => {
-        // ===== DEBUG =====
-        console.log(`🔍 findBestRoomMatch called:`, { guess, itemName, category });
-        // ===== END DEBUG =====
+    // --- HELPER: Match AI guess to Constants ---
+const findBestRoomMatch = (aiGuess, itemName = '', category = '', invoiceContext = '') => {
+    // ===== COMPREHENSIVE DEBUG =====
+    console.log(`🔍 findBestRoomMatch called:`, { aiGuess, itemName, category, invoiceContext: invoiceContext?.substring(0, 100) });
+    // ================================
+    
+    // Combine all text for context search
+    const fullContext = `${aiGuess} ${itemName} ${category} ${invoiceContext}`.toLowerCase();
+    
+    // ============ STEP 1: Check for EXPLICIT location mentions in context ============
+    // These take absolute priority over any inference
+    const explicitLocationPatterns = [
+        { pattern: /\bin\s+attic\b|\battic\s+install|\brelocate[d]?\s+to\s+attic|\battic\s+unit/i, room: 'Attic' },
+        { pattern: /\bin\s+garage\b|\bgarage\s+install/i, room: 'Garage' },
+        { pattern: /\bin\s+basement\b|\bbasement\s+install/i, room: 'Basement' },
+        { pattern: /\bside\s+of\s+house\b|\bexterior\b|\boutside\b|\boutdoor\s+unit\b|\bbackyard\b/i, room: 'Exterior' },
+        { pattern: /\blaundry\s+room\b|\butility\s+room\b/i, room: 'Laundry Room' },
+        { pattern: /\bmaster\s+bath|\bmaster\s+bathroom/i, room: 'Master Bathroom' },
+        { pattern: /\bkitchen\b/i, room: 'Kitchen' },
+    ];
+    
+    for (const { pattern, room } of explicitLocationPatterns) {
+        if (pattern.test(fullContext)) {
+            console.log(`   ✅ EXPLICIT location found: "${room}" (pattern: ${pattern})`);
+            return room;
+        }
+    }
+    // =================================================================================
+    
+    // ============ STEP 2: Trust AI guess if it's valid ============
+    if (aiGuess && aiGuess.toLowerCase() !== 'general') {
+        const lowerGuess = aiGuess.toLowerCase();
         
-        // First, try to match the AI's guess
-        if (guess && guess.toLowerCase() !== 'general') {
-            const lowerGuess = guess.toLowerCase();
-            const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
-            if (exact) {
-                console.log(`   ✅ Exact match: "${exact}"`);
-                return exact;
-            }
-            const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
-            if (partial) {
-                console.log(`   ✅ Partial match: "${partial}"`);
-                return partial;
-            }
-            if (guess.trim()) {
-                console.log(`   ⚠️ No match, using AI guess as custom: "${guess}"`);
-                return guess;
-            }
+        // Exact match
+        const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
+        if (exact) {
+            console.log(`   ✅ AI guess exact match: "${exact}"`);
+            return exact;
         }
         
-        // Fallback: infer from item name or category
-        const searchText = `${itemName} ${category}`.toLowerCase();
-        console.log(`   🔎 Fallback search text: "${searchText}"`);
+        // Partial match
+        const partial = ROOMS.find(r => 
+            r.toLowerCase().includes(lowerGuess) || 
+            lowerGuess.includes(r.toLowerCase())
+        );
+        if (partial) {
+            console.log(`   ✅ AI guess partial match: "${partial}"`);
+            return partial;
+        }
         
-        if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal|kitchen/.test(searchText)) {
-            console.log(`   ✅ Inferred: Kitchen`);
-            return 'Kitchen';
+        // Custom location (AI found something not in our list)
+        if (aiGuess.trim() && aiGuess.length > 2) {
+            console.log(`   ⚠️ Using AI custom guess: "${aiGuess}"`);
+            return aiGuess;
         }
-        if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
-            console.log(`   ✅ Inferred: Bathroom`);
-            return 'Bathroom';
-        }
-        if (/washer|dryer|laundry/.test(searchText)) {
-            console.log(`   ✅ Inferred: Laundry Room`);
-            return 'Laundry Room';
-        }
-        if (/water heater|garage door|opener|water softener/.test(searchText)) {
-            console.log(`   ✅ Inferred: Garage`);
-            return 'Garage';
-        }
-        if (/air handler|furnace|attic/.test(searchText)) {
-            console.log(`   ✅ Inferred: Attic`);
+    }
+    // ==============================================================
+    
+    // ============ STEP 3: Inference based on item type (LAST RESORT) ============
+    const searchText = `${itemName} ${category}`.toLowerCase();
+    console.log(`   🔎 Fallback inference for: "${searchText}"`);
+    
+    // Kitchen items
+    if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal/.test(searchText)) {
+        console.log(`   ✅ Inferred: Kitchen`);
+        return 'Kitchen';
+    }
+    
+    // Bathroom items
+    if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
+        console.log(`   ✅ Inferred: Bathroom`);
+        return 'Bathroom';
+    }
+    
+    // Laundry items
+    if (/washer|dryer|laundry/.test(searchText)) {
+        console.log(`   ✅ Inferred: Laundry Room`);
+        return 'Laundry Room';
+    }
+    
+    // Garage items (water heaters, garage doors, etc.)
+    if (/water heater|garage door|opener|water softener/.test(searchText)) {
+        console.log(`   ✅ Inferred: Garage`);
+        return 'Garage';
+    }
+    
+    // Indoor HVAC (air handlers, furnaces) - default to Attic
+    if (/air handler|furnace/.test(searchText)) {
+        console.log(`   ✅ Inferred: Attic (indoor HVAC unit)`);
+        return 'Attic';
+    }
+    
+    // ============ CRITICAL FIX FOR HEAT PUMP ============
+    // Only infer "Exterior" for heat pump if we DIDN'T find an explicit location above
+    // and if the item name specifically includes "condenser" or "outdoor"
+    if (/condenser|outdoor\s+unit|compressor/.test(searchText)) {
+        console.log(`   ✅ Inferred: Exterior (outdoor unit)`);
+        return 'Exterior';
+    }
+    
+    // Heat pump WITHOUT "outdoor" or "condenser" in name - DON'T auto-assign Exterior
+    // This is where the bug was! Heat pump systems can be in attic.
+    if (/heat pump/.test(searchText)) {
+        // Check if there's ANY attic context before defaulting
+        if (/attic/.test(fullContext)) {
+            console.log(`   ✅ Heat pump with attic context: Attic`);
             return 'Attic';
         }
-        if (/condenser|heat pump|compressor|pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
-            console.log(`   ✅ Inferred: Exterior`);
-            return 'Exterior';
-        }
-        
-        console.log(`   ❌ No inference possible, returning: "${guess || 'General'}"`);
-        return guess || 'General';
-    };
+        // If truly no context, default to Exterior (most common for standalone heat pump installs)
+        console.log(`   ⚠️ Heat pump with no location context: Exterior (default)`);
+        return 'Exterior';
+    }
+    // ====================================================
+    
+    // Exterior items (pools, sprinklers, etc.)
+    if (/pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
+        console.log(`   ✅ Inferred: Exterior`);
+        return 'Exterior';
+    }
+    
+    console.log(`   ❌ No inference possible, returning: "${aiGuess || 'General'}"`);
+    return aiGuess || 'General';
+};
 
     // --- Bulletproof Address Check Helper ---
     const isSameAddress = (vendorAddr, userStreet) => {
