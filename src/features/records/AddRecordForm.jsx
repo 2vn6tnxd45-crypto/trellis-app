@@ -70,7 +70,7 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
     const handleSmartScanComplete = (data) => {
         setShowSmartScanner(false);
         
-        if (data.items && data.items.length > 1) {
+        if (data.items && data.items.length >= 1) {
             setRoomScanResults(initializeBatchItems(data.items));
             setScanMode('room-results');
             if (data.attachments && data.attachments.length > 0 && data.attachments[0].fileRef) {
@@ -215,14 +215,14 @@ export const AddRecordForm = ({ onSave, onBatchSave, isSaving, newRecord, onInpu
                                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Area/Room</label>
                                         {!item.isCustomArea ? (
                                             <select 
-                                                value={ROOMS.includes(item.area) ? item.area : ''} 
+                                                value={ROOMS.includes(item.area) ? item.area : (item.area === 'General' || !item.area ? 'General' : '')}
                                                 onChange={(e) => {
                                                     if (e.target.value === 'Other (Custom)') toggleBatchCustomArea(idx, true);
                                                     else updateBatchItem(idx, 'area', e.target.value);
                                                 }} 
                                                 className="w-full text-sm text-slate-500 border-b border-slate-200 focus:border-emerald-500 outline-none p-1 bg-transparent"
                                             >
-                                                <option value="">General</option>
+                                                <option value="General">General</option>
                                                 {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
                                                 <option value="Other (Custom)">Other...</option>
                                             </select>
