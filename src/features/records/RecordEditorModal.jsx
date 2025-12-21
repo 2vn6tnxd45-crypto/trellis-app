@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { doc, collection, addDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import { calculateNextDate } from '../../lib/utils';
 import { generatePDFThumbnail } from '../../lib/pdfUtils';
 import { AddRecordForm } from './AddRecordForm';
@@ -67,26 +67,30 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
             
             items.forEach((item) => {
                  const newDocRef = doc(collectionRef);
-                 // Fix: Use newRecord.dateInstalled as fallback to capture form edits
-                 const nextDate = calculateNextDate(item.dateInstalled || newRecord?.dateInstalled || new Date().toISOString().split('T')[0], item.maintenanceFrequency || 'none');
+                 // Fallback Priority: 1. Item Specific -> 2. Current Form State -> 3. Original Scanned Data -> 4. Default
+                 const dateInstalled = item.dateInstalled || newRecord?.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0];
+                 const nextDate = calculateNextDate(dateInstalled, item.maintenanceFrequency || 'none');
                  
                  const docData = { 
                      userId: user.uid, propertyId: activeProperty.id, propertyLocation: activeProperty.name, 
                      category: item.category || 'Other', item: item.item || 'Unknown Item', brand: item.brand || '', 
                      model: item.model || '', serialNumber: item.serial || '', cost: parseCost(item.cost), 
                      area: item.area || 'General', notes: item.notes || '', 
-                     // Fix: Use newRecord.dateInstalled
-                     dateInstalled: item.dateInstalled || newRecord?.dateInstalled || new Date().toISOString().split('T')[0], 
+                     
+                     dateInstalled: dateInstalled, 
                      maintenanceFrequency: item.maintenanceFrequency || 'none', nextServiceDate: nextDate, 
                      maintenanceTasks: item.maintenanceTasks || [], 
                      
-                     // === FIX: Use newRecord (current form state) instead of editingRecord (initial props) ===
-                     contractor: item.contractor || newRecord.contractor || '',
-                     contractorPhone: newRecord.contractorPhone || '',
-                     contractorEmail: newRecord.contractorEmail || '',
-                     contractorAddress: newRecord.contractorAddress || '',
-                     warranty: item.warranty || newRecord.warranty || '',
-                     // ========================================================================================
+                     // === FIX: ROBUST FALLBACK CHAIN ===
+                     // 1. Item-specific (rarely exists for phone)
+                     // 2. newRecord (if user just typed it in)
+                     // 3. editingRecord (the original scan data - CRITICAL FALLBACK)
+                     contractor: item.contractor || newRecord.contractor || editingRecord.contractor || '',
+                     contractorPhone: newRecord.contractorPhone || editingRecord.contractorPhone || '',
+                     contractorEmail: newRecord.contractorEmail || editingRecord.contractorEmail || '',
+                     contractorAddress: newRecord.contractorAddress || editingRecord.contractorAddress || '',
+                     warranty: item.warranty || newRecord.warranty || editingRecord.warranty || '',
+                     // ===================================
 
                      imageUrl: sharedImageUrl || '', attachments: sharedFileUrl ? [{ name: 'Scan', type: sharedFileType, url: sharedFileUrl }] : [],
                      timestamp: serverTimestamp() 
