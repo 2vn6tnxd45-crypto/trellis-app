@@ -123,22 +123,22 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
             contractorAddress: analysis.vendorAddress || '',
             
             items: (analysis.items || []).map(item => ({
-                item: item.item || 'Unknown',
-                category: item.category || 'Other',
-                brand: item.brand || '',
-                model: item.model || '',
-                serial: item.serial || '', 
-                cost: item.cost || 0,
-                dateInstalled: analysis.date,
-                contractor: analysis.vendorName || '',
-                warranty: analysis.warranty || '',
-                maintenanceFrequency: item.maintenanceFrequency || 'annual',
-                notes: item.maintenanceNotes || '',
-                // Only pass selected tasks
-                maintenanceTasks: (item.suggestedTasks || [])
-                    .filter(t => t.selected)
-                    .map(t => ({ task: t.task, frequency: t.frequency, nextDue: t.firstDueDate }))
-            })),
+    item: item.item || 'Unknown',
+    category: item.category || 'Other',
+    area: item.area || 'General',  // ✅ ADD THIS LINE
+    brand: item.brand || '',
+    model: item.model || '',
+    serial: item.serial || '', 
+    cost: item.cost || 0,
+    dateInstalled: analysis.date,
+    contractor: analysis.vendorName || '',
+    warranty: analysis.warranty || '',
+    maintenanceFrequency: item.maintenanceFrequency || 'annual',
+    notes: item.maintenanceNotes || '',
+    maintenanceTasks: (item.suggestedTasks || [])
+        .filter(t => t.selected)
+        .map(t => ({ task: t.task, frequency: t.frequency, nextDue: t.firstDueDate }))
+})),
             
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
             cost: analysis.totalAmount || 0,
