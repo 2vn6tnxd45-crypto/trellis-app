@@ -203,7 +203,7 @@ const AppContent = () => {
         <CookieConsent />
 
         <CelebrationRenderer celebration={celebrations.celebration} toast={celebrations.toast} onCloseCelebration={celebrations.closeCelebration} onCloseToast={celebrations.closeToast} />
-        {app.showScanner && <SmartScanner onClose={() => app.setShowScanner(false)} onProcessComplete={handleScanComplete} onAnalyze={handleAnalyzeImage} />}
+        {app.showScanner && <SmartScanner onClose={() => app.setShowScanner(false)} onProcessComplete={handleScanComplete} onAnalyze={handleAnalyzeImage} userAddress={app.activeProperty?.address} />}
         
         <div className="min-h-screen bg-slate-50 pb-24">
             {/* Header */}
