@@ -27,16 +27,50 @@ export const useGemini = () => {
     };
 
     // --- NEW HELPER: Match AI guess to Constants ---
-    const findBestRoomMatch = (guess) => {
-        if (!guess) return '';
+    // Smart room matching with item-based inference as fallback
+const findBestRoomMatch = (guess, itemName = '', category = '') => {
+    // First, try to match the AI's guess
+    if (guess && guess.toLowerCase() !== 'general') {
         const lowerGuess = guess.toLowerCase();
-        // Exact match (insensitive)
         const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
         if (exact) return exact;
-        // Partial match (e.g. "Master Bath" -> "Master Bathroom")
         const partial = ROOMS.find(r => r.toLowerCase().includes(lowerGuess) || lowerGuess.includes(r.toLowerCase()));
-        return partial || guess; // Return guess (as custom) if no match
-    };
+        if (partial) return partial;
+        // If AI returned something not in our list, trust it as custom
+        if (guess.trim()) return guess;
+    }
+    
+    // Fallback: infer from item name or category if AI didn't provide good answer
+    const searchText = `${itemName} ${category}`.toLowerCase();
+    
+    // Kitchen items
+    if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal|kitchen/.test(searchText)) {
+        return 'Kitchen';
+    }
+    // Bathroom items  
+    if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
+        return 'Bathroom';
+    }
+    // Laundry items
+    if (/washer|dryer|laundry/.test(searchText)) {
+        return 'Laundry Room';
+    }
+    // Garage items
+    if (/water heater|garage door|opener|water softener/.test(searchText)) {
+        return 'Garage';
+    }
+    // Attic items
+    if (/air handler|furnace|attic/.test(searchText)) {
+        return 'Attic';
+    }
+    // Exterior items
+    if (/condenser|heat pump|compressor|pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
+        return 'Exterior';
+    }
+    
+    // If we get here and AI said "General", keep it
+    return guess || 'General';
+};
 
     // --- UPDATED SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
@@ -182,20 +216,22 @@ export const useGemini = () => {
             data.totalAmount = data.totalAmount || 0;
             
             // Clean up items
-            data.items = data.items.map(item => ({
-                ...item,
-                item: toProperCase(String(item.item || 'Unknown Item')),
-                brand: toProperCase(String(item.brand || '')),
-                category: item.category || "Other",
-                // NEW: Map AI guess to Room Constants
-                area: findBestRoomMatch(item.area) || "General",
-                cost: item.cost || 0,
-                warranty: item.warranty || data.warranty || '',
-                maintenanceFrequency: item.maintenanceFrequency || 'annual',
-                maintenanceNotes: item.maintenanceNotes || '',
-                // Ensure tasks array is present
-                suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
-            }));
+            data.items = data.items.map(item => {
+    const itemName = toProperCase(String(item.item || 'Unknown Item'));
+    const category = item.category || "Other";
+    return {
+        ...item,
+        item: itemName,
+        brand: toProperCase(String(item.brand || '')),
+        category: category,
+        area: findBestRoomMatch(item.area, itemName, category),
+        cost: item.cost || 0,
+        warranty: item.warranty || data.warranty || '',
+        maintenanceFrequency: item.maintenanceFrequency || 'annual',
+        maintenanceNotes: item.maintenanceNotes || '',
+        suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
+    };
+});
 
             return data;
 
