@@ -111,34 +111,43 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
             fileRef: fileObj 
         };
 
+        // ============ EXTRACT CONTRACTOR INFO ONCE ============
+        const contractorInfo = {
+            contractor: analysis.vendorName || '',
+            contractorPhone: analysis.vendorPhone || '',
+            contractorEmail: analysis.vendorEmail || '',
+            contractorAddress: analysis.vendorAddress || '',
+            warranty: analysis.warranty || '',
+        };
+        // ======================================================
+
         const recordData = {
             store: analysis.vendorName || '', 
             image: image, 
             date: analysis.date,
             
-            warranty: analysis.warranty || '',
-
-            contractorPhone: analysis.vendorPhone || '',
-            contractorEmail: analysis.vendorEmail || '',
-            contractorAddress: analysis.vendorAddress || '',
+            // ============ TOP-LEVEL CONTRACTOR (for backwards compat) ============
+            ...contractorInfo,
+            // =====================================================================
             
             items: (analysis.items || []).map(item => ({
-    item: item.item || 'Unknown',
-    category: item.category || 'Other',
-    area: item.area || 'General',  // ✅ ADD THIS LINE
-    brand: item.brand || '',
-    model: item.model || '',
-    serial: item.serial || '', 
-    cost: item.cost || 0,
-    dateInstalled: analysis.date,
-    contractor: analysis.vendorName || '',
-    warranty: analysis.warranty || '',
-    maintenanceFrequency: item.maintenanceFrequency || 'annual',
-    notes: item.maintenanceNotes || '',
-    maintenanceTasks: (item.suggestedTasks || [])
-        .filter(t => t.selected)
-        .map(t => ({ task: t.task, frequency: t.frequency, nextDue: t.firstDueDate }))
-})),
+                item: item.item || 'Unknown',
+                category: item.category || 'Other',
+                area: item.area || 'General',
+                brand: item.brand || '',
+                model: item.model || '',
+                serial: item.serial || '', 
+                cost: item.cost || 0,
+                dateInstalled: analysis.date,
+                // ============ ITEM-LEVEL CONTRACTOR (bulletproof) ============
+                ...contractorInfo,
+                // =============================================================
+                maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                notes: item.maintenanceNotes || '',
+                maintenanceTasks: (item.suggestedTasks || [])
+                    .filter(t => t.selected)
+                    .map(t => ({ task: t.task, frequency: t.frequency, nextDue: t.firstDueDate }))
+            })),
             
             item: analysis.items?.[0]?.item || analysis.primaryJobDescription || 'New Item',
             cost: analysis.totalAmount || 0,
@@ -152,7 +161,7 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
         console.error("Handoff Error:", err);
         setError("Failed to prepare data. Please try again.");
     }
-  };
+};
 
   const removeItem = (index) => {
       const newItems = [...analysis.items];
