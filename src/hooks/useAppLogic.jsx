@@ -110,16 +110,88 @@ export const useAppLogic = (celebrations) => {
     
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
+    // =========================================================================
+    // FIXED: handleSaveProperty now properly supports multiple properties
+    // =========================================================================
     const handleSaveProperty = async (formData) => {
         if (!user) return;
         setIsSavingProperty(true);
         try {
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
-            await setDoc(profileRef, { name: formData.name, address: formData.address, coordinates: formData.coordinates || null, activePropertyId: 'legacy', createdAt: serverTimestamp() }, { merge: true });
-            const snap = await getDoc(profileRef); if (snap.exists()) setProfile(snap.data()); toast.success("Krib created!");
-        } catch (error) { toast.error("Failed: " + error.message); } finally { setIsSavingProperty(false); setIsAddingProperty(false); }
+            const profileSnap = await getDoc(profileRef);
+            const existingProfile = profileSnap.exists() ? profileSnap.data() : null;
+            
+            // Determine current properties (handles both legacy and array formats)
+            let currentProperties = [];
+            if (existingProfile) {
+                if (existingProfile.properties && Array.isArray(existingProfile.properties)) {
+                    // Already using properties array format
+                    currentProperties = existingProfile.properties;
+                } else if (existingProfile.name) {
+                    // Legacy format - convert to array format
+                    currentProperties = [{
+                        id: 'legacy',
+                        name: existingProfile.name,
+                        address: existingProfile.address,
+                        coordinates: existingProfile.coordinates
+                    }];
+                }
+            }
+            
+            // Generate a unique ID for the new property
+            const newPropertyId = currentProperties.length === 0 
+                ? 'legacy'  // First property uses 'legacy' for backward compatibility
+                : `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Create the new property object
+            const newProperty = {
+                id: newPropertyId,
+                name: formData.name,
+                address: formData.address,
+                coordinates: formData.coordinates || null
+            };
+            
+            // Add the new property to the array
+            const updatedProperties = [...currentProperties, newProperty];
+            
+            // Prepare the update data
+            let updateData = {
+                properties: updatedProperties,
+                activePropertyId: newPropertyId,  // Switch to the new property
+                updatedAt: serverTimestamp()
+            };
+            
+            // If this is the first property, also set legacy fields for backward compatibility
+            if (currentProperties.length === 0) {
+                updateData.name = formData.name;
+                updateData.address = formData.address;
+                updateData.coordinates = formData.coordinates || null;
+                updateData.createdAt = serverTimestamp();
+            }
+            
+            await setDoc(profileRef, updateData, { merge: true });
+            
+            // Refresh the profile from the database
+            const snap = await getDoc(profileRef);
+            if (snap.exists()) {
+                const data = snap.data();
+                setProfile(data);
+                setActivePropertyId(newPropertyId);
+            }
+            
+            toast.success(currentProperties.length === 0 ? "Krib created!" : "Property added!");
+        } catch (error) { 
+            console.error('handleSaveProperty error:', error);
+            toast.error("Failed: " + error.message); 
+        } finally { 
+            setIsSavingProperty(false); 
+            setIsAddingProperty(false); 
+        }
     }; 
 
+    // =========================================================================
+    // handleMarkTaskDone - COMPLETE ORIGINAL with Undo toast and celebrations
+    // =========================================================================
     const handleMarkTaskDone = useCallback(async (task, notes = '') => {
         // DIAGNOSTIC: Remove after debugging
         console.log('[DEBUG] handleMarkTaskDone called with:', {
@@ -217,7 +289,9 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
-    // EXISTING: Handles permanent deletion of history items
+    // =========================================================================
+    // handleDeleteHistoryItem - COMPLETE ORIGINAL (takes historyItem object)
+    // =========================================================================
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Deleting history item:', historyItem);
@@ -242,7 +316,9 @@ export const useAppLogic = (celebrations) => {
         } catch (e) { toast.error("Failed to delete: " + e.message); }
     }, [records, user]);
 
-    // EXISTING: Handles restoring history items to active tasks
+    // =========================================================================
+    // handleRestoreHistoryItem - COMPLETE ORIGINAL with task updates
+    // =========================================================================
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Restoring history item:', historyItem);
@@ -291,7 +367,7 @@ export const useAppLogic = (celebrations) => {
     // NEW HANDLERS - Added for Delete, Schedule, Snooze functionality
     // =========================================================================
 
-    // NEW: Delete a maintenance task from a record
+    // NEW: Delete a maintenance task from a record - COMPLETE ORIGINAL
     const handleDeleteMaintenanceTask = useCallback(async (task) => {
         try {
             console.log('[App] Deleting maintenance task:', task);
@@ -335,7 +411,7 @@ export const useAppLogic = (celebrations) => {
         }
     }, [records, user]);
 
-    // NEW: Schedule a task with an appointment date
+    // NEW: Schedule a task with an appointment date - COMPLETE ORIGINAL
     const handleScheduleTask = useCallback(async (task, scheduledDate, notes = '') => {
         try {
             console.log('[App] Scheduling task:', { task, scheduledDate, notes });
@@ -397,7 +473,7 @@ export const useAppLogic = (celebrations) => {
         }
     }, [records, user]);
 
-    // NEW: Snooze a task by pushing its due date forward
+    // NEW: Snooze a task by pushing its due date forward - COMPLETE ORIGINAL
     const handleSnoozeTask = useCallback(async (task, days) => {
         try {
             console.log('[App] Snoozing task:', { task, days });
