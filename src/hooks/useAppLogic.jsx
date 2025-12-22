@@ -9,7 +9,9 @@ import { calculateNextDate } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
 
 export const useAppLogic = (celebrations) => {
-    // State
+    // =========================================================================
+    // STATE - All existing state preserved exactly
+    // =========================================================================
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
@@ -39,7 +41,9 @@ export const useAppLogic = (celebrations) => {
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
     const [inventoryView, setInventoryView] = useState('category'); 
 
-    // Derived State (Memoized to prevent effect loops)
+    // =========================================================================
+    // DERIVED STATE - All existing derived state preserved exactly
+    // =========================================================================
     const getPropertiesList = () => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
@@ -54,7 +58,9 @@ export const useAppLogic = (celebrations) => {
         return records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
     }, [records, activeProperty]);
 
-    // Effects
+    // =========================================================================
+    // EFFECTS - All existing effects preserved exactly
+    // =========================================================================
     useEffect(() => {
         let unsubRecords = null;
         let unsubRequests = null;
@@ -98,7 +104,10 @@ export const useAppLogic = (celebrations) => {
         setDueTasks(upcoming);
     }, [records, activeProperty, activePropertyRecords]);
 
-    // Actions
+    // =========================================================================
+    // EXISTING HANDLERS - All preserved exactly as they were
+    // =========================================================================
+    
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     const handleSaveProperty = async (formData) => {
@@ -112,30 +121,30 @@ export const useAppLogic = (celebrations) => {
     }; 
 
     const handleMarkTaskDone = useCallback(async (task, notes = '') => {
-    // DIAGNOSTIC: Remove after debugging
-    console.log('[DEBUG] handleMarkTaskDone called with:', {
-        task,
-        recordId: task.recordId,
-        taskName: task.taskName,
-        isGranular: task.isGranular,
-        frequency: task.frequency,
-        nextDue: task.nextDue,
-        daysUntil: task.daysUntil
-    });
-    
-    try {
-        if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
-        const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
-        const record = records.find(r => r.id === task.recordId);
-        if (!record) return;
-        
-        // ADD THIS NEW DEBUG BLOCK:
-        console.log('[DEBUG] Found record:', {
-            recordId: record.id,
-            maintenanceTasks: record.maintenanceTasks,
-            taskNamesInRecord: record.maintenanceTasks?.map(t => t.task)
+        // DIAGNOSTIC: Remove after debugging
+        console.log('[DEBUG] handleMarkTaskDone called with:', {
+            task,
+            recordId: task.recordId,
+            taskName: task.taskName,
+            isGranular: task.isGranular,
+            frequency: task.frequency,
+            nextDue: task.nextDue,
+            daysUntil: task.daysUntil
         });
+        
+        try {
+            if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
+            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
+            const record = records.find(r => r.id === task.recordId);
+            if (!record) return;
             
+            // ADD THIS NEW DEBUG BLOCK:
+            console.log('[DEBUG] Found record:', {
+                recordId: record.id,
+                maintenanceTasks: record.maintenanceTasks,
+                taskNamesInRecord: record.maintenanceTasks?.map(t => t.task)
+            });
+                
             const completedDate = new Date().toISOString();
             const completedDateShort = completedDate.split('T')[0];
             const historyEntry = { taskName: task.taskName, completedDate: completedDate, performedBy: 'User', notes: notes, id: Date.now().toString() };
@@ -144,71 +153,71 @@ export const useAppLogic = (celebrations) => {
 
             let updates = { maintenanceHistory: newHistory };
             if (task.isGranular) {
-    const updatedTasks = (record.maintenanceTasks || []).map(t => {
-        if (t.task === task.taskName) {
-            // Use the later of: today or current due date, as the base for next calculation
-            const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
-            const today = new Date(completedDateShort);
-            const baseDate = currentDue > today ? t.nextDue : completedDateShort;
-            return { ...t, nextDue: calculateNextDate(baseDate, t.frequency || 'annual') };
-        }
-        return t;
-    });
-    updates.maintenanceTasks = updatedTasks;
-} else {
+                const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                    if (t.task === task.taskName) {
+                        // Use the later of: today or current due date, as the base for next calculation
+                        const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
+                        const today = new Date(completedDateShort);
+                        const baseDate = currentDue > today ? t.nextDue : completedDateShort;
+                        return { ...t, nextDue: calculateNextDate(baseDate, t.frequency || 'annual') };
+                    }
+                    return t;
+                });
+                updates.maintenanceTasks = updatedTasks;
+            } else {
                 updates.dateInstalled = completedDateShort; 
                 const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
                 if (nextDate) updates.nextServiceDate = nextDate;
             }
-        console.log('[DEBUG] About to update with:', updates);
+            console.log('[DEBUG] About to update with:', updates);
             await updateDoc(recordRef, updates);
 
-// Calculate what the next date will be for the toast message
-const nextDateStr = task.isGranular 
-    ? calculateNextDate(completedDateShort, task.frequency || 'annual')
-    : calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
+            // Calculate what the next date will be for the toast message
+            const nextDateStr = task.isGranular 
+                ? calculateNextDate(completedDateShort, task.frequency || 'annual')
+                : calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
 
-const formattedNextDate = nextDateStr 
-    ? new Date(nextDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'next cycle';
+            const formattedNextDate = nextDateStr 
+                ? new Date(nextDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                : 'next cycle';
 
-// Store previous state for undo
-const previousState = {
-    maintenanceHistory: currentHistory,
-    maintenanceTasks: record.maintenanceTasks || [],
-    dateInstalled: record.dateInstalled,
-    nextServiceDate: record.nextServiceDate
-};
+            // Store previous state for undo
+            const previousState = {
+                maintenanceHistory: currentHistory,
+                maintenanceTasks: record.maintenanceTasks || [],
+                dateInstalled: record.dateInstalled,
+                nextServiceDate: record.nextServiceDate
+            };
 
-// Show toast with undo option
-toast.success(
-    (t) => (
-        <div className="flex items-center gap-3">
-            <span>Done! Next: {formattedNextDate}</span>
-            <button
-                onClick={async () => {
-                    toast.dismiss(t.id);
-                    try {
-                        await updateDoc(recordRef, previousState);
-                        toast.success("Undone!", { duration: 2000 });
-                    } catch (err) {
-                        toast.error("Couldn't undo: " + err.message);
-                    }
-                }}
-                className="font-bold underline hover:no-underline"
-            >
-                Undo
-            </button>
-        </div>
-    ),
-    { duration: 6000, icon: '🎉' }
-);
+            // Show toast with undo option
+            toast.success(
+                (t) => (
+                    <div className="flex items-center gap-3">
+                        <span>Done! Next: {formattedNextDate}</span>
+                        <button
+                            onClick={async () => {
+                                toast.dismiss(t.id);
+                                try {
+                                    await updateDoc(recordRef, previousState);
+                                    toast.success("Undone!", { duration: 2000 });
+                                } catch (err) {
+                                    toast.error("Couldn't undo: " + err.message);
+                                }
+                            }}
+                            className="font-bold underline hover:no-underline"
+                        >
+                            Undo
+                        </button>
+                    </div>
+                ),
+                { duration: 6000, icon: '🎉' }
+            );
 
-if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
+            if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
         } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
-    // NEW FUNCTION: Handles permanent deletion of history items
+    // EXISTING: Handles permanent deletion of history items
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Deleting history item:', historyItem);
@@ -233,7 +242,7 @@ if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
         } catch (e) { toast.error("Failed to delete: " + e.message); }
     }, [records, user]);
 
-    // NEW FUNCTION: Handles restoring history items to active tasks
+    // EXISTING: Handles restoring history items to active tasks
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
             console.log('[App] Restoring history item:', historyItem);
@@ -278,8 +287,193 @@ if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
         } catch (e) { toast.error("Failed to restore: " + e.message); }
     }, [records, user]);
 
-    // IMPORTANT: THESE FUNCTIONS MUST BE IN THE RETURN OBJECT
+    // =========================================================================
+    // NEW HANDLERS - Added for Delete, Schedule, Snooze functionality
+    // =========================================================================
+
+    // NEW: Delete a maintenance task from a record
+    const handleDeleteMaintenanceTask = useCallback(async (task) => {
+        try {
+            console.log('[App] Deleting maintenance task:', task);
+            
+            if (!task.recordId) {
+                console.error('[App] Delete task failed: Missing recordId');
+                toast.error("Cannot delete: Missing record ID");
+                return;
+            }
+
+            const record = records.find(r => r.id === task.recordId);
+            
+            if (!record) {
+                console.error(`[App] Delete task failed: Record ${task.recordId} not found`);
+                toast.error("Could not find the record. Try refreshing.");
+                return;
+            }
+
+            // For granular tasks, remove from maintenanceTasks array
+            if (task.isGranular && record.maintenanceTasks) {
+                const updatedTasks = record.maintenanceTasks.filter(t => t.task !== task.taskName);
+                
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { maintenanceTasks: updatedTasks }
+                );
+                
+                toast.success(`"${task.taskName}" deleted`, { icon: '🗑️' });
+            } else {
+                // For non-granular (record-level) tasks, set frequency to 'none'
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { maintenanceFrequency: 'none', nextServiceDate: null }
+                );
+                
+                toast.success("Maintenance schedule removed", { icon: '🗑️' });
+            }
+        } catch (e) {
+            console.error('[App] handleDeleteMaintenanceTask error:', e);
+            toast.error("Failed to delete task: " + e.message);
+        }
+    }, [records, user]);
+
+    // NEW: Schedule a task with an appointment date
+    const handleScheduleTask = useCallback(async (task, scheduledDate, notes = '') => {
+        try {
+            console.log('[App] Scheduling task:', { task, scheduledDate, notes });
+            
+            if (!task.recordId) {
+                console.error('[App] Schedule task failed: Missing recordId');
+                toast.error("Cannot schedule: Missing record ID");
+                return;
+            }
+
+            const record = records.find(r => r.id === task.recordId);
+            
+            if (!record) {
+                console.error(`[App] Schedule task failed: Record ${task.recordId} not found`);
+                toast.error("Could not find the record. Try refreshing.");
+                return;
+            }
+
+            // For granular tasks, update the specific task in maintenanceTasks array
+            if (task.isGranular && record.maintenanceTasks) {
+                const updatedTasks = record.maintenanceTasks.map(t => {
+                    if (t.task === task.taskName) {
+                        return { 
+                            ...t, 
+                            scheduledDate: scheduledDate,
+                            scheduledNotes: notes || null,
+                            // Clear any snooze when scheduling
+                            snoozedUntil: null
+                        };
+                    }
+                    return t;
+                });
+                
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { maintenanceTasks: updatedTasks }
+                );
+            } else {
+                // For non-granular tasks, store at record level
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { 
+                        scheduledDate: scheduledDate,
+                        scheduledNotes: notes || null,
+                        snoozedUntil: null
+                    }
+                );
+            }
+
+            const formattedDate = new Date(scheduledDate).toLocaleDateString(undefined, { 
+                month: 'short', 
+                day: 'numeric' 
+            });
+            
+            toast.success(`Scheduled for ${formattedDate}`, { icon: '📅' });
+        } catch (e) {
+            console.error('[App] handleScheduleTask error:', e);
+            toast.error("Failed to schedule: " + e.message);
+        }
+    }, [records, user]);
+
+    // NEW: Snooze a task by pushing its due date forward
+    const handleSnoozeTask = useCallback(async (task, days) => {
+        try {
+            console.log('[App] Snoozing task:', { task, days });
+            
+            if (!task.recordId) {
+                console.error('[App] Snooze task failed: Missing recordId');
+                toast.error("Cannot snooze: Missing record ID");
+                return;
+            }
+
+            const record = records.find(r => r.id === task.recordId);
+            
+            if (!record) {
+                console.error(`[App] Snooze task failed: Record ${task.recordId} not found`);
+                toast.error("Could not find the record. Try refreshing.");
+                return;
+            }
+
+            // Calculate new due date
+            const currentDue = task.nextDate ? new Date(task.nextDate) : new Date();
+            const today = new Date();
+            const baseDate = currentDue < today ? today : currentDue;
+            
+            const newDueDate = new Date(baseDate);
+            newDueDate.setDate(newDueDate.getDate() + days);
+            const newDueDateStr = newDueDate.toISOString().split('T')[0];
+            
+            // Also track when the snooze expires (for UI indicator)
+            const snoozedUntilStr = newDueDateStr;
+
+            // For granular tasks, update the specific task in maintenanceTasks array
+            if (task.isGranular && record.maintenanceTasks) {
+                const updatedTasks = record.maintenanceTasks.map(t => {
+                    if (t.task === task.taskName) {
+                        return { 
+                            ...t, 
+                            nextDue: newDueDateStr,
+                            snoozedUntil: snoozedUntilStr,
+                            // Clear scheduled date when snoozing
+                            scheduledDate: null,
+                            scheduledNotes: null
+                        };
+                    }
+                    return t;
+                });
+                
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { maintenanceTasks: updatedTasks }
+                );
+            } else {
+                // For non-granular tasks, update record-level dates
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    { 
+                        nextServiceDate: newDueDateStr,
+                        snoozedUntil: snoozedUntilStr,
+                        scheduledDate: null,
+                        scheduledNotes: null
+                    }
+                );
+            }
+
+            const label = days === 7 ? '1 week' : days === 14 ? '2 weeks' : days === 30 ? '1 month' : `${days} days`;
+            toast.success(`Snoozed for ${label}`, { icon: '⏰' });
+        } catch (e) {
+            console.error('[App] handleSnoozeTask error:', e);
+            toast.error("Failed to snooze: " + e.message);
+        }
+    }, [records, user]);
+
+    // =========================================================================
+    // RETURN - All existing values + 3 new handlers
+    // =========================================================================
     return {
+        // All existing state
         user, profile, records, loading, activeTab, setActiveTab,
         isAddModalOpen, setIsAddModalOpen, showNotifications, setShowNotifications,
         showUserMenu, setShowUserMenu, showMoreMenu, setShowMoreMenu,
@@ -292,8 +486,15 @@ if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
         showQuickService, setShowQuickService, showGuidedOnboarding, setShowGuidedOnboarding,
         showScanner, setShowScanner, useEnhancedCards, setUseEnhancedCards, inventoryView, setInventoryView,
         properties, activeProperty, activePropertyRecords,
+        
+        // All existing handlers
         handleAuth, handleSaveProperty, handleMarkTaskDone, 
-        handleDeleteHistoryItem, // ENSURE THIS IS HERE
-        handleRestoreHistoryItem // ENSURE THIS IS HERE
+        handleDeleteHistoryItem,
+        handleRestoreHistoryItem,
+        
+        // NEW: 3 new handlers for task actions
+        handleDeleteMaintenanceTask,
+        handleScheduleTask,
+        handleSnoozeTask
     };
 };
