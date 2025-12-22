@@ -41,6 +41,8 @@ import { CookieConsent } from './components/common/CookieConsent';
 // NEW: Import NotificationPanel and UserMenu components
 import { NotificationPanel } from './components/navigation/NotificationPanel';
 import { UserMenu } from './components/navigation/UserMenu';
+// Add this with your other feature imports
+import { SettingsPage } from './features/settings/SettingsPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -444,8 +446,44 @@ const AppContent = () => {
                 )}
                 
                 {app.activeTab === 'Contractors' && <FeatureErrorBoundary label="Contractors"><ProConnect userId={app.user.uid} propertyName={app.activeProperty.name} propertyAddress={app.activeProperty.address} records={app.activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} /></FeatureErrorBoundary>}
-                {app.activeTab === 'Settings' && <div className="space-y-6"><h2 className="text-2xl font-bold">Settings</h2><div className="bg-white rounded-2xl border p-6"><h3 className="font-bold">Enhanced Cards</h3><button onClick={() => app.setUseEnhancedCards(!app.useEnhancedCards)} className={`w-12 h-6 rounded-full ${app.useEnhancedCards ? 'bg-emerald-600' : 'bg-slate-300'} transition-colors`}><div className={`w-5 h-5 bg-white rounded-full shadow transform ${app.useEnhancedCards ? 'translate-x-6' : 'translate-x-0.5'} transition-transform`}></div></button></div></div>}
-                {app.activeTab === 'Help' && <div className="space-y-6"><h2 className="text-2xl font-bold">Help</h2><div className="bg-white rounded-2xl border p-6"><p>Contact support@krib.io</p></div></div>}
+                {app.activeTab === 'Settings' && (
+    <FeatureErrorBoundary label="Settings">
+        <SettingsPage 
+            user={app.user}
+            profile={app.profile}
+            properties={app.properties}
+            activePropertyId={app.activePropertyId}
+            records={app.activePropertyRecords}
+            useEnhancedCards={app.useEnhancedCards}
+            setUseEnhancedCards={app.setUseEnhancedCards}
+            onSwitchProperty={(propId) => {
+                app.setActivePropertyId(propId);
+                toast.success("Switched property");
+            }}
+            onAddProperty={() => app.setIsAddingProperty(true)}
+            onSignOut={() => signOut(auth)}
+        />
+    </FeatureErrorBoundary>
+)}
+                {app.activeTab === 'Help' && (
+    <FeatureErrorBoundary label="Help">
+        <SettingsPage 
+            user={app.user}
+            profile={app.profile}
+            properties={app.properties}
+            activePropertyId={app.activePropertyId}
+            records={app.activePropertyRecords}
+            useEnhancedCards={app.useEnhancedCards}
+            setUseEnhancedCards={app.setUseEnhancedCards}
+            onSwitchProperty={(propId) => {
+                app.setActivePropertyId(propId);
+                toast.success("Switched property");
+            }}
+            onAddProperty={() => app.setIsAddingProperty(true)}
+            onSignOut={() => signOut(auth)}
+        />
+    </FeatureErrorBoundary>
+)}
             </main>
 
             <BottomNav activeTab={app.activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={app.newSubmissions.length} />
