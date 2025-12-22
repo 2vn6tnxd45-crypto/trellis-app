@@ -58,8 +58,8 @@ const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, su
                 onClick={() => setIsOpen(!isOpen)} 
                 className={`w-full p-4 flex items-center justify-between transition-all duration-200 group ${
                     isOpen 
-                        ? 'bg-slate-50/80 border-b border-slate-100' // Darker + Border when OPEN
-                        : 'bg-white hover:bg-slate-50'              // White + Hover when CLOSED
+                        ? 'bg-slate-50/80 border-b border-slate-100'
+                        : 'bg-white hover:bg-slate-50'
                 }`}
             >
                 <div className="flex items-center gap-3">
@@ -78,7 +78,6 @@ const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, su
                     </div>
                 </div>
                 
-                {/* Chevron with circular background for button-feel */}
                 <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-300 ${
                     isOpen 
                         ? 'rotate-180 bg-slate-200 text-slate-600' 
@@ -130,12 +129,26 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
+// --- MAIN COMPONENT (UPDATED with new props) ---
 export const ModernDashboard = ({
-    records = [], contractors = [], activeProperty, onScanReceipt, onAddRecord,
-    onNavigateToItems, onNavigateToContractors, onNavigateToReports, onCreateContractorLink,
-    onNavigateToMaintenance, onBookService, onMarkTaskDone,
+    records = [], 
+    contractors = [], 
+    activeProperty, 
+    onScanReceipt, 
+    onAddRecord,
+    onNavigateToItems, 
+    onNavigateToContractors, 
+    onNavigateToReports, 
+    onCreateContractorLink,
+    onNavigateToMaintenance, 
+    onBookService, 
+    onMarkTaskDone,
     onDeleteHistoryItem, 
-    onRestoreHistoryItem 
+    onRestoreHistoryItem,
+    // NEW PROPS:
+    onDeleteTask,
+    onScheduleTask,
+    onSnoozeTask
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
@@ -241,7 +254,7 @@ export const ModernDashboard = ({
                 </div>
             </DashboardSection>
 
-            {/* 2. MAINTENANCE SCHEDULE SECTION */}
+            {/* 2. MAINTENANCE SCHEDULE SECTION (UPDATED with new props) */}
             <DashboardSection 
                 title="Maintenance Schedule" 
                 icon={Calendar} 
@@ -256,6 +269,10 @@ export const ModernDashboard = ({
                     onNavigateToRecords={onNavigateToItems}
                     onDeleteHistoryItem={onDeleteHistoryItem}
                     onRestoreHistoryItem={onRestoreHistoryItem}
+                    // NEW PROPS:
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
                 />
             </DashboardSection>
 
