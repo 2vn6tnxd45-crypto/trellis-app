@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { ReportTeaser } from './ReportTeaser';
 import { ModernDashboard } from './ModernDashboard';
-import { MaintenanceDashboard } from './MaintenanceDashboard'; // ✅ IMPORTED
+import { MaintenanceDashboard } from './MaintenanceDashboard';
 
 // --- SUB-COMPONENTS ---
 
@@ -46,11 +46,15 @@ const GettingStartedDashboard = ({
     onAddItem, 
     onScanReceipt, 
     onNavigateToItems,
-    // ✅ NEW PROPS ACCEPTED
+    // Existing props
     onBookService,
     onMarkTaskDone,
-    onDeleteHistoryItem, // <-- ADDED THIS
-    onRestoreHistoryItem // <-- ADDED THIS
+    onDeleteHistoryItem,
+    onRestoreHistoryItem,
+    // NEW PROPS:
+    onDeleteTask,
+    onScheduleTask,
+    onSnoozeTask
 }) => {
     const progress = Math.min(100, (records.length / 5) * 100);
     const remaining = 5 - records.length;
@@ -84,34 +88,43 @@ const GettingStartedDashboard = ({
                     
                     <p className="text-emerald-100 font-medium">
                         {remaining > 0 
-                            ? `Add ${remaining} more items to unlock your Home Health Score.` 
-                            : "Profile baseline complete!"}
+                            ? `Add ${remaining} more item${remaining > 1 ? 's' : ''} to unlock your Home Report`
+                            : "🎉 You've unlocked your Home Report!"
+                        }
                     </p>
                 </div>
             </div>
 
-            {/* Action Grid */}
+            {/* Quick Add Buttons */}
             <div className="grid grid-cols-2 gap-4">
-                <button onClick={onScanReceipt} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all text-left group">
-                    <div className="bg-emerald-50 w-12 h-12 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                <button 
+                    onClick={onScanReceipt}
+                    className="p-6 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex flex-col items-center gap-3 hover:border-emerald-400 hover:bg-emerald-100 transition-all group"
+                >
+                    <div className="bg-emerald-100 p-3 rounded-xl group-hover:bg-emerald-200 transition-colors">
                         <Camera className="h-6 w-6 text-emerald-600" />
                     </div>
-                    <span className="font-bold text-slate-800 block">Scan Receipt</span>
-                    <span className="text-xs text-slate-500">Auto-extract details</span>
-                </button>
-
-                <button onClick={onAddItem} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all text-left group">
-                    <div className="bg-blue-50 w-12 h-12 rounded-xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                        <Plus className="h-6 w-6 text-blue-600" />
+                    <div className="text-center">
+                        <p className="font-bold text-slate-800">Scan Receipt</p>
+                        <p className="text-xs text-slate-500">AI-powered</p>
                     </div>
-                    <span className="font-bold text-slate-800 block">Add Item</span>
-                    <span className="text-xs text-slate-500">Manual entry</span>
+                </button>
+                <button 
+                    onClick={onAddItem}
+                    className="p-6 bg-white border-2 border-slate-200 rounded-2xl flex flex-col items-center gap-3 hover:border-slate-300 hover:bg-slate-50 transition-all group"
+                >
+                    <div className="bg-slate-100 p-3 rounded-xl group-hover:bg-slate-200 transition-colors">
+                        <Plus className="h-6 w-6 text-slate-600" />
+                    </div>
+                    <div className="text-center">
+                        <p className="font-bold text-slate-800">Add Manually</p>
+                        <p className="text-xs text-slate-500">Enter details</p>
+                    </div>
                 </button>
             </div>
 
-            {/* ✅ ALWAYS VISIBLE MAINTENANCE SCHEDULE */}
-            {/* We place it here so it's prominent, right after the main actions */}
-            <div className="pt-2">
+            {/* Maintenance Schedule (if any tasks exist) */}
+            <div>
                 <div className="flex items-center justify-between mb-2 px-1">
                     <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
                 </div>
@@ -121,8 +134,12 @@ const GettingStartedDashboard = ({
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
                     onNavigateToRecords={onNavigateToItems}
-                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
-                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    // NEW PROPS:
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
                 />
             </div>
 
@@ -174,8 +191,12 @@ export const ProgressiveDashboard = ({
     onNavigateToMaintenance,
     onBookService, 
     onMarkTaskDone,
-    onDeleteHistoryItem, // <-- ADDED THIS
-    onRestoreHistoryItem // <-- ADDED THIS
+    onDeleteHistoryItem,
+    onRestoreHistoryItem,
+    // NEW PROPS:
+    onDeleteTask,
+    onScheduleTask,
+    onSnoozeTask
 }) => {
     const stage = useMemo(() => {
         if (!records || records.length === 0) return 'empty';
@@ -201,11 +222,15 @@ export const ProgressiveDashboard = ({
                     onAddItem={onAddRecord} 
                     onScanReceipt={onScanReceipt} 
                     onNavigateToItems={onNavigateToItems} 
-                    // ✅ PASSING PROPS DOWN
+                    // Existing props
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
-                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
-                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    // NEW PROPS:
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
                 />
             );
         
@@ -225,8 +250,12 @@ export const ProgressiveDashboard = ({
                     onNavigateToMaintenance={onNavigateToMaintenance}
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
-                    onDeleteHistoryItem={onDeleteHistoryItem} // <-- ADDED THIS
-                    onRestoreHistoryItem={onRestoreHistoryItem} // <-- ADDED THIS
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    // NEW PROPS:
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
                 />
             );
     }
