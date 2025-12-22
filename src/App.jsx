@@ -81,6 +81,7 @@ const AppContent = () => {
         }, {}));
     }, [app.activePropertyRecords]);
 
+    // -- Check for contractor portal route --
     const isContractor = new URLSearchParams(window.location.search).get('requestId');
     
     // -- UI Handlers --
@@ -312,16 +313,21 @@ const AppContent = () => {
                     <div className="md:hidden py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-center gap-2">
                         <MapPin size={10} className="text-slate-400" />
                         <p className="text-xs font-bold text-slate-600">
-                            {app.activeProperty.address.street}, {app.activeProperty.address.city}
+                            {typeof app.activeProperty.address === 'string' 
+                                ? app.activeProperty.address.split(',')[0] 
+                                : `${app.activeProperty.address.street}, ${app.activeProperty.address.city}`
+                            }
                         </p>
                     </div>
                 )}
             </header>
 
+            {/* Main Content */}
             <main className="max-w-5xl mx-auto px-4 py-6">
                 {app.showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => app.setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={app.activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { app.setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { app.setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
                 {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && <WelcomeScreen propertyName={app.activeProperty.name} onAddRecord={() => app.setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />}
                 
+                {/* UPDATED: Dashboard with new task action props */}
                 {app.activeTab === 'Dashboard' && !isNewUser && (
                     <FeatureErrorBoundary label="Dashboard">
                         <ProgressiveDashboard 
@@ -339,10 +345,15 @@ const AppContent = () => {
                             onMarkTaskDone={app.handleMarkTaskDone}
                             onDeleteHistoryItem={app.handleDeleteHistoryItem} 
                             onRestoreHistoryItem={app.handleRestoreHistoryItem}
+                            // NEW: Task action props
+                            onDeleteTask={app.handleDeleteMaintenanceTask}
+                            onScheduleTask={app.handleScheduleTask}
+                            onSnoozeTask={app.handleSnoozeTask}
                         />
                     </FeatureErrorBoundary>
                 )}
                 
+                {/* UPDATED: Maintenance tab with new task action props */}
                 {app.activeTab === 'Maintenance' && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
                         <button onClick={() => app.setActiveTab('Dashboard')} className="flex items-center text-sm font-bold text-slate-500 hover:text-emerald-600 transition-colors">
@@ -358,7 +369,11 @@ const AppContent = () => {
                                     onBookService={handleBookService}
                                     onMarkTaskDone={app.handleMarkTaskDone}
                                     onDeleteHistoryItem={app.handleDeleteHistoryItem} 
-                                    onRestoreHistoryItem={app.handleRestoreHistoryItem} 
+                                    onRestoreHistoryItem={app.handleRestoreHistoryItem}
+                                    // NEW: Task action props
+                                    onDeleteTask={app.handleDeleteMaintenanceTask}
+                                    onScheduleTask={app.handleScheduleTask}
+                                    onSnoozeTask={app.handleSnoozeTask}
                                 />
                             </div>
                         </FeatureErrorBoundary>
@@ -465,48 +480,37 @@ const AppContent = () => {
             {app.isSwitchingProp && (
                 <div className="fixed inset-0 z-[60] flex items-start justify-center pt-20 px-4">
                     <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => app.setIsSwitchingProp(false)} />
-                    <div className="relative bg-white rounded-2xl shadow-xl border border-slate-100 w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-4 border-b border-slate-50 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800">My Properties</h3>
-                            <button onClick={() => app.setIsSwitchingProp(false)} className="p-1 hover:bg-slate-100 rounded-full"><X size={18} className="text-slate-400"/></button>
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-slate-800">Switch Property</h2>
+                            <button onClick={() => app.setIsSwitchingProp(false)} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-400"/></button>
                         </div>
-                        <div className="p-2 max-h-60 overflow-y-auto">
+                        <div className="space-y-2">
                             {app.properties.map(p => (
-                                <button 
-                                    key={p.id} 
-                                    onClick={() => handleSwitchProperty(p.id)}
-                                    className={`w-full text-left p-3 rounded-xl flex items-center gap-3 transition-colors ${app.activeProperty?.id === p.id ? 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-100' : 'hover:bg-slate-50 text-slate-700'}`}
-                                >
-                                    <div className={`p-2 rounded-full ${app.activeProperty?.id === p.id ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                        <Home size={18} />
+                                <button key={p.id} onClick={() => handleSwitchProperty(p.id)} className={`w-full p-4 rounded-xl flex items-center gap-3 transition-colors ${p.id === app.activePropertyId ? 'bg-emerald-50 border-2 border-emerald-500' : 'bg-slate-50 hover:bg-slate-100 border-2 border-transparent'}`}>
+                                    <Home size={20} className={p.id === app.activePropertyId ? 'text-emerald-600' : 'text-slate-400'} />
+                                    <div className="text-left">
+                                        <p className="font-bold text-slate-800">{p.name}</p>
+                                        {p.address && <p className="text-xs text-slate-500">{typeof p.address === 'string' ? p.address : `${p.address.city}, ${p.address.state}`}</p>}
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-bold text-sm">{p.name}</p>
-                                        <p className="text-xs opacity-70 truncate">{p.address?.street}</p>
-                                    </div>
-                                    {app.activeProperty?.id === p.id && <Check size={16} className="text-emerald-600" />}
+                                    {p.id === app.activePropertyId && <Check size={18} className="ml-auto text-emerald-600"/>}
                                 </button>
                             ))}
                         </div>
-                        <div className="p-2 border-t border-slate-50">
-                             <button 
-                                onClick={() => { app.setIsSwitchingProp(false); app.setIsAddingProperty(true); }}
-                                className="w-full p-3 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:bg-slate-50 hover:text-emerald-600 font-bold text-sm transition-colors"
-                            >
-                                <Plus size={18} /> Add New Property
-                            </button>
-                        </div>
+                        <button onClick={() => { app.setIsSwitchingProp(false); app.setIsAddingProperty(true); }} className="mt-4 w-full p-4 border-2 border-dashed border-slate-300 rounded-xl text-slate-600 font-bold flex items-center justify-center gap-2 hover:border-emerald-500 hover:text-emerald-600 transition-colors">
+                            <Plus size={18}/> Add New Property
+                        </button>
                     </div>
                 </div>
             )}
 
-            {/* Add Property Overlay */}
+            {/* Add Property Form */}
             {app.isAddingProperty && (
                 <div className="fixed inset-0 z-[70] bg-white">
                     <div className="absolute top-4 right-4 z-10">
-                         <button onClick={() => app.setIsAddingProperty(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
+                        <button onClick={() => app.setIsAddingProperty(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
                             <X size={20} className="text-slate-600" />
-                         </button>
+                        </button>
                     </div>
                     <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} />
                 </div>
