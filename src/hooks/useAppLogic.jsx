@@ -42,6 +42,12 @@ export const useAppLogic = (celebrations) => {
     const [inventoryView, setInventoryView] = useState('category'); 
 
     // =========================================================================
+    // NEW STATE - For notification dismiss/clear functionality
+    // =========================================================================
+    const [dismissedNotifications, setDismissedNotifications] = useState(new Set());
+    const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+
+    // =========================================================================
     // DERIVED STATE - All existing derived state preserved exactly
     // =========================================================================
     const getPropertiesList = () => {
@@ -119,31 +125,9 @@ export const useAppLogic = (celebrations) => {
         try {
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
             const profileSnap = await getDoc(profileRef);
-            const existingProfile = profileSnap.exists() ? profileSnap.data() : null;
+            const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
             
-            // Determine current properties (handles both legacy and array formats)
-            let currentProperties = [];
-            if (existingProfile) {
-                if (existingProfile.properties && Array.isArray(existingProfile.properties)) {
-                    // Already using properties array format
-                    currentProperties = existingProfile.properties;
-                } else if (existingProfile.name) {
-                    // Legacy format - convert to array format
-                    currentProperties = [{
-                        id: 'legacy',
-                        name: existingProfile.name,
-                        address: existingProfile.address,
-                        coordinates: existingProfile.coordinates
-                    }];
-                }
-            }
-            
-            // Generate a unique ID for the new property
-            const newPropertyId = currentProperties.length === 0 
-                ? 'legacy'  // First property uses 'legacy' for backward compatibility
-                : `prop_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            // Create the new property object
+            const newPropertyId = Date.now().toString();
             const newProperty = {
                 id: newPropertyId,
                 name: formData.name,
@@ -151,35 +135,29 @@ export const useAppLogic = (celebrations) => {
                 coordinates: formData.coordinates || null
             };
             
-            // Add the new property to the array
-            const updatedProperties = [...currentProperties, newProperty];
+            const existingProperties = existingProfile.properties || [];
             
-            // Prepare the update data
-            let updateData = {
+            // If no existing properties and we have legacy data, convert it
+            if (existingProperties.length === 0 && existingProfile.name) {
+                existingProperties.push({
+                    id: 'legacy',
+                    name: existingProfile.name,
+                    address: existingProfile.address,
+                    coordinates: existingProfile.coordinates
+                });
+            }
+            
+            const updatedProperties = [...existingProperties, newProperty];
+            
+            await setDoc(profileRef, {
+                ...existingProfile,
                 properties: updatedProperties,
-                activePropertyId: newPropertyId,  // Switch to the new property
+                activePropertyId: newPropertyId,
                 updatedAt: serverTimestamp()
-            };
+            }, { merge: true });
             
-            // If this is the first property, also set legacy fields for backward compatibility
-            if (currentProperties.length === 0) {
-                updateData.name = formData.name;
-                updateData.address = formData.address;
-                updateData.coordinates = formData.coordinates || null;
-                updateData.createdAt = serverTimestamp();
-            }
-            
-            await setDoc(profileRef, updateData, { merge: true });
-            
-            // Refresh the profile from the database
-            const snap = await getDoc(profileRef);
-            if (snap.exists()) {
-                const data = snap.data();
-                setProfile(data);
-                setActivePropertyId(newPropertyId);
-            }
-            
-            toast.success(currentProperties.length === 0 ? "Krib created!" : "Property added!");
+            setActivePropertyId(newPropertyId);
+            toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
         } catch (error) { 
             console.error('handleSaveProperty error:', error);
             toast.error("Failed: " + error.message); 
@@ -230,47 +208,60 @@ export const useAppLogic = (celebrations) => {
                         // Use the later of: today or current due date, as the base for next calculation
                         const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
                         const today = new Date(completedDateShort);
-                        const baseDate = currentDue > today ? t.nextDue : completedDateShort;
-                        return { ...t, nextDue: calculateNextDate(baseDate, t.frequency || 'annual') };
+                        const baseDate = currentDue > today ? currentDue : today;
+                        const nextDue = calculateNextDate(baseDate.toISOString().split('T')[0], t.frequency);
+                        return { ...t, nextDue, lastCompleted: completedDateShort };
                     }
                     return t;
                 });
                 updates.maintenanceTasks = updatedTasks;
             } else {
-                updates.dateInstalled = completedDateShort; 
-                const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
+                const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency);
                 if (nextDate) updates.nextServiceDate = nextDate;
+                updates.dateInstalled = completedDateShort;
             }
-            console.log('[DEBUG] About to update with:', updates);
+            
+            // Save the previous state for undo
+            const previousHistory = currentHistory;
+            const previousTasks = record.maintenanceTasks;
+            const previousNextDate = record.nextServiceDate;
+            const previousDateInstalled = record.dateInstalled;
+            
             await updateDoc(recordRef, updates);
-
-            // Calculate what the next date will be for the toast message
-            const nextDateStr = task.isGranular 
-                ? calculateNextDate(completedDateShort, task.frequency || 'annual')
-                : calculateNextDate(completedDateShort, record.maintenanceFrequency || 'annual');
-
-            const formattedNextDate = nextDateStr 
-                ? new Date(nextDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                : 'next cycle';
-
-            // Store previous state for undo
-            const previousState = {
-                maintenanceHistory: currentHistory,
-                maintenanceTasks: record.maintenanceTasks || [],
-                dateInstalled: record.dateInstalled,
-                nextServiceDate: record.nextServiceDate
-            };
-
-            // Show toast with undo option
-            toast.success(
+            
+            toast.custom(
                 (t) => (
-                    <div className="flex items-center gap-3">
-                        <span>Done! Next: {formattedNextDate}</span>
+                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+                        <div className="flex-1 w-0 p-4">
+                            <div className="flex items-center">
+                                <div className="flex-shrink-0 pt-0.5">
+                                    <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                                        <Check className="h-6 w-6 text-emerald-600" />
+                                    </div>
+                                </div>
+                                <div className="ml-3 flex-1">
+                                    <p className="text-sm font-medium text-gray-900">
+                                        {task.taskName} completed!
+                                    </p>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        Great job keeping up with maintenance.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                         <button
                             onClick={async () => {
                                 toast.dismiss(t.id);
                                 try {
-                                    await updateDoc(recordRef, previousState);
+                                    // Restore previous state
+                                    const restoreUpdates = { maintenanceHistory: previousHistory };
+                                    if (task.isGranular) {
+                                        restoreUpdates.maintenanceTasks = previousTasks;
+                                    } else {
+                                        if (previousNextDate) restoreUpdates.nextServiceDate = previousNextDate;
+                                        if (previousDateInstalled) restoreUpdates.dateInstalled = previousDateInstalled;
+                                    }
+                                    await updateDoc(recordRef, restoreUpdates);
                                     toast.success("Undone!", { duration: 2000 });
                                 } catch (err) {
                                     toast.error("Couldn't undo: " + err.message);
@@ -546,7 +537,44 @@ export const useAppLogic = (celebrations) => {
     }, [records, user]);
 
     // =========================================================================
-    // RETURN - All existing values + 3 new handlers
+    // NEW HANDLERS - For notification dismiss/clear functionality
+    // =========================================================================
+
+    // Dismiss a single notification (hides it without completing)
+    const handleDismissNotification = useCallback((id, type) => {
+        setDismissedNotifications(prev => {
+            const next = new Set(prev);
+            next.add(id);
+            return next;
+        });
+    }, []);
+
+    // Clear all notifications (dismisses all visible notifications)
+    const handleClearAllNotifications = useCallback(() => {
+        const allIds = new Set();
+        
+        // Add all task IDs
+        dueTasks.forEach(task => {
+            const taskId = task.id || `${task.recordId}-${task.taskName}`;
+            allIds.add(taskId);
+        });
+        
+        // Add all submission IDs
+        newSubmissions.forEach(sub => {
+            if (sub.id) allIds.add(sub.id);
+        });
+        
+        setDismissedNotifications(allIds);
+        toast.success('All notifications cleared', { icon: '✓', duration: 2000 });
+    }, [dueTasks, newSubmissions]);
+
+    // Reset dismissed notifications (call this when data refreshes if desired)
+    const resetDismissedNotifications = useCallback(() => {
+        setDismissedNotifications(new Set());
+    }, []);
+
+    // =========================================================================
+    // RETURN - All existing values + new notification handlers
     // =========================================================================
     return {
         // All existing state
@@ -568,9 +596,18 @@ export const useAppLogic = (celebrations) => {
         handleDeleteHistoryItem,
         handleRestoreHistoryItem,
         
-        // NEW: 3 new handlers for task actions
+        // Existing task action handlers
         handleDeleteMaintenanceTask,
         handleScheduleTask,
-        handleSnoozeTask
+        handleSnoozeTask,
+        
+        // NEW: Notification management handlers
+        dismissedNotifications,
+        setDismissedNotifications,
+        highlightedTaskId,
+        setHighlightedTaskId,
+        handleDismissNotification,
+        handleClearAllNotifications,
+        resetDismissedNotifications,
     };
 };
