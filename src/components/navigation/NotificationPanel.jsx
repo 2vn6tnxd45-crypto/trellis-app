@@ -1,11 +1,11 @@
 // src/components/navigation/NotificationPanel.jsx
-// ENHANCED: Added dismiss, clear all, quick actions, and smart navigation
-// ALL EXISTING FUNCTIONALITY PRESERVED
+// ENHANCED: Added dismiss, clear all, quick actions
+// ALL EXISTING FUNCTIONALITY PRESERVED - new props are optional
 
 import React, { useState } from 'react';
 import { 
     X, Bell, AlertTriangle, Clock, FileText, ChevronRight, 
-    Check, AlarmClock, Trash2, CheckCheck 
+    Check, AlarmClock, CheckCheck 
 } from 'lucide-react';
 
 // Quick Snooze Menu Component
@@ -39,7 +39,7 @@ const QuickSnoozeMenu = ({ onSnooze, onClose }) => {
 };
 
 export const NotificationPanel = ({ 
-    // === EXISTING PROPS (unchanged) ===
+    // === EXISTING PROPS (unchanged, required) ===
     isOpen, 
     onClose, 
     dueTasks = [], 
@@ -47,7 +47,7 @@ export const NotificationPanel = ({
     onTaskClick,
     onSubmissionClick,
     
-    // === NEW OPTIONAL PROPS (backward compatible) ===
+    // === NEW OPTIONAL PROPS (backward compatible - all have defaults) ===
     dismissedIds = new Set(),           // Set of dismissed notification IDs
     onDismiss,                          // (id, type) => void - dismiss single notification
     onClearAll,                         // () => void - clear all notifications
@@ -293,7 +293,7 @@ export const NotificationPanel = ({
                     )}
                 </div>
                 
-                {/* NEW: Footer with helpful hint (only shows when there are notifications) */}
+                {/* NEW: Footer with helpful hint (only shows when there are notifications and quick actions) */}
                 {totalCount > 0 && hasQuickActions && (
                     <div className="px-4 py-2 border-t border-slate-100 bg-slate-50">
                         <p className="text-xs text-slate-400 text-center">
