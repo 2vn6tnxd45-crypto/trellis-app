@@ -119,53 +119,74 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // FIXED: handleSaveProperty now properly supports multiple properties
     // =========================================================================
-    const handleSaveProperty = async (formData) => {
-        if (!user) return;
-        setIsSavingProperty(true);
-        try {
-            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
-            const profileSnap = await getDoc(profileRef);
-            const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
-            
-            const newPropertyId = Date.now().toString();
-            const newProperty = {
-                id: newPropertyId,
-                name: formData.name,
-                address: formData.address,
-                coordinates: formData.coordinates || null
-            };
-            
-            const existingProperties = existingProfile.properties || [];
-            
-            // If no existing properties and we have legacy data, convert it
-            if (existingProperties.length === 0 && existingProfile.name) {
-                existingProperties.push({
-                    id: 'legacy',
-                    name: existingProfile.name,
-                    address: existingProfile.address,
-                    coordinates: existingProfile.coordinates
-                });
-            }
-            
-            const updatedProperties = [...existingProperties, newProperty];
-            
-            await setDoc(profileRef, {
-                ...existingProfile,
-                properties: updatedProperties,
-                activePropertyId: newPropertyId,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-            
-            setActivePropertyId(newPropertyId);
-            toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
-        } catch (error) { 
-            console.error('handleSaveProperty error:', error);
-            toast.error("Failed: " + error.message); 
-        } finally { 
-            setIsSavingProperty(false); 
-            setIsAddingProperty(false); 
+    // =============================================================================
+// FIX: handleSaveProperty in src/hooks/useAppLogic.jsx
+// =============================================================================
+// BUG: After saving to Firebase, local `profile` state wasn't updated.
+//      Since App.jsx checks `!app.profile` to show SetupPropertyForm,
+//      the form kept appearing even after successful save.
+// =============================================================================
+
+const handleSaveProperty = async (formData) => {
+    if (!user) return;
+    setIsSavingProperty(true);
+    try {
+        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+        const profileSnap = await getDoc(profileRef);
+        const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
+        
+        const newPropertyId = Date.now().toString();
+        const newProperty = {
+            id: newPropertyId,
+            name: formData.name,
+            address: formData.address,
+            coordinates: formData.coordinates || null
+        };
+        
+        const existingProperties = existingProfile.properties || [];
+        
+        // If no existing properties and we have legacy data, convert it
+        if (existingProperties.length === 0 && existingProfile.name) {
+            existingProperties.push({
+                id: 'legacy',
+                name: existingProfile.name,
+                address: existingProfile.address,
+                coordinates: existingProfile.coordinates
+            });
         }
-    }; 
+        
+        const updatedProperties = [...existingProperties, newProperty];
+        
+        // Build the new profile object
+        const newProfile = {
+            ...existingProfile,
+            properties: updatedProperties,
+            activePropertyId: newPropertyId,
+        };
+        
+        // Save to Firebase
+        await setDoc(profileRef, {
+            ...newProfile,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+        
+        // ✅ FIX: Update local state so UI recognizes profile exists
+        setProfile({
+            ...newProfile,
+            updatedAt: new Date().toISOString()
+        });
+        
+        setActivePropertyId(newPropertyId);
+        toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
+        
+    } catch (error) { 
+        console.error('handleSaveProperty error:', error);
+        toast.error("Failed: " + error.message); 
+    } finally { 
+        setIsSavingProperty(false); 
+        setIsAddingProperty(false); 
+    }
+};
 
     // =========================================================================
     // handleMarkTaskDone - COMPLETE ORIGINAL with Undo toast and celebrations
