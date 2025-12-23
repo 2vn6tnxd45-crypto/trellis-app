@@ -491,6 +491,7 @@ const AppContent = () => {
 
             {/* NEW: Notification Panel - renders when bell icon is clicked */}
             <NotificationPanel 
+                // === EXISTING PROPS (unchanged) ===
                 isOpen={app.showNotifications} 
                 onClose={() => app.setShowNotifications(false)} 
                 dueTasks={app.dueTasks}
@@ -498,11 +499,20 @@ const AppContent = () => {
                 onTaskClick={(task) => {
                     // Navigate to maintenance tab when a task is clicked
                     app.setActiveTab('Maintenance');
+                    // NEW: Set highlighted task for scroll-to functionality
+                    app.setHighlightedTaskId?.(task.recordId + '-' + (task.taskName || task.item));
                 }}
                 onSubmissionClick={(submission) => {
                     // Navigate to contractors tab when a submission is clicked
                     app.setActiveTab('Contractors');
                 }}
+                
+                // === NEW PROPS (additions for dismiss/clear/quick actions) ===
+                dismissedIds={app.dismissedNotifications}
+                onDismiss={app.handleDismissNotification}
+                onClearAll={app.handleClearAllNotifications}
+                onQuickComplete={(task) => app.handleMarkTaskDone(task)}
+                onQuickSnooze={(task, days) => app.handleSnoozeTask(task, days)}
             />
 
             {/* NEW: User Menu - renders when hamburger menu icon is clicked (desktop) */}
