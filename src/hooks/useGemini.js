@@ -152,15 +152,58 @@ const findBestRoomMatch = (aiGuess, itemName = '', category = '', invoiceContext
 };
 
     // --- Bulletproof Address Check Helper ---
-    const isSameAddress = (vendorAddr, userStreet) => {
-        if (!vendorAddr || !userStreet) return false;
-        // Normalize: remove spaces, punctuation, make lowercase
-        const normalize = (str) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const v = normalize(vendorAddr);
-        const u = normalize(userStreet);
-        // If the normalized vendor address contains the normalized user street, it's a match.
-        return v.includes(u);
-    };
+    const isSameAddress = (vendorAddr, userStreet, fullUserAddress = '') => {
+11    if (!vendorAddr) return false;
+12    
+13    const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+14    const vendorNorm = normalize(vendorAddr);
+15    
+16    // Check 1: Does vendor address contain the user's street?
+17    if (userStreet) {
+18        const streetNorm = normalize(userStreet);
+19        if (streetNorm.length > 5 && vendorNorm.includes(streetNorm)) {
+20            console.warn(`⚠️ Address match detected (street): "${vendorAddr}" contains "${userStreet}"`);
+21            return true;
+22        }
+23    }
+24    
+25    // Check 2: Does vendor address match the full user address?
+26    if (fullUserAddress) {
+27        const fullNorm = normalize(fullUserAddress);
+28        // If 80%+ of the full address is contained, it's likely the same
+29        if (fullNorm.length > 10 && vendorNorm.includes(fullNorm.substring(0, Math.floor(fullNorm.length * 0.8)))) {
+30            console.warn(`⚠️ Address match detected (full): "${vendorAddr}" matches "${fullUserAddress}"`);
+31            return true;
+32        }
+33    }
+34    
+35    // Check 3: Extract and compare street numbers + first part of street name
+36    const extractStreetNum = (str) => {
+37        const match = (str || '').match(/^(\d+)/);
+38        return match ? match[1] : null;
+39    };
+40    
+41    const vendorNum = extractStreetNum(vendorAddr);
+42    const userNum = extractStreetNum(userStreet || fullUserAddress);
+43    
+44    if (vendorNum && userNum && vendorNum === userNum) {
+45        // Same street number - do a more careful comparison
+46        const vendorWords = vendorNorm.replace(/\d/g, '').trim();
+47        const userWords = normalize(userStreet || fullUserAddress).replace(/\d/g, '').trim();
+48        
+49        if (vendorWords.length > 5 && userWords.length > 5) {
+50            // Check if first significant portion matches (e.g., "sanharoldoway")
+51            const vendorStart = vendorWords.substring(0, 12);
+52            const userStart = userWords.substring(0, 12);
+53            if (vendorStart === userStart) {
+54                console.warn(`⚠️ Address match detected (number+street): "${vendorAddr}"`);
+55                return true;
+56            }
+57        }
+58    }
+59    
+60    return false;
+61};
     // ---------------------------------------------
 
     // --- SCANNER LOGIC ---
