@@ -6,17 +6,32 @@ import {
 import { ReportTeaser } from './ReportTeaser';
 import { ModernDashboard } from './ModernDashboard';
 import { MaintenanceDashboard } from './MaintenanceDashboard';
+import { MapPin } from 'lucide-react';
 
 // --- SUB-COMPONENTS ---
 
-const EmptyHomeState = ({ propertyName, onAddItem, onScanReceipt }) => (
+const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt }) => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in-95 duration-500">
         <div className="bg-emerald-100 p-6 rounded-full mb-6 shadow-xl shadow-emerald-100">
             <Home className="h-12 w-12 text-emerald-600" />
         </div>
-        <h1 className="text-3xl font-extrabold text-slate-900 mb-3">
+        <h1 className="text-3xl font-extrabold text-slate-900 mb-2">
             Welcome to {propertyName || 'Your Krib'}
         </h1>
+        
+        {/* ✅ NEW: Add Address Display */}
+        {activeProperty?.address && (
+            <div className="inline-flex items-center bg-emerald-50 px-4 py-2 rounded-full border border-emerald-100 mb-4">
+                <MapPin size={14} className="text-emerald-500 mr-2" />
+                <p className="text-emerald-700 text-sm font-medium">
+                    {typeof activeProperty.address === 'string' 
+                        ? activeProperty.address 
+                        : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                    }
+                </p>
+            </div>
+        )}
+        
         <p className="text-slate-500 max-w-md mb-10 text-lg leading-relaxed">
             Your home's history starts here. Add your first item to begin tracking value, maintenance, and records.
         </p>
@@ -42,16 +57,16 @@ const EmptyHomeState = ({ propertyName, onAddItem, onScanReceipt }) => (
 
 const GettingStartedDashboard = ({ 
     records, 
-    propertyName, 
+    propertyName,
+    activeProperty,  // ✅ NEW PROP
     onAddItem, 
     onScanReceipt, 
     onNavigateToItems,
-    // Existing props
+    // ... existing props
     onBookService,
     onMarkTaskDone,
     onDeleteHistoryItem,
     onRestoreHistoryItem,
-    // NEW PROPS:
     onDeleteTask,
     onScheduleTask,
     onSnoozeTask
@@ -68,10 +83,24 @@ const GettingStartedDashboard = ({
                 </div>
                 
                 <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-start justify-between mb-4">
                         <div>
-                            <p className="text-emerald-300 font-bold text-sm uppercase tracking-wider mb-1">Getting Started</p>
-                            <h2 className="text-3xl font-extrabold">Building Your Profile</h2>
+                            <p className="text-emerald-300 font-bold text-sm uppercase tracking-wider mb-1">Your Krib</p>
+                            {/* ✅ CHANGED: Show property name instead of "Building Your Profile" */}
+                            <h2 className="text-3xl font-extrabold">{propertyName || 'My Home'}</h2>
+                            
+                            {/* ✅ NEW: Add Address Display */}
+                            {activeProperty?.address && (
+                                <div className="inline-flex items-center bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 mt-3">
+                                    <MapPin size={12} className="text-emerald-300 mr-1.5" />
+                                    <p className="text-emerald-50 text-xs font-medium">
+                                        {typeof activeProperty.address === 'string' 
+                                            ? activeProperty.address 
+                                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                                        }
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10">
                             <span className="font-bold text-xl">{records.length}</span>
@@ -205,23 +234,25 @@ export const ProgressiveDashboard = ({
     }, [records]);
 
     switch (stage) {
-        case 'empty':
-            return (
-                <EmptyHomeState 
-                    propertyName={activeProperty?.name} 
-                    onAddItem={onAddRecord} 
-                    onScanReceipt={onScanReceipt} 
-                />
-            );
-        
-        case 'getting-started':
-            return (
-                <GettingStartedDashboard 
-                    records={records} 
-                    propertyName={activeProperty?.name} 
-                    onAddItem={onAddRecord} 
-                    onScanReceipt={onScanReceipt} 
-                    onNavigateToItems={onNavigateToItems} 
+    case 'empty':
+        return (
+            <EmptyHomeState 
+                propertyName={activeProperty?.name} 
+                activeProperty={activeProperty}  // ✅ ADD THIS
+                onAddItem={onAddRecord} 
+                onScanReceipt={onScanReceipt} 
+            />
+        );
+    
+    case 'getting-started':
+        return (
+            <GettingStartedDashboard 
+                records={records} 
+                propertyName={activeProperty?.name}
+                activeProperty={activeProperty}  // ✅ ADD THIS
+                onAddItem={onAddRecord} 
+                onScanReceipt={onScanReceipt} 
+                onNavigateToItems={onNavigateToItems}  
                     // Existing props
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}
