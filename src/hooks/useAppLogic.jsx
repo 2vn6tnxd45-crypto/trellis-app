@@ -188,6 +188,7 @@ export const useAppLogic = (celebrations) => {
             });
             
             setActivePropertyId(newPropertyId);
+            setActiveTab('Dashboard');
             toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
             
         } catch (error) { 
