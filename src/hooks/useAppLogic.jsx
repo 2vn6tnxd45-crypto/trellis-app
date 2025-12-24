@@ -117,76 +117,88 @@ export const useAppLogic = (celebrations) => {
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     // =========================================================================
-    // FIXED: handleSaveProperty now properly supports multiple properties
+    // FIXED: handleSaveProperty - Now with proper error handling
     // =========================================================================
     // =============================================================================
-// FIX: handleSaveProperty in src/hooks/useAppLogic.jsx
-// =============================================================================
-// BUG: After saving to Firebase, local `profile` state wasn't updated.
-//      Since App.jsx checks `!app.profile` to show SetupPropertyForm,
-//      the form kept appearing even after successful save.
-// =============================================================================
+    // FIX: Added proper error handling instead of silent return when user is null
+    // BUG: The original code had `if (!user) return;` which silently failed
+    //      when authentication state wasn't ready, causing the button to do nothing.
+    // =============================================================================
 
-const handleSaveProperty = async (formData) => {
-    if (!user) return;
-    setIsSavingProperty(true);
-    try {
-        const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
-        const profileSnap = await getDoc(profileRef);
-        const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
-        
-        const newPropertyId = Date.now().toString();
-        const newProperty = {
-            id: newPropertyId,
-            name: formData.name,
-            address: formData.address,
-            coordinates: formData.coordinates || null
-        };
-        
-        const existingProperties = existingProfile.properties || [];
-        
-        // If no existing properties and we have legacy data, convert it
-        if (existingProperties.length === 0 && existingProfile.name) {
-            existingProperties.push({
-                id: 'legacy',
-                name: existingProfile.name,
-                address: existingProfile.address,
-                coordinates: existingProfile.coordinates
-            });
+    const handleSaveProperty = async (formData) => {
+        // ✅ FIX: Provide feedback instead of silent return
+        if (!user) {
+            console.error('handleSaveProperty: No authenticated user found');
+            toast.error('Authentication error. Please try signing in again.');
+            return;
         }
         
-        const updatedProperties = [...existingProperties, newProperty];
-        
-        // Build the new profile object
-        const newProfile = {
-            ...existingProfile,
-            properties: updatedProperties,
-            activePropertyId: newPropertyId,
-        };
-        
-        // Save to Firebase
-        await setDoc(profileRef, {
-            ...newProfile,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
-        
-        // ✅ FIX: Update local state so UI recognizes profile exists
-        setProfile({
-            ...newProfile,
-            updatedAt: new Date().toISOString()
-        });
-        
-        setActivePropertyId(newPropertyId);
-        toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
-        
-    } catch (error) { 
-        console.error('handleSaveProperty error:', error);
-        toast.error("Failed: " + error.message); 
-    } finally { 
-        setIsSavingProperty(false); 
-        setIsAddingProperty(false); 
-    }
-};
+        // ✅ FIX: Validate appId before proceeding
+        if (!appId) {
+            console.error('handleSaveProperty: appId is missing');
+            toast.error('Configuration error. Please refresh the page.');
+            return;
+        }
+
+        setIsSavingProperty(true);
+        try {
+            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+            const profileSnap = await getDoc(profileRef);
+            const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
+            
+            const newPropertyId = Date.now().toString();
+            const newProperty = {
+                id: newPropertyId,
+                name: formData.name,
+                address: formData.address,
+                coordinates: formData.coordinates || null
+            };
+            
+            const existingProperties = existingProfile.properties || [];
+            
+            // If no existing properties and we have legacy data, convert it
+            if (existingProperties.length === 0 && existingProfile.name) {
+                existingProperties.push({
+                    id: 'legacy',
+                    name: existingProfile.name,
+                    address: existingProfile.address,
+                    coordinates: existingProfile.coordinates
+                });
+            }
+            
+            const updatedProperties = [...existingProperties, newProperty];
+            
+            // Build the new profile object
+            const newProfile = {
+                ...existingProfile,
+                properties: updatedProperties,
+                activePropertyId: newPropertyId,
+            };
+            
+            // Save to Firebase
+            await setDoc(profileRef, {
+                ...newProfile,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            
+            // ✅ FIX: Update local state so UI recognizes profile exists
+            setProfile({
+                ...newProfile,
+                updatedAt: new Date().toISOString()
+            });
+            
+            setActivePropertyId(newPropertyId);
+            toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
+            
+        } catch (error) { 
+            console.error('handleSaveProperty error:', error);
+            toast.error("Failed to save: " + error.message); 
+        } finally { 
+            // ✅ FIX: Always reset saving state, even on error
+            setIsSavingProperty(false); 
+            setIsAddingProperty(false); 
+        }
+    };
 
     // =========================================================================
     // handleMarkTaskDone - COMPLETE ORIGINAL with Undo toast and celebrations
@@ -223,47 +235,59 @@ const handleSaveProperty = async (formData) => {
             const newHistory = [historyEntry, ...currentHistory];
 
             let updates = { maintenanceHistory: newHistory };
+            
+            // Store previous state for undo
+            const previousHistory = [...currentHistory];
+            let previousTasks = null;
+            let previousNextDate = null;
+            let previousDateInstalled = null;
+            
             if (task.isGranular) {
+                previousTasks = record.maintenanceTasks ? [...record.maintenanceTasks] : null;
                 const updatedTasks = (record.maintenanceTasks || []).map(t => {
                     if (t.task === task.taskName) {
                         // Use the later of: today or current due date, as the base for next calculation
                         const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
                         const today = new Date(completedDateShort);
                         const baseDate = currentDue > today ? currentDue : today;
-                        const nextDue = calculateNextDate(baseDate.toISOString().split('T')[0], t.frequency);
-                        return { ...t, nextDue, lastCompleted: completedDateShort };
+                        const baseDateStr = baseDate.toISOString().split('T')[0];
+                        
+                        const newNextDue = calculateNextDate(baseDateStr, t.frequency);
+                        return { ...t, lastCompleted: completedDateShort, nextDue: newNextDue };
                     }
                     return t;
                 });
                 updates.maintenanceTasks = updatedTasks;
             } else {
-                const nextDate = calculateNextDate(completedDateShort, record.maintenanceFrequency);
-                if (nextDate) updates.nextServiceDate = nextDate;
-                updates.dateInstalled = completedDateShort;
+                previousNextDate = record.nextServiceDate;
+                previousDateInstalled = record.dateInstalled;
+                
+                if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
+                    const newNext = calculateNextDate(completedDateShort, record.maintenanceFrequency);
+                    if (newNext) {
+                        updates.nextServiceDate = newNext;
+                        updates.dateInstalled = completedDateShort;
+                    }
+                }
             }
-            
-            // Save the previous state for undo
-            const previousHistory = currentHistory;
-            const previousTasks = record.maintenanceTasks;
-            const previousNextDate = record.nextServiceDate;
-            const previousDateInstalled = record.dateInstalled;
             
             await updateDoc(recordRef, updates);
             
-            toast.custom(
+            // Show success toast with undo option
+            toast(
                 (t) => (
-                    <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
-                        <div className="flex-1 w-0 p-4">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0 pt-0.5">
-                                    <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
-                                        <Check className="h-6 w-6 text-emerald-600" />
-                                    </div>
-                                </div>
-                                <div className="ml-3 flex-1">
-                                    <p className="text-sm font-medium text-gray-900">
-                                        {task.taskName} completed!
-                                    </p>
+                    <div className="flex items-center gap-3">
+                        <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-emerald-100">
+                            <Check className="h-5 w-5 text-emerald-600" />
+                        </div>
+                        <div className="flex-grow">
+                            <div className="flex items-center gap-2">
+                                <p className="font-bold text-slate-800">
+                                    {task.taskName || task.item} complete!
+                                </p>
+                            </div>
+                            <div className="mt-1">
+                                <div className="flex items-center text-emerald-600">
                                     <p className="mt-1 text-sm text-gray-500">
                                         Great job keeping up with maintenance.
                                     </p>
@@ -508,13 +532,8 @@ const handleSaveProperty = async (formData) => {
             const currentDue = task.nextDate ? new Date(task.nextDate) : new Date();
             const today = new Date();
             const baseDate = currentDue < today ? today : currentDue;
-            
-            const newDueDate = new Date(baseDate);
-            newDueDate.setDate(newDueDate.getDate() + days);
-            const newDueDateStr = newDueDate.toISOString().split('T')[0];
-            
-            // Also track when the snooze expires (for UI indicator)
-            const snoozedUntilStr = newDueDateStr;
+            baseDate.setDate(baseDate.getDate() + days);
+            const newDueDate = baseDate.toISOString().split('T')[0];
 
             // For granular tasks, update the specific task in maintenanceTasks array
             if (task.isGranular && record.maintenanceTasks) {
@@ -522,9 +541,9 @@ const handleSaveProperty = async (formData) => {
                     if (t.task === task.taskName) {
                         return { 
                             ...t, 
-                            nextDue: newDueDateStr,
-                            snoozedUntil: snoozedUntilStr,
-                            // Clear scheduled date when snoozing
+                            nextDue: newDueDate,
+                            snoozedUntil: newDueDate,
+                            // Clear any scheduled date when snoozing
                             scheduledDate: null,
                             scheduledNotes: null
                         };
@@ -537,12 +556,12 @@ const handleSaveProperty = async (formData) => {
                     { maintenanceTasks: updatedTasks }
                 );
             } else {
-                // For non-granular tasks, update record-level dates
+                // For non-granular tasks, update at record level
                 await updateDoc(
                     doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
                     { 
-                        nextServiceDate: newDueDateStr,
-                        snoozedUntil: snoozedUntilStr,
+                        nextServiceDate: newDueDate,
+                        snoozedUntil: newDueDate,
                         scheduledDate: null,
                         scheduledNotes: null
                     }
