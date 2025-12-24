@@ -1,6 +1,7 @@
 // src/components/navigation/NotificationPanel.jsx
 // ENHANCED: Added dismiss, clear all, quick actions
 // ALL EXISTING FUNCTIONALITY PRESERVED - new props are optional
+// UPDATED: Task display now shows taskName (action) as primary, item as context
 
 import React, { useState } from 'react';
 import { 
@@ -158,6 +159,13 @@ export const NotificationPanel = ({
                                         const taskId = task.id || `${task.recordId}-${task.taskName}`;
                                         const isShowingSnooze = showSnoozeFor === taskId;
                                         
+                                        // Format the due date for display
+                                        const formattedDueDate = task.nextDue 
+                                            ? new Date(task.nextDue).toLocaleDateString() 
+                                            : task.nextServiceDate
+                                                ? new Date(task.nextServiceDate).toLocaleDateString()
+                                                : 'Due soon';
+                                        
                                         return (
                                             <div
                                                 key={taskId}
@@ -174,16 +182,25 @@ export const NotificationPanel = ({
                                                         <AlertTriangle size={14} />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
+                                                        {/* ============================================
+                                                            UPDATED DISPLAY LOGIC:
+                                                            - Primary line: taskName (the ACTION - what to do)
+                                                            - Secondary line: item (WHERE) + due date
+                                                            
+                                                            BEFORE: {task.taskName || task.item}
+                                                            AFTER:  {task.taskName || 'Scheduled Maintenance'}
+                                                            
+                                                            This makes notifications actionable:
+                                                            "Inspect for damage" vs just "Roof"
+                                                        ============================================ */}
                                                         <p className="font-medium text-slate-800 text-sm truncate">
-                                                            {task.taskName || task.item}
+                                                            {task.taskName || 'Scheduled Maintenance'}
                                                         </p>
                                                         <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                                                            <Clock size={10} />
-                                                            {task.nextDue 
-                                                                ? new Date(task.nextDue).toLocaleDateString() 
-                                                                : task.nextServiceDate
-                                                                    ? new Date(task.nextServiceDate).toLocaleDateString()
-                                                                    : 'Due soon'}
+                                                            <span className="truncate max-w-[120px]">{task.item}</span>
+                                                            <span className="text-slate-300">•</span>
+                                                            <Clock size={10} className="flex-shrink-0" />
+                                                            <span className="flex-shrink-0">{formattedDueDate}</span>
                                                         </p>
                                                     </div>
                                                     
@@ -208,7 +225,7 @@ export const NotificationPanel = ({
                                                                             e.stopPropagation();
                                                                             setShowSnoozeFor(isShowingSnooze ? null : taskId);
                                                                         }}
-                                                                        className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                                                        className="p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
                                                                         title="Snooze"
                                                                     >
                                                                         <AlarmClock size={12} />
@@ -221,7 +238,7 @@ export const NotificationPanel = ({
                                                                     )}
                                                                 </div>
                                                             )}
-                                                            {/* Dismiss */}
+                                                            {/* Dismiss button */}
                                                             {onDismiss && (
                                                                 <button
                                                                     onClick={(e) => handleDismiss(e, taskId, 'task')}
