@@ -43,6 +43,7 @@ import { NotificationPanel } from './components/navigation/NotificationPanel';
 import { UserMenu } from './components/navigation/UserMenu';
 // Add this with your other feature imports
 import { SettingsPage } from './features/settings/SettingsPage';
+import { useThemeInit } from './hooks/useThemeInit';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -51,6 +52,7 @@ class ErrorBoundary extends React.Component {
 }
 
 const AppContent = () => {
+  useThemeInit();
     const celebrations = useCelebrations();
     
     // Delete confirmation state
