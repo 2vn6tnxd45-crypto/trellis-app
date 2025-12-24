@@ -3,6 +3,7 @@
 import themeExtension from './tailwind.config.extend.js';
 
 export default {
+  darkMode: 'class', // ← THIS IS THE NEW LINE - enables dark mode via class
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
