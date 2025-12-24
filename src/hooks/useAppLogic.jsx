@@ -1,5 +1,5 @@
 // src/hooks/useAppLogic.jsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
@@ -46,6 +46,11 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     const [dismissedNotifications, setDismissedNotifications] = useState(new Set());
     const [highlightedTaskId, setHighlightedTaskId] = useState(null);
+    
+    // =========================================================================
+    // REF - Track if we just completed property setup (for navigation fix)
+    // =========================================================================
+    const justCompletedSetup = useRef(false);
 
     // =========================================================================
     // DERIVED STATE - All existing derived state preserved exactly
@@ -111,21 +116,16 @@ export const useAppLogic = (celebrations) => {
     }, [records, activeProperty, activePropertyRecords]);
 
     // =========================================================================
-    // FIX: Ensure new users are always directed to Dashboard after profile creation
-    // This prevents the race condition where users might land on Settings
+    // FIX: Ensure navigation to Dashboard after initial property setup
+    // Uses a ref to only trigger ONCE after setup, not on every Settings visit
     // =========================================================================
     useEffect(() => {
-        // When profile first becomes available and user exists, 
-        // ensure we're on the Dashboard (not Settings or any other unexpected tab)
-        if (user && profile && activeTab === 'Settings') {
-            // Check if this is likely a new user (no records yet)
-            // This prevents redirecting existing users who intentionally navigated to Settings
-            if (records.length === 0) {
-                console.log('[useAppLogic] Redirecting new user from Settings to Dashboard');
-                setActiveTab('Dashboard');
-            }
+        if (justCompletedSetup.current && profile && activeTab !== 'Dashboard') {
+            console.log('[useAppLogic] Post-setup redirect: navigating to Dashboard');
+            setActiveTab('Dashboard');
+            justCompletedSetup.current = false;
         }
-    }, [user, profile, records.length, activeTab]);
+    }, [profile, activeTab]);
 
     // =========================================================================
     // EXISTING HANDLERS - All preserved exactly as they were
@@ -199,6 +199,9 @@ export const useAppLogic = (celebrations) => {
             }, { merge: true });
             
             // ✅ FIX: Update local state so UI recognizes profile exists
+            // Mark that we just completed setup so navigation fix knows to redirect
+            justCompletedSetup.current = true;
+            
             setProfile({
                 ...newProfile,
                 updatedAt: new Date().toISOString()
