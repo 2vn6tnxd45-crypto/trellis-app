@@ -1,11 +1,10 @@
 /* src/styles/krib-theme.css */
 /* ============================================ */
-/* 🎨 KRIB WARMER THEME                        */
+/* 🎨 KRIB WARMER THEME WITH DARK MODE         */
 /* ============================================ */
-/* Add this to your main CSS or import in App  */
 
 /* ============================================ */
-/* CSS VARIABLES                               */
+/* LIGHT MODE (default)                        */
 /* ============================================ */
 
 :root {
@@ -63,265 +62,305 @@
   --shadow-lg: 0 10px 15px -3px rgba(38, 36, 31, 0.1), 0 4px 6px -4px rgba(38, 36, 31, 0.1);
   --shadow-primary: 0 10px 25px -5px rgba(107, 124, 94, 0.25);
   --shadow-accent: 0 10px 25px -5px rgba(196, 120, 90, 0.25);
+
+  /* === THEME-AWARE COLORS (these flip in dark mode) === */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8f8f7;
+  --color-bg-tertiary: #f0efed;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #ffffff;
+  
+  --color-text-primary: #26241f;
+  --color-text-secondary: #5f5a53;
+  --color-text-tertiary: #8a847a;
+  --color-text-inverse: #ffffff;
+  
+  --color-border-default: #e3e1dd;
+  --color-border-subtle: #f0efed;
+  --color-border-strong: #d1cdc7;
+  
+  /* Hero/Header gradient */
+  --color-hero-from: #065f46;
+  --color-hero-to: #115e59;
 }
 
 /* ============================================ */
-/* BASE OVERRIDES                              */
+/* 🌙 DARK MODE                                */
 /* ============================================ */
 
-/* Override default emerald with sage */
-.bg-emerald-50 { background-color: var(--sage-50) !important; }
-.bg-emerald-100 { background-color: var(--sage-100) !important; }
-.bg-emerald-200 { background-color: var(--sage-200) !important; }
-.bg-emerald-300 { background-color: var(--sage-300) !important; }
-.bg-emerald-400 { background-color: var(--sage-400) !important; }
-.bg-emerald-500 { background-color: var(--sage-500) !important; }
-.bg-emerald-600 { background-color: var(--sage-600) !important; }
-.bg-emerald-700 { background-color: var(--sage-700) !important; }
+.dark {
+  /* Invert the sage palette */
+  --sage-50: #191d16;
+  --sage-100: #32382d;
+  --sage-200: #3a4233;
+  --sage-300: #454f3b;
+  --sage-400: #566449;
+  --sage-500: #6b7c5e;
+  --sage-600: #97a67f;
+  --sage-700: #b5c0a4;
+  --sage-800: #d3d9c9;
+  --sage-900: #e8ebe3;
+  --sage-950: #f6f7f4;
+  
+  /* Invert the terra palette */
+  --terra-50: #361c17;
+  --terra-100: #653b31;
+  --terra-200: #794337;
+  --terra-300: #934e3d;
+  --terra-400: #b0614a;
+  --terra-500: #c4785a;
+  --terra-600: #e39279;
+  --terra-700: #eeb8a5;
+  --terra-800: #f6d5ca;
+  --terra-900: #fae9e3;
+  --terra-950: #fdf6f3;
+  
+  /* Invert the warm grays */
+  --warm-50: #26241f;
+  --warm-100: #45423e;
+  --warm-200: #504c47;
+  --warm-300: #5f5a53;
+  --warm-400: #736d64;
+  --warm-500: #8a847a;
+  --warm-600: #a9a49b;
+  --warm-700: #d1cdc7;
+  --warm-800: #e3e1dd;
+  --warm-900: #f0efed;
+  --warm-950: #f8f8f7;
+  
+  /* Semantic - adjust for dark backgrounds */
+  --success: #6aac6a;
+  --success-light: #1a3a1a;
+  --warning: #f0b45c;
+  --warning-light: #3d2a10;
+  --error: #e07070;
+  --error-light: #3d1a1a;
+  
+  /* Shadows - darker and more subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-base: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-primary: 0 10px 25px -5px rgba(107, 124, 94, 0.4);
+  --shadow-accent: 0 10px 25px -5px rgba(196, 120, 90, 0.4);
 
-.text-emerald-50 { color: var(--sage-50) !important; }
-.text-emerald-100 { color: var(--sage-100) !important; }
-.text-emerald-200 { color: var(--sage-200) !important; }
-.text-emerald-300 { color: var(--sage-300) !important; }
-.text-emerald-400 { color: var(--sage-400) !important; }
-.text-emerald-500 { color: var(--sage-500) !important; }
-.text-emerald-600 { color: var(--sage-600) !important; }
-.text-emerald-700 { color: var(--sage-700) !important; }
+  /* === THEME-AWARE COLORS === */
+  --color-bg-primary: #1a1917;
+  --color-bg-secondary: #26241f;
+  --color-bg-tertiary: #32302b;
+  --color-bg-card: #26241f;
+  --color-bg-elevated: #32302b;
+  
+  --color-text-primary: #f0efed;
+  --color-text-secondary: #a9a49b;
+  --color-text-tertiary: #736d64;
+  --color-text-inverse: #26241f;
+  
+  --color-border-default: #45423e;
+  --color-border-subtle: #32302b;
+  --color-border-strong: #5f5a53;
+  
+  /* Hero/Header gradient - darker version */
+  --color-hero-from: #064e38;
+  --color-hero-to: #0d4d49;
+}
 
-.border-emerald-100 { border-color: var(--sage-100) !important; }
-.border-emerald-200 { border-color: var(--sage-200) !important; }
-.border-emerald-300 { border-color: var(--sage-300) !important; }
-.border-emerald-400 { border-color: var(--sage-400) !important; }
-.border-emerald-500 { border-color: var(--sage-500) !important; }
+/* ============================================ */
+/* BASE STYLES                                 */
+/* ============================================ */
+
+/* Apply theme colors to body */
+body {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================ */
+/* UTILITY CLASSES THAT RESPECT THEME          */
+/* ============================================ */
+
+/* Backgrounds */
+.bg-theme-primary { background-color: var(--color-bg-primary); }
+.bg-theme-secondary { background-color: var(--color-bg-secondary); }
+.bg-theme-card { background-color: var(--color-bg-card); }
+.bg-theme-elevated { background-color: var(--color-bg-elevated); }
+
+/* Text */
+.text-theme-primary { color: var(--color-text-primary); }
+.text-theme-secondary { color: var(--color-text-secondary); }
+.text-theme-tertiary { color: var(--color-text-tertiary); }
+
+/* Borders */
+.border-theme-default { border-color: var(--color-border-default); }
+.border-theme-subtle { border-color: var(--color-border-subtle); }
+
+/* ============================================ */
+/* OVERRIDE COMMON TAILWIND CLASSES            */
+/* ============================================ */
+
+/* White backgrounds become theme-aware */
+.dark .bg-white {
+  background-color: var(--color-bg-card) !important;
+}
+
+.dark .bg-slate-50,
+.dark .bg-gray-50 {
+  background-color: var(--color-bg-tertiary) !important;
+}
+
+.dark .bg-slate-100,
+.dark .bg-gray-100 {
+  background-color: var(--color-bg-elevated) !important;
+}
+
+/* Text colors */
+.dark .text-slate-900,
+.dark .text-gray-900 {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .text-slate-800,
+.dark .text-gray-800 {
+  color: var(--color-text-primary) !important;
+}
+
+.dark .text-slate-700,
+.dark .text-gray-700 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-slate-600,
+.dark .text-gray-600 {
+  color: var(--color-text-secondary) !important;
+}
+
+.dark .text-slate-500,
+.dark .text-gray-500 {
+  color: var(--color-text-tertiary) !important;
+}
+
+.dark .text-slate-400,
+.dark .text-gray-400 {
+  color: var(--color-text-tertiary) !important;
+}
+
+/* Emerald overrides (your brand color) */
+.dark .text-emerald-950,
+.dark .text-emerald-900,
+.dark .text-emerald-800 {
+  color: #a7f3d0 !important; /* emerald-200 */
+}
+
+.dark .text-emerald-700,
+.dark .text-emerald-600 {
+  color: #6ee7b7 !important; /* emerald-300 */
+}
+
+.dark .bg-emerald-50 {
+  background-color: #022c22 !important; /* very dark emerald */
+}
+
+.dark .bg-emerald-100 {
+  background-color: #064e3b !important;
+}
+
+/* Hero gradient in dark mode */
+.dark .bg-gradient-to-br.from-emerald-800.to-teal-900 {
+  background: linear-gradient(to bottom right, #064e38, #0d4d49) !important;
+}
+
+/* Border colors */
+.dark .border-slate-200,
+.dark .border-gray-200 {
+  border-color: var(--color-border-default) !important;
+}
+
+.dark .border-slate-100,
+.dark .border-gray-100 {
+  border-color: var(--color-border-subtle) !important;
+}
+
+/* Divide colors */
+.dark .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--color-border-subtle) !important;
+}
 
 /* Ring colors */
-.ring-emerald-500 { --tw-ring-color: var(--sage-500) !important; }
-.focus\:ring-emerald-500:focus { --tw-ring-color: var(--sage-500) !important; }
-
-/* Gradient overrides */
-.from-emerald-400 { --tw-gradient-from: var(--sage-400) !important; }
-.from-emerald-500 { --tw-gradient-from: var(--sage-500) !important; }
-.from-emerald-600 { --tw-gradient-from: var(--sage-600) !important; }
-.to-emerald-500 { --tw-gradient-to: var(--sage-500) !important; }
-.to-emerald-600 { --tw-gradient-to: var(--sage-600) !important; }
-.to-teal-500 { --tw-gradient-to: var(--sage-600) !important; }
-.to-teal-600 { --tw-gradient-to: var(--sage-700) !important; }
-
-/* Shadow overrides */
-.shadow-emerald-500\/20 { box-shadow: var(--shadow-primary) !important; }
-.shadow-emerald-500\/30 { box-shadow: var(--shadow-primary) !important; }
-
-/* ============================================ */
-/* NEW UTILITY CLASSES                         */
-/* ============================================ */
-
-/* Sage colors */
-.bg-sage-50 { background-color: var(--sage-50); }
-.bg-sage-100 { background-color: var(--sage-100); }
-.bg-sage-200 { background-color: var(--sage-200); }
-.bg-sage-300 { background-color: var(--sage-300); }
-.bg-sage-400 { background-color: var(--sage-400); }
-.bg-sage-500 { background-color: var(--sage-500); }
-.bg-sage-600 { background-color: var(--sage-600); }
-.bg-sage-700 { background-color: var(--sage-700); }
-.bg-sage-800 { background-color: var(--sage-800); }
-.bg-sage-900 { background-color: var(--sage-900); }
-
-.text-sage-50 { color: var(--sage-50); }
-.text-sage-100 { color: var(--sage-100); }
-.text-sage-200 { color: var(--sage-200); }
-.text-sage-300 { color: var(--sage-300); }
-.text-sage-400 { color: var(--sage-400); }
-.text-sage-500 { color: var(--sage-500); }
-.text-sage-600 { color: var(--sage-600); }
-.text-sage-700 { color: var(--sage-700); }
-.text-sage-800 { color: var(--sage-800); }
-.text-sage-900 { color: var(--sage-900); }
-
-.border-sage-100 { border-color: var(--sage-100); }
-.border-sage-200 { border-color: var(--sage-200); }
-.border-sage-300 { border-color: var(--sage-300); }
-.border-sage-400 { border-color: var(--sage-400); }
-.border-sage-500 { border-color: var(--sage-500); }
-
-/* Terra (accent) colors */
-.bg-terra-50 { background-color: var(--terra-50); }
-.bg-terra-100 { background-color: var(--terra-100); }
-.bg-terra-200 { background-color: var(--terra-200); }
-.bg-terra-300 { background-color: var(--terra-300); }
-.bg-terra-400 { background-color: var(--terra-400); }
-.bg-terra-500 { background-color: var(--terra-500); }
-.bg-terra-600 { background-color: var(--terra-600); }
-.bg-terra-700 { background-color: var(--terra-700); }
-
-.text-terra-50 { color: var(--terra-50); }
-.text-terra-100 { color: var(--terra-100); }
-.text-terra-200 { color: var(--terra-200); }
-.text-terra-300 { color: var(--terra-300); }
-.text-terra-400 { color: var(--terra-400); }
-.text-terra-500 { color: var(--terra-500); }
-.text-terra-600 { color: var(--terra-600); }
-.text-terra-700 { color: var(--terra-700); }
-
-.border-terra-200 { border-color: var(--terra-200); }
-.border-terra-300 { border-color: var(--terra-300); }
-.border-terra-400 { border-color: var(--terra-400); }
-
-/* Warm gray colors */
-.bg-warm-50 { background-color: var(--warm-50); }
-.bg-warm-100 { background-color: var(--warm-100); }
-.bg-warm-200 { background-color: var(--warm-200); }
-.bg-warm-800 { background-color: var(--warm-800); }
-.bg-warm-900 { background-color: var(--warm-900); }
-
-.text-warm-400 { color: var(--warm-400); }
-.text-warm-500 { color: var(--warm-500); }
-.text-warm-600 { color: var(--warm-600); }
-.text-warm-700 { color: var(--warm-700); }
-.text-warm-800 { color: var(--warm-800); }
-
-/* ============================================ */
-/* GRADIENT UTILITIES                          */
-/* ============================================ */
-
-.bg-gradient-sage {
-  background: linear-gradient(135deg, var(--sage-500) 0%, var(--sage-600) 100%);
+.dark .ring-slate-200,
+.dark .ring-gray-200 {
+  --tw-ring-color: var(--color-border-default) !important;
 }
 
-.bg-gradient-terra {
-  background: linear-gradient(135deg, var(--terra-500) 0%, var(--terra-600) 100%);
-}
-
-.bg-gradient-hero {
-  background: linear-gradient(135deg, var(--warm-900) 0%, var(--sage-900) 100%);
-}
-
-.bg-gradient-hero-light {
-  background: linear-gradient(135deg, var(--sage-50) 0%, var(--terra-50) 50%, var(--warm-50) 100%);
+/* Placeholder text */
+.dark ::placeholder {
+  color: var(--color-text-tertiary) !important;
 }
 
 /* ============================================ */
-/* SHADOW UTILITIES                            */
+/* COMPONENT-SPECIFIC OVERRIDES               */
 /* ============================================ */
 
-.shadow-sage {
-  box-shadow: var(--shadow-primary);
+/* Cards */
+.dark .rounded-2xl.bg-white,
+.dark .rounded-xl.bg-white,
+.dark .rounded-lg.bg-white {
+  background-color: var(--color-bg-card) !important;
+  border-color: var(--color-border-default) !important;
 }
 
-.shadow-terra {
-  box-shadow: var(--shadow-accent);
+/* Modals */
+.dark .fixed .bg-white {
+  background-color: var(--color-bg-elevated) !important;
 }
 
-.hover\:shadow-sage:hover {
-  box-shadow: var(--shadow-primary);
+/* Inputs */
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: var(--color-bg-tertiary) !important;
+  border-color: var(--color-border-default) !important;
+  color: var(--color-text-primary) !important;
 }
 
-.hover\:shadow-terra:hover {
-  box-shadow: var(--shadow-accent);
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--sage-500) !important;
 }
 
-/* ============================================ */
-/* BUTTON COMPONENTS                           */
-/* ============================================ */
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--sage-500) 0%, var(--sage-600) 100%);
-  color: white;
-  font-weight: 700;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  box-shadow: var(--shadow-primary);
-  transition: all 0.2s ease;
+/* Hover states */
+.dark .hover\:bg-slate-50:hover,
+.dark .hover\:bg-gray-50:hover {
+  background-color: var(--color-bg-tertiary) !important;
 }
 
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
-}
-
-.btn-primary:active {
-  transform: scale(0.98);
-}
-
-.btn-secondary {
-  background: white;
-  color: var(--sage-700);
-  font-weight: 700;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  border: 2px solid var(--sage-200);
-  transition: all 0.2s ease;
-}
-
-.btn-secondary:hover {
-  border-color: var(--sage-400);
-  background: var(--sage-50);
-}
-
-.btn-accent {
-  background: linear-gradient(135deg, var(--terra-500) 0%, var(--terra-600) 100%);
-  color: white;
-  font-weight: 700;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  box-shadow: var(--shadow-accent);
-  transition: all 0.2s ease;
-}
-
-.btn-accent:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
+.dark .hover\:bg-slate-100:hover,
+.dark .hover\:bg-gray-100:hover {
+  background-color: var(--color-bg-elevated) !important;
 }
 
 /* ============================================ */
-/* CARD COMPONENTS                             */
+/* SCROLLBAR STYLING                           */
 /* ============================================ */
 
-.card {
-  background: white;
-  border-radius: 1rem;
-  border: 1px solid var(--warm-200);
-  box-shadow: var(--shadow-base);
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.card-interactive {
-  background: white;
-  border-radius: 1rem;
-  border: 1px solid var(--warm-200);
-  box-shadow: var(--shadow-base);
-  transition: all 0.2s ease;
-  cursor: pointer;
+.dark ::-webkit-scrollbar-track {
+  background: var(--color-bg-tertiary);
 }
 
-.card-interactive:hover {
-  border-color: var(--sage-300);
-  box-shadow: var(--shadow-md);
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 4px;
 }
 
-/* ============================================ */
-/* BADGE COMPONENTS                            */
-/* ============================================ */
-
-.badge-sage {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  background: var(--sage-100);
-  color: var(--sage-700);
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: 9999px;
-}
-
-.badge-terra {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.75rem;
-  background: var(--terra-100);
-  color: var(--terra-700);
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: 9999px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--warm-500);
 }
 
 /* ============================================ */
@@ -397,21 +436,6 @@
 }
 
 /* ============================================ */
-/* DARK MODE SUPPORT (optional)                */
-/* ============================================ */
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Invert some colors for dark mode */
-    --warm-50: #26241f;
-    --warm-100: #45423e;
-    --warm-200: #504c47;
-    --warm-800: #f0efed;
-    --warm-900: #f8f8f7;
-  }
-}
-
-/* ============================================ */
 /* TYPOGRAPHY                                  */
 /* ============================================ */
 
@@ -443,4 +467,17 @@
   font-size: 0.75rem;
   line-height: 1.4;
   letter-spacing: 0.02em;
+}
+
+/* ============================================ */
+/* TRANSITION FOR THEME CHANGE                 */
+/* ============================================ */
+
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.15s ease;
+}
+
+/* Disable transition on page load to prevent flash */
+.no-transitions * {
+  transition: none !important;
 }
