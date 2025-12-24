@@ -111,6 +111,23 @@ export const useAppLogic = (celebrations) => {
     }, [records, activeProperty, activePropertyRecords]);
 
     // =========================================================================
+    // FIX: Ensure new users are always directed to Dashboard after profile creation
+    // This prevents the race condition where users might land on Settings
+    // =========================================================================
+    useEffect(() => {
+        // When profile first becomes available and user exists, 
+        // ensure we're on the Dashboard (not Settings or any other unexpected tab)
+        if (user && profile && activeTab === 'Settings') {
+            // Check if this is likely a new user (no records yet)
+            // This prevents redirecting existing users who intentionally navigated to Settings
+            if (records.length === 0) {
+                console.log('[useAppLogic] Redirecting new user from Settings to Dashboard');
+                setActiveTab('Dashboard');
+            }
+        }
+    }, [user, profile, records.length, activeTab]);
+
+    // =========================================================================
     // EXISTING HANDLERS - All preserved exactly as they were
     // =========================================================================
     
@@ -249,12 +266,10 @@ export const useAppLogic = (celebrations) => {
                     if (t.task === task.taskName) {
                         // Use the later of: today or current due date, as the base for next calculation
                         const currentDue = t.nextDue ? new Date(t.nextDue) : new Date();
-                        const today = new Date(completedDateShort);
-                        const baseDate = currentDue > today ? currentDue : today;
-                        const baseDateStr = baseDate.toISOString().split('T')[0];
-                        
-                        const newNextDue = calculateNextDate(baseDateStr, t.frequency);
-                        return { ...t, lastCompleted: completedDateShort, nextDue: newNextDue };
+                        const today = new Date();
+                        const baseDate = currentDue < today ? today : currentDue;
+                        const newNextDue = calculateNextDate(baseDate.toISOString().split('T')[0], t.frequency);
+                        return { ...t, lastCompleted: completedDateShort, nextDue: newNextDue, snoozedUntil: null, scheduledDate: null };
                     }
                     return t;
                 });
@@ -262,52 +277,31 @@ export const useAppLogic = (celebrations) => {
             } else {
                 previousNextDate = record.nextServiceDate;
                 previousDateInstalled = record.dateInstalled;
-                
-                if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
-                    const newNext = calculateNextDate(completedDateShort, record.maintenanceFrequency);
-                    if (newNext) {
-                        updates.nextServiceDate = newNext;
-                        updates.dateInstalled = completedDateShort;
-                    }
-                }
+                updates.dateInstalled = completedDateShort;
+                updates.nextServiceDate = calculateNextDate(completedDateShort, record.maintenanceFrequency);
+                updates.snoozedUntil = null;
+                updates.scheduledDate = null;
             }
             
             await updateDoc(recordRef, updates);
-            
-            // Show success toast with undo option
+
+            // Show toast with undo option
             toast(
                 (t) => (
                     <div className="flex items-center gap-3">
-                        <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-emerald-100">
-                            <Check className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div className="flex-grow">
-                            <div className="flex items-center gap-2">
-                                <p className="font-bold text-slate-800">
-                                    {task.taskName || task.item} complete!
-                                </p>
-                            </div>
-                            <div className="mt-1">
-                                <div className="flex items-center text-emerald-600">
-                                    <p className="mt-1 text-sm text-gray-500">
-                                        Great job keeping up with maintenance.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                        <span>Task completed!</span>
                         <button
                             onClick={async () => {
                                 toast.dismiss(t.id);
                                 try {
-                                    // Restore previous state
-                                    const restoreUpdates = { maintenanceHistory: previousHistory };
-                                    if (task.isGranular) {
-                                        restoreUpdates.maintenanceTasks = previousTasks;
+                                    const undoUpdates = { maintenanceHistory: previousHistory };
+                                    if (task.isGranular && previousTasks) {
+                                        undoUpdates.maintenanceTasks = previousTasks;
                                     } else {
-                                        if (previousNextDate) restoreUpdates.nextServiceDate = previousNextDate;
-                                        if (previousDateInstalled) restoreUpdates.dateInstalled = previousDateInstalled;
+                                        if (previousNextDate !== null) undoUpdates.nextServiceDate = previousNextDate;
+                                        if (previousDateInstalled !== null) undoUpdates.dateInstalled = previousDateInstalled;
                                     }
-                                    await updateDoc(recordRef, restoreUpdates);
+                                    await updateDoc(recordRef, undoUpdates);
                                     toast.success("Undone!", { duration: 2000 });
                                 } catch (err) {
                                     toast.error("Couldn't undo: " + err.message);
@@ -377,34 +371,38 @@ export const useAppLogic = (celebrations) => {
             const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
             
             let updates = { maintenanceHistory: newHistory };
-            const taskIndex = (record.maintenanceTasks || []).findIndex(t => t.task === historyItem.taskName);
             
-            if (taskIndex >= 0) {
-                 const updatedTasks = [...record.maintenanceTasks];
-                 updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], nextDue: new Date().toISOString().split('T')[0] };
-                 updates.maintenanceTasks = updatedTasks;
-            } else if (record.maintenanceFrequency && record.maintenanceFrequency !== 'none') {
-                const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
-                if (freq && freq.months) {
-                     const currentLastDate = new Date(record.dateInstalled);
-                     currentLastDate.setMonth(currentLastDate.getMonth() - freq.months);
-                     currentLastDate.setDate(currentLastDate.getDate() + 1);
-                     const newLastDateStr = currentLastDate.toISOString().split('T')[0];
-                     updates.dateInstalled = newLastDateStr;
-                     const nextDate = calculateNextDate(newLastDateStr, record.maintenanceFrequency);
-                     if (nextDate) updates.nextServiceDate = nextDate;
+            // If this was a granular task, restore its next due date
+            if (record.maintenanceTasks) {
+                const matchingTask = record.maintenanceTasks.find(t => t.task === historyItem.taskName);
+                if (matchingTask) {
+                    const updatedTasks = record.maintenanceTasks.map(t => {
+                        if (t.task === historyItem.taskName) {
+                            // Recalculate based on the completion we're removing
+                            const previousCompletion = newHistory.find(h => h.taskName === historyItem.taskName);
+                            if (previousCompletion) {
+                                return { ...t, lastCompleted: previousCompletion.completedDate.split('T')[0], nextDue: calculateNextDate(previousCompletion.completedDate.split('T')[0], t.frequency) };
+                            } else {
+                                return { ...t, lastCompleted: null, nextDue: calculateNextDate(record.dateInstalled, t.frequency) };
+                            }
+                        }
+                        return t;
+                    });
+                    updates.maintenanceTasks = updatedTasks;
                 }
             }
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', record.id), updates);
-            toast.success("Task restored to dashboard", { icon: <RotateCcw size={18}/> });
-        } catch (e) { toast.error("Failed to restore: " + e.message); }
+            
+            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), updates);
+            toast.success("Task restored to active", { icon: '↩️' });
+        } catch (e) { 
+            console.error('[App] Restore error:', e);
+            toast.error("Failed to restore: " + e.message); 
+        }
     }, [records, user]);
 
     // =========================================================================
-    // NEW HANDLERS - Added for Delete, Schedule, Snooze functionality
+    // NEW: Delete a maintenance task - COMPLETE ORIGINAL
     // =========================================================================
-
-    // NEW: Delete a maintenance task from a record - COMPLETE ORIGINAL
     const handleDeleteMaintenanceTask = useCallback(async (task) => {
         try {
             console.log('[App] Deleting maintenance task:', task);
