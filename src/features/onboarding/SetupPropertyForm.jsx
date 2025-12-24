@@ -1,13 +1,14 @@
 // src/features/onboarding/SetupPropertyForm.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, MapPin, Loader2 } from 'lucide-react';
+import { Home, MapPin, Loader2, LogOut } from 'lucide-react';
 import { googleMapsApiKey } from '../../config/constants';
 import { Logo } from '../../components/common/Logo';
 
-export const SetupPropertyForm = ({ onSave, isSaving }) => {
+export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [name, setName] = useState('');
     const [address, setAddress] = useState({ street: '', city: '', state: '', zip: '', placeId: '' });
-    const [coordinates, setCoordinates] = useState(null); // NEW: Store coordinates
+    const [coordinates, setCoordinates] = useState(null);
+    const [debugInfo, setDebugInfo] = useState(''); // For debugging
     const autocompleteRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -22,49 +23,96 @@ export const SetupPropertyForm = ({ onSave, isSaving }) => {
             script.async = true;
             script.defer = true;
             script.onload = initAutocomplete;
+            script.onerror = () => {
+                console.error('Failed to load Google Maps');
+                setDebugInfo('Google Maps failed to load');
+            };
             document.head.appendChild(script);
         };
 
         const initAutocomplete = () => {
             if (!inputRef.current || autocompleteRef.current) return;
-            autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
-                types: ['address'],
-                componentRestrictions: { country: 'us' },
-            });
-            autocompleteRef.current.addListener('place_changed', () => {
-                const place = autocompleteRef.current.getPlace();
-                if (!place.address_components) return;
-                
-                // NEW: Capture Coordinates
-                if (place.geometry && place.geometry.location) {
-                    setCoordinates({
-                        lat: place.geometry.location.lat(),
-                        lon: place.geometry.location.lng()
-                    });
-                }
-
-                const get = (type) => place.address_components.find(c => c.types.includes(type))?.short_name || '';
-                setAddress({
-                    street: `${get('street_number')} ${get('route')}`.trim(),
-                    city: get('locality') || get('sublocality') || get('administrative_area_level_2'),
-                    state: get('administrative_area_level_1'),
-                    zip: get('postal_code'),
-                    placeId: place.place_id || '',
+            try {
+                autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, {
+                    types: ['address'],
+                    componentRestrictions: { country: 'us' },
                 });
-            });
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current.getPlace();
+                    if (!place.address_components) return;
+                    
+                    // Capture Coordinates
+                    if (place.geometry && place.geometry.location) {
+                        setCoordinates({
+                            lat: place.geometry.location.lat(),
+                            lon: place.geometry.location.lng()
+                        });
+                    }
+
+                    const get = (type) => place.address_components.find(c => c.types.includes(type))?.short_name || '';
+                    setAddress({
+                        street: `${get('street_number')} ${get('route')}`.trim(),
+                        city: get('locality') || get('sublocality') || get('administrative_area_level_2'),
+                        state: get('administrative_area_level_1'),
+                        zip: get('postal_code'),
+                        placeId: place.place_id || '',
+                    });
+                });
+            } catch (err) {
+                console.error('Autocomplete init error:', err);
+                setDebugInfo('Autocomplete failed: ' + err.message);
+            }
         };
         loadGoogleMaps();
     }, []);
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        if (!address.street) { alert("Please select an address."); return; }
-        // Pass coordinates up to the parent
-        onSave({ name: name || `${address.street}`, address, coordinates });
+        
+        // ✅ DEBUG: Log what's happening
+        console.log('[SetupPropertyForm] handleSubmit called');
+        console.log('[SetupPropertyForm] address:', address);
+        console.log('[SetupPropertyForm] name:', name);
+        console.log('[SetupPropertyForm] onSave exists:', typeof onSave === 'function');
+        console.log('[SetupPropertyForm] isSaving:', isSaving);
+        
+        if (!address.street) { 
+            alert("Please select an address from the dropdown suggestions."); 
+            return; 
+        }
+        
+        // ✅ FIX: Check if onSave is actually a function
+        if (typeof onSave !== 'function') {
+            console.error('[SetupPropertyForm] onSave is not a function!', onSave);
+            alert('Error: Save handler not configured. Please refresh the page.');
+            return;
+        }
+        
+        // ✅ DEBUG: Log before calling onSave
+        const formData = { 
+            name: name || address.street, 
+            address, 
+            coordinates 
+        };
+        console.log('[SetupPropertyForm] Calling onSave with:', formData);
+        
+        // Call the save function
+        onSave(formData);
     };
 
     return (
         <div className="min-h-screen bg-emerald-50 flex flex-col items-center justify-center p-6">
+            {/* ✅ FIX: Add Sign Out button in top corner */}
+            {onSignOut && (
+                <button
+                    onClick={onSignOut}
+                    className="absolute top-4 right-4 flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white rounded-xl border border-slate-200 hover:bg-slate-50 hover:text-red-600 transition-colors shadow-sm"
+                >
+                    <LogOut className="h-4 w-4" />
+                    Sign Out
+                </button>
+            )}
+            
             <div className="w-full max-w-lg">
                 <div className="text-center mb-10">
                     <Logo className="h-16 w-16 mx-auto mb-4" />
@@ -112,10 +160,28 @@ export const SetupPropertyForm = ({ onSave, isSaving }) => {
                         disabled={isSaving}
                         className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 flex items-center justify-center"
                     >
-                        {/* CHANGED TEXT HERE */}
-                        {isSaving ? <><Loader2 className="animate-spin h-5 w-5 mr-2" /> Creating...</> : 'Kreate My Krib'}
+                        {isSaving ? (
+                            <>
+                                <Loader2 className="animate-spin h-5 w-5 mr-2" /> 
+                                Creating...
+                            </>
+                        ) : (
+                            'Kreate My Krib'
+                        )}
                     </button>
+                    
+                    {/* ✅ DEBUG: Show debug info in development */}
+                    {debugInfo && (
+                        <p className="text-xs text-red-500 text-center mt-2">{debugInfo}</p>
+                    )}
                 </form>
+                
+                {/* ✅ DEBUG: Status indicator */}
+                <div className="mt-4 text-center text-xs text-slate-400">
+                    {address.street ? '✓ Address selected' : '○ Select an address from dropdown'}
+                    {' • '}
+                    {typeof onSave === 'function' ? '✓ Save handler ready' : '✗ Save handler missing'}
+                </div>
             </div>
         </div>
     );
