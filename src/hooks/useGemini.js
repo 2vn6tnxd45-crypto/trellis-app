@@ -28,207 +28,182 @@ export const useGemini = () => {
 
     // --- HELPER: Match AI guess to Constants ---
     // --- HELPER: Match AI guess to Constants ---
-const findBestRoomMatch = (aiGuess, itemName = '', category = '', invoiceContext = '') => {
-    // ===== COMPREHENSIVE DEBUG =====
-    console.log(`🔍 findBestRoomMatch called:`, { aiGuess, itemName, category, invoiceContext: invoiceContext?.substring(0, 100) });
-    // ================================
-    
-    // Combine all text for context search
-    const fullContext = `${aiGuess} ${itemName} ${category} ${invoiceContext}`.toLowerCase();
-    
-    // ============ STEP 1: Check for EXPLICIT location mentions in context ============
-    // These take absolute priority over any inference
-    const explicitLocationPatterns = [
-        { pattern: /\bin\s+attic\b|\battic\s+install|\brelocate[d]?\s+to\s+attic|\battic\s+unit/i, room: 'Attic' },
-        { pattern: /\bin\s+garage\b|\bgarage\s+install/i, room: 'Garage' },
-        { pattern: /\bin\s+basement\b|\bbasement\s+install/i, room: 'Basement' },
-        { pattern: /\bside\s+of\s+house\b|\bexterior\b|\boutside\b|\boutdoor\s+unit\b|\bbackyard\b/i, room: 'Exterior' },
-        { pattern: /\blaundry\s+room\b|\butility\s+room\b/i, room: 'Laundry Room' },
-        { pattern: /\bmaster\s+bath|\bmaster\s+bathroom/i, room: 'Master Bathroom' },
-        { pattern: /\bkitchen\b/i, room: 'Kitchen' },
-    ];
-    
-    for (const { pattern, room } of explicitLocationPatterns) {
-        if (pattern.test(fullContext)) {
-            console.log(`   ✅ EXPLICIT location found: "${room}" (pattern: ${pattern})`);
-            return room;
-        }
-    }
-    // =================================================================================
-    
-    // ============ STEP 2: Trust AI guess if it's valid ============
-    if (aiGuess && aiGuess.toLowerCase() !== 'general') {
-        const lowerGuess = aiGuess.toLowerCase();
+    const findBestRoomMatch = (aiGuess, itemName = '', category = '', invoiceContext = '') => {
+        // ===== COMPREHENSIVE DEBUG =====
+        console.log(`🔍 findBestRoomMatch called:`, { aiGuess, itemName, category, invoiceContext: invoiceContext?.substring(0, 100) });
+        // ================================
         
-        // Exact match
-        const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
-        if (exact) {
-            console.log(`   ✅ AI guess exact match: "${exact}"`);
-            return exact;
+        // Combine all text for context search
+        const fullContext = `${aiGuess} ${itemName} ${category} ${invoiceContext}`.toLowerCase();
+        
+        // ============ STEP 1: Check for EXPLICIT location mentions in context ============
+        // These take absolute priority over any inference
+        const explicitLocationPatterns = [
+            { pattern: /\bin\s+attic\b|\battic\s+install|\brelocate[d]?\s+to\s+attic|\battic\s+unit/i, room: 'Attic' },
+            { pattern: /\bin\s+garage\b|\bgarage\s+install/i, room: 'Garage' },
+            { pattern: /\bin\s+basement\b|\bbasement\s+install/i, room: 'Basement' },
+            { pattern: /\bside\s+of\s+house\b|\bexterior\b|\boutside\b|\boutdoor\s+unit\b|\bbackyard\b/i, room: 'Exterior' },
+            { pattern: /\blaundry\s+room\b|\butility\s+room\b/i, room: 'Laundry Room' },
+            { pattern: /\bmaster\s+bath|\bmaster\s+bathroom/i, room: 'Master Bathroom' },
+            { pattern: /\bkitchen\b/i, room: 'Kitchen' },
+        ];
+        
+        for (const { pattern, room } of explicitLocationPatterns) {
+            if (pattern.test(fullContext)) {
+                console.log(`   ✅ EXPLICIT location found: "${room}" (pattern: ${pattern})`);
+                return room;
+            }
+        }
+        // =================================================================================
+        
+        // ============ STEP 2: Trust AI guess if it's valid ============
+        if (aiGuess && aiGuess.toLowerCase() !== 'general') {
+            const lowerGuess = aiGuess.toLowerCase();
+            
+            // Exact match
+            const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
+            if (exact) {
+                console.log(`   ✅ AI guess exact match: "${exact}"`);
+                return exact;
+            }
+            
+            // Partial match
+            const partial = ROOMS.find(r => 
+                r.toLowerCase().includes(lowerGuess) || 
+                lowerGuess.includes(r.toLowerCase())
+            );
+            if (partial) {
+                console.log(`   ✅ AI guess partial match: "${partial}"`);
+                return partial;
+            }
+            
+            // Custom location (AI found something not in our list)
+            if (aiGuess.trim() && aiGuess.length > 2) {
+                console.log(`   ⚠️ Using AI custom guess: "${aiGuess}"`);
+                return aiGuess;
+            }
+        }
+        // ==============================================================
+        
+        // ============ STEP 3: Inference based on item type (LAST RESORT) ============
+        const searchText = `${itemName} ${category}`.toLowerCase();
+        console.log(`   🔎 Fallback inference for: "${searchText}"`);
+        
+        // Kitchen items
+        if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal/.test(searchText)) {
+            console.log(`   ✅ Inferred: Kitchen`);
+            return 'Kitchen';
         }
         
-        // Partial match
-        const partial = ROOMS.find(r => 
-            r.toLowerCase().includes(lowerGuess) || 
-            lowerGuess.includes(r.toLowerCase())
-        );
-        if (partial) {
-            console.log(`   ✅ AI guess partial match: "${partial}"`);
-            return partial;
+        // Bathroom items
+        if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
+            console.log(`   ✅ Inferred: Bathroom`);
+            return 'Bathroom';
         }
         
-        // Custom location (AI found something not in our list)
-        if (aiGuess.trim() && aiGuess.length > 2) {
-            console.log(`   ⚠️ Using AI custom guess: "${aiGuess}"`);
-            return aiGuess;
+        // Laundry items
+        if (/washer|dryer|laundry/.test(searchText)) {
+            console.log(`   ✅ Inferred: Laundry Room`);
+            return 'Laundry Room';
         }
-    }
-    // ==============================================================
-    
-    // ============ STEP 3: Inference based on item type (LAST RESORT) ============
-    const searchText = `${itemName} ${category}`.toLowerCase();
-    console.log(`   🔎 Fallback inference for: "${searchText}"`);
-    
-    // Kitchen items
-    if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal/.test(searchText)) {
-        console.log(`   ✅ Inferred: Kitchen`);
-        return 'Kitchen';
-    }
-    
-    // Bathroom items
-    if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
-        console.log(`   ✅ Inferred: Bathroom`);
-        return 'Bathroom';
-    }
-    
-    // Laundry items
-    if (/washer|dryer|laundry/.test(searchText)) {
-        console.log(`   ✅ Inferred: Laundry Room`);
-        return 'Laundry Room';
-    }
-    
-    // Garage items (water heaters, garage doors, etc.)
-    if (/water heater|garage door|opener|water softener/.test(searchText)) {
-        console.log(`   ✅ Inferred: Garage`);
-        return 'Garage';
-    }
-    
-    // Indoor HVAC (air handlers, furnaces) - default to Attic
-    if (/air handler|furnace/.test(searchText)) {
-        console.log(`   ✅ Inferred: Attic (indoor HVAC unit)`);
-        return 'Attic';
-    }
-    
-    // ============ CRITICAL FIX FOR HEAT PUMP ============
-    // Only infer "Exterior" for heat pump if we DIDN'T find an explicit location above
-    // and if the item name specifically includes "condenser" or "outdoor"
-    if (/condenser|outdoor\s+unit|compressor/.test(searchText)) {
-        console.log(`   ✅ Inferred: Exterior (outdoor unit)`);
-        return 'Exterior';
-    }
-    
-    // Heat pump WITHOUT "outdoor" or "condenser" in name - DON'T auto-assign Exterior
-    // This is where the bug was! Heat pump systems can be in attic.
-    if (/heat pump/.test(searchText)) {
-        // Check if there's ANY attic context before defaulting
-        if (/attic/.test(fullContext)) {
-            console.log(`   ✅ Heat pump with attic context: Attic`);
+        
+        // Garage items (water heaters, garage doors, etc.)
+        if (/water heater|garage door|opener|water softener/.test(searchText)) {
+            console.log(`   ✅ Inferred: Garage`);
+            return 'Garage';
+        }
+        
+        // Indoor HVAC (air handlers, furnaces) - default to Attic
+        if (/air handler|furnace/.test(searchText)) {
+            console.log(`   ✅ Inferred: Attic (indoor HVAC unit)`);
             return 'Attic';
         }
-        // If truly no context, default to Exterior (most common for standalone heat pump installs)
-        console.log(`   ⚠️ Heat pump with no location context: Exterior (default)`);
-        return 'Exterior';
-    }
-    // ====================================================
-    
-    // Exterior items (pools, sprinklers, etc.)
-    if (/pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
-        console.log(`   ✅ Inferred: Exterior`);
-        return 'Exterior';
-    }
-    
-    console.log(`   ❌ No inference possible, returning: "${aiGuess || 'General'}"`);
-    return aiGuess || 'General';
-};
+        
+        // ============ CRITICAL FIX FOR HEAT PUMP ============
+        // Only infer "Exterior" for heat pump if we DIDN'T find an explicit location above
+        // and if the item name specifically includes "condenser" or "outdoor"
+        if (/condenser|outdoor\s+unit|compressor/.test(searchText)) {
+            console.log(`   ✅ Inferred: Exterior (outdoor unit)`);
+            return 'Exterior';
+        }
+        
+        // Heat pump WITHOUT "outdoor" or "condenser" in name - DON'T auto-assign Exterior
+        // This is where the bug was! Heat pump systems can be in attic.
+        if (/heat pump/.test(searchText)) {
+            // Check if there's ANY attic context before defaulting
+            if (/attic/.test(fullContext)) {
+                console.log(`   ✅ Heat pump with attic context: Attic`);
+                return 'Attic';
+            }
+            // If truly no context, default to Exterior (most common for standalone heat pump installs)
+            console.log(`   ⚠️ Heat pump with no location context: Exterior (default)`);
+            return 'Exterior';
+        }
+        // ====================================================
+        
+        // Exterior items (pools, sprinklers, etc.)
+        if (/pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
+            console.log(`   ✅ Inferred: Exterior`);
+            return 'Exterior';
+        }
+        
+        console.log(`   ❌ No inference possible, returning: "${aiGuess || 'General'}"`);
+        return aiGuess || 'General';
+    };
 
     // --- Bulletproof Address Check Helper ---
-const isSameAddress = (vendorAddr, userStreet, fullUserAddress = '') => {
-    if (!vendorAddr) return false;
-    
-    const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const vendorNorm = normalize(vendorAddr);
-    
-    // Check 1: Does vendor address contain the user's street?
-    if (userStreet) {
-        const streetNorm = normalize(userStreet);
-        if (streetNorm.length > 5 && vendorNorm.includes(streetNorm)) {
-            console.warn(`⚠️ Address match detected (street): "${vendorAddr}" contains "${userStreet}"`);
-            return true;
-        }
-    }
-    
-    // Check 2: Does vendor address match the full user address?
-    if (fullUserAddress) {
-        const fullNorm = normalize(fullUserAddress);
-        if (fullNorm.length > 10 && vendorNorm.includes(fullNorm.substring(0, Math.floor(fullNorm.length * 0.8)))) {
-            console.warn(`⚠️ Address match detected (full): "${vendorAddr}" matches "${fullUserAddress}"`);
-            return true;
-        }
-    }
-    
-    // Check 3: Extract and compare street numbers + first part of street name
-    const extractStreetNum = (str) => {
-        const match = (str || '').match(/^(\d+)/);
-        return match ? match[1] : null;
-    };
-    
-    const vendorNum = extractStreetNum(vendorAddr);
-    const userNum = extractStreetNum(userStreet || fullUserAddress);
-    
-    if (vendorNum && userNum && vendorNum === userNum) {
-        const vendorWords = vendorNorm.replace(/\d/g, '').trim();
-        const userWords = normalize(userStreet || fullUserAddress).replace(/\d/g, '').trim();
+    const isSameAddress = (vendorAddr, userStreet, fullUserAddress = '') => {
+        if (!vendorAddr) return false;
         
-        if (vendorWords.length > 5 && userWords.length > 5) {
-            const vendorStart = vendorWords.substring(0, 12);
-            const userStart = userWords.substring(0, 12);
-            if (vendorStart === userStart) {
-                console.warn(`⚠️ Address match detected (number+street): "${vendorAddr}"`);
+        const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const vendorNorm = normalize(vendorAddr);
+        
+        // Check 1: Does vendor address contain the user's street?
+        if (userStreet) {
+            const streetNorm = normalize(userStreet);
+            if (streetNorm.length > 5 && vendorNorm.includes(streetNorm)) {
+                console.warn(`⚠️ Address match detected (street): "${vendorAddr}" contains "${userStreet}"`);
                 return true;
             }
         }
-    }
-    
-    return false;
-};
-34    
-35    // Check 3: Extract and compare street numbers + first part of street name
-36    const extractStreetNum = (str) => {
-37        const match = (str || '').match(/^(\d+)/);
-38        return match ? match[1] : null;
-39    };
-40    
-41    const vendorNum = extractStreetNum(vendorAddr);
-42    const userNum = extractStreetNum(userStreet || fullUserAddress);
-43    
-44    if (vendorNum && userNum && vendorNum === userNum) {
-45        // Same street number - do a more careful comparison
-46        const vendorWords = vendorNorm.replace(/\d/g, '').trim();
-47        const userWords = normalize(userStreet || fullUserAddress).replace(/\d/g, '').trim();
-48        
-49        if (vendorWords.length > 5 && userWords.length > 5) {
-50            // Check if first significant portion matches (e.g., "sanharoldoway")
-51            const vendorStart = vendorWords.substring(0, 12);
-52            const userStart = userWords.substring(0, 12);
-53            if (vendorStart === userStart) {
-54                console.warn(`⚠️ Address match detected (number+street): "${vendorAddr}"`);
-55                return true;
-56            }
-57        }
-58    }
-59    
-60    return false;
-61};
+        
+        // Check 2: Does vendor address match the full user address?
+        if (fullUserAddress) {
+            const fullNorm = normalize(fullUserAddress);
+            // If 80%+ of the full address is contained, it's likely the same
+            if (fullNorm.length > 10 && vendorNorm.includes(fullNorm.substring(0, Math.floor(fullNorm.length * 0.8)))) {
+                console.warn(`⚠️ Address match detected (full): "${vendorAddr}" matches "${fullUserAddress}"`);
+                return true;
+            }
+        }
+        
+        // Check 3: Extract and compare street numbers + first part of street name
+        const extractStreetNum = (str) => {
+            const match = (str || '').match(/^(\d+)/);
+            return match ? match[1] : null;
+        };
+        
+        const vendorNum = extractStreetNum(vendorAddr);
+        const userNum = extractStreetNum(userStreet || fullUserAddress);
+        
+        if (vendorNum && userNum && vendorNum === userNum) {
+            // Same street number - do a more careful comparison
+            const vendorWords = vendorNorm.replace(/\d/g, '').trim();
+            const userWords = normalize(userStreet || fullUserAddress).replace(/\d/g, '').trim();
+            
+            if (vendorWords.length > 5 && userWords.length > 5) {
+                // Check if first significant portion matches (e.g., "sanharoldoway")
+                const vendorStart = vendorWords.substring(0, 12);
+                const userStart = userWords.substring(0, 12);
+                if (vendorStart === userStart) {
+                    console.warn(`⚠️ Address match detected (number+street): "${vendorAddr}"`);
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    };
     // ---------------------------------------------
 
     // --- SCANNER LOGIC ---
@@ -376,39 +351,39 @@ const isSameAddress = (vendorAddr, userStreet, fullUserAddress = '') => {
             
             const text = result.response.text().replace(/```json|```/g, '').trim();
 
-let data;
-try {
-    data = JSON.parse(text);
-} catch (e) {
-    console.error("JSON Parse Error:", text);
-    return null;
-}
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error("JSON Parse Error:", text);
+                return null;
+            }
 
-// ===== DEBUG: Log raw AI response =====
-console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
+            // ===== DEBUG: Log raw AI response =====
+            console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
 
-// ===== ADD THIS BLOCK HERE =====
-// Post-process item locations with full context from the job description
-if (data.items && data.items.length > 0) {
-    data.items = data.items.map(item => {
-        const resolvedArea = findBestRoomMatch(
-            item.area,                          // AI's guess
-            item.item,                          // Item name (e.g., "Heat Pump")
-            item.category || '',                // Category
-            data.primaryJobDescription || ''    // THIS is the context - e.g., "Installation of 4 ton Heat-pump system in attic"
-        );
-        
-        if (item.area !== resolvedArea) {
-            console.log(`📍 LOCATION CORRECTED: "${item.item}" from "${item.area}" → "${resolvedArea}"`);
-        }
-        
-        return { ...item, area: resolvedArea };
-    });
-}
-// ===== END OF ADDED BLOCK =====
+            // ===== ADD THIS BLOCK HERE =====
+            // Post-process item locations with full context from the job description
+            if (data.items && data.items.length > 0) {
+                data.items = data.items.map(item => {
+                    const resolvedArea = findBestRoomMatch(
+                        item.area,                          // AI's guess
+                        item.item,                          // Item name (e.g., "Heat Pump")
+                        item.category || '',                // Category
+                        data.primaryJobDescription || ''    // THIS is the context - e.g., "Installation of 4 ton Heat-pump system in attic"
+                    );
+                    
+                    if (item.area !== resolvedArea) {
+                        console.log(`📍 LOCATION CORRECTED: "${item.item}" from "${item.area}" → "${resolvedArea}"`);
+                    }
+                    
+                    return { ...item, area: resolvedArea };
+                });
+            }
+            // ===== END OF ADDED BLOCK =====
 
-// Continue with existing code...
-console.log("📍 AI returned these areas for items:");
+            // Continue with existing code...
+            console.log("📍 AI returned these areas for items:");
             // ===== END DEBUG =====
             
             // Validate Structure
