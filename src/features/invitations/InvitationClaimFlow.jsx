@@ -125,23 +125,56 @@ const AuthForm = ({ onSuccess, invite, lockedEmail }) => {
     const [error, setError] = useState('');
     
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        setLoading(true);
+    e.preventDefault();
+    console.log('1. Submit started'); // ADD THIS
+    
+    // Validate
+    const validRecords = records.filter(r => r.item?.trim());
+    if (validRecords.length === 0) {
+        toast.error("Please add at least one item with a name");
+        return;
+    }
+    
+    if (!contractorInfo.name && !contractorInfo.company) {
+        toast.error("Please enter your name or company name");
+        return;
+    }
+    
+    setIsSubmitting(true);
+    const loadingToast = toast.loading('Creating invitation...');
+    console.log('2. Validation passed, starting upload'); // ADD THIS
+    
+    try {
+        // Upload any attachments first
+        console.log('3. About to upload attachments:', records.map(r => r.attachments)); // ADD THIS
+        const recordsWithUploadedAttachments = await Promise.all(
+            validRecords.map(async (record) => ({
+                ...record,
+                attachments: await uploadAttachments(record.attachments || [])
+            }))
+        );
+        console.log('4. Attachments uploaded, creating invitation'); // ADD THIS
         
-        try {
-            if (isLogin) {
-                await signInWithEmailAndPassword(auth, email, password);
-            } else {
-                await createUserWithEmailAndPassword(auth, email, password);
-            }
-            onSuccess();
-        } catch (err) {
-            setError(err.message.replace('Firebase: ', ''));
-        } finally {
-            setLoading(false);
-        }
-    };
+        // Create the invitation
+        const result = await createContractorInvitation(
+            contractorInfo,
+            recordsWithUploadedAttachments,
+            customerEmail || null
+        );
+        console.log('5. Invitation created:', result); // ADD THIS
+        
+        toast.dismiss(loadingToast);
+        toast.success('Invitation created!');
+        setCreatedLink(result.link);
+        
+    } catch (error) {
+        console.error('ERROR caught:', error); // ADD THIS
+        toast.dismiss(loadingToast);
+        toast.error('Failed to create invitation. Please try again.');
+    } finally {
+        setIsSubmitting(false);
+    }
+};
     
     const handleGoogleLogin = async () => {
         setLoading(true);
