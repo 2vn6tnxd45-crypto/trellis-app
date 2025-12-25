@@ -44,6 +44,7 @@ import { UserMenu } from './components/navigation/UserMenu';
 // Add this with your other feature imports
 import { SettingsPage } from './features/settings/SettingsPage';
 import { useThemeInit } from './hooks/useThemeInit';
+import { ContractorInviteCreator, InvitationClaimFlow } from './features/invitations';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -86,7 +87,10 @@ const AppContent = () => {
     }, [app.activePropertyRecords]);
 
     // -- Check for contractor portal route --
-    const isContractor = new URLSearchParams(window.location.search).get('requestId');
+    const urlParams = new URLSearchParams(window.location.search);
+const isContractor = urlParams.get('requestId');
+const inviteToken = urlParams.get('invite');
+const isContractorInviteCreator = urlParams.get('pro') === 'invite';
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -255,6 +259,29 @@ const AppContent = () => {
     };
 
     // -- Early Returns --
+      // -- Early Returns --
+    
+    // NEW: Contractor creating an invitation for a customer
+    if (isContractorInviteCreator) {
+        return <ContractorInviteCreator />;
+    }
+    
+    // NEW: Customer claiming an invitation
+    if (inviteToken) {
+        return (
+            <InvitationClaimFlow 
+                token={inviteToken}
+                onComplete={() => window.location.reload()}
+                onCancel={() => {
+                    // Clear the URL param and reload
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('invite');
+                    window.history.replaceState({}, '', url.toString());
+                    window.location.reload();
+                }}
+            />
+        );
+    }
     if (isContractor) return <ContractorPortal />;
     if (app.loading) return <AppShellSkeleton />;
     if (!app.user) return <AuthScreen onLogin={app.handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
