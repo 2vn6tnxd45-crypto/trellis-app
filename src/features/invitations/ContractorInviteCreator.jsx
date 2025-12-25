@@ -762,11 +762,9 @@ export const ContractorInviteCreator = () => {
                     {/* Submit Button */}
                     <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
     <button
-        type="submit"
-        disabled={isSubmitting}
-        onClick={() => console.log('Button clicked!')}  // ADD HERE
-        className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-    >
+    type="button"
+    disabled={isSubmitting}
+    onClick={(e) => handleSubmit(e)}
                             {isSubmitting ? (
                                 <Loader2 className="animate-spin" size={20} />
                             ) : (
