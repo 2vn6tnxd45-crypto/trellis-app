@@ -553,7 +553,25 @@ export const ContractorInviteCreator = () => {
     
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+         console.log('1. handleSubmit called');  // ADD THIS
+    
+    // Validate
+    const validRecords = records.filter(r => r.item?.trim());
+    console.log('2. Valid records:', validRecords.length);  // ADD THIS
+    
+    if (validRecords.length === 0) {
+        toast.error("Please add at least one item with a name");
+        return;
+    }
+    
+    console.log('3. Contractor info:', contractorInfo);  // ADD THIS
+    if (!contractorInfo.name && !contractorInfo.company) {
+        toast.error("Please enter your name or company name");
+        return;
+    }
+    
+    console.log('4. Starting submission...');  // ADD THIS
+    setIsSubmitting(true);
         // Validate
         const validRecords = records.filter(r => r.item?.trim());
         if (validRecords.length === 0) {
