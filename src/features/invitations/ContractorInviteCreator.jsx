@@ -24,16 +24,18 @@ import { Logo } from '../../components/common/Logo';
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
 // ============================================
+// ============================================
+// COLLAPSIBLE SECTION COMPONENT
+// ============================================
 const Section = ({ title, icon: Icon, children, defaultOpen = true, badge }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
             <button 
-    type="submit" 
-    disabled={isSubmitting}
-    onClick={() => console.log('Button clicked!')}  // ADD THIS LINE
-    className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
->
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full p-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
+            >
                 <div className="flex items-center gap-3">
                     <div className="bg-slate-100 p-2 rounded-lg">
                         <Icon className="h-5 w-5 text-slate-600" />
@@ -754,11 +756,12 @@ export const ContractorInviteCreator = () => {
                     
                     {/* Submit Button */}
                     <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
-                        <button
-                            type="submit"
-                            disabled={isSubmitting}
-                            className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                        >
+    <button
+        type="submit"
+        disabled={isSubmitting}
+        onClick={() => console.log('Button clicked!')}  // ADD HERE
+        className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+    >
                             {isSubmitting ? (
                                 <Loader2 className="animate-spin" size={20} />
                             ) : (
