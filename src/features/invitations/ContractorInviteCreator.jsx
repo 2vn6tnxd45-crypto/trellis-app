@@ -552,69 +552,56 @@ export const ContractorInviteCreator = () => {
     };
     
     const handleSubmit = async (e) => {
-        e.preventDefault();
-         console.log('1. handleSubmit called');  // ADD THIS
+    e.preventDefault();
+    console.log('1. handleSubmit called');
     
-    // Validate
     const validRecords = records.filter(r => r.item?.trim());
-    console.log('2. Valid records:', validRecords.length);  // ADD THIS
+    console.log('2. Valid records:', validRecords.length);
     
     if (validRecords.length === 0) {
         toast.error("Please add at least one item with a name");
         return;
     }
     
-    console.log('3. Contractor info:', contractorInfo);  // ADD THIS
+    console.log('3. Contractor info:', contractorInfo);
     if (!contractorInfo.name && !contractorInfo.company) {
         toast.error("Please enter your name or company name");
         return;
     }
     
-    console.log('4. Starting submission...');  // ADD THIS
+    console.log('4. Starting submission...');
     setIsSubmitting(true);
-        // Validate
-        const validRecords = records.filter(r => r.item?.trim());
-        if (validRecords.length === 0) {
-            toast.error("Please add at least one item with a name");
-            return;
-        }
+    const loadingToast = toast.loading('Creating invitation...');
+    
+    try {
+        console.log('5. Uploading attachments...');
+        const recordsWithUploadedAttachments = await Promise.all(
+            validRecords.map(async (record) => ({
+                ...record,
+                attachments: await uploadAttachments(record.attachments || [])
+            }))
+        );
         
-        if (!contractorInfo.name && !contractorInfo.company) {
-            toast.error("Please enter your name or company name");
-            return;
-        }
+        console.log('6. Creating invitation in Firebase...');
+        const result = await createContractorInvitation(
+            contractorInfo,
+            recordsWithUploadedAttachments,
+            customerEmail || null
+        );
         
-        setIsSubmitting(true);
-        const loadingToast = toast.loading('Creating invitation...');
+        console.log('7. Success!', result);
+        toast.dismiss(loadingToast);
+        toast.success('Invitation created!');
+        setCreatedLink(result.link);
         
-        try {
-            // Upload any attachments first
-            const recordsWithUploadedAttachments = await Promise.all(
-                validRecords.map(async (record) => ({
-                    ...record,
-                    attachments: await uploadAttachments(record.attachments || [])
-                }))
-            );
-            
-            // Create the invitation
-            const result = await createContractorInvitation(
-                contractorInfo,
-                recordsWithUploadedAttachments,
-                customerEmail || null
-            );
-            
-            toast.dismiss(loadingToast);
-            toast.success('Invitation created!');
-            setCreatedLink(result.link);
-            
-        } catch (error) {
-            console.error('Error creating invitation:', error);
-            toast.dismiss(loadingToast);
-            toast.error('Failed to create invitation. Please try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+    } catch (error) {
+        console.error('ERROR:', error);
+        toast.dismiss(loadingToast);
+        toast.error('Failed to create invitation. Please try again.');
+    } finally {
+        setIsSubmitting(false);
+    }
+};
     
     const handleCreateAnother = () => {
         setCreatedLink(null);
@@ -661,7 +648,7 @@ export const ContractorInviteCreator = () => {
             
             {/* Main Content */}
             <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} noValidate>
                     {/* Info Banner */}
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6 flex gap-3">
                         <Info size={20} className="text-blue-600 shrink-0 mt-0.5" />
