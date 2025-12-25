@@ -44,6 +44,8 @@ import { UserMenu } from './components/navigation/UserMenu';
 // Add this with your other feature imports
 import { SettingsPage } from './features/settings/SettingsPage';
 import { useThemeInit } from './hooks/useThemeInit';
+
+// NEW: Invitation system imports
 import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding } from './features/invitations';
 
 class ErrorBoundary extends React.Component {
@@ -86,13 +88,11 @@ const AppContent = () => {
         }, {}));
     }, [app.activePropertyRecords]);
 
-    // -- Check for contractor portal route --
+    // -- Check for special routes (contractor portal, invitations) --
     const urlParams = new URLSearchParams(window.location.search);
-const urlParams = new URLSearchParams(window.location.search);
-const isContractor = urlParams.get('requestId');
-const inviteToken = urlParams.get('invite');
-const proParam = urlParams.get('pro');  // Changed: now we check the value
-  
+    const isContractor = urlParams.get('requestId');
+    const inviteToken = urlParams.get('invite');
+    const proParam = urlParams.get('pro');
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -261,21 +261,24 @@ const proParam = urlParams.get('pro');  // Changed: now we check the value
     };
 
     // -- Early Returns --
-      // -- Early Returns --
     
-    // NEW: Contractor creating an invitation for a customer
-    if (isContractorInviteCreator) {
+    // Contractor Portal Landing (?pro or ?pro=landing)
+    if (proParam !== null && proParam !== 'invite') {
+        return <ContractorLanding />;
+    }
+    
+    // Contractor creating invitation (?pro=invite)
+    if (proParam === 'invite') {
         return <ContractorInviteCreator />;
     }
     
-    // NEW: Customer claiming an invitation
+    // Customer claiming invitation (?invite=<token>)
     if (inviteToken) {
         return (
             <InvitationClaimFlow 
                 token={inviteToken}
                 onComplete={() => window.location.reload()}
                 onCancel={() => {
-                    // Clear the URL param and reload
                     const url = new URL(window.location.href);
                     url.searchParams.delete('invite');
                     window.history.replaceState({}, '', url.toString());
@@ -284,38 +287,17 @@ const proParam = urlParams.get('pro');  // Changed: now we check the value
             />
         );
     }
-    // -- Early Returns --
-
-// Contractor Portal Landing (?pro or ?pro=landing)
-if (proParam !== null && proParam !== 'invite') {
-    return <ContractorLanding />;
-}
-
-// Contractor creating invitation (?pro=invite)
-if (proParam === 'invite') {
-    return <ContractorInviteCreator />;
-}
-
-// Customer claiming invitation (?invite=<token>)
-if (inviteToken) {
-    return (
-        <InvitationClaimFlow 
-            token={inviteToken}
-            onComplete={() => window.location.reload()}
-            onCancel={() => {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('invite');
-                window.history.replaceState({}, '', url.toString());
-                window.location.reload();
-            }}
-        />
-    );
-}
-
-// Existing contractor submission flow
-if (isContractor) return <ContractorPortal />;
-if (app.loading) return <AppShellSkeleton />;
+    
+    // Existing contractor submission flow
+    if (isContractor) return <ContractorPortal />;
+    
+    // Loading state
+    if (app.loading) return <AppShellSkeleton />;
+    
+    // Auth screen
     if (!app.user) return <AuthScreen onLogin={app.handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
+    
+    // Property setup
     if (!app.profile && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
 
     const isNewUser = app.activePropertyRecords.length === 0 && !app.hasSeenWelcome;
