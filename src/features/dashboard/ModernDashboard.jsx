@@ -13,6 +13,7 @@ import { CountyData } from './CountyData';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MaintenanceDashboard } from './MaintenanceDashboard'; 
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import { DashboardSection } from '../../components/common/DashboardSection';
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
@@ -46,54 +47,6 @@ const getNextServiceDate = (record) => {
     const now = new Date();
     while (next < now) next.setMonth(next.getMonth() + freq.months);
     return next;
-};
-
-// --- UPDATED COMPONENT: DashboardSection with Enhanced Styling ---
-const DashboardSection = ({ title, icon: Icon, children, defaultOpen = false, summary = null }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-
-    return (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm transition-all">
-            <button 
-                onClick={() => setIsOpen(!isOpen)} 
-                className={`w-full p-4 flex items-center justify-between transition-all duration-200 group ${
-                    isOpen 
-                        ? 'bg-slate-50/80 border-b border-slate-100'
-                        : 'bg-white hover:bg-slate-50'
-                }`}
-            >
-                <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
-                        isOpen ? 'bg-white text-emerald-600 shadow-sm' : 'bg-slate-50 text-slate-500 group-hover:bg-white group-hover:text-emerald-600'
-                    }`}>
-                        <Icon size={20} />
-                    </div>
-                    <div className="text-left">
-                        <p className={`font-bold transition-colors ${isOpen ? 'text-slate-900' : 'text-slate-700'}`}>{title}</p>
-                        {!isOpen && summary && (
-                            <div className="flex items-center gap-2 mt-0.5 animate-in fade-in slide-in-from-left-1">
-                                {summary}
-                            </div>
-                        )}
-                    </div>
-                </div>
-                
-                <div className={`h-8 w-8 rounded-full flex items-center justify-center transition-all duration-300 ${
-                    isOpen 
-                        ? 'rotate-180 bg-slate-200 text-slate-600' 
-                        : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
-                }`}>
-                    <ChevronDown size={18} />
-                </div>
-            </button>
-            
-            {isOpen && (
-                <div className="p-4 animate-in slide-in-from-top-2 fade-in duration-300">
-                    {children}
-                </div>
-            )}
-        </div>
-    );
 };
 
 // --- SUB-COMPONENTS (Unchanged) ---
