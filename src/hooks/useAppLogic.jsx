@@ -99,7 +99,18 @@ export const useAppLogic = (celebrations) => {
                 } else {
                     setProfile(null); setRecords([]); setNewSubmissions([]);
                 }
-            } catch (error) { console.error(error); toast.error("Error: " + error.message); } finally { setLoading(false); }
+            } catch (error) { 
+    console.error('Auth state change error:', error);
+    
+    // Only show toast for non-permission errors
+    const isPermissionError = error.code === 'permission-denied' || 
+                              error.message?.includes('permission') ||
+                              error.message?.includes('Missing or insufficient');
+    
+    if (!isPermissionError) {
+        toast.error("Error: " + error.message);
+    }
+} finally { setLoading(false); }
         });
         return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
     }, []);
