@@ -4,6 +4,8 @@
 // ============================================
 // This component allows contractors to create invitation links
 // that pre-populate records for new customers.
+// 
+// NEW: Invoice upload with AI auto-populate feature
 
 import React, { useState, useRef } from 'react';
 import { 
@@ -11,19 +13,17 @@ import {
     Loader2, Package, Mail, Phone, Building2, User,
     ChevronDown, ChevronUp, Camera, FileText, X,
     Link as LinkIcon, QrCode, Share2, MessageSquare,
-    AlertCircle, Info, Sparkles
+    AlertCircle, Info, Sparkles, Upload, ScanLine, Receipt
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { createContractorInvitation } from '../../lib/invitations';
-import { compressImage } from '../../lib/images';
+import { compressImage, fileToBase64 } from '../../lib/images';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../config/firebase';
 import { Logo } from '../../components/common/Logo';
+import { useGemini } from '../../hooks/useGemini';
 
-// ============================================
-// COLLAPSIBLE SECTION COMPONENT
-// ============================================
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
 // ============================================
@@ -55,27 +55,127 @@ const Section = ({ title, icon: Icon, children, defaultOpen = true, badge }) => 
 };
 
 // ============================================
+// SUCCESS STATE COMPONENT
+// ============================================
+const SuccessState = ({ inviteLink, onCreateAnother }) => {
+    const [copied, setCopied] = useState(false);
+    
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(inviteLink);
+            setCopied(true);
+            toast.success('Link copied!');
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            toast.error('Failed to copy');
+        }
+    };
+    
+    const handleShare = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Your Home Records from Krib',
+                    text: 'I\'ve created a home record for you. Click to claim it!',
+                    url: inviteLink
+                });
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    handleCopy();
+                }
+            }
+        } else {
+            handleCopy();
+        }
+    };
+    
+    return (
+        <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-4">
+            <div className="max-w-md w-full text-center">
+                <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <CheckCircle className="h-10 w-10 text-emerald-600" />
+                </div>
+                
+                <h1 className="text-2xl font-bold text-slate-800 mb-2">
+                    Invitation Created!
+                </h1>
+                <p className="text-slate-600 mb-8">
+                    Share this link with your customer. They'll be able to claim these records instantly.
+                </p>
+                
+                <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
+                    <p className="text-xs text-slate-500 mb-2 font-medium">INVITATION LINK</p>
+                    <p className="text-sm text-slate-700 break-all font-mono bg-slate-50 p-3 rounded-lg">
+                        {inviteLink}
+                    </p>
+                </div>
+                
+                <div className="flex gap-3 mb-8">
+                    <button
+                        onClick={handleCopy}
+                        className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                        {copied ? <Check size={18} /> : <Copy size={18} />}
+                        {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button
+                        onClick={handleShare}
+                        className="flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                        <Share2 size={18} />
+                        Share
+                    </button>
+                </div>
+                
+                <button
+                    onClick={onCreateAnother}
+                    className="text-emerald-600 font-bold hover:text-emerald-700 transition-colors"
+                >
+                    Create Another Invitation
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // RECORD ITEM CARD
 // ============================================
-const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
+const RecordItemCard = ({ record, index, onChange, onRemove }) => {
     const [expanded, setExpanded] = useState(index === 0);
     const fileInputRef = useRef(null);
     
+    // FIX: Proper photo upload handling
     const handlePhotoUpload = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
         
-        const newAttachments = await Promise.all(files.map(async (file) => {
-            const compressed = await compressImage(file);
-            return {
-                name: file.name,
-                type: 'Photo',
-                file: compressed,
-                preview: URL.createObjectURL(compressed)
-            };
-        }));
+        try {
+            const newAttachments = await Promise.all(files.map(async (file) => {
+                // compressImage returns a data URL string, which IS a valid image src
+                const compressedDataUrl = await compressImage(file);
+                return {
+                    name: file.name,
+                    type: 'Photo',
+                    file: file, // Keep original file for upload
+                    preview: compressedDataUrl // Use the data URL directly as preview
+                };
+            }));
+            
+            onChange(index, 'attachments', [...(record.attachments || []), ...newAttachments]);
+            toast.success(`Added ${files.length} photo${files.length > 1 ? 's' : ''}`);
+        } catch (err) {
+            console.error('Photo upload error:', err);
+            toast.error('Failed to process photo');
+        }
         
-        onChange(index, 'attachments', [...(record.attachments || []), ...newAttachments]);
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    
+    const removeAttachment = (attIndex) => {
+        const updated = (record.attachments || []).filter((_, i) => i !== attIndex);
+        onChange(index, 'attachments', updated);
     };
     
     return (
@@ -107,13 +207,13 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                     >
                         <Trash2 size={16} />
                     </button>
-                    {expanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                    {expanded ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
                 </div>
             </div>
             
-            {/* Expanded Form */}
+            {/* Expanded Content */}
             {expanded && (
-                <div className="p-4 pt-0 space-y-4 border-t border-slate-200">
+                <div className="p-4 pt-0 space-y-4 border-t border-slate-100">
                     {/* Item Name */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -137,10 +237,12 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                             <select
                                 value={record.category}
                                 onChange={(e) => onChange(index, 'category', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white appearance-none"
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                             >
                                 <option value="">Select...</option>
-                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                {CATEGORIES.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -150,10 +252,11 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                             <select
                                 value={record.area}
                                 onChange={(e) => onChange(index, 'area', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white appearance-none"
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                             >
-                                <option value="General">General</option>
-                                {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
+                                {ROOMS.map(room => (
+                                    <option key={room} value={room}>{room}</option>
+                                ))}
                             </select>
                         </div>
                     </div>
@@ -219,79 +322,52 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Total Cost
                             </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-3.5 text-slate-400">$</span>
-                                <input
-                                    type="text"
-                                    value={record.cost}
-                                    onChange={(e) => onChange(index, 'cost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Labor
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-3.5 text-slate-400">$</span>
-                                <input
-                                    type="text"
-                                    value={record.laborCost}
-                                    onChange={(e) => onChange(index, 'laborCost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Parts
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-3.5 text-slate-400">$</span>
-                                <input
-                                    type="text"
-                                    value={record.partsCost}
-                                    onChange={(e) => onChange(index, 'partsCost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Warranty & Maintenance */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Warranty
-                            </label>
                             <input
-                                type="text"
-                                value={record.warranty}
-                                onChange={(e) => onChange(index, 'warranty', e.target.value)}
-                                placeholder="e.g. 10 year parts, 1 year labor"
+                                type="number"
+                                value={record.cost}
+                                onChange={(e) => onChange(index, 'cost', e.target.value)}
+                                placeholder="0.00"
                                 className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                             />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Maintenance
+                                Labor
                             </label>
-                            <select
-                                value={record.maintenanceFrequency}
-                                onChange={(e) => onChange(index, 'maintenanceFrequency', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white appearance-none"
-                            >
-                                {MAINTENANCE_FREQUENCIES.filter((f, i, arr) => 
-                                    arr.findIndex(x => x.label === f.label) === i
-                                ).map(f => (
-                                    <option key={f.value} value={f.value}>{f.label}</option>
-                                ))}
-                            </select>
+                            <input
+                                type="number"
+                                value={record.laborCost}
+                                onChange={(e) => onChange(index, 'laborCost', e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                            />
                         </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                Parts
+                            </label>
+                            <input
+                                type="number"
+                                value={record.partsCost}
+                                onChange={(e) => onChange(index, 'partsCost', e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                            />
+                        </div>
+                    </div>
+                    
+                    {/* Warranty */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                            Warranty Info
+                        </label>
+                        <input
+                            type="text"
+                            value={record.warranty}
+                            onChange={(e) => onChange(index, 'warranty', e.target.value)}
+                            placeholder="e.g. 10 year parts, 1 year labor"
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                        />
                     </div>
                     
                     {/* Notes */}
@@ -323,7 +399,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                         />
                         <div className="flex flex-wrap gap-2">
                             {(record.attachments || []).map((att, i) => (
-                                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
+                                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 group">
                                     <img 
                                         src={att.preview || att.url} 
                                         alt="" 
@@ -331,14 +407,10 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            const newAtts = [...record.attachments];
-                                            newAtts.splice(i, 1);
-                                            onChange(index, 'attachments', newAtts);
-                                        }}
-                                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5"
+                                        onClick={() => removeAttachment(i)}
+                                        className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
-                                        <X size={12} />
+                                        <X size={16} className="text-white" />
                                     </button>
                                 </div>
                             ))}
@@ -358,102 +430,110 @@ const RecordItemCard = ({ record, index, onChange, onRemove, onAddPhoto }) => {
 };
 
 // ============================================
-// SUCCESS STATE - SHARE LINK
+// INVOICE UPLOAD SECTION (NEW!)
 // ============================================
-const SuccessState = ({ inviteLink, onCreateAnother }) => {
-    const [copied, setCopied] = useState(false);
+const InvoiceUploadSection = ({ onInvoiceParsed, isScanning }) => {
+    const fileInputRef = useRef(null);
+    const { scanReceipt } = useGemini();
+    const [invoicePreview, setInvoicePreview] = useState(null);
+    const [invoiceFile, setInvoiceFile] = useState(null);
     
-    const handleCopy = () => {
-        navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        toast.success('Link copied!');
-        setTimeout(() => setCopied(false), 2000);
-    };
-    
-    const handleShare = async () => {
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Your Home Records from Krib',
-                    text: "I've prepared your home maintenance records. Click this link to save them to your free Krib account:",
-                    url: inviteLink
-                });
-            } catch (err) {
-                handleCopy();
-            }
-        } else {
-            handleCopy();
+    const handleInvoiceUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        setInvoiceFile(file);
+        
+        // Create preview
+        if (file.type.startsWith('image/')) {
+            setInvoicePreview(URL.createObjectURL(file));
+        } else if (file.type === 'application/pdf') {
+            setInvoicePreview('pdf');
         }
-    };
-    
-    const handleSMS = () => {
-        const text = `I've prepared your home maintenance records. Save them to your free Krib account: ${inviteLink}`;
-        window.open(`sms:?body=${encodeURIComponent(text)}`);
-    };
-    
-    const handleEmail = () => {
-        const subject = 'Your Home Records';
-        const body = `Hi,\n\nI've prepared your home maintenance records from our recent work together.\n\nClick this link to save them to your free Krib account:\n${inviteLink}\n\nThis will give you a permanent record of the work performed, warranty information, and maintenance reminders.\n\nThank you for your business!`;
-        window.open(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        
+        const loadingToast = toast.loading('Analyzing invoice with AI...');
+        
+        try {
+            // Convert to base64 for AI processing
+            let base64Str;
+            if (file.type === 'application/pdf') {
+                base64Str = await fileToBase64(file);
+            } else {
+                base64Str = await compressImage(file);
+            }
+            
+            // Use the existing Gemini scanner
+            const data = await scanReceipt(file, base64Str);
+            
+            toast.dismiss(loadingToast);
+            
+            if (data) {
+                toast.success('Invoice analyzed! Review the details below.', { icon: '✨' });
+                onInvoiceParsed(data, file, file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
+            } else {
+                toast.error('Could not extract data. Please fill in manually.');
+            }
+        } catch (err) {
+            console.error('Invoice parsing error:', err);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to analyze invoice. Please fill in manually.');
+        }
+        
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = '';
     };
     
     return (
-        <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-            <div className="bg-white p-10 rounded-[2rem] shadow-xl text-center max-w-md w-full border border-emerald-100">
-                <div className="h-20 w-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircle size={40} className="text-emerald-600" />
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-dashed border-emerald-200 p-6 mb-6">
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={handleInvoiceUpload}
+                className="hidden"
+            />
+            
+            <div className="text-center">
+                <div className="bg-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-emerald-100">
+                    {isScanning ? (
+                        <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
+                    ) : (
+                        <Receipt className="h-8 w-8 text-emerald-600" />
+                    )}
                 </div>
-                <h1 className="text-2xl font-bold text-emerald-950 mb-2">Invitation Created!</h1>
-                <p className="text-slate-500 mb-8">
-                    Share this link with your customer. When they sign up, these records will be automatically added to their account.
+                
+                <h3 className="font-bold text-slate-800 mb-1">
+                    {isScanning ? 'Analyzing Invoice...' : 'Upload Your Invoice'}
+                </h3>
+                <p className="text-sm text-slate-600 mb-4">
+                    {isScanning 
+                        ? 'AI is extracting items, costs, and your company info...'
+                        : 'AI will auto-fill your company info, items, costs, and warranty details'
+                    }
                 </p>
                 
-                {/* Link Display */}
-                <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200">
-                    <p className="text-xs font-mono text-slate-600 break-all">{inviteLink}</p>
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                    <button
-                        onClick={handleCopy}
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors"
-                    >
-                        {copied ? <Check size={18} /> : <Copy size={18} />}
-                        {copied ? 'Copied!' : 'Copy Link'}
-                    </button>
-                    <button
-                        onClick={handleShare}
-                        className="flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition-colors"
-                    >
-                        <Share2 size={18} />
-                        Share
-                    </button>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-3 mb-8">
-                    <button
-                        onClick={handleSMS}
-                        className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors"
-                    >
-                        <MessageSquare size={16} />
-                        Send SMS
-                    </button>
-                    <button
-                        onClick={handleEmail}
-                        className="flex items-center justify-center gap-2 px-4 py-3 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors"
-                    >
-                        <Mail size={16} />
-                        Send Email
-                    </button>
-                </div>
-                
                 <button
-                    onClick={onCreateAnother}
-                    className="text-emerald-600 font-bold hover:underline"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isScanning}
+                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 mx-auto transition-all"
                 >
-                    Create Another Invitation
+                    {isScanning ? (
+                        <>
+                            <Loader2 className="animate-spin" size={18} />
+                            Analyzing...
+                        </>
+                    ) : (
+                        <>
+                            <ScanLine size={18} />
+                            Scan Invoice
+                        </>
+                    )}
                 </button>
+                
+                <p className="text-xs text-slate-500 mt-3">
+                    Supports JPG, PNG, and PDF files
+                </p>
             </div>
         </div>
     );
@@ -465,6 +545,11 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
 export const ContractorInviteCreator = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdLink, setCreatedLink] = useState(null);
+    const { isScanning } = useGemini();
+    
+    // Invoice state
+    const [invoiceFile, setInvoiceFile] = useState(null);
+    const [invoicePreview, setInvoicePreview] = useState(null);
     
     // Contractor Info
     const [contractorInfo, setContractorInfo] = useState({
@@ -494,6 +579,51 @@ export const ContractorInviteCreator = () => {
         maintenanceFrequency: 'annual',
         attachments: []
     }]);
+    
+    // Handle invoice parsed data
+    const handleInvoiceParsed = (data, file, preview) => {
+        // Store invoice file to use as attachment
+        setInvoiceFile(file);
+        setInvoicePreview(preview);
+        
+        // Auto-fill contractor info
+        if (data.vendorName || data.vendorPhone || data.vendorEmail) {
+            setContractorInfo(prev => ({
+                ...prev,
+                company: data.vendorName || prev.company,
+                phone: data.vendorPhone || prev.phone,
+                email: data.vendorEmail || prev.email
+            }));
+        }
+        
+        // Auto-fill records from parsed items
+        if (data.items && data.items.length > 0) {
+            const newRecords = data.items.map((item, idx) => ({
+                item: item.item || '',
+                category: item.category || '',
+                area: item.area || 'General',
+                brand: item.brand || '',
+                model: item.model || '',
+                serialNumber: item.serial || '',
+                dateInstalled: data.date || new Date().toISOString().split('T')[0],
+                cost: item.cost || '',
+                laborCost: '',
+                partsCost: '',
+                warranty: data.warranty || '',
+                notes: item.maintenanceNotes || '',
+                maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                // Attach the invoice image to the first item
+                attachments: idx === 0 && preview ? [{
+                    name: file.name,
+                    type: 'Photo',
+                    file: file,
+                    preview: preview
+                }] : []
+            }));
+            
+            setRecords(newRecords);
+        }
+    };
     
     const handleContractorChange = (field, value) => {
         setContractorInfo(prev => ({ ...prev, [field]: value }));
@@ -541,70 +671,82 @@ export const ContractorInviteCreator = () => {
                 // Already uploaded
                 uploaded.push({ type: att.type, url: att.url, name: att.name });
             } else if (att.file) {
-                // Need to upload
-                const fileRef = ref(storage, `invitations/${Date.now()}-${att.name}`);
-                await uploadBytes(fileRef, att.file);
-                const url = await getDownloadURL(fileRef);
-                uploaded.push({ type: att.type, url, name: att.name });
+                // Need to upload - handle both File objects and data URLs
+                try {
+                    let fileToUpload = att.file;
+                    
+                    // If it's a File object, compress it first
+                    if (att.file instanceof File) {
+                        const compressed = await compressImage(att.file);
+                        // Convert data URL to blob for upload
+                        const response = await fetch(compressed);
+                        fileToUpload = await response.blob();
+                    }
+                    
+                    const fileRef = ref(storage, `invitations/${Date.now()}-${att.name}`);
+                    await uploadBytes(fileRef, fileToUpload);
+                    const url = await getDownloadURL(fileRef);
+                    uploaded.push({ type: att.type, url, name: att.name });
+                } catch (err) {
+                    console.error('Upload error for attachment:', err);
+                }
             }
         }
         return uploaded;
     };
     
     const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log('1. handleSubmit called');
-    
-    const validRecords = records.filter(r => r.item?.trim());
-    console.log('2. Valid records:', validRecords.length);
-    
-    if (validRecords.length === 0) {
-        toast.error("Please add at least one item with a name");
-        return;
-    }
-    
-    console.log('3. Contractor info:', contractorInfo);
-    if (!contractorInfo.name && !contractorInfo.company) {
-        toast.error("Please enter your name or company name");
-        return;
-    }
-    
-    console.log('4. Starting submission...');
-    setIsSubmitting(true);
-    const loadingToast = toast.loading('Creating invitation...');
-    
-    try {
-        console.log('5. Uploading attachments...');
-        const recordsWithUploadedAttachments = await Promise.all(
-            validRecords.map(async (record) => ({
-                ...record,
-                attachments: await uploadAttachments(record.attachments || [])
-            }))
-        );
+        e.preventDefault();
         
-        console.log('6. Creating invitation in Firebase...');
-        const result = await createContractorInvitation(
-            contractorInfo,
-            recordsWithUploadedAttachments,
-            customerEmail || null
-        );
+        const validRecords = records.filter(r => r.item?.trim());
         
-        console.log('7. Success!', result);
-        toast.dismiss(loadingToast);
-        toast.success('Invitation created!');
-        setCreatedLink(result.link);
+        if (validRecords.length === 0) {
+            toast.error("Please add at least one item with a name");
+            return;
+        }
         
-    } catch (error) {
-        console.error('ERROR:', error);
-        toast.dismiss(loadingToast);
-        toast.error('Failed to create invitation. Please try again.');
-    } finally {
-        setIsSubmitting(false);
-    }
-};
+        if (!contractorInfo.name && !contractorInfo.company) {
+            toast.error("Please enter your name or company name");
+            return;
+        }
+        
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Creating invitation...');
+        
+        try {
+            // Upload attachments for each record
+            const recordsWithUploadedAttachments = await Promise.all(
+                validRecords.map(async (record) => ({
+                    ...record,
+                    attachments: await uploadAttachments(record.attachments || [])
+                }))
+            );
+            
+            // Create the invitation
+            const result = await createContractorInvitation(
+                contractorInfo,
+                recordsWithUploadedAttachments,
+                customerEmail || null
+            );
+            
+            toast.dismiss(loadingToast);
+            toast.success('Invitation created!');
+            setCreatedLink(result.link);
+            
+        } catch (error) {
+            console.error('ERROR:', error);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to create invitation. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
     
     const handleCreateAnother = () => {
         setCreatedLink(null);
+        setInvoiceFile(null);
+        setInvoicePreview(null);
+        setContractorInfo({ name: '', company: '', phone: '', email: '' });
         setRecords([{
             item: '',
             category: '',
@@ -649,6 +791,12 @@ export const ContractorInviteCreator = () => {
             {/* Main Content */}
             <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
                 <form onSubmit={handleSubmit} noValidate>
+                    {/* Invoice Upload Section - NEW! */}
+                    <InvoiceUploadSection 
+                        onInvoiceParsed={handleInvoiceParsed}
+                        isScanning={isScanning}
+                    />
+                    
                     {/* Info Banner */}
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6 flex gap-3">
                         <Info size={20} className="text-blue-600 shrink-0 mt-0.5" />
@@ -660,70 +808,66 @@ export const ContractorInviteCreator = () => {
                         </div>
                     </div>
                     
-                    {/* Your Info Section */}
+                    {/* Contractor Info Section */}
                     <Section title="Your Information" icon={Building2}>
-                        <div className="space-y-4 pt-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Your Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={contractorInfo.name}
-                                        onChange={(e) => handleContractorChange('name', e.target.value)}
-                                        placeholder="John Smith"
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Company Name *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={contractorInfo.company}
-                                        onChange={(e) => handleContractorChange('company', e.target.value)}
-                                        placeholder="ABC HVAC Services"
-                                        required
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
+                        <div className="grid grid-cols-2 gap-4 pt-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    Your Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={contractorInfo.name}
+                                    onChange={(e) => handleContractorChange('name', e.target.value)}
+                                    placeholder="John Smith"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Phone
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        value={contractorInfo.phone}
-                                        onChange={(e) => handleContractorChange('phone', e.target.value)}
-                                        placeholder="(555) 123-4567"
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Email
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={contractorInfo.email}
-                                        onChange={(e) => handleContractorChange('email', e.target.value)}
-                                        placeholder="service@company.com"
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    Company Name *
+                                </label>
+                                <input
+                                    type="text"
+                                    value={contractorInfo.company}
+                                    onChange={(e) => handleContractorChange('company', e.target.value)}
+                                    placeholder="ABC HVAC Services"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    Phone
+                                </label>
+                                <input
+                                    type="tel"
+                                    value={contractorInfo.phone}
+                                    onChange={(e) => handleContractorChange('phone', e.target.value)}
+                                    placeholder="(555) 123-4567"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={contractorInfo.email}
+                                    onChange={(e) => handleContractorChange('email', e.target.value)}
+                                    placeholder="service@company.com"
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
                             </div>
                         </div>
                     </Section>
                     
-                    {/* Customer Email (Optional) */}
+                    {/* Customer Email Section */}
                     <Section title="Customer Email" icon={Mail} defaultOpen={false} badge="Optional">
                         <div className="pt-4">
                             <p className="text-sm text-slate-500 mb-3">
-                                If you enter your customer's email, only that email address will be able to claim these records. Leave blank to allow anyone with the link.
+                                If provided, only this email address will be able to claim the invitation. 
+                                Leave blank to allow anyone with the link.
                             </p>
                             <input
                                 type="email"
@@ -760,24 +904,23 @@ export const ContractorInviteCreator = () => {
                     </Section>
                     
                     {/* Submit Button */}
-                    {/* Submit Button */}
-<div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
-    <button
-        type="button"
-        disabled={isSubmitting}
-        onClick={(e) => handleSubmit(e)}
-        className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-    >
-        {isSubmitting ? (
-            <Loader2 className="animate-spin" size={20} />
-        ) : (
-            <>
-                <Sparkles size={18} />
-                Create Invitation Link
-            </>
-        )}
-    </button>
-</div>
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
+                        <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={(e) => handleSubmit(e)}
+                            className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                        >
+                            {isSubmitting ? (
+                                <Loader2 className="animate-spin" size={20} />
+                            ) : (
+                                <>
+                                    <Sparkles size={18} />
+                                    Create Invitation Link
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
