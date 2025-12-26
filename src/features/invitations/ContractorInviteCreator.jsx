@@ -649,9 +649,11 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
 // ============================================
 // INVOICE UPLOAD SECTION
 // ============================================
-const InvoiceUploadSection = ({ onInvoiceParsed, isScanning }) => {
+const InvoiceUploadSection = ({ onInvoiceParsed }) => {
     const fileInputRef = useRef(null);
-    const { scanReceipt } = useGemini();
+    // IMPORTANT: Use isScanning from the SAME hook instance as scanReceipt
+    // Using separate instances causes the spinner to never stop!
+    const { scanReceipt, isScanning } = useGemini();
     const [invoicePreview, setInvoicePreview] = useState(null);
     const [invoiceFile, setInvoiceFile] = useState(null);
     
@@ -762,7 +764,8 @@ const InvoiceUploadSection = ({ onInvoiceParsed, isScanning }) => {
 export const ContractorInviteCreator = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [createdLink, setCreatedLink] = useState(null);
-    const { isScanning } = useGemini();
+    // Note: useGemini is called inside InvoiceUploadSection, not here
+    // This avoids the dual-instance bug where isScanning never updates
     
     // Invoice state
     const [invoiceFile, setInvoiceFile] = useState(null);
@@ -889,46 +892,53 @@ export const ContractorInviteCreator = () => {
     };
     
     const uploadAttachments = async (attachments) => {
+        console.log('uploadAttachments called with:', attachments?.length, 'files');
         const uploaded = [];
+        
         for (const att of attachments) {
+            console.log('Processing attachment:', att.name, 'hasUrl:', !!att.url, 'hasFile:', !!att.file);
+            
             if (att.url) {
                 // Already uploaded
                 uploaded.push({ type: att.type, url: att.url, name: att.name });
+                console.log('Attachment already has URL, skipping upload');
             } else if (att.file) {
-                // Need to upload - handle both File objects and data URLs
                 try {
-                    let fileToUpload = att.file;
-                    
-                    // If it's a File object, compress it first
-                    if (att.file instanceof File) {
-                        const compressed = await compressImage(att.file);
-                        // Convert data URL to blob for upload
-                        const response = await fetch(compressed);
-                        fileToUpload = await response.blob();
-                    }
-                    
+                    console.log('Uploading file:', att.name);
                     const fileRef = ref(storage, `invitations/${Date.now()}-${att.name}`);
-                    await uploadBytes(fileRef, fileToUpload);
+                    
+                    // Upload the file directly (Firebase handles File objects)
+                    await uploadBytes(fileRef, att.file);
+                    console.log('Upload complete, getting download URL');
+                    
                     const url = await getDownloadURL(fileRef);
+                    console.log('Got download URL:', url.substring(0, 50) + '...');
+                    
                     uploaded.push({ type: att.type, url, name: att.name });
                 } catch (err) {
-                    console.error('Upload error for attachment:', err);
+                    console.error('Upload error for attachment:', att.name, err);
+                    // Continue with other attachments even if one fails
                 }
             }
         }
+        
+        console.log('uploadAttachments complete, uploaded:', uploaded.length);
         return uploaded;
     };
     
     const handleSubmit = async (e) => {
         e.preventDefault();
+        console.log('=== handleSubmit START ===');
         
         const validRecords = records.filter(r => r.item?.trim());
+        console.log('Valid records:', validRecords.length);
         
         if (validRecords.length === 0) {
             toast.error("Please add at least one item with a name");
             return;
         }
         
+        console.log('Contractor info:', contractorInfo);
         if (!contractorInfo.name && !contractorInfo.company) {
             toast.error("Please enter your name or company name");
             return;
@@ -938,25 +948,36 @@ export const ContractorInviteCreator = () => {
         const loadingToast = toast.loading('Creating invitation...');
         
         try {
+            console.log('Processing records with attachments...');
+            
             // Process records: upload attachments and filter selected tasks
             const recordsWithUploadedAttachments = await Promise.all(
-                validRecords.map(async (record) => {
+                validRecords.map(async (record, idx) => {
+                    console.log(`Processing record ${idx}:`, record.item);
+                    
                     // Filter to only selected maintenance tasks and format for storage
                     const selectedTasks = (record.maintenanceTasks || [])
                         .filter(t => t.selected)
                         .map(t => ({
                             task: t.task,
                             frequency: t.frequency,
-                            nextDue: t.firstDueDate // Rename to match the expected format
+                            nextDue: t.firstDueDate
                         }));
+                    
+                    console.log(`Record ${idx} has ${selectedTasks.length} selected tasks`);
+                    console.log(`Record ${idx} has ${record.attachments?.length || 0} attachments`);
+                    
+                    const uploadedAttachments = await uploadAttachments(record.attachments || []);
                     
                     return {
                         ...record,
-                        attachments: await uploadAttachments(record.attachments || []),
+                        attachments: uploadedAttachments,
                         maintenanceTasks: selectedTasks
                     };
                 })
             );
+            
+            console.log('All records processed, creating invitation...');
             
             // Create the invitation
             const result = await createContractorInvitation(
@@ -965,16 +986,21 @@ export const ContractorInviteCreator = () => {
                 customerEmail || null
             );
             
+            console.log('Invitation created:', result);
+            
             toast.dismiss(loadingToast);
             toast.success('Invitation created!');
             setCreatedLink(result.link);
             
         } catch (error) {
-            console.error('ERROR:', error);
+            console.error('=== handleSubmit ERROR ===', error);
             toast.dismiss(loadingToast);
             toast.error('Failed to create invitation. Please try again.');
         } finally {
+            console.log('=== handleSubmit END ===');
             setIsSubmitting(false);
+        }
+    };;
         }
     };
     
@@ -1031,7 +1057,6 @@ export const ContractorInviteCreator = () => {
                     {/* Invoice Upload Section */}
                     <InvoiceUploadSection 
                         onInvoiceParsed={handleInvoiceParsed}
-                        isScanning={isScanning}
                     />
                     
                     {/* Info Banner */}
