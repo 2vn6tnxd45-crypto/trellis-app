@@ -25,6 +25,7 @@ import { auth, db } from '../../config/firebase';
 import { appId, googleMapsApiKey } from '../../config/constants';
 import { validateInvitation, checkEmailMatch, claimInvitation, getInvitationPreview } from '../../lib/invitations';
 import { Logo } from '../../components/common/Logo';
+import { waitForAuthReady, retryWithBackoff } from '../../lib/authHelpers';
 
 // ============================================
 // LOADING STATE
