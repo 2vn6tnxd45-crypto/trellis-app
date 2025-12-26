@@ -793,16 +793,55 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     }
     
     // Importing state
-    if (step === 'importing') {
-        return (
-            <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
+    // Importing state - Enhanced with progress indicator
+if (step === 'importing') {
+    return (
+        <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full">
                 <div className="text-center">
-                    <Loader2 className="animate-spin h-12 w-12 text-emerald-600 mx-auto mb-4" />
-                    <p className="text-slate-600 font-medium">Importing your records...</p>
+                    {/* Animated icon */}
+                    <div className="relative mx-auto w-16 h-16 mb-6">
+                        <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-25" />
+                        <div className="relative bg-emerald-100 rounded-full w-16 h-16 flex items-center justify-center">
+                            <Home className="h-8 w-8 text-emerald-600" />
+                        </div>
+                    </div>
+                    
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">
+                        Setting up your home...
+                    </h3>
+                    <p className="text-slate-500 text-sm mb-6">
+                        This may take a moment
+                    </p>
+                    
+                    {/* Progress bar */}
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
+                        <div 
+                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full animate-pulse"
+                            style={{ width: '70%' }}
+                        />
+                    </div>
+                    
+                    {/* Status steps */}
+                    <div className="space-y-2 text-left">
+                        <div className="flex items-center gap-2 text-sm text-emerald-600">
+                            <CheckCircle size={16} />
+                            <span>Account verified</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-emerald-600">
+                            <Loader2 size={16} className="animate-spin" />
+                            <span>Importing {preview?.recordCount || ''} records...</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-slate-400">
+                            <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+                            <span>Finalizing</span>
+                        </div>
+                    </div>
                 </div>
             </div>
-        );
-    }
+        </div>
+    );
+}
     
     // Main flow
     return (
