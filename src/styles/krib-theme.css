@@ -1,3 +1,133 @@
+/* ============================================
+   KRIB THEME - Font & Brand Additions
+   ============================================
+   Add these imports/rules to the TOP of your
+   existing krib-theme.css file.
+   ============================================ */
+
+/* ============================================
+   FONT IMPORTS - Satoshi from Fontshare
+   ============================================ */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800,900&display=swap');
+
+/* ============================================
+   CSS VARIABLES - Brand
+   ============================================ */
+:root {
+  /* Brand Colors */
+  --krib-primary: #10b981;
+  --krib-primary-dark: #059669;
+  --krib-primary-light: #d1fae5;
+  --krib-accent: #f59e0b;
+  --krib-accent-dark: #d97706;
+  
+  /* Typography */
+  --font-display: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: "Satoshi", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  
+  /* Border Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+/* ============================================
+   BASE TYPOGRAPHY
+   ============================================ */
+html {
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+/* Headings use display weight */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Extra bold for main headings */
+h1, h2 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+/* ============================================
+   BRAND COMPONENTS
+   ============================================ */
+
+/* Wordmark styling */
+.krib-wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.krib-wordmark-accent {
+  color: var(--krib-primary);
+}
+
+/* Logo lockup */
+.krib-lockup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.krib-lockup--stacked {
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Brand colors */
+.text-krib-primary {
+  color: var(--krib-primary);
+}
+
+.bg-krib-primary {
+  background-color: var(--krib-primary);
+}
+
+.bg-krib-gradient {
+  background: linear-gradient(135deg, var(--krib-primary) 0%, var(--krib-primary-dark) 100%);
+}
+
+.text-krib-accent {
+  color: var(--krib-accent);
+}
+
+.bg-krib-accent {
+  background-color: var(--krib-accent);
+}
+
+/* Font utilities */
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-extrabold {
+  font-weight: 800;
+}
+
+.tracking-tight {
+  letter-spacing: -0.02em;
+}
+
+.tracking-tighter {
+  letter-spacing: -0.03em;
+}
+
 /* src/styles/krib-theme.css */
 /* ============================================ */
 /* 🎨 KRIB WARM SAGE THEME                     */
