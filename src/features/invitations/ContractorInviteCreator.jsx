@@ -1000,8 +1000,6 @@ export const ContractorInviteCreator = () => {
             console.log('=== handleSubmit END ===');
             setIsSubmitting(false);
         }
-    };;
-        }
     };
     
     const handleCreateAnother = () => {
