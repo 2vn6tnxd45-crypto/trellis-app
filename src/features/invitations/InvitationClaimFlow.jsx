@@ -576,13 +576,18 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     
     // Handle auth success
     const handleAuthSuccess = async () => {
-        // Re-check the user state
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
+    try {
+        // ✅ FIX: Wait for auth to be fully ready
+        const currentUser = await waitForAuthReady();
+        
+        if (!currentUser) {
+            toast.error('Authentication failed. Please try again.');
+            return;
+        }
         
         // Check email lock if applicable
         if (invite?.recipientEmail) {
-            const { matches } = checkEmailMatch(invite, currentUser.email);
+            const matches = checkEmailMatch(invite, currentUser.email);
             if (!matches) {
                 setError('email_mismatch');
                 return;
@@ -600,14 +605,17 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
                 setSelectedPropertyId(props[0].id);
                 setStep('property');
             } else {
-                // Has profile but no properties - go to setup
                 setStep('setup');
             }
         } else {
             // New user - need to set up property with address
             setStep('setup');
         }
-    };
+    } catch (err) {
+        console.error('Auth verification error:', err);
+        toast.error('Please try signing in again.');
+    }
+};
     
     // NEW: Handle address setup completion
     const handleAddressSetupComplete = (propertyData) => {
@@ -618,19 +626,35 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     
     // NEW: Handle import with new property (includes address)
     const handleImportWithNewProperty = async (propertyData) => {
-        if (!user || !invite) return;
-        
-        setIsSavingProperty(true);
-        setStep('importing');
-        
+    if (!invite) return;
+    
+    setIsSavingProperty(true);
+    setStep('importing');
+    
+    // ✅ FIX: Ensure we have a valid authenticated user
+    let currentUser;
+    try {
+        currentUser = await waitForAuthReady();
+    } catch (err) {
+        console.error('Auth not ready:', err);
+        toast.error('Authentication error. Please try again.');
+        setStep('setup');
+        setIsSavingProperty(false);
+        return;
+    }
+    
+    // ✅ FIX: Retry logic with exponential backoff
+    const maxRetries = 3;
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const newPropertyId = Date.now().toString();
-            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
             
             const existingProfile = profile || {};
             const existingProperties = existingProfile.properties || [];
             
-            // Create new property WITH address and coordinates
             const newProperty = {
                 id: newPropertyId,
                 name: propertyData.name || 'My Home',
@@ -638,6 +662,7 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
                 coordinates: propertyData.coordinates || null
             };
             
+            // Create/update profile
             await setDoc(profileRef, {
                 ...existingProfile,
                 properties: [...existingProperties, newProperty],
@@ -645,24 +670,48 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
                 updatedAt: serverTimestamp()
             }, { merge: true });
             
-            // Now claim the invitation with the new property
-            const result = await claimInvitation(invite.id, user.uid, newPropertyId);
+            // Now claim the invitation
+            const result = await claimInvitation(invite.id, currentUser.uid, newPropertyId);
             
             if (result.success) {
                 setImportResult(result);
                 setStep('success');
+                return; // Success! Exit the retry loop
             } else {
-                toast.error(result.error || 'Failed to import records');
-                setStep('setup');
+                throw new Error(result.error || 'Failed to import records');
             }
+            
         } catch (err) {
-            console.error('Error creating property and claiming invitation:', err);
-            toast.error('Failed to create home');
-            setStep('setup');
-        } finally {
-            setIsSavingProperty(false);
+            lastError = err;
+            console.error(`Attempt ${attempt} failed:`, err);
+            
+            // Check if it's a permissions error - wait and retry
+            if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+                if (attempt < maxRetries) {
+                    // Wait before retry (exponential backoff)
+                    await new Promise(r => setTimeout(r, 1000 * attempt));
+                    
+                    // Force token refresh before retry
+                    try {
+                        await currentUser.getIdToken(true);
+                    } catch (tokenErr) {
+                        console.error('Token refresh failed:', tokenErr);
+                    }
+                    continue;
+                }
+            }
+            
+            // Non-permission error or max retries reached
+            break;
         }
-    };
+    }
+    
+    // All retries failed
+    console.error('All import attempts failed:', lastError);
+    toast.error('Failed to create home. Please try again.');
+    setStep('setup');
+    setIsSavingProperty(false);
+};
     
     // Handle import (for existing properties)
     const handleImport = async () => {
