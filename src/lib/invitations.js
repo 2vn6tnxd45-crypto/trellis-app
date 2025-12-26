@@ -36,34 +36,47 @@ export const generateSecureToken = () => {
  * @returns {Object} - { inviteId, claimToken, link }
  */
 export const createContractorInvitation = async (contractorInfo, records, recipientEmail = null) => {
+    console.log('[invitations.js] createContractorInvitation called');
+    console.log('[invitations.js] contractorInfo:', contractorInfo);
+    console.log('[invitations.js] records count:', records?.length);
+    
     const claimToken = generateSecureToken();
+    console.log('[invitations.js] Generated token:', claimToken.substring(0, 8) + '...');
     
     // Calculate expiration (30 days from now)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
     
     // Prepare records with proper structure
-    const preparedRecords = records.map(record => ({
-        item: record.item || '',
-        category: record.category || 'Other',
-        area: record.area || 'General',
-        brand: record.brand || '',
-        model: record.model || '',
-        serialNumber: record.serialNumber || '',
-        dateInstalled: record.dateInstalled || new Date().toISOString().split('T')[0],
-        cost: record.cost || null,
-        laborCost: record.laborCost || null,
-        partsCost: record.partsCost || null,
-        warranty: record.warranty || '',
-        notes: record.notes || '',
-        maintenanceFrequency: record.maintenanceFrequency || 'annual',
-        contractor: contractorInfo.company || contractorInfo.name || '',
-        contractorPhone: contractorInfo.phone || '',
-        contractorEmail: contractorInfo.email || '',
-        attachments: record.attachments || [],
-        // Metadata
-        importedFrom: 'contractor_invitation'
-    }));
+    // UPDATED: Now includes maintenanceTasks!
+    const preparedRecords = records.map((record, idx) => {
+        console.log(`[invitations.js] Preparing record ${idx}:`, record.item);
+        return {
+            item: record.item || '',
+            category: record.category || 'Other',
+            area: record.area || 'General',
+            brand: record.brand || '',
+            model: record.model || '',
+            serialNumber: record.serialNumber || '',
+            dateInstalled: record.dateInstalled || new Date().toISOString().split('T')[0],
+            cost: record.cost || null,
+            laborCost: record.laborCost || null,
+            partsCost: record.partsCost || null,
+            warranty: record.warranty || '',
+            notes: record.notes || '',
+            maintenanceFrequency: record.maintenanceFrequency || 'annual',
+            // NEW: Include maintenance tasks for repeat business reminders!
+            maintenanceTasks: record.maintenanceTasks || [],
+            contractor: contractorInfo.company || contractorInfo.name || '',
+            contractorPhone: contractorInfo.phone || '',
+            contractorEmail: contractorInfo.email || '',
+            attachments: record.attachments || [],
+            // Metadata
+            importedFrom: 'contractor_invitation'
+        };
+    });
+    
+    console.log('[invitations.js] Prepared records:', preparedRecords.length);
     
     const inviteDoc = {
         claimToken,
@@ -82,18 +95,30 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
         expiresAt: expiresAt
     };
     
-    const inviteRef = await addDoc(collection(db, INVITATIONS_COLLECTION_PATH), inviteDoc);
+    console.log('[invitations.js] About to call addDoc...');
+    console.log('[invitations.js] Collection path:', INVITATIONS_COLLECTION_PATH);
     
-    // Generate the claim link
-    const baseUrl = typeof window !== 'undefined' 
-        ? `${window.location.origin}${window.location.pathname}`
-        : '';
-    
-    return {
-        inviteId: inviteRef.id,
-        claimToken,
-        link: `${baseUrl}?invite=${claimToken}`
-    };
+    try {
+        const inviteRef = await addDoc(collection(db, INVITATIONS_COLLECTION_PATH), inviteDoc);
+        console.log('[invitations.js] addDoc succeeded, id:', inviteRef.id);
+        
+        // Generate the claim link
+        const baseUrl = typeof window !== 'undefined' 
+            ? `${window.location.origin}${window.location.pathname}`
+            : '';
+        
+        const result = {
+            inviteId: inviteRef.id,
+            claimToken,
+            link: `${baseUrl}?invite=${claimToken}`
+        };
+        
+        console.log('[invitations.js] Returning result:', result);
+        return result;
+    } catch (error) {
+        console.error('[invitations.js] addDoc FAILED:', error);
+        throw error;
+    }
 };
 
 // ============================================
@@ -140,39 +165,34 @@ export const validateInvitation = async (token) => {
         
     } catch (error) {
         console.error('Error validating invitation:', error);
-        return { valid: false, error: 'validation_error' };
+        return { valid: false, error: 'fetch_error' };
     }
 };
 
 // ============================================
-// CHECK EMAIL MATCH (For email-locked invitations)
+// CHECK EMAIL MATCH
 // ============================================
 /**
- * Checks if a user's email matches the invitation's recipient email (if set)
+ * Checks if the user's email matches the invitation's recipient email (if locked)
  * @param {Object} invite - The invitation object
  * @param {string} userEmail - The user's email
- * @returns {Object} - { matches: boolean, required: boolean }
+ * @returns {boolean} - True if email matches or no lock exists
  */
 export const checkEmailMatch = (invite, userEmail) => {
-    // If no recipient email is set, anyone can claim
     if (!invite.recipientEmail) {
-        return { matches: true, required: false };
+        return true; // No email lock
     }
-    
-    // Check if emails match (case-insensitive)
-    const matches = invite.recipientEmail.toLowerCase() === userEmail?.toLowerCase();
-    
-    return { matches, required: true };
+    return invite.recipientEmail.toLowerCase() === userEmail?.toLowerCase();
 };
 
 // ============================================
 // CLAIM INVITATION (Import Records)
 // ============================================
 /**
- * Claims an invitation and imports all records to the user's account
- * @param {string} inviteId - The Firestore document ID of the invitation
- * @param {string} userId - The Firebase user ID
- * @param {string} propertyId - The property ID to import records into
+ * Claims an invitation and imports records to the user's account
+ * @param {string} inviteId - The invitation document ID
+ * @param {string} userId - The claiming user's ID
+ * @param {string} propertyId - The property to import records to
  * @returns {Object} - { success: boolean, importedCount?: number, error?: string }
  */
 export const claimInvitation = async (inviteId, userId, propertyId) => {
