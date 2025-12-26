@@ -978,13 +978,32 @@ export const ContractorInviteCreator = () => {
             );
             
             console.log('All records processed, creating invitation...');
+            console.log('Records to send:', JSON.stringify(recordsWithUploadedAttachments.map(r => ({
+                item: r.item,
+                category: r.category,
+                attachments: r.attachments?.length || 0,
+                maintenanceTasks: r.maintenanceTasks?.length || 0
+            }))));
+            console.log('Contractor info:', JSON.stringify(contractorInfo));
             
-            // Create the invitation
-            const result = await createContractorInvitation(
-                contractorInfo,
-                recordsWithUploadedAttachments,
-                customerEmail || null
-            );
+            // Create the invitation with a timeout safety net
+            const createInvitationWithTimeout = async () => {
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Invitation creation timed out after 30 seconds')), 30000)
+                );
+                
+                const invitationPromise = createContractorInvitation(
+                    contractorInfo,
+                    recordsWithUploadedAttachments,
+                    customerEmail || null
+                );
+                
+                return Promise.race([invitationPromise, timeoutPromise]);
+            };
+            
+            console.log('Calling createContractorInvitation...');
+            const result = await createInvitationWithTimeout();
+            console.log('createContractorInvitation returned:', result);
             
             console.log('Invitation created:', result);
             
