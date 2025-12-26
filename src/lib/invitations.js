@@ -35,6 +35,8 @@ export const generateSecureToken = () => {
  * @param {string|null} recipientEmail - Optional email lock for the invitation
  * @returns {Object} - { inviteId, claimToken, link }
  */
+// src/lib/invitations.js
+
 export const createContractorInvitation = async (contractorInfo, records, recipientEmail = null) => {
     console.log('[invitations.js] createContractorInvitation called');
     console.log('[invitations.js] contractorInfo:', contractorInfo);
@@ -48,7 +50,6 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
     expiresAt.setDate(expiresAt.getDate() + 30);
     
     // Prepare records with proper structure
-    // UPDATED: Now includes maintenanceTasks!
     const preparedRecords = records.map((record, idx) => {
         console.log(`[invitations.js] Preparing record ${idx}:`, record.item);
         return {
@@ -65,7 +66,6 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
             warranty: record.warranty || '',
             notes: record.notes || '',
             maintenanceFrequency: record.maintenanceFrequency || 'annual',
-            // NEW: Include maintenance tasks for repeat business reminders!
             maintenanceTasks: record.maintenanceTasks || [],
             contractor: contractorInfo.company || contractorInfo.name || '',
             contractorPhone: contractorInfo.phone || '',
@@ -80,7 +80,8 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
     
     const inviteDoc = {
         claimToken,
-        recipientEmail: recipientEmail?.toLowerCase().trim() || null,
+        // FIX: Added optional chaining (?.trim()) to prevent crash when email is null/undefined
+        recipientEmail: recipientEmail?.toLowerCase()?.trim() || null,
         claimed: false,
         claimedBy: null,
         claimedAt: null,
