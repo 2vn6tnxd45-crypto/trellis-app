@@ -5,7 +5,9 @@
 // This component allows contractors to create invitation links
 // that pre-populate records for new customers.
 // 
-// NEW: Invoice upload with AI auto-populate feature
+// Features:
+// - Invoice upload with AI auto-populate
+// - Maintenance task suggestions (the "hook" for repeat business!)
 
 import React, { useState, useRef } from 'react';
 import { 
@@ -13,7 +15,8 @@ import {
     Loader2, Package, Mail, Phone, Building2, User,
     ChevronDown, ChevronUp, Camera, FileText, X,
     Link as LinkIcon, QrCode, Share2, MessageSquare,
-    AlertCircle, Info, Sparkles, Upload, ScanLine, Receipt
+    AlertCircle, Info, Sparkles, Upload, ScanLine, Receipt,
+    Calendar, Clock, Bell, CheckSquare, Square
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
@@ -139,6 +142,153 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
 };
 
 // ============================================
+// MAINTENANCE TASK ITEM
+// ============================================
+const MaintenanceTaskItem = ({ task, onToggle, onRemove, isCustom }) => {
+    return (
+        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
+            <button
+                type="button"
+                onClick={onToggle}
+                className="shrink-0"
+            >
+                {task.selected ? (
+                    <CheckSquare size={20} className="text-emerald-600" />
+                ) : (
+                    <Square size={20} className="text-slate-300" />
+                )}
+            </button>
+            <div className="flex-grow min-w-0">
+                <p className={`font-medium text-sm ${task.selected ? 'text-slate-800' : 'text-slate-400'}`}>
+                    {task.task}
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <Clock size={12} />
+                    <span className="capitalize">{task.frequency}</span>
+                    {task.firstDueDate && (
+                        <>
+                            <span>•</span>
+                            <Calendar size={12} />
+                            <span>First: {new Date(task.firstDueDate).toLocaleDateString()}</span>
+                        </>
+                    )}
+                </div>
+            </div>
+            {isCustom && (
+                <button
+                    type="button"
+                    onClick={onRemove}
+                    className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                >
+                    <X size={16} />
+                </button>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// ADD CUSTOM TASK FORM
+// ============================================
+const AddTaskForm = ({ onAdd }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [taskName, setTaskName] = useState('');
+    const [frequency, setFrequency] = useState('annual');
+    
+    const handleSubmit = () => {
+        if (!taskName.trim()) {
+            toast.error('Please enter a task name');
+            return;
+        }
+        
+        // Calculate first due date based on frequency
+        const today = new Date();
+        let firstDueDate = new Date(today);
+        
+        switch (frequency) {
+            case 'monthly':
+                firstDueDate.setMonth(firstDueDate.getMonth() + 1);
+                break;
+            case 'quarterly':
+                firstDueDate.setMonth(firstDueDate.getMonth() + 3);
+                break;
+            case 'biannual':
+                firstDueDate.setMonth(firstDueDate.getMonth() + 6);
+                break;
+            case 'annual':
+            default:
+                firstDueDate.setFullYear(firstDueDate.getFullYear() + 1);
+                break;
+        }
+        
+        onAdd({
+            task: taskName.trim(),
+            frequency,
+            firstDueDate: firstDueDate.toISOString().split('T')[0],
+            selected: true,
+            isCustom: true
+        });
+        
+        setTaskName('');
+        setFrequency('annual');
+        setIsOpen(false);
+        toast.success('Task added!');
+    };
+    
+    if (!isOpen) {
+        return (
+            <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className="w-full py-2 border border-dashed border-slate-300 rounded-lg text-slate-500 text-sm font-medium hover:border-emerald-500 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+            >
+                <Plus size={16} />
+                Add Custom Task
+            </button>
+        );
+    }
+    
+    return (
+        <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-3">
+            <input
+                type="text"
+                value={taskName}
+                onChange={(e) => setTaskName(e.target.value)}
+                placeholder="e.g. Quarterly Pest Inspection"
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+                autoFocus
+            />
+            <div className="flex gap-2">
+                <select
+                    value={frequency}
+                    onChange={(e) => setFrequency(e.target.value)}
+                    className="flex-grow px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="biannual">Every 6 Months</option>
+                    <option value="annual">Annual</option>
+                </select>
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(false)}
+                    className="px-3 py-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                    Add
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // RECORD ITEM CARD
 // ============================================
 const RecordItemCard = ({ record, index, onChange, onRemove }) => {
@@ -178,6 +328,30 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
         onChange(index, 'attachments', updated);
     };
     
+    // Toggle a maintenance task
+    const toggleTask = (taskIndex) => {
+        const updatedTasks = [...(record.maintenanceTasks || [])];
+        updatedTasks[taskIndex] = { 
+            ...updatedTasks[taskIndex], 
+            selected: !updatedTasks[taskIndex].selected 
+        };
+        onChange(index, 'maintenanceTasks', updatedTasks);
+    };
+    
+    // Add a custom maintenance task
+    const addCustomTask = (newTask) => {
+        const updatedTasks = [...(record.maintenanceTasks || []), newTask];
+        onChange(index, 'maintenanceTasks', updatedTasks);
+    };
+    
+    // Remove a custom task
+    const removeTask = (taskIndex) => {
+        const updatedTasks = (record.maintenanceTasks || []).filter((_, i) => i !== taskIndex);
+        onChange(index, 'maintenanceTasks', updatedTasks);
+    };
+    
+    const selectedTaskCount = (record.maintenanceTasks || []).filter(t => t.selected).length;
+    
     return (
         <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
             {/* Header */}
@@ -196,6 +370,11 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                         <p className="text-xs text-slate-500">
                             {record.category || 'No category'} 
                             {record.brand && ` • ${record.brand}`}
+                            {selectedTaskCount > 0 && (
+                                <span className="ml-2 text-emerald-600">
+                                    • {selectedTaskCount} task{selectedTaskCount !== 1 ? 's' : ''}
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -384,6 +563,44 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                         />
                     </div>
                     
+                    {/* ============================================ */}
+                    {/* MAINTENANCE SCHEDULE SECTION - THE HOOK! */}
+                    {/* ============================================ */}
+                    <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Bell size={18} className="text-amber-600" />
+                            <label className="text-sm font-bold text-amber-800">
+                                Maintenance Schedule
+                            </label>
+                            <span className="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold uppercase ml-auto">
+                                Drives Repeat Business
+                            </span>
+                        </div>
+                        <p className="text-xs text-amber-700 mb-3">
+                            Your customer will receive reminders for these tasks — keeping you top of mind for future service!
+                        </p>
+                        
+                        <div className="space-y-2">
+                            {(record.maintenanceTasks || []).map((task, taskIdx) => (
+                                <MaintenanceTaskItem
+                                    key={taskIdx}
+                                    task={task}
+                                    onToggle={() => toggleTask(taskIdx)}
+                                    onRemove={() => removeTask(taskIdx)}
+                                    isCustom={task.isCustom}
+                                />
+                            ))}
+                            
+                            {(record.maintenanceTasks || []).length === 0 && (
+                                <p className="text-xs text-amber-600 italic py-2">
+                                    No tasks yet. Upload an invoice for AI suggestions, or add your own below.
+                                </p>
+                            )}
+                            
+                            <AddTaskForm onAdd={addCustomTask} />
+                        </div>
+                    </div>
+                    
                     {/* Photos */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -430,7 +647,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
 };
 
 // ============================================
-// INVOICE UPLOAD SECTION (NEW!)
+// INVOICE UPLOAD SECTION
 // ============================================
 const InvoiceUploadSection = ({ onInvoiceParsed, isScanning }) => {
     const fileInputRef = useRef(null);
@@ -507,8 +724,8 @@ const InvoiceUploadSection = ({ onInvoiceParsed, isScanning }) => {
                 </h3>
                 <p className="text-sm text-slate-600 mb-4">
                     {isScanning 
-                        ? 'AI is extracting items, costs, and your company info...'
-                        : 'AI will auto-fill your company info, items, costs, and warranty details'
+                        ? 'AI is extracting items, costs, and maintenance schedule...'
+                        : 'AI will auto-fill everything including maintenance reminders for repeat business'
                     }
                 </p>
                 
@@ -577,6 +794,7 @@ export const ContractorInviteCreator = () => {
         warranty: '',
         notes: '',
         maintenanceFrequency: 'annual',
+        maintenanceTasks: [],
         attachments: []
     }]);
     
@@ -612,6 +830,11 @@ export const ContractorInviteCreator = () => {
                 warranty: data.warranty || '',
                 notes: item.maintenanceNotes || '',
                 maintenanceFrequency: item.maintenanceFrequency || 'annual',
+                // Map suggestedTasks to maintenanceTasks with 'selected: true'
+                maintenanceTasks: (item.suggestedTasks || []).map(t => ({
+                    ...t,
+                    selected: true
+                })),
                 // Attach the invoice image to the first item
                 attachments: idx === 0 && preview ? [{
                     name: file.name,
@@ -652,6 +875,7 @@ export const ContractorInviteCreator = () => {
             warranty: '',
             notes: '',
             maintenanceFrequency: 'annual',
+            maintenanceTasks: [],
             attachments: []
         }]);
     };
@@ -714,12 +938,24 @@ export const ContractorInviteCreator = () => {
         const loadingToast = toast.loading('Creating invitation...');
         
         try {
-            // Upload attachments for each record
+            // Process records: upload attachments and filter selected tasks
             const recordsWithUploadedAttachments = await Promise.all(
-                validRecords.map(async (record) => ({
-                    ...record,
-                    attachments: await uploadAttachments(record.attachments || [])
-                }))
+                validRecords.map(async (record) => {
+                    // Filter to only selected maintenance tasks and format for storage
+                    const selectedTasks = (record.maintenanceTasks || [])
+                        .filter(t => t.selected)
+                        .map(t => ({
+                            task: t.task,
+                            frequency: t.frequency,
+                            nextDue: t.firstDueDate // Rename to match the expected format
+                        }));
+                    
+                    return {
+                        ...record,
+                        attachments: await uploadAttachments(record.attachments || []),
+                        maintenanceTasks: selectedTasks
+                    };
+                })
             );
             
             // Create the invitation
@@ -761,6 +997,7 @@ export const ContractorInviteCreator = () => {
             warranty: '',
             notes: '',
             maintenanceFrequency: 'annual',
+            maintenanceTasks: [],
             attachments: []
         }]);
         setCustomerEmail('');
@@ -791,7 +1028,7 @@ export const ContractorInviteCreator = () => {
             {/* Main Content */}
             <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
                 <form onSubmit={handleSubmit} noValidate>
-                    {/* Invoice Upload Section - NEW! */}
+                    {/* Invoice Upload Section */}
                     <InvoiceUploadSection 
                         onInvoiceParsed={handleInvoiceParsed}
                         isScanning={isScanning}
