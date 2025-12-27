@@ -2,7 +2,7 @@
 
 export const appId = 'krib-app';
 // Ideally, move this API key to import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-export const googleMapsApiKey = "AIzaSyC1gVI-IeB2mbLAlHgJDmrPKwcZTpVWPOw"; 
+export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 export const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 export const INVITATIONS_COLLECTION_PATH = `/artifacts/${appId}/public/data/invitations`;
 
