@@ -11,16 +11,16 @@
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.2",
+    "@sentry/react": "^8.0.0",
     "firebase": "^11.0.2",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.344.0",
-    "pdfjs-dist": "^4.0.379", 
+    "pdfjs-dist": "^4.0.379",
     "react": "^18.2.0",
     "react-camera-pro": "^1.4.0",
     "react-dom": "^18.2.0",
-    "react-hot-toast": "^2.4.1",
-  "@sentry/react": "^8.0.0"
-  },
+    "react-hot-toast": "^2.4.1"
+},
   "devDependencies": {
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
