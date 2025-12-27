@@ -1,10 +1,17 @@
 // src/features/dashboard/HomeSnapshot.jsx
-import React, { useState } from 'react';
+import React from 'react';
 import { 
-    CloudRain, Wifi, Sun, Share2, 
-    Shield, AlertTriangle, CheckCircle2, Zap, ExternalLink, Check, Flame
+    Sun, 
+    Shield, 
+    AlertTriangle, 
+    CheckCircle2, 
+    Flame,
+    Users,
+    DollarSign,
+    Home,
+    Thermometer,
+    MapPin
 } from 'lucide-react';
-import toast from 'react-hot-toast';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
 import { useCountyData } from '../../hooks/useCountyData';
 
@@ -25,10 +32,21 @@ const RiskBadge = ({ level, label }) => {
     );
 };
 
+// Helper to format currency compactly
+const formatCompactCurrency = (value) => {
+    if (!value) return '--';
+    if (value >= 1000000) {
+        return '$' + (value / 1000000).toFixed(1) + 'M';
+    }
+    if (value >= 1000) {
+        return '$' + (value / 1000).toFixed(0) + 'K';
+    }
+    return '$' + value.toLocaleString();
+};
+
 export const HomeSnapshot = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
-    // UPDATED: Pass address here too
-    const { flood, broadband, wildfire, loading: neighborhoodLoading } = useNeighborhoodData(coordinates, address);
+    const { wildfire, census, climate, amenities, loading: neighborhoodLoading } = useNeighborhoodData(coordinates, address);
     const { parcelData, detectedLocation } = useCountyData(coordinates, address);
     
     const loading = neighborhoodLoading;
@@ -38,36 +56,18 @@ export const HomeSnapshot = ({ propertyProfile }) => {
             <div className="p-6 border-b border-slate-50">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center">
                     <Shield className="h-5 w-5 mr-2 text-emerald-600" />
-                    Property & Risk Insights
+                    Property & Neighborhood Insights
                 </h2>
             </div>
             
             <div className="p-6 space-y-6">
                 
-                {/* Risk Assessment */}
+                {/* Row 1: Wildfire Risk + Census Quick Stats */}
                 <div>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                        Natural Hazards
+                        Risk & Demographics
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Flood Risk */}
-                        <div className={`p-4 rounded-xl border ${flood?.isHighRisk ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'}`}>
-                            <div className="flex items-start justify-between mb-2">
-                                <CloudRain className={`h-5 w-5 ${flood?.isHighRisk ? 'text-red-600' : 'text-slate-400'}`} />
-                                {loading ? (
-                                    <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
-                                ) : (
-                                    <RiskBadge 
-                                        level={flood?.isHighRisk ? 'high' : 'low'} 
-                                        label={flood?.isHighRisk ? 'High' : 'Low'} 
-                                    />
-                                )}
-                            </div>
-                            <p className="font-bold text-slate-800 text-sm">Flood Risk</p>
-                            {flood && (
-                                <p className="text-xs text-slate-500 mt-1">Zone {flood.zone} • {flood.subtype}</p>
-                            )}
-                        </div>
                         
                         {/* Wildfire Risk */}
                         <div className={`p-4 rounded-xl border ${wildfire?.isHighRisk ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
@@ -85,42 +85,103 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                             <p className="font-bold text-slate-800 text-sm">Wildfire Risk</p>
                             <p className="text-xs text-slate-500 mt-1">USDA Score: {wildfire?.score ? Math.round(wildfire.score) : '--'}/100</p>
                         </div>
+
+                        {/* Census Quick Stats */}
+                        <div className="p-4 rounded-xl border bg-violet-50 border-violet-100">
+                            <div className="flex items-start justify-between mb-2">
+                                <Users className="h-5 w-5 text-violet-600" />
+                                {census?.countyName && (
+                                    <span className="text-[10px] font-bold text-violet-600 bg-white px-2 py-0.5 rounded-full">
+                                        {census.countyName}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="font-bold text-slate-800 text-sm">Neighborhood</p>
+                            {loading ? (
+                                <div className="h-4 w-32 bg-slate-200 rounded animate-pulse mt-1" />
+                            ) : census ? (
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {formatCompactCurrency(census.medianIncome)} income • {formatCompactCurrency(census.medianHomeValue)} home value
+                                </p>
+                            ) : (
+                                <p className="text-xs text-slate-400 mt-1">Data unavailable</p>
+                            )}
+                        </div>
                     </div>
                 </div>
                 
-                {/* Connectivity */}
+                {/* Row 2: Climate + Amenities Summary */}
                 <div>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
-                        <Wifi size={12} className="mr-1.5" />
-                        Connectivity
+                        <Thermometer size={12} className="mr-1.5" />
+                        Local Insights
                     </h3>
-                    <div className={`p-4 rounded-xl border ${broadband?.hasFiber ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'}`}>
-                        {loading ? (
-                            <div className="space-y-2">
-                                <div className="h-6 w-24 bg-slate-200 rounded animate-pulse" />
-                                <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
-                            </div>
-                        ) : broadband ? (
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-2xl font-extrabold text-slate-800">{broadband.maxSpeed}</p>
-                                        <span className="text-sm font-medium text-slate-500">Mbps max</span>
-                                        {broadband.hasFiber && (
-                                            <span className="bg-blue-200 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                                                FIBER
-                                            </span>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-slate-500">
-                                        {broadband.count} provider{broadband.count !== 1 ? 's' : ''} available
-                                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        
+                        {/* Climate Summary */}
+                        <div className="p-4 rounded-xl border bg-sky-50 border-sky-100">
+                            {loading ? (
+                                <div className="space-y-2">
+                                    <div className="h-6 w-24 bg-slate-200 rounded animate-pulse" />
+                                    <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
                                 </div>
-                                <Zap className={`h-8 w-8 ${broadband.hasFiber ? 'text-blue-400' : 'text-slate-300'}`} />
-                            </div>
-                        ) : (
-                            <p className="text-sm text-slate-400">Broadband data unavailable for this location.</p>
-                        )}
+                            ) : climate ? (
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-sm mb-1">Climate</p>
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-center">
+                                                <p className="text-lg font-extrabold text-orange-500">{climate.avgHighF}°</p>
+                                                <p className="text-[10px] text-slate-400">Avg High</p>
+                                            </div>
+                                            <div className="text-slate-300">|</div>
+                                            <div className="text-center">
+                                                <p className="text-lg font-extrabold text-blue-500">{climate.avgLowF}°</p>
+                                                <p className="text-[10px] text-slate-400">Avg Low</p>
+                                            </div>
+                                            <div className="text-slate-300">|</div>
+                                            <div className="text-center">
+                                                <p className="text-lg font-extrabold text-sky-600">{climate.annualRainfallIn}"</p>
+                                                <p className="text-[10px] text-slate-400">Rain/yr</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <Sun className="h-8 w-8 text-amber-300" />
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-400">Climate data unavailable</p>
+                            )}
+                        </div>
+
+                        {/* Amenities Summary */}
+                        <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-100">
+                            {loading ? (
+                                <div className="space-y-2">
+                                    <div className="h-6 w-24 bg-slate-200 rounded animate-pulse" />
+                                    <div className="h-4 w-32 bg-slate-200 rounded animate-pulse" />
+                                </div>
+                            ) : amenities ? (
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-sm mb-1">Nearby (~1 mi)</p>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-xs bg-white px-2 py-1 rounded-full text-slate-600">
+                                                🌳 {amenities.parks} parks
+                                            </span>
+                                            <span className="text-xs bg-white px-2 py-1 rounded-full text-slate-600">
+                                                🏫 {amenities.schools} schools
+                                            </span>
+                                            <span className="text-xs bg-white px-2 py-1 rounded-full text-slate-600">
+                                                🛒 {amenities.groceryStores} stores
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <MapPin className="h-6 w-6 text-emerald-400" />
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-400">Amenities data unavailable</p>
+                            )}
+                        </div>
                     </div>
                 </div>
                 
@@ -137,7 +198,7 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                                 </p>
                             </div>
                             <span className="text-xs font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-slate-200">
-                                {parcelData?.yearBuilt ? `Built ${parcelData.yearBuilt}` : 'Public Data'}
+                                {parcelData?.yearBuilt ? `Built ${parcelData.yearBuilt}` : 'View Records'}
                             </span>
                         </div>
                     </div>
