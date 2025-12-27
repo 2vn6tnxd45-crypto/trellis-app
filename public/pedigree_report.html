@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Property Pedigree | Krib</title>
+    <title>Property Pedigree Report | Krib Home App</title>
     
     <link rel="icon" type="image/svg+xml" href="/logo.svg">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Font: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -33,7 +32,6 @@
 </head>
 <body class="bg-pattern text-slate-800 min-h-screen p-4 md:p-8">
 
-    <!-- Navigation / Back Link -->
     <div class="max-w-5xl mx-auto mb-6 flex justify-between items-center no-print">
         <a href="/app" class="flex items-center text-slate-500 hover:text-sky-600 transition font-bold text-sm">
             <i data-lucide="arrow-left" class="h-4 w-4 mr-2"></i> Back to Log
@@ -48,13 +46,10 @@
         </div>
     </div>
 
-    <!-- Report Container -->
     <div class="max-w-5xl mx-auto bg-white rounded-[2rem] shadow-xl overflow-hidden border border-slate-100">
         
-        <!-- Report Header -->
         <div class="bg-sky-950 text-white p-8 md:p-12 relative overflow-hidden">
             <div class="absolute top-0 right-0 p-8 opacity-10 transform rotate-12 translate-x-10 -translate-y-10">
-                <!-- Huge Logo Watermark -->
                 <svg width="300" height="300" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M50 10L15 40V90H85V40L50 10Z" stroke="white" stroke-width="8" stroke-linejoin="round"/>
                     <circle cx="50" cy="50" r="10" fill="white"/>
@@ -91,7 +86,6 @@
             </div>
         </div>
 
-        <!-- Key Systems Dashboard -->
         <div class="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100 border-b border-slate-100 bg-slate-50">
             <div class="p-8 text-center">
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">HVAC Age</p>
@@ -112,7 +106,6 @@
         </div>
 
         <div class="flex flex-col md:flex-row">
-            <!-- Main Content: Maintenance History -->
             <div class="w-full md:w-2/3 p-10">
                 <div class="flex items-center justify-between mb-10">
                     <h2 class="text-2xl font-bold text-slate-900 flex items-center">
@@ -123,7 +116,6 @@
 
                 <div class="space-y-10 border-l-2 border-slate-100 ml-3 pl-10 relative">
                     
-                    <!-- Example Record 1 -->
                     <div class="print-break relative group">
                         <div class="absolute -left-[49px] top-1 h-5 w-5 rounded-full bg-sky-500 border-4 border-white shadow-sm ring-1 ring-slate-100"></div>
                         <div class="mb-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
@@ -159,7 +151,6 @@
                         </div>
                     </div>
 
-                    <!-- Example Record 2 -->
                     <div class="print-break relative group">
                         <div class="absolute -left-[49px] top-1 h-5 w-5 rounded-full bg-slate-300 border-4 border-white shadow-sm ring-1 ring-slate-100"></div>
                         <div class="mb-3 flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
@@ -186,7 +177,6 @@
                 </div>
             </div>
 
-            <!-- Sidebar: Property Details -->
             <div class="w-full md:w-1/3 bg-slate-50 p-10 border-l border-slate-100 print:hidden">
                 <div class="sticky top-8">
                     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 border-b border-slate-200 pb-4">Specs</h3>
@@ -214,14 +204,13 @@
                         <p class="text-sm text-slate-500 mb-4 relative z-10 leading-relaxed">
                             This is a verified Krib Pedigree. Claim this address to add records and manage your digital twin.
                         </p>
-                        <button class="w-full py-3 px-4 bg-sky-900 hover:bg-sky-800 text-white rounded-xl font-bold text-sm transition shadow-lg shadow-sky-900/20 relative z-10">
-                            Claim This Property
-                        </button>
+                        <a href="/app" class="block w-full text-center py-3 px-4 bg-sky-900 hover:bg-sky-800 text-white rounded-xl font-bold text-sm transition shadow-lg shadow-sky-900/20 relative z-10">
+                            Claim This Property on Krib
+                        </a>
                     </div>
 
                     <div class="text-center">
                         <div class="inline-block p-3 bg-white rounded-2xl border border-slate-200 mb-3 shadow-sm">
-                            <!-- Fake QR Code -->
                             <svg width="80" height="80" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path fill-rule="evenodd" clip-rule="evenodd" d="M0 0H30V30H0V0ZM10 10H20V20H10V10Z" fill="#0f172a"/>
                                 <path fill-rule="evenodd" clip-rule="evenodd" d="M70 0H100V30H70V0ZM80 10H90V20H80V10Z" fill="#0f172a"/>
@@ -240,10 +229,9 @@
             </div>
         </div>
 
-        <!-- Footer -->
         <div class="bg-slate-50 p-8 text-center border-t border-slate-100">
             <p class="text-sm text-slate-500 flex items-center justify-center font-bold">
-                <i data-lucide="lock" class="h-4 w-4 mr-2 text-sky-600"></i> Authenticated by Krib Property Data
+                <i data-lucide="lock" class="h-4 w-4 mr-2 text-sky-600"></i> Authenticated by Krib Home Systems
             </p>
             <p class="text-xs text-slate-400 mt-2 font-mono">
                 Report #TR-8829-XJ • Generated Oct 24, 2024
