@@ -4,10 +4,10 @@ import { googleMapsApiKey } from '../config/constants';
 
 export const useNeighborhoodData = (coordinates, address) => {
     const [data, setData] = useState({
-        flood: null,
-        broadband: null,
         wildfire: null,
-        schools: null
+        census: null,
+        climate: null,
+        amenities: null
     });
     const [loading, setLoading] = useState(false);
 
@@ -20,7 +20,7 @@ export const useNeighborhoodData = (coordinates, address) => {
             let targetLat = coordinates?.lat;
             let targetLon = coordinates?.lon;
 
-            // 1. Geocode Fallback (Client-side is fine for this part)
+            // 1. Geocode Fallback (if we only have address)
             if (!targetLat && address) {
                 try {
                     const query = `${address.street}, ${address.city}, ${address.state}`;
@@ -31,7 +31,9 @@ export const useNeighborhoodData = (coordinates, address) => {
                         targetLat = geoJson.results[0].geometry.location.lat;
                         targetLon = geoJson.results[0].geometry.location.lng;
                     }
-                } catch (e) { console.error("Geo fallback failed", e); }
+                } catch (e) { 
+                    console.error("Geo fallback failed", e); 
+                }
             }
 
             if (!targetLat) {
@@ -40,7 +42,6 @@ export const useNeighborhoodData = (coordinates, address) => {
             }
 
             // 2. Call the Vercel API Route
-            // This URL calls the file you just created in the api/ folder
             try {
                 const apiUrl = `/api/neighborhood?lat=${targetLat}&lon=${targetLon}`;
                 const response = await fetch(apiUrl);
@@ -48,10 +49,10 @@ export const useNeighborhoodData = (coordinates, address) => {
                 if (response.ok) {
                     const result = await response.json();
                     setData({
-                        flood: result.flood,
-                        broadband: result.broadband,
                         wildfire: result.wildfire,
-                        schools: null
+                        census: result.census,
+                        climate: result.climate,
+                        amenities: result.amenities
                     });
                 } else {
                     console.error("API Route failed:", response.status);
