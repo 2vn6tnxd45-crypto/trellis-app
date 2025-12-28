@@ -5,6 +5,11 @@ import {
     Home, Award, Clock, DollarSign, PenTool, CheckCircle2
 } from 'lucide-react';
 import { useCountyData } from '../../hooks/useCountyData';
+import { 
+    Printer, MapPin, Key, Wrench, Calendar, ShieldCheck, 
+    Home, Award, Clock, DollarSign, PenTool, CheckCircle2,
+    Shield, Phone, Mail, AlertTriangle, Users  // ← ADD THESE
+} from 'lucide-react';
 
 // Helper to format currency
 const formatCurrency = (amount) => {
