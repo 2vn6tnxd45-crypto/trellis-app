@@ -254,9 +254,22 @@ export const useGemini = () => {
                    - **CONTEXT RULE**: You MUST read the "Labor" or "Service" descriptions to find the LOCATION of the item. 
                      - Example: If a line says "Install Heat Pump in Attic", do not create an item called "Install", but DO create an item called "Heat Pump" and set its area to "Attic".
 
-                3. **EXTRACT WARRANTY INFO**:
-                   - Look for text indicating coverage (e.g. "10 year parts", "1 year labor").
-                   - Return this as a single string in the "warranty" field.
+                3. **EXTRACT WARRANTY INFO (STRUCTURED)**:
+   Parse warranty information into a STRUCTURED object.
+   
+   Look for patterns like:
+   - "10 year parts warranty" → partsMonths: 120
+   - "1 year labor" → laborMonths: 12
+   - "Lifetime warranty" → partsMonths: 600
+   - Registration numbers (e.g., "Reg #12345")
+   - Warranty phone numbers (often 1-800 numbers)
+   - "Transferable warranty" → transferable: true
+   - "Annual service required" → requiresService: true
+   
+   PARSING RULES:
+   - Convert years to months (1 year = 12, 5 years = 60, 10 years = 120)
+   - If only "X year warranty" with no type, assume parts_only
+   - If "parts AND labor", set type to "parts_and_labor"
                 
                 4. **EXTRACT COSTS**:
                    - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
