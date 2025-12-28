@@ -47,6 +47,7 @@ import { useThemeInit } from './hooks/useThemeInit';
 
 // NEW: Invitation system imports
 import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding } from './features/invitations';
+import { WarrantyCenter } from './features/warranty/WarrantyCenter';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
