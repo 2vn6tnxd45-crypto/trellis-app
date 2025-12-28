@@ -206,6 +206,113 @@ export const useGemini = () => {
     };
     // ---------------------------------------------
 
+    // ============================================
+    // WARRANTY PROCESSING HELPERS (NEW)
+    // ============================================
+    
+    // Helper to format structured warranty back to string (for backwards compatibility)
+    const formatWarrantyString = (details) => {
+        if (!details?.hasCoverage) return '';
+        
+        const parts = [];
+        if (details.partsMonths) {
+            const years = details.partsMonths >= 12 ? Math.floor(details.partsMonths / 12) : null;
+            parts.push(years ? `${years} year parts` : `${details.partsMonths} month parts`);
+        }
+        if (details.laborMonths) {
+            const years = details.laborMonths >= 12 ? Math.floor(details.laborMonths / 12) : null;
+            parts.push(years ? `${years} year labor` : `${details.laborMonths} month labor`);
+        }
+        return parts.join(', ');
+    };
+
+    // Helper to parse legacy string into structured format (best effort)
+    const parseWarrantyString = (str, installDate) => {
+        if (!str) return null;
+        
+        const lower = str.toLowerCase();
+        const result = {
+            hasCoverage: true,
+            type: 'parts_only',
+            partsMonths: 0,
+            laborMonths: 0,
+            provider: 'manufacturer',
+            contactName: null,
+            contactPhone: null,
+            registrationNumber: null,
+            transferable: false,
+            requiresService: false,
+            startDate: installDate || new Date().toISOString().split('T')[0],
+            notes: str // Keep original text
+        };
+        
+        // Parse years/months for parts
+        const partsMatch = lower.match(/(\d+)\s*year\s*parts?/);
+        if (partsMatch) result.partsMonths = parseInt(partsMatch[1]) * 12;
+        
+        const partsMonthMatch = lower.match(/(\d+)\s*month\s*parts?/);
+        if (partsMonthMatch) result.partsMonths = parseInt(partsMonthMatch[1]);
+        
+        // Parse years/months for labor
+        const laborMatch = lower.match(/(\d+)\s*year\s*labor/);
+        if (laborMatch) result.laborMonths = parseInt(laborMatch[1]) * 12;
+        
+        const laborMonthMatch = lower.match(/(\d+)\s*month\s*labor/);
+        if (laborMonthMatch) result.laborMonths = parseInt(laborMonthMatch[1]);
+        
+        // Generic "X year warranty" without type
+        if (result.partsMonths === 0 && result.laborMonths === 0) {
+            const genericMatch = lower.match(/(\d+)\s*year/);
+            if (genericMatch) result.partsMonths = parseInt(genericMatch[1]) * 12;
+        }
+        
+        // Detect type
+        if (result.partsMonths > 0 && result.laborMonths > 0) {
+            result.type = 'parts_and_labor';
+        } else if (result.laborMonths > 0) {
+            result.type = 'labor_only';
+        }
+        
+        // Check for transferable
+        if (/transferable|transfers?/i.test(lower)) {
+            result.transferable = true;
+        }
+        
+        // Check for service requirements
+        if (/annual\s+service|service\s+required|maintain/i.test(lower)) {
+            result.requiresService = true;
+        }
+        
+        return result;
+    };
+
+    // Process warranty data from AI response
+    const processWarrantyData = (data) => {
+        // If AI returned structured warranty data, use it
+        if (data.warrantyDetails && typeof data.warrantyDetails === 'object') {
+            const wd = data.warrantyDetails;
+            return {
+                warrantyDetails: {
+                    ...wd,
+                    startDate: wd.startDate || data.date || new Date().toISOString().split('T')[0]
+                },
+                // Keep legacy string for backwards compatibility
+                warranty: data.warranty || formatWarrantyString(wd)
+            };
+        }
+        
+        // Fallback: if AI returned legacy string format only
+        if (data.warranty && typeof data.warranty === 'string' && data.warranty.trim()) {
+            return {
+                warranty: data.warranty,
+                warrantyDetails: parseWarrantyString(data.warranty, data.date)
+            };
+        }
+        
+        return { warranty: '', warrantyDetails: null };
+    };
+    // ============================================
+
     // --- SCANNER LOGIC ---
     const scanReceipt = async (file, base64Str, userAddress = null) => {
         if (!geminiModel || !file) {
@@ -255,21 +362,24 @@ export const useGemini = () => {
                      - Example: If a line says "Install Heat Pump in Attic", do not create an item called "Install", but DO create an item called "Heat Pump" and set its area to "Attic".
 
                 3. **EXTRACT WARRANTY INFO (STRUCTURED)**:
-   Parse warranty information into a STRUCTURED object.
-   
-   Look for patterns like:
-   - "10 year parts warranty" → partsMonths: 120
-   - "1 year labor" → laborMonths: 12
-   - "Lifetime warranty" → partsMonths: 600
-   - Registration numbers (e.g., "Reg #12345")
-   - Warranty phone numbers (often 1-800 numbers)
-   - "Transferable warranty" → transferable: true
-   - "Annual service required" → requiresService: true
-   
-   PARSING RULES:
-   - Convert years to months (1 year = 12, 5 years = 60, 10 years = 120)
-   - If only "X year warranty" with no type, assume parts_only
-   - If "parts AND labor", set type to "parts_and_labor"
+                   Parse warranty information into a STRUCTURED object.
+                   
+                   Look for patterns like:
+                   - "10 year parts warranty" → partsMonths: 120
+                   - "1 year labor" → laborMonths: 12
+                   - "5 year limited warranty" → partsMonths: 60
+                   - "Lifetime warranty" → partsMonths: 600 (50 years)
+                   - Registration numbers (e.g., "Reg #12345", "Registration: ABC123")
+                   - Warranty phone numbers (often 1-800 numbers in fine print)
+                   - "Transferable warranty" → transferable: true
+                   - "Annual service required to maintain warranty" → requiresService: true
+                   
+                   PARSING RULES:
+                   - Convert years to months (1 year = 12, 5 years = 60, 10 years = 120)
+                   - If only "X year warranty" with no type specified, assume parts_only
+                   - If "parts AND labor" or "full warranty", set type to "parts_and_labor"
+                   - Look for manufacturer warranty hotlines (often in fine print or warranty section)
+                   - Also return as a simple string in the "warranty" field for backwards compatibility
                 
                 4. **EXTRACT COSTS**:
                    - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
@@ -281,46 +391,46 @@ export const useGemini = () => {
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
                 6. **EXTRACT INSTALLATION LOCATION (CRITICAL)**:
-   - **ABSOLUTE PRIORITY: READ THE INVOICE TEXT FIRST**
-   - Search for EXPLICIT location phrases ANYWHERE in the invoice, especially in:
-     - Service description lines (e.g., "Install heat pump in attic")
-     - Line item descriptions
-     - Notes or comments sections
-   
-   - **LOCATION KEYWORDS TO SEARCH FOR**:
-     - "in attic", "attic install", "relocate to attic", "attic unit" → "Attic"
-     - "in garage", "garage install" → "Garage"
-     - "side of house", "exterior", "outside", "outdoor unit", "backyard" → "Exterior"
-     - "basement", "crawlspace" → "Basement"
-     - "laundry room", "utility room" → "Laundry Room"
-     - "master bath", "master bathroom" → "Master Bathroom"
-     - "kitchen" → "Kitchen"
-   
-   - **HVAC-SPECIFIC RULES**:
-     - If the invoice says "heat pump system in attic" or "heat pump installed in attic":
-       → The HEAT PUMP item should be "Attic" (NOT Exterior!)
-     - If there's a SEPARATE line for "condenser" or "outdoor unit" being installed outside:
-       → That specific item (if you create it) should be "Exterior"
-     - **Air Handlers** are almost always indoor units → default to "Attic" or "Garage"
-     - **Heat Pump** refers to the SYSTEM, not just the outdoor unit. If invoice says "heat pump in attic", use "Attic"
-   
-   - **CONTEXT MATTERS**: A "Heat Pump System" installed "in attic" means the main unit is in the attic, 
-     even though the outdoor condenser is outside. The SYSTEM location should be where the main work was done.
-   
-   - **ONLY USE INFERENCE** if NO explicit location is mentioned in the invoice:
-     - Generic "HVAC condenser" with no location → "Exterior"
-     - Generic "Air Handler" with no location → "Attic"
-     - Generic "Water Heater" with no location → "Garage"
-   
-   - **NEVER default to "General"** if you can determine or infer a location.
+                   - **ABSOLUTE PRIORITY: READ THE INVOICE TEXT FIRST**
+                   - Search for EXPLICIT location phrases ANYWHERE in the invoice, especially in:
+                     - Service description lines (e.g., "Install heat pump in attic")
+                     - Line item descriptions
+                     - Notes or comments sections
+                   
+                   - **LOCATION KEYWORDS TO SEARCH FOR**:
+                     - "in attic", "attic install", "relocate to attic", "attic unit" → "Attic"
+                     - "in garage", "garage install" → "Garage"
+                     - "side of house", "exterior", "outside", "outdoor unit", "backyard" → "Exterior"
+                     - "basement", "crawlspace" → "Basement"
+                     - "laundry room", "utility room" → "Laundry Room"
+                     - "master bath", "master bathroom" → "Master Bathroom"
+                     - "kitchen" → "Kitchen"
+                   
+                   - **HVAC-SPECIFIC RULES**:
+                     - If the invoice says "heat pump system in attic" or "heat pump installed in attic":
+                       → The HEAT PUMP item should be "Attic" (NOT Exterior!)
+                     - If there's a SEPARATE line for "condenser" or "outdoor unit" being installed outside:
+                       → That specific item (if you create it) should be "Exterior"
+                     - **Air Handlers** are almost always indoor units → default to "Attic" or "Garage"
+                     - **Heat Pump** refers to the SYSTEM, not just the outdoor unit. If invoice says "heat pump in attic", use "Attic"
+                   
+                   - **CONTEXT MATTERS**: A "Heat Pump System" installed "in attic" means the main unit is in the attic, 
+                     even though the outdoor condenser is outside. The SYSTEM location should be where the main work was done.
+                   
+                   - **ONLY USE INFERENCE** if NO explicit location is mentioned in the invoice:
+                     - Generic "HVAC condenser" with no location → "Exterior"
+                     - Generic "Air Handler" with no location → "Attic"
+                     - Generic "Water Heater" with no location → "Garage"
+                   
+                   - **NEVER default to "General"** if you can determine or infer a location.
 
-   EXAMPLE:
-   Invoice text: "Installation of 4 ton Heat-pump system in attic"
-   Items to create:
-   - Air Handler → area: "Attic" (explicit from "in attic")
-   - Heat Pump → area: "Attic" (explicit from "heat-pump system in attic")
-   
-   WRONG: Setting Heat Pump to "Exterior" when invoice says "in attic"
+                   EXAMPLE:
+                   Invoice text: "Installation of 4 ton Heat-pump system in attic"
+                   Items to create:
+                   - Air Handler → area: "Attic" (explicit from "in attic")
+                   - Heat Pump → area: "Attic" (explicit from "heat-pump system in attic")
+                   
+                   WRONG: Setting Heat Pump to "Exterior" when invoice says "in attic"
 
                 7. **PRIMARY JOB**: Short summary title (e.g. "Heat Pump Installation").
 
@@ -333,7 +443,20 @@ export const useGemini = () => {
                   "date": "YYYY-MM-DD",
                   "totalAmount": 0.00,
                   "primaryJobDescription": "String",
-                  "warranty": "String",
+                  "warranty": "String (e.g. '10 year parts, 1 year labor')",
+                  "warrantyDetails": {
+                    "hasCoverage": true,
+                    "type": "parts_and_labor | parts_only | labor_only | extended",
+                    "partsMonths": 120,
+                    "laborMonths": 12,
+                    "provider": "manufacturer | contractor | third_party",
+                    "contactName": "String or null (e.g. 'Trane Warranty Services')",
+                    "contactPhone": "String or null (e.g. '1-800-555-1234')",
+                    "registrationNumber": "String or null",
+                    "transferable": false,
+                    "requiresService": false,
+                    "notes": "String or null (any special conditions)"
+                  },
                   "items": [
                     { 
                       "item": "String", 
@@ -375,8 +498,7 @@ export const useGemini = () => {
             // ===== DEBUG: Log raw AI response =====
             console.log("🤖 RAW AI RESPONSE:", JSON.stringify(data, null, 2));
 
-            // ===== ADD THIS BLOCK HERE =====
-            // Post-process item locations with full context from the job description
+            // ===== Post-process item locations with full context from the job description =====
             if (data.items && data.items.length > 0) {
                 data.items = data.items.map(item => {
                     const resolvedArea = findBestRoomMatch(
@@ -393,7 +515,6 @@ export const useGemini = () => {
                     return { ...item, area: resolvedArea };
                 });
             }
-            // ===== END OF ADDED BLOCK =====
 
             // Continue with existing code...
             console.log("📍 AI returned these areas for items:");
@@ -411,6 +532,13 @@ export const useGemini = () => {
             }
             // ===========================================================================
             
+            // ===== PROCESS WARRANTY DATA (NEW) =====
+            const warrantyData = processWarrantyData(data);
+            data.warranty = warrantyData.warranty;
+            data.warrantyDetails = warrantyData.warrantyDetails;
+            console.log("🛡️ PROCESSED WARRANTY:", { warranty: data.warranty, warrantyDetails: data.warrantyDetails });
+            // ========================================
+            
             // Clean up items
             data.items = data.items.map(item => {
                 const itemName = toProperCase(String(item.item || 'Unknown Item'));
@@ -423,6 +551,7 @@ export const useGemini = () => {
                     area: findBestRoomMatch(item.area, itemName, category),
                     cost: item.cost || 0,
                     warranty: item.warranty || data.warranty || '',
+                    warrantyDetails: data.warrantyDetails, // Attach structured warranty to each item
                     maintenanceFrequency: item.maintenanceFrequency || 'annual',
                     maintenanceNotes: item.maintenanceNotes || '',
                     suggestedTasks: Array.isArray(item.suggestedTasks) ? item.suggestedTasks : []
