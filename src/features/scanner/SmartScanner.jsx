@@ -8,11 +8,29 @@ import { Camera as CameraPro } from 'react-camera-pro';
 const ScanningOverlay = () => (
     <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
         <div className="relative w-24 h-24 mb-6">
-            <div className="absolute inset-0 border-4 border-emerald-100 rounded-full animate-ping"></div>
-            <div className="absolute inset-0 border-4 border-emerald-500 rounded-full animate-spin border-t-transparent"></div>
-            <div className="absolute inset-0 flex items-center justify-center">
-                <Sparkles className="w-10 h-10 text-emerald-600 animate-pulse" />
+            {/* Outer pulsing ring */}
+            <div className="absolute inset-0 border-4 border-emerald-100 rounded-2xl animate-ping opacity-75"></div>
+            
+            {/* Logo container with subtle animation */}
+            <div className="absolute inset-0 bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse">
+                {/* Krib Logo - properly filled */}
+                <svg 
+                    className="w-12 h-12" 
+                    viewBox="0 0 100 100" 
+                    fill="none" 
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path 
+                        d="M8 50 L50 24 L92 50 L84 50 L84 90 L60 90 L60 58 C60 55 57 52 54 52 L46 52 C43 52 40 55 40 58 L40 90 L16 90 L16 50 Z" 
+                        fill="#10b981"
+                        fillRule="evenodd"
+                    />
+                </svg>
             </div>
+            
+            {/* Sparkle decorations */}
+            <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-emerald-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
+            <Sparkles className="absolute -bottom-1 -left-1 w-4 h-4 text-emerald-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
         </div>
         <h3 className="text-xl font-bold text-slate-800 mb-2">Analyzing Document...</h3>
         <p className="text-slate-500 text-sm max-w-xs">Extracting items, costs, and generating maintenance schedules.</p>
