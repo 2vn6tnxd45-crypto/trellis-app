@@ -11,7 +11,6 @@ import {
     createUserWithEmailAndPassword, 
     signInWithPopup, 
     GoogleAuthProvider, 
-    OAuthProvider,
     onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -166,18 +165,6 @@ const AuthForm = ({ onSuccess, invite, lockedEmail }) => {
         }
     };
     
-    const handleAppleSignIn = async () => {
-        setLoading(true);
-        try {
-            await signInWithPopup(auth, new OAuthProvider('apple.com'));
-            onSuccess();
-        } catch (err) {
-            console.error('Apple sign in error:', err);
-            setError('Failed to sign in with Apple');
-        } finally {
-            setLoading(false);
-        }
-    };
     
     return (
         <div className="space-y-4">
