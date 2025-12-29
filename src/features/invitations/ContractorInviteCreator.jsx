@@ -23,7 +23,8 @@ import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constan
 import { createContractorInvitation } from '../../lib/invitations';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../../config/firebase';
+import { signInAnonymously } from 'firebase/auth';  // 🔧 FIX: Added for anonymous auth
+import { storage, auth } from '../../config/firebase';  // 🔧 FIX: Added auth import
 import { Logo } from '../../components/common/Logo';
 import { useGemini } from '../../hooks/useGemini';
 
@@ -948,6 +949,19 @@ export const ContractorInviteCreator = () => {
         const loadingToast = toast.loading('Creating invitation...');
         
         try {
+            // ============================================
+            // 🔧 FIX: Ensure we have auth before writing to Firestore
+            // Anonymous auth allows contractors to create invitations
+            // without needing a full account
+            // ============================================
+            if (!auth.currentUser) {
+                console.log('No auth, signing in anonymously...');
+                await signInAnonymously(auth);
+                console.log('Anonymous auth complete, uid:', auth.currentUser?.uid);
+            } else {
+                console.log('Already authenticated, uid:', auth.currentUser?.uid);
+            }
+            
             console.log('Processing records with attachments...');
             
             // Process records: upload attachments and filter selected tasks
