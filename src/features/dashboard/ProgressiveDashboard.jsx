@@ -152,25 +152,21 @@ const GettingStartedDashboard = ({
                 </button>
             </div>
 
-            {/* Maintenance Schedule (if any tasks exist) */}
-            <div>
-                <div className="flex items-center justify-between mb-2 px-1">
-                    <h3 className="font-bold text-slate-800 text-lg">Maintenance Schedule</h3>
-                </div>
-                <MaintenanceDashboard 
-                    records={records}
-                    onAddRecord={onAddItem}
-                    onBookService={onBookService}
-                    onMarkTaskDone={onMarkTaskDone}
-                    onNavigateToRecords={onNavigateToItems}
-                    onDeleteHistoryItem={onDeleteHistoryItem}
-                    onRestoreHistoryItem={onRestoreHistoryItem}
-                    // NEW PROPS:
-                    onDeleteTask={onDeleteTask}
-                    onScheduleTask={onScheduleTask}
-                    onSnoozeTask={onSnoozeTask}
-                />
-            </div>
+            {/* Maintenance Schedule - UPDATED: removed redundant wrapper header */}
+            <MaintenanceDashboard 
+                title="Maintenance Schedule"
+                records={records}
+                onAddRecord={onAddItem}
+                onBookService={onBookService}
+                onMarkTaskDone={onMarkTaskDone}
+                onNavigateToRecords={onNavigateToItems}
+                onDeleteHistoryItem={onDeleteHistoryItem}
+                onRestoreHistoryItem={onRestoreHistoryItem}
+                // NEW PROPS:
+                onDeleteTask={onDeleteTask}
+                onScheduleTask={onScheduleTask}
+                onSnoozeTask={onSnoozeTask}
+            />
 
             {/* Report Teaser */}
             <ReportTeaser 
