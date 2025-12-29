@@ -7,16 +7,17 @@ import { Camera as CameraPro } from 'react-camera-pro';
 
 const ScanningOverlay = () => (
     <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
-        <div className="relative w-24 h-24 mb-6">
-            {/* Outer pulsing ring */}
-            <div className="absolute inset-0 border-4 border-emerald-100 rounded-2xl animate-ping opacity-75"></div>
+        <div className="relative mb-6" style={{ width: '96px', height: '96px' }}>
+            {/* Outer pulsing ring - explicit square */}
+            <div className="absolute inset-0 border-4 border-emerald-100 rounded-2xl animate-ping opacity-75" style={{ width: '96px', height: '96px' }}></div>
             
-            {/* Logo container with subtle animation */}
-            <div className="absolute inset-0 bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse">
-                {/* Krib Logo - adjusted viewBox for visual centering */}
+            {/* Logo container - explicit square */}
+            <div className="bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse" style={{ width: '96px', height: '96px' }}>
+                {/* Krib Logo */}
                 <svg 
-                    className="w-12 h-12" 
-                    viewBox="0 14 100 86"
+                    width="48"
+                    height="48"
+                    viewBox="0 0 100 100"
                     fill="none" 
                     xmlns="http://www.w3.org/2000/svg"
                 >
