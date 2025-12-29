@@ -92,7 +92,10 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
             phone: contractorInfo.phone || '',
             email: contractorInfo.email || ''
         },
-        createdAt: serverTimestamp(),
+        // FIX: Use regular Date instead of serverTimestamp() to avoid offline persistence hanging
+        // serverTimestamp() is a sentinel value that requires server confirmation, which can hang
+        // when Firestore's offline persistence is enabled and there are sync issues
+        createdAt: new Date(),
         expiresAt: expiresAt
     };
     
