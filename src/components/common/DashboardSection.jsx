@@ -17,7 +17,7 @@
 //     {children}
 // </DashboardSection>
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 /**
@@ -41,6 +41,16 @@ export const DashboardSection = ({
     onToggle = null
 }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
+    const [isHovered, setIsHovered] = useState(false);
+    const contentRef = useRef(null);
+    const [contentHeight, setContentHeight] = useState(0);
+
+    // Measure content height for smooth animation
+    useEffect(() => {
+        if (contentRef.current) {
+            setContentHeight(contentRef.current.scrollHeight);
+        }
+    }, [children, isOpen]);
 
     const handleToggle = () => {
         const newState = !isOpen;
@@ -68,6 +78,8 @@ export const DashboardSection = ({
             {/* Clickable Header */}
             <button 
                 onClick={handleToggle}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
                 aria-expanded={isOpen}
                 aria-controls={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
                 className={`
@@ -152,47 +164,66 @@ export const DashboardSection = ({
                     </div>
                 </div>
                 
-                {/* Chevron Toggle */}
+                {/* IMPROVED: Chevron Toggle with Collapse/Expand indicator */}
                 <div 
                     className={`
-                        h-8 
-                        w-8 
-                        rounded-full 
                         flex 
                         items-center 
-                        justify-center 
+                        gap-1.5 
+                        px-3 
+                        py-1.5 
+                        rounded-full 
                         transition-all 
-                        duration-300
-                        bg-slate-200 
-                        dark:bg-[var(--color-bg-elevated,#2c2b27)]
-                        text-slate-600 
-                        dark:text-[var(--color-text-tertiary,#736d64)]
-                        group-hover:bg-slate-300 
-                        dark:group-hover:bg-[var(--color-border-default,#3d3c38)]
-                        ${isOpen ? 'rotate-180' : ''}
+                        duration-200
+                        ${isHovered 
+                            ? 'bg-[var(--color-accent,#566449)]/10 dark:bg-[var(--color-accent,#97a67f)]/20 text-[var(--color-accent,#566449)] dark:text-[var(--color-accent,#97a67f)]' 
+                            : 'bg-slate-200 dark:bg-[var(--color-bg-elevated,#2c2b27)] text-slate-600 dark:text-[var(--color-text-tertiary,#736d64)]'
+                        }
                     `.trim().replace(/\s+/g, ' ')}
                 >
-                    <ChevronDown size={18} />
+                    {/* Collapse/Expand text - reveals on hover */}
+                    <span 
+                        className={`
+                            text-xs 
+                            font-medium 
+                            transition-all 
+                            duration-200 
+                            overflow-hidden 
+                            whitespace-nowrap
+                            ${isHovered ? 'opacity-100 max-w-16' : 'opacity-0 max-w-0'}
+                        `.trim().replace(/\s+/g, ' ')}
+                    >
+                        {isOpen ? 'Collapse' : 'Expand'}
+                    </span>
+                    
+                    {/* Chevron icon */}
+                    <ChevronDown 
+                        size={18} 
+                        className={`transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+                    />
                 </div>
             </button>
             
-            {/* Collapsible Content */}
-            {isOpen && (
+            {/* IMPROVED: Smooth height-animated Collapsible Content */}
+            <div 
+                id={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
+                className="transition-all duration-300 ease-in-out overflow-hidden"
+                style={{
+                    maxHeight: isOpen ? `${contentHeight}px` : '0px',
+                    opacity: isOpen ? 1 : 0,
+                }}
+            >
                 <div 
-                    id={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
+                    ref={contentRef}
                     className="
                         p-4 
                         bg-white 
                         dark:bg-[var(--color-bg-card,#242320)]
-                        animate-in 
-                        slide-in-from-top-2 
-                        fade-in 
-                        duration-300
                     "
                 >
                     {children}
                 </div>
-            )}
+            </div>
         </div>
     );
 };
