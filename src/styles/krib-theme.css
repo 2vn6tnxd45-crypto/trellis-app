@@ -242,13 +242,13 @@ h1, h2 {
   --color-warning-border: #fde68a;
   
   /* ------------------------------------------ */
-  /* SECTION HEADER COLORS (Sage Tinted)        */
+  /* SECTION HEADER COLORS (Clean with Emerald) */
   /* ------------------------------------------ */
-  --color-section-header-bg: #e8ebe3;
-  --color-section-header-border: #d3d9c9;
-  --color-section-header-icon-bg: #d3d9c9;
-  --color-section-header-text: #26241f;
-  --color-section-header-subtext: #5f5a53;
+  --color-section-header-bg: #ffffff;
+  --color-section-header-border: #e5e7eb;
+  --color-section-header-icon-bg: #ecfdf5;
+  --color-section-header-text: #1f2937;
+  --color-section-header-subtext: #6b7280;
   
   /* ------------------------------------------ */
   /* HERO/HEADER GRADIENT                       */
@@ -366,13 +366,13 @@ h1, h2 {
   --color-warning-border: #5c4010;
   
   /* ------------------------------------------ */
-  /* SECTION HEADER COLORS (Sage Tinted - Dark) */
+  /* SECTION HEADER COLORS (Clean with Emerald) */
   /* ------------------------------------------ */
-  --color-section-header-bg: #2a2e26;
-  --color-section-header-border: #3d4236;
-  --color-section-header-icon-bg: #32382d;
-  --color-section-header-text: #f0efed;
-  --color-section-header-subtext: #a9a49b;
+  --color-section-header-bg: #1f2937;
+  --color-section-header-border: #374151;
+  --color-section-header-icon-bg: #064e3b;
+  --color-section-header-text: #f9fafb;
+  --color-section-header-subtext: #9ca3af;
   
   /* ------------------------------------------ */
   /* HERO/HEADER GRADIENT - Darker              */
