@@ -582,7 +582,7 @@ const HistoryItemCard = ({ item, onDelete, onRestore }) => {
     );
 };
 
-// --- MAIN COMPONENT (UPDATED with new props) ---
+// --- MAIN COMPONENT (UPDATED with title prop) ---
 
 export const MaintenanceDashboard = ({ 
     records = [], 
@@ -595,7 +595,8 @@ export const MaintenanceDashboard = ({
     // NEW PROPS:
     onDeleteTask,
     onScheduleTask,
-    onSnoozeTask
+    onSnoozeTask,
+    title = "Maintenance"  // NEW: customizable title with default
 }) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
@@ -719,9 +720,9 @@ export const MaintenanceDashboard = ({
 
     return (
         <div className="space-y-6">
-            {/* EXISTING: Header with View Toggle (UNCHANGED) */}
+            {/* EXISTING: Header with View Toggle (UPDATED to use title prop) */}
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-slate-800">Maintenance</h2>
+                <h2 className="text-xl font-bold text-slate-800">{title}</h2>
                 <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
                     <button 
                         onClick={() => setViewMode('upcoming')}
