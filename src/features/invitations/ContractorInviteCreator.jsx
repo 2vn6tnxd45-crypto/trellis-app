@@ -928,48 +928,60 @@ export const ContractorInviteCreator = () => {
     };
     
     const handleSubmit = async (e) => {
-        e.preventDefault();
-        console.log('=== handleSubmit START ===');
+    e.preventDefault();
+    console.log('=== handleSubmit START ===');
+    
+    const validRecords = records.filter(r => r.item?.trim());
+    console.log('Valid records:', validRecords.length);
+    
+    if (validRecords.length === 0) {
+        toast.error("Please add at least one item with a name");
+        return;
+    }
+    
+    console.log('Contractor info:', contractorInfo);
+    if (!contractorInfo.name && !contractorInfo.company) {
+        toast.error("Please enter your name or company name");
+        return;
+    }
+    
+    setIsSubmitting(true);
+    const loadingToast = toast.loading('Creating invitation...');
+    
+    try {
+        // ============================================
+        // STEP 1: Authentication
+        // ============================================
+        console.log('STEP 1: Checking authentication...');
+        console.log('Current user:', auth.currentUser?.uid || 'NONE');
         
-        const validRecords = records.filter(r => r.item?.trim());
-        console.log('Valid records:', validRecords.length);
-        
-        if (validRecords.length === 0) {
-            toast.error("Please add at least one item with a name");
-            return;
-        }
-        
-        console.log('Contractor info:', contractorInfo);
-        if (!contractorInfo.name && !contractorInfo.company) {
-            toast.error("Please enter your name or company name");
-            return;
-        }
-        
-        setIsSubmitting(true);
-        const loadingToast = toast.loading('Creating invitation...');
-        
-        try {
-            // ============================================
-            // 🔧 FIX: Ensure we have auth before writing to Firestore
-            // Anonymous auth allows contractors to create invitations
-            // without needing a full account
-            // ============================================
-            if (!auth.currentUser) {
-                console.log('No auth, signing in anonymously...');
-                await signInAnonymously(auth);
-                console.log('Anonymous auth complete, uid:', auth.currentUser?.uid);
-            } else {
-                console.log('Already authenticated, uid:', auth.currentUser?.uid);
+        if (!auth.currentUser) {
+            console.log('No auth, attempting anonymous sign in...');
+            try {
+                const credential = await signInAnonymously(auth);
+                console.log('Anonymous auth SUCCESS, uid:', credential.user.uid);
+            } catch (authError) {
+                console.error('Anonymous auth FAILED:', authError.code, authError.message);
+                toast.dismiss(loadingToast);
+                toast.error('Authentication failed: ' + authError.message);
+                setIsSubmitting(false);
+                return;
             }
-            
-            console.log('Processing records with attachments...');
-            
-            // Process records: upload attachments and filter selected tasks
-            const recordsWithUploadedAttachments = await Promise.all(
+        } else {
+            console.log('Already authenticated, uid:', auth.currentUser.uid);
+        }
+        
+        // ============================================
+        // STEP 2: Upload Attachments
+        // ============================================
+        console.log('STEP 2: Processing attachments...');
+        
+        let recordsWithUploadedAttachments;
+        try {
+            recordsWithUploadedAttachments = await Promise.all(
                 validRecords.map(async (record, idx) => {
-                    console.log(`Processing record ${idx}:`, record.item);
+                    console.log(`Processing record ${idx}: ${record.item}`);
                     
-                    // Filter to only selected maintenance tasks and format for storage
                     const selectedTasks = (record.maintenanceTasks || [])
                         .filter(t => t.selected)
                         .map(t => ({
@@ -978,10 +990,20 @@ export const ContractorInviteCreator = () => {
                             nextDue: t.firstDueDate
                         }));
                     
-                    console.log(`Record ${idx} has ${selectedTasks.length} selected tasks`);
-                    console.log(`Record ${idx} has ${record.attachments?.length || 0} attachments`);
+                    console.log(`Record ${idx}: ${selectedTasks.length} tasks, ${record.attachments?.length || 0} attachments`);
                     
-                    const uploadedAttachments = await uploadAttachments(record.attachments || []);
+                    let uploadedAttachments = [];
+                    if (record.attachments?.length > 0) {
+                        console.log(`Record ${idx}: Uploading attachments...`);
+                        try {
+                            uploadedAttachments = await uploadAttachments(record.attachments);
+                            console.log(`Record ${idx}: Upload complete, ${uploadedAttachments.length} uploaded`);
+                        } catch (uploadErr) {
+                            console.error(`Record ${idx}: Attachment upload FAILED:`, uploadErr);
+                            // Continue without attachments rather than failing completely
+                            uploadedAttachments = [];
+                        }
+                    }
                     
                     return {
                         ...record,
@@ -990,50 +1012,67 @@ export const ContractorInviteCreator = () => {
                     };
                 })
             );
-            
-            console.log('All records processed, creating invitation...');
-            console.log('Records to send:', JSON.stringify(recordsWithUploadedAttachments.map(r => ({
-                item: r.item,
-                category: r.category,
-                attachments: r.attachments?.length || 0,
-                maintenanceTasks: r.maintenanceTasks?.length || 0
-            }))));
-            console.log('Contractor info:', JSON.stringify(contractorInfo));
-            
-            // Create the invitation with a timeout safety net
-            const createInvitationWithTimeout = async () => {
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Invitation creation timed out after 30 seconds')), 30000)
-                );
-                
-                const invitationPromise = createContractorInvitation(
-                    contractorInfo,
-                    recordsWithUploadedAttachments,
-                    customerEmail || null
-                );
-                
-                return Promise.race([invitationPromise, timeoutPromise]);
-            };
+            console.log('STEP 2 COMPLETE: All records processed');
+        } catch (processError) {
+            console.error('STEP 2 FAILED:', processError);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to process records: ' + processError.message);
+            setIsSubmitting(false);
+            return;
+        }
+        
+        // ============================================
+        // STEP 3: Create Invitation in Firestore
+        // ============================================
+        console.log('STEP 3: Creating invitation in Firestore...');
+        console.log('Records to send:', recordsWithUploadedAttachments.length);
+        console.log('Contractor:', contractorInfo.company || contractorInfo.name);
+        
+        let result;
+        try {
+            // Set a timeout but also log what's happening
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => {
+                    console.error('STEP 3 TIMEOUT: Firestore write took too long');
+                    reject(new Error('Invitation creation timed out after 30 seconds'));
+                }, 30000);
+            });
             
             console.log('Calling createContractorInvitation...');
-            const result = await createInvitationWithTimeout();
-            console.log('createContractorInvitation returned:', result);
+            const invitationPromise = createContractorInvitation(
+                contractorInfo,
+                recordsWithUploadedAttachments,
+                customerEmail || null
+            );
             
-            console.log('Invitation created:', result);
-            
+            result = await Promise.race([invitationPromise, timeoutPromise]);
+            console.log('STEP 3 COMPLETE: Invitation created!', result);
+        } catch (firestoreError) {
+            console.error('STEP 3 FAILED:', firestoreError.code, firestoreError.message);
+            console.error('Full error:', firestoreError);
             toast.dismiss(loadingToast);
-            toast.success('Invitation created!');
-            setCreatedLink(result.link);
-            
-        } catch (error) {
-            console.error('=== handleSubmit ERROR ===', error);
-            toast.dismiss(loadingToast);
-            toast.error('Failed to create invitation. Please try again.');
-        } finally {
-            console.log('=== handleSubmit END ===');
+            toast.error('Failed to save invitation: ' + firestoreError.message);
             setIsSubmitting(false);
+            return;
         }
-    };
+        
+        // ============================================
+        // SUCCESS
+        // ============================================
+        console.log('=== handleSubmit SUCCESS ===');
+        toast.dismiss(loadingToast);
+        toast.success('Invitation created!');
+        setCreatedLink(result.link);
+        
+    } catch (error) {
+        console.error('=== handleSubmit UNEXPECTED ERROR ===', error);
+        toast.dismiss(loadingToast);
+        toast.error('Failed to create invitation: ' + (error.message || 'Unknown error'));
+    } finally {
+        console.log('=== handleSubmit END ===');
+        setIsSubmitting(false);
+    }
+};
     
     const handleCreateAnother = () => {
         setCreatedLink(null);
