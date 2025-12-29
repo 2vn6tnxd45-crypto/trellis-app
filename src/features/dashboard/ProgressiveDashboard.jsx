@@ -1,7 +1,7 @@
 // src/features/dashboard/ProgressiveDashboard.jsx
 import React, { useMemo } from 'react';
 import { 
-    Camera, Plus, Package, Sparkles, Home 
+    Camera, Plus, Package, Sparkles, Home, Wrench, Send 
 } from 'lucide-react';
 import { ReportTeaser } from './ReportTeaser';
 import { ModernDashboard } from './ModernDashboard';
@@ -10,7 +10,7 @@ import { MapPin } from 'lucide-react';
 
 // --- SUB-COMPONENTS ---
 
-const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt }) => (
+const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt, onCreateContractorLink }) => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6 animate-in fade-in zoom-in-95 duration-500">
         <div className="bg-emerald-100 p-6 rounded-full mb-6 shadow-xl shadow-emerald-100">
             <Home className="h-12 w-12 text-emerald-600" />
@@ -32,24 +32,42 @@ const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt
             </div>
         )}
         
-        <p className="text-slate-500 max-w-md mb-10 text-lg leading-relaxed">
-            Your home's history starts here. Add your first item to begin tracking value, maintenance, and records.
+        <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
+            Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
         </p>
         
         <div className="w-full max-w-sm space-y-4">
+            {/* Primary: Scan Receipt */}
             <button 
                 onClick={onScanReceipt}
                 className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
             >
                 <Camera size={24} />
-                Scan First Receipt
+                Scan a Receipt
+                <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
+                    <Sparkles size={10} />
+                    AI
+                </span>
             </button>
+            
+            {/* Secondary: Contractor Link */}
+            {onCreateContractorLink && (
+                <button 
+                    onClick={onCreateContractorLink}
+                    className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                >
+                    <Wrench size={20} />
+                    Have Contractor Add It
+                    <Send size={16} className="text-amber-600" />
+                </button>
+            )}
+            
+            {/* Tertiary: Manual */}
             <button 
                 onClick={onAddItem}
-                className="w-full py-4 bg-white text-slate-700 border-2 border-slate-200 rounded-2xl font-bold text-lg hover:border-emerald-200 hover:bg-emerald-50 transition-all flex items-center justify-center gap-3"
+                className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
             >
-                <Plus size={24} />
-                Add Manually
+                or add details manually
             </button>
         </div>
     </div>
@@ -234,9 +252,10 @@ export const ProgressiveDashboard = ({
         return (
             <EmptyHomeState 
                 propertyName={activeProperty?.name} 
-                activeProperty={activeProperty}  // ✅ ADD THIS
+                activeProperty={activeProperty}
                 onAddItem={onAddRecord} 
-                onScanReceipt={onScanReceipt} 
+                onScanReceipt={onScanReceipt}
+                onCreateContractorLink={onCreateContractorLink}
             />
         );
     
@@ -245,7 +264,7 @@ export const ProgressiveDashboard = ({
             <GettingStartedDashboard 
                 records={records} 
                 propertyName={activeProperty?.name}
-                activeProperty={activeProperty}  // ✅ ADD THIS
+                activeProperty={activeProperty}
                 onAddItem={onAddRecord} 
                 onScanReceipt={onScanReceipt} 
                 onNavigateToItems={onNavigateToItems}  
