@@ -70,7 +70,7 @@ export const useAppLogic = (celebrations) => {
     }, [records, activeProperty]);
 
     // =========================================================================
-    // EFFECTS - All existing effects preserved exactly
+    // EFFECTS - With retry logic for new user permission issues
     // =========================================================================
     useEffect(() => {
         let unsubRecords = null;
@@ -82,14 +82,37 @@ export const useAppLogic = (celebrations) => {
                     // FIX: Force token refresh to ensure Firestore has latest auth context
                     try {
                         await currentUser.getIdToken(true);
+                        // Small delay for token propagation
+                        await new Promise(r => setTimeout(r, 300));
                     } catch (tokenErr) {
                         console.warn('Token refresh failed:', tokenErr);
                     }
                     
                     if (!appId) throw new Error("appId is missing");
+                    
+                    // FIX: Retry logic for initial profile read (new users may get permission-denied)
+                    let profileSnap = null;
                     const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
-                    const profileSnap = await getDoc(profileRef);
-                    if (profileSnap.exists()) {
+                    
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            profileSnap = await getDoc(profileRef);
+                            break; // Success, exit retry loop
+                        } catch (readError) {
+                            const isPermissionError = readError.code === 'permission-denied' || 
+                                                      readError.message?.includes('permission');
+                            if (isPermissionError && attempt < 3) {
+                                console.log(`[useAppLogic] Profile read attempt ${attempt} failed, retrying...`);
+                                await currentUser.getIdToken(true);
+                                await new Promise(r => setTimeout(r, 500 * attempt));
+                            } else if (!isPermissionError) {
+                                throw readError; // Non-permission error, throw immediately
+                            }
+                            // On last attempt with permission error, profileSnap stays null (new user)
+                        }
+                    }
+                    
+                    if (profileSnap?.exists()) {
                         const data = profileSnap.data();
                         setProfile(data);
                         if (data.hasSeenWelcome) setHasSeenWelcome(true);
@@ -152,23 +175,18 @@ export const useAppLogic = (celebrations) => {
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
     
     // =========================================================================
-    // FIXED: handleSaveProperty - Now with proper error handling
+    // FIXED: handleSaveProperty - Now with retry logic for new users
     // =========================================================================
-    // =============================================================================
-    // FIX: Added proper error handling instead of silent return when user is null
-    // BUG: The original code had `if (!user) return;` which silently failed
-    //      when authentication state wasn't ready, causing the button to do nothing.
-    // =============================================================================
 
     const handleSaveProperty = async (formData) => {
-        // ✅ FIX: Provide feedback instead of silent return
+        // Validate user
         if (!user) {
             console.error('handleSaveProperty: No authenticated user found');
             toast.error('Authentication error. Please try signing in again.');
             return;
         }
         
-        // ✅ FIX: Validate appId before proceeding
+        // Validate appId
         if (!appId) {
             console.error('handleSaveProperty: appId is missing');
             toast.error('Configuration error. Please refresh the page.');
@@ -176,68 +194,107 @@ export const useAppLogic = (celebrations) => {
         }
 
         setIsSavingProperty(true);
-        try {
-            const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
-            const profileSnap = await getDoc(profileRef);
-            const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
-            
-            const newPropertyId = Date.now().toString();
-            const newProperty = {
-                id: newPropertyId,
-                name: formData.name,
-                address: formData.address,
-                coordinates: formData.coordinates || null
-            };
-            
-            const existingProperties = existingProfile.properties || [];
-            
-            // If no existing properties and we have legacy data, convert it
-            if (existingProperties.length === 0 && existingProfile.name) {
-                existingProperties.push({
-                    id: 'legacy',
-                    name: existingProfile.name,
-                    address: existingProfile.address,
-                    coordinates: existingProfile.coordinates
+        
+        // Retry logic for new user permission issues
+        const maxRetries = 3;
+        let lastError;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                // Force token refresh before each attempt (especially important for new users)
+                if (attempt > 1) {
+                    console.log(`[handleSaveProperty] Attempt ${attempt}: Refreshing auth token...`);
+                }
+                try {
+                    await user.getIdToken(true);
+                    // Small delay to let Firestore recognize the token
+                    await new Promise(r => setTimeout(r, 500));
+                } catch (tokenErr) {
+                    console.warn('Token refresh failed:', tokenErr);
+                }
+                
+                const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+                const profileSnap = await getDoc(profileRef);
+                const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
+                
+                const newPropertyId = Date.now().toString();
+                const newProperty = {
+                    id: newPropertyId,
+                    name: formData.name,
+                    address: formData.address,
+                    coordinates: formData.coordinates || null
+                };
+                
+                const existingProperties = existingProfile.properties || [];
+                
+                // If no existing properties and we have legacy data, convert it
+                if (existingProperties.length === 0 && existingProfile.name) {
+                    existingProperties.push({
+                        id: 'legacy',
+                        name: existingProfile.name,
+                        address: existingProfile.address,
+                        coordinates: existingProfile.coordinates
+                    });
+                }
+                
+                const updatedProperties = [...existingProperties, newProperty];
+                
+                // Build the new profile object
+                const newProfile = {
+                    ...existingProfile,
+                    properties: updatedProperties,
+                    activePropertyId: newPropertyId,
+                };
+                
+                // Save to Firebase
+                await setDoc(profileRef, {
+                    ...newProfile,
+                    updatedAt: new Date()
+                }, { merge: true });
+                
+                // SUCCESS! Update local state
+                justCompletedSetup.current = true;
+                
+                setProfile({
+                    ...newProfile,
+                    updatedAt: new Date().toISOString()
                 });
+                
+                setActivePropertyId(newPropertyId);
+                setActiveTab('Dashboard');
+                toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
+                
+                // Exit the retry loop on success
+                setIsSavingProperty(false);
+                setIsAddingProperty(false);
+                return;
+                
+            } catch (error) {
+                lastError = error;
+                console.error(`handleSaveProperty attempt ${attempt} failed:`, error);
+                
+                // Check if it's a permissions error - wait and retry
+                const isPermissionError = error.code === 'permission-denied' || 
+                                          error.message?.includes('permission') ||
+                                          error.message?.includes('Missing or insufficient');
+                
+                if (isPermissionError && attempt < maxRetries) {
+                    console.log(`[handleSaveProperty] Permission denied, retrying in ${1000 * attempt}ms...`);
+                    // Wait before retry (exponential backoff)
+                    await new Promise(r => setTimeout(r, 1000 * attempt));
+                    continue;
+                }
+                
+                // Non-permission error or max retries reached - break out
+                break;
             }
-            
-            const updatedProperties = [...existingProperties, newProperty];
-            
-            // Build the new profile object
-            const newProfile = {
-                ...existingProfile,
-                properties: updatedProperties,
-                activePropertyId: newPropertyId,
-            };
-            
-            // Save to Firebase
-            // FIX: Use regular Date instead of serverTimestamp() to avoid offline persistence hanging
-            await setDoc(profileRef, {
-                ...newProfile,
-                updatedAt: new Date()
-            }, { merge: true });
-            
-            // ✅ FIX: Update local state so UI recognizes profile exists
-            // Mark that we just completed setup so navigation fix knows to redirect
-            justCompletedSetup.current = true;
-            
-            setProfile({
-                ...newProfile,
-                updatedAt: new Date().toISOString()
-            });
-            
-            setActivePropertyId(newPropertyId);
-            setActiveTab('Dashboard');
-            toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
-            
-        } catch (error) { 
-            console.error('handleSaveProperty error:', error);
-            toast.error("Failed to save: " + error.message); 
-        } finally { 
-            // ✅ FIX: Always reset saving state, even on error
-            setIsSavingProperty(false); 
-            setIsAddingProperty(false); 
         }
+        
+        // All retries failed
+        console.error('handleSaveProperty: All attempts failed:', lastError);
+        toast.error("Failed to save: " + (lastError?.message || 'Unknown error'));
+        setIsSavingProperty(false);
+        setIsAddingProperty(false);
     };
 
     // =========================================================================
