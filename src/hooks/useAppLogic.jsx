@@ -79,6 +79,13 @@ export const useAppLogic = (celebrations) => {
             try {
                 setUser(currentUser);
                 if (currentUser) {
+                    // FIX: Force token refresh to ensure Firestore has latest auth context
+                    try {
+                        await currentUser.getIdToken(true);
+                    } catch (tokenErr) {
+                        console.warn('Token refresh failed:', tokenErr);
+                    }
+                    
                     if (!appId) throw new Error("appId is missing");
                     const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
                     const profileSnap = await getDoc(profileRef);
@@ -204,9 +211,10 @@ export const useAppLogic = (celebrations) => {
             };
             
             // Save to Firebase
+            // FIX: Use regular Date instead of serverTimestamp() to avoid offline persistence hanging
             await setDoc(profileRef, {
                 ...newProfile,
-                updatedAt: serverTimestamp()
+                updatedAt: new Date()
             }, { merge: true });
             
             // ✅ FIX: Update local state so UI recognizes profile exists
