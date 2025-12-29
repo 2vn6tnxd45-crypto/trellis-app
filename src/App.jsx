@@ -49,6 +49,9 @@ import { useThemeInit } from './hooks/useThemeInit';
 import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding } from './features/invitations';
 import { WarrantyCenter } from './features/warranty/WarrantyCenter';
 
+// CHANGE 1: Import Contractor Pro Dashboard
+import { ContractorProApp } from './features/contractor-pro';
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
   static getDerivedStateFromError(error) { return { hasError: true, error }; }
@@ -263,8 +266,13 @@ const AppContent = () => {
 
     // -- Early Returns --
     
-    // Contractor Portal Landing (?pro or ?pro=landing)
+    // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
     if (proParam !== null && proParam !== 'invite') {
+        // If ?pro=dashboard, show the full Pro Dashboard
+        // Otherwise (?pro or ?pro=landing), show the landing page
+        if (proParam === 'dashboard') {
+            return <ContractorProApp />;
+        }
         return <ContractorLanding />;
     }
     
