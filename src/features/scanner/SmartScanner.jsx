@@ -13,10 +13,10 @@ const ScanningOverlay = () => (
             
             {/* Logo container with subtle animation */}
             <div className="absolute inset-0 bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse">
-                {/* Krib Logo - properly filled */}
+                {/* Krib Logo - adjusted viewBox for visual centering */}
                 <svg 
                     className="w-12 h-12" 
-                    viewBox="0 0 100 100" 
+                    viewBox="0 14 100 86"
                     fill="none" 
                     xmlns="http://www.w3.org/2000/svg"
                 >
