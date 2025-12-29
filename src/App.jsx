@@ -296,7 +296,7 @@ const AppContent = () => {
     if (app.loading) return <AppShellSkeleton />;
     
     // Auth screen
-    if (!app.user) return <AuthScreen onLogin={app.handleAuth} onGoogleLogin={() => signInWithPopup(auth, new GoogleAuthProvider())} onAppleLogin={() => signInWithPopup(auth, new OAuthProvider('apple.com'))} onGuestLogin={() => signInAnonymously(auth)} />;
+    if (!app.user) return <AuthScreen />;
     
     // Property setup
     if (!app.profile && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
