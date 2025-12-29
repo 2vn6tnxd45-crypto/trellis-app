@@ -23,12 +23,13 @@ const formatCurrency = (amount) => {
     } catch (e) { return '$0'; }
 };
 
+// UPDATED: Consistent emerald theme year-round for cohesive branding
 const getSeasonalTheme = () => {
-    const month = new Date().getMonth();
-    if (month === 11 || month <= 1) return { name: 'Winter', gradient: 'from-slate-900 via-blue-950 to-slate-900', accent: 'text-blue-400' };
-    if (month >= 2 && month <= 4) return { name: 'Spring', gradient: 'from-emerald-900 via-teal-900 to-emerald-950', accent: 'text-emerald-400' };
-    if (month >= 5 && month <= 7) return { name: 'Summer', gradient: 'from-amber-900 via-orange-900 to-amber-950', accent: 'text-amber-400' };
-    return { name: 'Fall', gradient: 'from-orange-950 via-red-950 to-orange-950', accent: 'text-orange-400' };
+    return { 
+        name: 'Home', 
+        gradient: 'from-emerald-600 via-emerald-500 to-teal-500', 
+        accent: 'text-teal-300' 
+    };
 };
 
 const getGreeting = () => {
@@ -151,15 +152,22 @@ export const ModernDashboard = ({
             {/* HERO SECTION (Always Visible) */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
+                {/* Decorative elements for depth */}
+                <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-teal-400/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl pointer-events-none" />
+                
                 <div className="relative p-8 text-white flex flex-col items-center text-center">
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
                     <h1 className="text-3xl font-extrabold tracking-tight mb-2">{activeProperty?.name || 'My Home'}</h1>
                     
+                    {/* UPDATED: Full address display */}
                     {activeProperty?.address && (
-                        <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10 mb-6 animate-in fade-in zoom-in-95 duration-500">
-                            <MapPin size={14} className="text-white/80" />
-                            <p className="text-white/90 text-sm font-medium">
+                        <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20 mb-6 animate-in fade-in zoom-in-95 duration-500">
+                            <MapPin size={14} className="text-white" />
+                            <p className="text-white text-sm font-medium">
+                                {activeProperty.address.street && `${activeProperty.address.street}, `}
                                 {activeProperty.address.city}, {activeProperty.address.state}
+                                {activeProperty.address.zip && ` ${activeProperty.address.zip}`}
                             </p>
                         </div>
                     )}
@@ -190,9 +198,9 @@ export const ModernDashboard = ({
                     </div>
 
                     <div className="grid grid-cols-3 gap-3 w-full max-w-lg">
-                        <button onClick={onNavigateToItems} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{validRecords.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
-                        <button onClick={onNavigateToContractors} className="bg-white/5 hover:bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
-                        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/5"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
+                        <button onClick={onNavigateToItems} className="bg-white/10 hover:bg-white/15 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/10 transition-colors"><p className="text-2xl font-extrabold">{validRecords.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Items</p></button>
+                        <button onClick={onNavigateToContractors} className="bg-white/10 hover:bg-white/15 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/10 transition-colors"><p className="text-2xl font-extrabold">{contractors.length}</p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Pros</p></button>
+                        <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-3 text-center border border-white/10"><p className={`text-2xl font-extrabold ${season.accent}`}>{formatCurrency(totalSpent).replace('$','')}<span className="text-sm align-top text-white/60">$</span></p><p className="text-[10px] text-white/60 font-bold uppercase tracking-wide">Invested</p></div>
                     </div>
                 </div>
             </div>
