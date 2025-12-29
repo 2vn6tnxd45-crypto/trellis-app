@@ -370,7 +370,17 @@ const AppContent = () => {
             {/* Main Content */}
             <main className="max-w-5xl mx-auto px-4 py-6">
                 {app.showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => app.setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={app.activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { app.setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { app.setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
-                {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && <WelcomeScreen propertyName={app.activeProperty.name} onAddRecord={() => app.setShowGuidedOnboarding(true)} onDismiss={handleDismissWelcome} />}
+                
+                {/* UPDATED: WelcomeScreen with scan-first props */}
+                {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && !app.showScanner && (
+                    <WelcomeScreen 
+                        propertyName={app.activeProperty?.name} 
+                        onScanReceipt={() => app.setShowScanner(true)}
+                        onStartGuidedScan={() => app.setShowGuidedOnboarding(true)}
+                        onCreateContractorLink={() => handleOpenQuickService(null)}
+                        onDismiss={handleDismissWelcome} 
+                    />
+                )}
                 
                 {/* UPDATED: Dashboard with new task action props */}
                 {app.activeTab === 'Dashboard' && !isNewUser && (
