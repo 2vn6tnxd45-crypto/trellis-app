@@ -4,6 +4,12 @@
 // ============================================
 
 // ============================================
+// APP IDENTIFIERS
+// ============================================
+export const appId = typeof __app_id !== 'undefined' ? __app_id : 'krib-app';
+export const REQUESTS_COLLECTION_PATH = `artifacts/${appId}/service_requests`;
+
+// ============================================
 // CATEGORIES - Item/Record Categories
 // ============================================
 export const CATEGORIES = [
