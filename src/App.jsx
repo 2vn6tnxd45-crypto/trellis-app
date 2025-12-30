@@ -49,6 +49,9 @@ import { useThemeInit } from './hooks/useThemeInit';
 import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding } from './features/invitations';
 import { WarrantyCenter } from './features/warranty/WarrantyCenter';
 
+// Property data context (for dynamic room options, etc.)
+import { PropertyProvider } from './contexts/PropertyContext';
+
 // CHANGE 1: Import Contractor Pro Dashboard
 import { ContractorProApp } from './features/contractor-pro';
 
@@ -326,7 +329,9 @@ const AppContent = () => {
         return acc;
     }, {});
 
+    // Wrap main app content with PropertyProvider
     return (
+        <PropertyProvider propertyProfile={app.activeProperty}>
         <>
         <Toaster position="top-center" />
         
@@ -650,6 +655,7 @@ const AppContent = () => {
             />
         </div>
         </>
+        </PropertyProvider>
     );
 };
 
