@@ -3,25 +3,40 @@
 // Uses RentCast API (50 free/month) + FEMA Flood API (unlimited)
 
 export default async function handler(req, res) {
+    // Log incoming request for debugging
+    console.log('Property data request:', req.query);
+    
     const { address, lat, lon } = req.query;
 
     if (!address) {
+        console.log('Error: Missing address parameter');
         return res.status(400).json({ error: "Missing address parameter" });
     }
 
-    // Get API key from environment (set in Vercel dashboard)
-    const rentcastApiKey = process.env.RENTCAST_API_KEY;
-
     try {
-        // Execute all fetches in parallel
-        const [propertyData, floodData] = await Promise.all([
-            // 1. RentCast Property API (50 free/month)
+        // Get API key from environment (set in Vercel dashboard)
+        const rentcastApiKey = process.env.RENTCAST_API_KEY;
+        console.log('RentCast API key present:', !!rentcastApiKey);
+
+        // Execute fetches - use Promise.allSettled to handle partial failures
+        const results = await Promise.allSettled([
             fetchRentCast(address, rentcastApiKey),
-            // 2. FEMA Flood Zone (free, unlimited)
             lat && lon ? fetchFloodZone(lat, lon) : Promise.resolve(null)
         ]);
 
-        // Merge and return
+        // Extract results, using null for any failures
+        const propertyData = results[0].status === 'fulfilled' ? results[0].value : getMockPropertyData(address);
+        const floodData = results[1].status === 'fulfilled' ? results[1].value : null;
+
+        // Log any failures
+        if (results[0].status === 'rejected') {
+            console.error('Property fetch failed:', results[0].reason);
+        }
+        if (results[1].status === 'rejected') {
+            console.error('Flood fetch failed:', results[1].reason);
+        }
+
+        // Return whatever we got
         return res.status(200).json({
             property: propertyData,
             flood: floodData,
@@ -29,8 +44,15 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error("Property data fetch error:", error);
-        return res.status(500).json({ error: "Failed to fetch property data" });
+        console.error("Property data handler error:", error);
+        
+        // Even on error, return mock data so the UI works
+        return res.status(200).json({
+            property: getMockPropertyData(address),
+            flood: null,
+            fetchedAt: new Date().toISOString(),
+            _error: error.message
+        });
     }
 }
 
@@ -40,13 +62,15 @@ export default async function handler(req, res) {
 // ============================================
 async function fetchRentCast(address, apiKey) {
     if (!apiKey) {
-        console.warn("No RentCast API key - returning mock data");
-        return getMockPropertyData();
+        console.log("No RentCast API key - returning mock data");
+        return getMockPropertyData(address);
     }
 
     try {
         const encodedAddress = encodeURIComponent(address);
         const url = `https://api.rentcast.io/v1/properties?address=${encodedAddress}`;
+        
+        console.log('Fetching from RentCast:', url);
         
         const response = await fetch(url, {
             method: 'GET',
@@ -56,18 +80,24 @@ async function fetchRentCast(address, apiKey) {
             }
         });
 
+        console.log('RentCast response status:', response.status);
+
         if (!response.ok) {
-            console.error("RentCast API error:", response.status);
-            // Return mock data on error so UI still works
-            return getMockPropertyData();
+            const errorText = await response.text();
+            console.error("RentCast API error:", response.status, errorText);
+            return getMockPropertyData(address);
         }
 
         const data = await response.json();
+        console.log('RentCast returned data:', !!data);
         
         // API returns array, get first result
         const property = Array.isArray(data) ? data[0] : data;
         
-        if (!property) return getMockPropertyData();
+        if (!property) {
+            console.log('No property found, using mock data');
+            return getMockPropertyData(address);
+        }
 
         // Get most recent tax assessment
         const taxYears = property.taxAssessments ? Object.keys(property.taxAssessments).sort().reverse() : [];
@@ -75,15 +105,12 @@ async function fetchRentCast(address, apiKey) {
         const latestAssessment = latestTaxYear ? property.taxAssessments[latestTaxYear] : null;
 
         return {
-            // Basic Info
             bedrooms: property.bedrooms,
             bathrooms: property.bathrooms,
             squareFootage: property.squareFootage,
             lotSize: property.lotSize,
             yearBuilt: property.yearBuilt,
             propertyType: property.propertyType,
-            
-            // Address (normalized)
             formattedAddress: property.formattedAddress,
             city: property.city,
             state: property.state,
@@ -91,34 +118,22 @@ async function fetchRentCast(address, apiKey) {
             county: property.county,
             latitude: property.latitude,
             longitude: property.longitude,
-            
-            // Value Data
             lastSaleDate: property.lastSaleDate,
             lastSalePrice: property.lastSalePrice,
             taxAssessment: latestAssessment?.value || null,
             assessmentYear: latestAssessment?.year || null,
             taxAssessmentHistory: property.taxAssessments || {},
-            
-            // Property taxes
             propertyTaxes: property.propertyTaxes || {},
-            
-            // Sale history
             saleHistory: property.history || {},
-            
-            // Owner info
             ownerOccupied: property.ownerOccupied,
-            
-            // Features
             features: property.features || {},
             hoaFee: property.hoa?.fee || null,
-            
-            // Source tracking
             source: 'rentcast'
         };
 
     } catch (error) {
-        console.error("RentCast fetch failed:", error);
-        return getMockPropertyData();
+        console.error("RentCast fetch exception:", error);
+        return getMockPropertyData(address);
     }
 }
 
@@ -137,14 +152,21 @@ async function fetchFloodZone(lat, lon) {
             `returnGeometry=false&` +
             `f=json`;
 
-        const response = await fetch(url);
+        console.log('Fetching flood data from FEMA');
+        
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         const data = await response.json();
 
         if (data.features && data.features.length > 0) {
             const attrs = data.features[0].attributes;
             const zone = attrs.FLD_ZONE || 'X';
             
-            // Determine risk level from zone code
             let riskLevel = 'Minimal';
             let riskDescription = 'Outside flood hazard area';
             let requiresInsurance = false;
@@ -186,7 +208,8 @@ async function fetchFloodZone(lat, lon) {
         };
 
     } catch (error) {
-        console.error("FEMA flood fetch failed:", error);
+        console.error("FEMA flood fetch failed:", error.message);
+        // Return null instead of throwing - we'll handle missing flood data gracefully
         return null;
     }
 }
@@ -194,50 +217,44 @@ async function fetchFloodZone(lat, lon) {
 // ============================================
 // MOCK DATA (for development/demo without API key)
 // ============================================
-function getMockPropertyData() {
+function getMockPropertyData(address) {
+    // Generate semi-random but consistent data based on address
+    const hash = address ? address.split('').reduce((a, b) => a + b.charCodeAt(0), 0) : 100;
+    const yearBuilt = 1970 + (hash % 50);
+    const sqft = 1200 + (hash % 20) * 100;
+    const beds = 2 + (hash % 4);
+    const baths = 1 + (hash % 3) + ((hash % 2) * 0.5);
+    const lastSalePrice = 200000 + (hash % 50) * 10000;
+    const taxAssessment = Math.round(lastSalePrice * (1.1 + (hash % 20) / 100));
+    
     return {
-        bedrooms: 4,
-        bathrooms: 2.5,
-        squareFootage: 2150,
-        lotSize: 7500,
-        yearBuilt: 1998,
+        bedrooms: beds,
+        bathrooms: baths,
+        squareFootage: sqft,
+        lotSize: sqft * 2 + (hash % 10) * 500,
+        yearBuilt: yearBuilt,
         propertyType: 'Single Family',
-        formattedAddress: '123 Demo Street, Sample City, CA 90210',
-        city: 'Sample City',
-        state: 'CA',
-        zipCode: '90210',
-        county: 'Los Angeles',
-        latitude: 34.0901,
-        longitude: -118.4065,
-        lastSaleDate: '2019-06-15T00:00:00.000Z',
-        lastSalePrice: 485000,
-        taxAssessment: 525000,
+        formattedAddress: address || '123 Sample Street',
+        city: 'Your City',
+        state: 'ST',
+        zipCode: '00000',
+        county: 'Your County',
+        lastSaleDate: `${2015 + (hash % 8)}-${String(1 + (hash % 12)).padStart(2, '0')}-15T00:00:00.000Z`,
+        lastSalePrice: lastSalePrice,
+        taxAssessment: taxAssessment,
         assessmentYear: 2024,
-        taxAssessmentHistory: {
-            '2024': { year: 2024, value: 525000, land: 200000, improvements: 325000 },
-            '2023': { year: 2023, value: 498000, land: 190000, improvements: 308000 },
-            '2022': { year: 2022, value: 472000, land: 180000, improvements: 292000 }
-        },
-        propertyTaxes: {
-            '2024': { year: 2024, total: 6300 },
-            '2023': { year: 2023, total: 5976 }
-        },
-        saleHistory: {
-            '2019-06-15': { event: 'Sale', date: '2019-06-15T00:00:00.000Z', price: 485000 },
-            '2005-03-22': { event: 'Sale', date: '2005-03-22T00:00:00.000Z', price: 312000 }
-        },
         ownerOccupied: true,
         features: {
             cooling: true,
             coolingType: 'Central',
             heating: true,
             heatingType: 'Forced Air',
-            garage: true,
+            garage: hash % 3 !== 0,
             garageSpaces: 2,
-            pool: false,
-            fireplace: true
+            pool: hash % 5 === 0,
+            fireplace: hash % 2 === 0
         },
-        hoaFee: null,
+        hoaFee: hash % 4 === 0 ? 150 + (hash % 10) * 25 : null,
         source: 'mock-data'
     };
-}api/property-data.js
+}
