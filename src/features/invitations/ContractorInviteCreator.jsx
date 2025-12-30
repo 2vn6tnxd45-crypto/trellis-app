@@ -19,7 +19,8 @@ import {
     Calendar, Clock, Bell, CheckSquare, Square
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import { CATEGORIES, MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import { getDefaultRoomOptions } from '../../utils/roomUtils';
 import { createContractorInvitation } from '../../lib/invitations';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -30,6 +31,9 @@ import { useGemini } from '../../hooks/useGemini';
 
 // CHANGE 1: Import contractor pro hook for linking invitations to logged-in contractors
 import { useContractorAuth, linkInvitationToContractor } from '../contractor-pro';
+
+// Get default room options for contractor view (no property context available)
+const ROOM_OPTIONS = getDefaultRoomOptions();
 
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
@@ -356,6 +360,12 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
     
     const selectedTaskCount = (record.maintenanceTasks || []).filter(t => t.selected).length;
     
+    // Get display label for the current area value
+    const getAreaLabel = (value) => {
+        const found = ROOM_OPTIONS.find(r => r.value === value);
+        return found ? found.label : value || 'Not specified';
+    };
+    
     return (
         <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
             {/* Header */}
@@ -424,7 +434,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             >
                                 <option value="">Select...</option>
                                 {CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
                                 ))}
                             </select>
                         </div>
@@ -437,8 +447,9 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                                 onChange={(e) => onChange(index, 'area', e.target.value)}
                                 className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                             >
-                                {ROOMS.map(room => (
-                                    <option key={room} value={room}>{room}</option>
+                                <option value="">Select...</option>
+                                {ROOM_OPTIONS.map(room => (
+                                    <option key={room.value} value={room.value}>{room.label}</option>
                                 ))}
                             </select>
                         </div>
@@ -793,7 +804,7 @@ export const ContractorInviteCreator = () => {
     const [records, setRecords] = useState([{
         item: '',
         category: '',
-        area: 'General',
+        area: '',
         brand: '',
         model: '',
         serialNumber: '',
@@ -829,7 +840,7 @@ export const ContractorInviteCreator = () => {
             const newRecords = data.items.map((item, idx) => ({
                 item: item.item || '',
                 category: item.category || '',
-                area: item.area || 'General',
+                area: item.area || '',
                 brand: item.brand || '',
                 model: item.model || '',
                 serialNumber: item.serial || '',
@@ -874,7 +885,7 @@ export const ContractorInviteCreator = () => {
         setRecords(prev => [...prev, {
             item: '',
             category: '',
-            area: 'General',
+            area: '',
             brand: '',
             model: '',
             serialNumber: '',
@@ -1113,7 +1124,7 @@ export const ContractorInviteCreator = () => {
         setRecords([{
             item: '',
             category: '',
-            area: 'General',
+            area: '',
             brand: '',
             model: '',
             serialNumber: '',
