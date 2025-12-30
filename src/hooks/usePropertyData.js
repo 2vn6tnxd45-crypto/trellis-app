@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // Cache key for localStorage
 const CACHE_KEY = 'krib_property_data';
-const CACHE_DURATION = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ============================================
 // MOCK DATA GENERATOR
