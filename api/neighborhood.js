@@ -12,6 +12,8 @@ export default async function handler(req, res) {
     const latFixed = Number(lat).toFixed(4);
     const lonFixed = Number(lon).toFixed(4);
 
+    //jijdioejdijeiodj
+
     try {
         // --- Execute All Fetches in Parallel ---
 
