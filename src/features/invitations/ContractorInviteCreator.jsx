@@ -28,6 +28,9 @@ import { storage, auth } from '../../config/firebase';  // 🔧 FIX: Added auth 
 import { Logo } from '../../components/common/Logo';
 import { useGemini } from '../../hooks/useGemini';
 
+// CHANGE 1: Import contractor pro hook for linking invitations to logged-in contractors
+import { useContractorAuth, linkInvitationToContractor } from '../contractor-pro';
+
 // ============================================
 // COLLAPSIBLE SECTION COMPONENT
 // ============================================
@@ -768,6 +771,9 @@ export const ContractorInviteCreator = () => {
     // Note: useGemini is called inside InvoiceUploadSection, not here
     // This avoids the dual-instance bug where isScanning never updates
     
+    // CHANGE 2: Check if contractor is logged in (not anonymous) for linking invitations
+    const { user: contractorUser, isAuthenticated: isContractorLoggedIn } = useContractorAuth();
+    
     // Invoice state
     const [invoiceFile, setInvoiceFile] = useState(null);
     const [invoicePreview, setInvoicePreview] = useState(null);
@@ -1054,6 +1060,31 @@ export const ContractorInviteCreator = () => {
             toast.error('Failed to save invitation: ' + firestoreError.message);
             setIsSubmitting(false);
             return;
+        }
+        
+        // ============================================
+        // CHANGE 3: Link invitation to contractor's Pro account (if logged in)
+        // ============================================
+        if (isContractorLoggedIn && contractorUser?.uid && result?.inviteId) {
+            console.log('STEP 4: Linking invitation to contractor account...');
+            try {
+                await linkInvitationToContractor(contractorUser.uid, {
+                    inviteId: result.inviteId,
+                    claimToken: result.claimToken,
+                    link: result.link,
+                    recordCount: recordsWithUploadedAttachments.length,
+                    recordSummary: recordsWithUploadedAttachments.slice(0, 5).map(r => ({
+                        item: r.item,
+                        category: r.category
+                    })),
+                    totalValue: recordsWithUploadedAttachments.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
+                    recipientEmail: customerEmail || null
+                });
+                console.log('STEP 4 COMPLETE: Invitation linked to contractor account');
+            } catch (linkError) {
+                // Don't fail the invitation creation if linking fails
+                console.warn('STEP 4 WARNING: Could not link to contractor account:', linkError);
+            }
         }
         
         // ============================================
