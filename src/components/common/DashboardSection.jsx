@@ -2,34 +2,14 @@
 // ============================================
 // 📦 THEME-AWARE DASHBOARD SECTION COMPONENT
 // ============================================
-// Collapsible section with Sage Tinted headers
-// Works in both light and dark mode
-//
-// Usage:
-// import { DashboardSection } from '../../components/common/DashboardSection';
-//
-// <DashboardSection 
-//     title="Quick Actions" 
-//     icon={Sparkles} 
-//     defaultOpen={true}
-//     summary={<span className="text-xs">4 shortcuts</span>}
-// >
-//     {children}
-// </DashboardSection>
+// Collapsible section with smooth animations
+// FIXED: Now handles dynamic content that loads asynchronously
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 /**
  * DashboardSection - A collapsible card section with theme-aware styling
- * 
- * @param {string} title - Section title
- * @param {React.ComponentType} icon - Lucide icon component
- * @param {React.ReactNode} children - Section content
- * @param {boolean} defaultOpen - Whether section starts expanded (default: false)
- * @param {React.ReactNode} summary - Optional summary shown when collapsed
- * @param {string} className - Additional classes for the container
- * @param {function} onToggle - Optional callback when section is toggled
  */
 export const DashboardSection = ({ 
     title, 
@@ -43,14 +23,30 @@ export const DashboardSection = ({
     const [isOpen, setIsOpen] = useState(defaultOpen);
     const [isHovered, setIsHovered] = useState(false);
     const contentRef = useRef(null);
-    const [contentHeight, setContentHeight] = useState(0);
+    const [contentHeight, setContentHeight] = useState('auto');
 
-    // Measure content height for smooth animation
+    // Use ResizeObserver to track content height changes (fixes async loading issue)
     useEffect(() => {
-        if (contentRef.current) {
-            setContentHeight(contentRef.current.scrollHeight);
-        }
-    }, [children, isOpen]);
+        if (!contentRef.current) return;
+
+        const updateHeight = () => {
+            if (contentRef.current) {
+                setContentHeight(contentRef.current.scrollHeight);
+            }
+        };
+
+        // Initial measurement
+        updateHeight();
+
+        // Watch for size changes (handles async data loading)
+        const resizeObserver = new ResizeObserver(() => {
+            updateHeight();
+        });
+
+        resizeObserver.observe(contentRef.current);
+
+        return () => resizeObserver.disconnect();
+    }, [children]);
 
     const handleToggle = () => {
         const newState = !isOpen;
@@ -164,7 +160,7 @@ export const DashboardSection = ({
                     </div>
                 </div>
                 
-                {/* IMPROVED: Chevron Toggle with Collapse/Expand indicator */}
+                {/* Chevron Toggle with Collapse/Expand indicator */}
                 <div 
                     className={`
                         flex 
@@ -204,7 +200,7 @@ export const DashboardSection = ({
                 </div>
             </button>
             
-            {/* IMPROVED: Smooth height-animated Collapsible Content */}
+            {/* FIXED: Smooth height-animated Collapsible Content */}
             <div 
                 id={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
                 className="transition-all duration-300 ease-in-out overflow-hidden"
@@ -231,9 +227,6 @@ export const DashboardSection = ({
 // ============================================
 // VARIANT: Settings Section (for Settings pages)
 // ============================================
-// A simpler variant without the collapse animation,
-// designed for settings/preferences pages
-
 export const SettingsSection = ({ 
     title, 
     icon: Icon, 
@@ -252,40 +245,45 @@ export const SettingsSection = ({
                     ? 'border-red-200 dark:border-red-900/50' 
                     : 'border-slate-200 dark:border-[var(--color-border-default,#3d3c38)]'
                 }
-                overflow-hidden
+                overflow-hidden 
+                shadow-sm
                 ${className}
             `.trim().replace(/\s+/g, ' ')}
         >
             {/* Header */}
             <div 
                 className={`
-                    px-5 
-                    py-4 
-                    border-b 
+                    p-4 
                     flex 
                     items-center 
-                    gap-3
+                    gap-3 
+                    border-b
                     ${danger 
-                        ? 'border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-950/30' 
-                        : 'border-[var(--color-section-header-border,#d3d9c9)] dark:border-[var(--color-section-header-border,#3d4236)] bg-[var(--color-section-header-bg,#e8ebe3)] dark:bg-[var(--color-section-header-bg,#2a2e26)]'
+                        ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30' 
+                        : 'bg-[var(--color-section-header-bg,#e8ebe3)] dark:bg-[var(--color-section-header-bg,#2a2e26)] border-[var(--color-section-header-border,#d3d9c9)] dark:border-[var(--color-section-header-border,#3d4236)]'
                     }
                 `.trim().replace(/\s+/g, ' ')}
             >
                 <div 
                     className={`
-                        p-2 
-                        rounded-lg 
+                        h-10 
+                        w-10 
+                        rounded-xl 
+                        flex 
+                        items-center 
+                        justify-center
                         ${danger 
-                            ? 'bg-red-100 dark:bg-red-900/50' 
+                            ? 'bg-red-100 dark:bg-red-900/30' 
                             : 'bg-[var(--color-section-header-icon-bg,#d3d9c9)] dark:bg-[var(--color-section-header-icon-bg,#32382d)]'
                         }
                     `.trim().replace(/\s+/g, ' ')}
                 >
                     <Icon 
-                        size={18} 
-                        className={danger 
-                            ? 'text-red-600 dark:text-red-400' 
-                            : 'text-[var(--color-accent,#566449)] dark:text-[var(--color-accent,#97a67f)]'
+                        size={20} 
+                        className={
+                            danger 
+                                ? 'text-red-600 dark:text-red-400' 
+                                : 'text-[var(--color-accent,#566449)] dark:text-[var(--color-accent,#97a67f)]'
                         } 
                     />
                 </div>
@@ -313,7 +311,6 @@ export const SettingsSection = ({
 // ============================================
 // VARIANT: Compact Section (for sidebars/panels)
 // ============================================
-
 export const CompactSection = ({ 
     title, 
     children, 
