@@ -5,7 +5,6 @@ import {
     TrendingUp, 
     TrendingDown,
     DollarSign, 
-    Calendar, 
     Ruler, 
     BedDouble, 
     Bath,
@@ -14,12 +13,10 @@ import {
     CheckCircle2,
     ChevronDown,
     ChevronUp,
-    RefreshCw,
     Loader2,
     Info,
     Wrench,
     Clock,
-    Shield,
     Sparkles,
     Building2,
     LandPlot,
@@ -166,7 +163,6 @@ const FloodRiskCard = ({ floodData, loading }) => {
     };
     
     const config = riskConfig[floodData.riskLevel] || riskConfig['Undetermined'];
-    const Icon = config.icon;
     
     return (
         <div className={`p-4 rounded-xl border ${config.bg} ${config.border}`}>
@@ -328,7 +324,7 @@ const MaintenancePredictions = ({ predictions, homeAge }) => {
 };
 
 // ============================================
-// MAIN COMPONENT
+// MAIN COMPONENT (NO DUPLICATE HEADER)
 // ============================================
 export const PropertyIntelligence = ({ propertyProfile }) => {
     const { address, coordinates } = propertyProfile || {};
@@ -339,7 +335,6 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
         loading,
         error,
         lastUpdated,
-        refresh,
         estimatedValue,
         pricePerSqft,
         appreciation,
@@ -354,34 +349,6 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
 
     return (
         <div className="space-y-4">
-            {/* Header with refresh */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-emerald-100">
-                        <Home size={18} className="text-emerald-600" />
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-slate-800">Property Intelligence</h3>
-                        <p className="text-xs text-slate-500">Auto-discovered from public records</p>
-                    </div>
-                </div>
-                <button 
-                    onClick={refresh}
-                    disabled={loading}
-                    className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50"
-                    title="Refresh data"
-                >
-                    <RefreshCw size={16} className={`text-slate-600 ${loading ? 'animate-spin' : ''}`} />
-                </button>
-            </div>
-            
-            {/* Error state */}
-            {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-                    Unable to fetch property data. Please try again later.
-                </div>
-            )}
-            
             {/* Value Card (Hero) */}
             <ValueCard 
                 estimatedValue={estimatedValue}
@@ -458,7 +425,12 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
             />
             
             {/* Data source footer */}
-            {lastUpdated && (
+            {propertyData?.source === 'mock-data' && (
+                <p className="text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-lg">
+                    📊 Showing sample data • Add RentCast API key for real property data
+                </p>
+            )}
+            {lastUpdated && propertyData?.source !== 'mock-data' && (
                 <p className="text-xs text-center text-slate-400">
                     Data from public records • Updated {formatDate(lastUpdated)}
                 </p>
