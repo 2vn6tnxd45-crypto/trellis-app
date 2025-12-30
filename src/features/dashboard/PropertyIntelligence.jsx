@@ -23,7 +23,8 @@ import {
     CalendarClock,
     Flame,
     Wind,
-    Car
+    Car,
+    Database
 } from 'lucide-react';
 import { usePropertyData } from '../../hooks/usePropertyData';
 
@@ -31,7 +32,7 @@ import { usePropertyData } from '../../hooks/usePropertyData';
 // HELPERS
 // ============================================
 const formatCurrency = (value) => {
-    if (!value) return '--';
+    if (!value && value !== 0) return '--';
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -40,7 +41,7 @@ const formatCurrency = (value) => {
 };
 
 const formatNumber = (value) => {
-    if (!value) return '--';
+    if (!value && value !== 0) return '--';
     return new Intl.NumberFormat('en-US').format(value);
 };
 
@@ -53,10 +54,31 @@ const formatDate = (dateString) => {
 };
 
 // ============================================
-// STAT CARD COMPONENT
+// LOADING STATE
+// ============================================
+const LoadingState = () => (
+    <div className="space-y-4">
+        <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-6 rounded-2xl">
+            <div className="flex items-center justify-center h-32">
+                <Loader2 className="h-8 w-8 animate-spin text-white/60" />
+            </div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => (
+                <div key={i} className="bg-white p-4 rounded-xl border border-slate-100">
+                    <div className="h-4 w-16 bg-slate-200 rounded animate-pulse mb-2" />
+                    <div className="h-6 w-12 bg-slate-200 rounded animate-pulse" />
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+// ============================================
+// STAT CARD
 // ============================================
 const StatCard = ({ icon: Icon, label, value, subvalue, iconColor = 'text-slate-400' }) => (
-    <div className="bg-white p-4 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors">
+    <div className="bg-white p-4 rounded-xl border border-slate-100">
         <div className="flex items-center gap-2 mb-2">
             <Icon size={14} className={iconColor} />
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">{label}</span>
@@ -69,22 +91,11 @@ const StatCard = ({ icon: Icon, label, value, subvalue, iconColor = 'text-slate-
 // ============================================
 // VALUE CARD (HERO)
 // ============================================
-const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate, loading }) => {
+const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate }) => {
     const isPositive = appreciation?.percentChange > 0;
-    
-    if (loading) {
-        return (
-            <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-6 rounded-2xl text-white">
-                <div className="flex items-center justify-center h-32">
-                    <Loader2 className="h-8 w-8 animate-spin text-white/60" />
-                </div>
-            </div>
-        );
-    }
     
     return (
         <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-6 rounded-2xl text-white relative overflow-hidden">
-            {/* Background decoration */}
             <div className="absolute -top-4 -right-4 opacity-10">
                 <Home size={120} />
             </div>
@@ -101,7 +112,7 @@ const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate, 
                         </h2>
                     </div>
                     
-                    {appreciation && (
+                    {appreciation && appreciation.percentChange !== 0 && (
                         <div className={`px-3 py-1.5 rounded-lg ${isPositive ? 'bg-white/20' : 'bg-red-500/30'}`}>
                             <div className="flex items-center gap-1">
                                 {isPositive ? (
@@ -149,17 +160,15 @@ const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate, 
 // ============================================
 // FLOOD RISK CARD
 // ============================================
-const FloodRiskCard = ({ floodData, loading }) => {
-    if (loading || !floodData) {
-        return null;
-    }
+const FloodRiskCard = ({ floodData }) => {
+    if (!floodData) return null;
     
     const riskConfig = {
-        'Minimal': { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: CheckCircle2 },
-        'Moderate': { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: AlertTriangle },
-        'High': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', icon: AlertTriangle },
-        'Very High': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: AlertTriangle },
-        'Undetermined': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', icon: Info }
+        'Minimal': { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
+        'Moderate': { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
+        'High': { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+        'Very High': { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
+        'Undetermined': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' }
     };
     
     const config = riskConfig[floodData.riskLevel] || riskConfig['Undetermined'];
@@ -191,20 +200,19 @@ const FloodRiskCard = ({ floodData, loading }) => {
 };
 
 // ============================================
-// PROPERTY FEATURES CARD
+// PROPERTY FEATURES
 // ============================================
-const PropertyFeaturesCard = ({ features, hoaFee }) => {
+const PropertyFeatures = ({ features, hoaFee }) => {
     if (!features) return null;
     
-    const featureItems = [];
+    const items = [];
+    if (features.cooling) items.push({ icon: Wind, label: features.coolingType || 'AC' });
+    if (features.heating) items.push({ icon: Flame, label: features.heatingType || 'Heat' });
+    if (features.garage) items.push({ icon: Car, label: `${features.garageSpaces || 1} Car Garage` });
+    if (features.pool) items.push({ icon: Droplets, label: 'Pool' });
+    if (features.fireplace) items.push({ icon: Flame, label: 'Fireplace' });
     
-    if (features.cooling) featureItems.push({ icon: Wind, label: features.coolingType || 'AC' });
-    if (features.heating) featureItems.push({ icon: Flame, label: features.heatingType || 'Heat' });
-    if (features.garage) featureItems.push({ icon: Car, label: `${features.garageSpaces || 1} Car Garage` });
-    if (features.pool) featureItems.push({ icon: Droplets, label: 'Pool' });
-    if (features.fireplace) featureItems.push({ icon: Flame, label: 'Fireplace' });
-    
-    if (featureItems.length === 0 && !hoaFee) return null;
+    if (items.length === 0 && !hoaFee) return null;
     
     return (
         <div className="bg-white p-4 rounded-xl border border-slate-100">
@@ -213,7 +221,7 @@ const PropertyFeaturesCard = ({ features, hoaFee }) => {
                 Property Features
             </h4>
             <div className="flex flex-wrap gap-2">
-                {featureItems.map((item, idx) => (
+                {items.map((item, idx) => (
                     <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-full text-sm text-slate-700">
                         <item.icon size={14} className="text-slate-500" />
                         {item.label}
@@ -231,25 +239,22 @@ const PropertyFeaturesCard = ({ features, hoaFee }) => {
 };
 
 // ============================================
-// MAINTENANCE PREDICTIONS CARD
+// MAINTENANCE PREDICTIONS
 // ============================================
 const MaintenancePredictions = ({ predictions, homeAge }) => {
     const [expanded, setExpanded] = useState(false);
     
-    if (!predictions || predictions.length === 0) {
-        return null;
-    }
+    if (!predictions || predictions.length === 0) return null;
     
-    // Group by priority
     const critical = predictions.filter(p => p.priority === 'critical');
     const warning = predictions.filter(p => p.priority === 'warning');
     const visibleItems = expanded ? predictions : predictions.slice(0, 4);
     
     const priorityConfig = {
-        critical: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', badge: 'bg-red-100' },
-        warning: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', badge: 'bg-amber-100' },
-        monitor: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', badge: 'bg-blue-100' },
-        good: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', badge: 'bg-emerald-100' }
+        critical: { text: 'text-red-700', badge: 'bg-red-100' },
+        warning: { text: 'text-amber-700', badge: 'bg-amber-100' },
+        monitor: { text: 'text-blue-700', badge: 'bg-blue-100' },
+        good: { text: 'text-emerald-700', badge: 'bg-emerald-100' }
     };
     
     return (
@@ -266,9 +271,8 @@ const MaintenancePredictions = ({ predictions, homeAge }) => {
                 )}
             </div>
             
-            {/* Summary badges */}
             {(critical.length > 0 || warning.length > 0) && (
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2 flex-wrap">
                     {critical.length > 0 && (
                         <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
                             {critical.length} need attention soon
@@ -286,7 +290,7 @@ const MaintenancePredictions = ({ predictions, homeAge }) => {
                 {visibleItems.map((item, idx) => {
                     const config = priorityConfig[item.priority];
                     return (
-                        <div key={idx} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div key={idx} className="p-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-lg ${config.badge}`}>
                                     <Clock size={16} className={config.text} />
@@ -312,11 +316,7 @@ const MaintenancePredictions = ({ predictions, homeAge }) => {
                     onClick={() => setExpanded(!expanded)}
                     className="w-full p-3 bg-slate-50 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center gap-1"
                 >
-                    {expanded ? (
-                        <>Show Less <ChevronUp size={16} /></>
-                    ) : (
-                        <>Show All {predictions.length} Items <ChevronDown size={16} /></>
-                    )}
+                    {expanded ? <>Show Less <ChevronUp size={16} /></> : <>Show All {predictions.length} <ChevronDown size={16} /></>}
                 </button>
             )}
         </div>
@@ -324,7 +324,28 @@ const MaintenancePredictions = ({ predictions, homeAge }) => {
 };
 
 // ============================================
-// MAIN COMPONENT (NO DUPLICATE HEADER)
+// DATA SOURCE BANNER
+// ============================================
+const DataSourceBanner = ({ source }) => {
+    if (source === 'rentcast') {
+        return (
+            <div className="flex items-center justify-center gap-2 text-xs text-emerald-600 bg-emerald-50 p-2 rounded-lg">
+                <Database size={12} />
+                <span>Live data from public records via RentCast</span>
+            </div>
+        );
+    }
+    
+    return (
+        <div className="flex items-center justify-center gap-2 text-xs text-amber-600 bg-amber-50 p-2 rounded-lg">
+            <Info size={12} />
+            <span>Sample data shown • Add RentCast API key for real property data</span>
+        </div>
+    );
+};
+
+// ============================================
+// MAIN COMPONENT
 // ============================================
 export const PropertyIntelligence = ({ propertyProfile }) => {
     const { address, coordinates } = propertyProfile || {};
@@ -333,8 +354,6 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
         propertyData,
         floodData,
         loading,
-        error,
-        lastUpdated,
         estimatedValue,
         pricePerSqft,
         appreciation,
@@ -344,97 +363,88 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
 
     // Don't render if no address
     if (!address) {
-        return null;
+        return (
+            <div className="p-6 text-center text-slate-400">
+                <Home size={32} className="mx-auto mb-2 opacity-50" />
+                <p>Add an address to see property intelligence</p>
+            </div>
+        );
     }
 
+    // Loading state
+    if (loading) {
+        return <LoadingState />;
+    }
+
+    // No data state
+    if (!propertyData) {
+        return (
+            <div className="p-6 text-center text-slate-400">
+                <AlertTriangle size={32} className="mx-auto mb-2 opacity-50" />
+                <p>Unable to load property data</p>
+            </div>
+        );
+    }
+
+    // Full content - ALWAYS shows everything when parent section is expanded
     return (
         <div className="space-y-4">
-            {/* Value Card (Hero) */}
+            {/* Value Card */}
             <ValueCard 
                 estimatedValue={estimatedValue}
                 appreciation={appreciation}
-                lastSalePrice={propertyData?.lastSalePrice}
-                lastSaleDate={propertyData?.lastSaleDate}
-                loading={loading}
+                lastSalePrice={propertyData.lastSalePrice}
+                lastSaleDate={propertyData.lastSaleDate}
             />
             
-            {/* Quick Stats Grid */}
-            {propertyData && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <StatCard 
-                        icon={BedDouble} 
-                        label="Bedrooms" 
-                        value={propertyData.bedrooms || '--'} 
-                        iconColor="text-indigo-400"
-                    />
-                    <StatCard 
-                        icon={Bath} 
-                        label="Bathrooms" 
-                        value={propertyData.bathrooms || '--'} 
-                        iconColor="text-sky-400"
-                    />
-                    <StatCard 
-                        icon={Ruler} 
-                        label="Square Feet" 
-                        value={formatNumber(propertyData.squareFootage)} 
-                        subvalue={pricePerSqft ? `${formatCurrency(pricePerSqft)}/sqft` : null}
-                        iconColor="text-amber-400"
-                    />
-                    <StatCard 
-                        icon={CalendarClock} 
-                        label="Year Built" 
-                        value={propertyData.yearBuilt || '--'} 
-                        subvalue={homeAge ? `${homeAge} years old` : null}
-                        iconColor="text-emerald-400"
-                    />
-                </div>
-            )}
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <StatCard icon={BedDouble} label="Bedrooms" value={propertyData.bedrooms || '--'} iconColor="text-indigo-400" />
+                <StatCard icon={Bath} label="Bathrooms" value={propertyData.bathrooms || '--'} iconColor="text-sky-400" />
+                <StatCard 
+                    icon={Ruler} 
+                    label="Square Feet" 
+                    value={formatNumber(propertyData.squareFootage)} 
+                    subvalue={pricePerSqft ? `${formatCurrency(pricePerSqft)}/sqft` : null}
+                    iconColor="text-amber-400" 
+                />
+                <StatCard 
+                    icon={CalendarClock} 
+                    label="Year Built" 
+                    value={propertyData.yearBuilt || '--'} 
+                    subvalue={homeAge ? `${homeAge} years old` : null}
+                    iconColor="text-emerald-400" 
+                />
+            </div>
             
-            {/* Property Details Row */}
-            {propertyData && (
-                <div className="grid grid-cols-2 gap-3">
-                    <StatCard 
-                        icon={LandPlot} 
-                        label="Lot Size" 
-                        value={propertyData.lotSize ? `${formatNumber(propertyData.lotSize)} sqft` : '--'} 
-                        iconColor="text-green-400"
-                    />
-                    <StatCard 
-                        icon={DollarSign} 
-                        label="Tax Assessment" 
-                        value={formatCurrency(propertyData.taxAssessment)} 
-                        subvalue={propertyData.assessmentYear ? `(${propertyData.assessmentYear})` : null}
-                        iconColor="text-emerald-400"
-                    />
-                </div>
-            )}
+            {/* Property Details */}
+            <div className="grid grid-cols-2 gap-3">
+                <StatCard 
+                    icon={LandPlot} 
+                    label="Lot Size" 
+                    value={propertyData.lotSize ? `${formatNumber(propertyData.lotSize)} sqft` : '--'} 
+                    iconColor="text-green-400" 
+                />
+                <StatCard 
+                    icon={DollarSign} 
+                    label="Tax Assessment" 
+                    value={formatCurrency(propertyData.taxAssessment)} 
+                    subvalue={propertyData.assessmentYear ? `(${propertyData.assessmentYear})` : null}
+                    iconColor="text-emerald-400" 
+                />
+            </div>
             
-            {/* Property Features */}
-            <PropertyFeaturesCard 
-                features={propertyData?.features} 
-                hoaFee={propertyData?.hoaFee} 
-            />
+            {/* Features */}
+            <PropertyFeatures features={propertyData.features} hoaFee={propertyData.hoaFee} />
             
             {/* Flood Risk */}
-            <FloodRiskCard floodData={floodData} loading={loading} />
+            <FloodRiskCard floodData={floodData} />
             
-            {/* Maintenance Predictions */}
-            <MaintenancePredictions 
-                predictions={maintenancePredictions} 
-                homeAge={homeAge} 
-            />
+            {/* Maintenance */}
+            <MaintenancePredictions predictions={maintenancePredictions} homeAge={homeAge} />
             
-            {/* Data source footer */}
-            {propertyData?.source === 'mock-data' && (
-                <p className="text-xs text-center text-amber-600 bg-amber-50 p-2 rounded-lg">
-                    📊 Showing sample data • Add RentCast API key for real property data
-                </p>
-            )}
-            {lastUpdated && propertyData?.source !== 'mock-data' && (
-                <p className="text-xs text-center text-slate-400">
-                    Data from public records • Updated {formatDate(lastUpdated)}
-                </p>
-            )}
+            {/* Data Source */}
+            <DataSourceBanner source={propertyData.source} />
         </div>
     );
 };
