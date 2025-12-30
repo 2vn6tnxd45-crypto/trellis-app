@@ -16,6 +16,12 @@ import {
 import { db } from '../config/firebase';
 import { appId, INVITATIONS_COLLECTION_PATH } from '../config/constants';
 
+// CHANGE 1: Import contractor pro service functions
+import { 
+    markInvitationClaimed as markContractorInvitationClaimed, 
+    upsertCustomer 
+} from '../features/contractor-pro';
+
 // ============================================
 // GENERATE SECURE TOKEN
 // ============================================
@@ -197,9 +203,11 @@ export const checkEmailMatch = (invite, userEmail) => {
  * @param {string} inviteId - The invitation document ID
  * @param {string} userId - The claiming user's ID
  * @param {string} propertyId - The property to import records to
+ * @param {string} propertyName - The property name (optional, for contractor dashboard)
  * @returns {Object} - { success: boolean, importedCount?: number, error?: string }
  */
-export const claimInvitation = async (inviteId, userId, propertyId) => {
+// CHANGE 2: Added propertyName parameter for contractor dashboard integration
+export const claimInvitation = async (inviteId, userId, propertyId, propertyName = null) => {
     try {
         const inviteRef = doc(db, INVITATIONS_COLLECTION_PATH, inviteId);
         const inviteSnap = await getDoc(inviteRef);
@@ -241,6 +249,42 @@ export const claimInvitation = async (inviteId, userId, propertyId) => {
         });
         
         await batch.commit();
+        
+        // CHANGE 3: Notify contractor's dashboard (if they have a Pro account)
+        if (invite.contractorInfo?.email) {
+            try {
+                // Find contractor by email
+                const contractorsQuery = query(
+                    collection(db, 'contractors'),
+                    where('profile.email', '==', invite.contractorInfo.email.toLowerCase())
+                );
+                const contractorSnap = await getDocs(contractorsQuery);
+                
+                if (!contractorSnap.empty) {
+                    const contractorId = contractorSnap.docs[0].id;
+                    
+                    // Mark invitation as claimed in contractor's subcollection
+                    await markContractorInvitationClaimed(contractorId, inviteId, {
+                        userId,
+                        propertyName
+                    });
+                    
+                    // Create/update customer relationship
+                    await upsertCustomer(contractorId, {
+                        userId,
+                        propertyId,
+                        propertyName,
+                        jobValue: invite.records?.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0) || 0,
+                        recordIds: []
+                    });
+                    
+                    console.log('[invitations.js] Updated contractor dashboard for:', contractorId);
+                }
+            } catch (contractorErr) {
+                // Don't fail the claim if contractor update fails
+                console.warn('[invitations.js] Could not update contractor dashboard:', contractorErr);
+            }
+        }
         
         return { 
             success: true, 
