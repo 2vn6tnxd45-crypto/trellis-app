@@ -10,70 +10,69 @@ export const appId = typeof __app_id !== 'undefined' ? __app_id : 'krib-app';
 export const REQUESTS_COLLECTION_PATH = `artifacts/${appId}/service_requests`;
 
 // ============================================
+// API KEYS
+// ============================================
+export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// ============================================
 // CATEGORIES - Item/Record Categories
 // ============================================
 export const CATEGORIES = [
-    { value: 'appliances', label: 'Appliances' },
-    { value: 'hvac', label: 'HVAC' },
-    { value: 'plumbing', label: 'Plumbing' },
-    { value: 'electrical', label: 'Electrical' },
-    { value: 'roofing', label: 'Roofing' },
-    { value: 'flooring', label: 'Flooring' },
-    { value: 'windows-doors', label: 'Windows & Doors' },
-    { value: 'exterior', label: 'Exterior' },
-    { value: 'interior', label: 'Interior' },
-    { value: 'landscaping', label: 'Landscaping' },
-    { value: 'security', label: 'Security' },
-    { value: 'smart-home', label: 'Smart Home' },
-    { value: 'furniture', label: 'Furniture' },
-    { value: 'other', label: 'Other' },
+    'Appliances',
+    'HVAC',
+    'Plumbing',
+    'Electrical',
+    'Roofing',
+    'Flooring',
+    'Windows & Doors',
+    'Exterior',
+    'Interior',
+    'Landscaping',
+    'Security',
+    'Smart Home',
+    'Furniture',
+    'Other',
 ];
 
 // ============================================
 // ROOMS - DEPRECATED
 // ============================================
-// NOTE: Use the dynamic room options from PropertyContext instead!
-// 
-// Import and use like this:
+// NOTE: For dynamic room options based on property data, use:
 //   import { useProperty } from '../contexts/PropertyContext';
 //   const { roomOptions } = useProperty();
 //
 // Or use the RoomSelector component:
 //   import { RoomSelector } from '../components/common/RoomSelector';
-//   <RoomSelector value={room} onChange={setRoom} />
 //
-// The dynamic options are generated based on the property's actual
-// bedroom/bathroom count and features (garage, pool, etc.)
-//
-// This static ROOMS array is kept for backwards compatibility only.
+// This static ROOMS array is kept for backwards compatibility.
 // ============================================
 export const ROOMS = [
-    { value: 'kitchen', label: 'Kitchen' },
-    { value: 'living-room', label: 'Living Room' },
-    { value: 'dining-room', label: 'Dining Room' },
-    { value: 'primary-bedroom', label: 'Primary Bedroom' },
-    { value: 'bedroom-2', label: 'Bedroom 2' },
-    { value: 'bedroom-3', label: 'Bedroom 3' },
-    { value: 'primary-bathroom', label: 'Primary Bathroom' },
-    { value: 'bathroom-2', label: 'Bathroom 2' },
-    { value: 'half-bath', label: 'Half Bath / Powder Room' },
-    { value: 'garage', label: 'Garage' },
-    { value: 'laundry', label: 'Laundry Room' },
-    { value: 'hallway', label: 'Hallway' },
-    { value: 'entryway', label: 'Entryway / Foyer' },
-    { value: 'closet', label: 'Closet' },
-    { value: 'office', label: 'Home Office' },
-    { value: 'exterior-front', label: 'Exterior - Front' },
-    { value: 'exterior-back', label: 'Exterior - Back' },
-    { value: 'roof', label: 'Roof' },
-    { value: 'driveway', label: 'Driveway' },
-    { value: 'yard', label: 'Yard / Landscaping' },
-    { value: 'deck-patio', label: 'Deck / Patio' },
-    { value: 'attic', label: 'Attic' },
-    { value: 'basement', label: 'Basement' },
-    { value: 'utility-room', label: 'Utility Room' },
-    { value: 'whole-house', label: 'Whole House' },
-    { value: 'other', label: 'Other' },
+    'Kitchen',
+    'Living Room',
+    'Dining Room',
+    'Primary Bedroom',
+    'Bedroom 2',
+    'Bedroom 3',
+    'Primary Bathroom',
+    'Bathroom 2',
+    'Half Bath',
+    'Garage',
+    'Laundry Room',
+    'Hallway',
+    'Entryway',
+    'Closet',
+    'Home Office',
+    'Exterior - Front',
+    'Exterior - Back',
+    'Roof',
+    'Driveway',
+    'Yard',
+    'Deck / Patio',
+    'Attic',
+    'Basement',
+    'Utility Room',
+    'Whole House',
+    'Other',
 ];
 
 // ============================================
