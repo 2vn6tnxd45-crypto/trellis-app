@@ -17,12 +17,12 @@ import { Logo } from '../../../components/common/Logo';
 // ============================================
 const FeatureHighlight = ({ icon: Icon, title, description }) => (
     <div className="flex items-start gap-3">
-        <div className="bg-emerald-100 p-2 rounded-lg text-emerald-600 flex-shrink-0">
+        <div className="bg-white/20 p-2 rounded-lg text-white flex-shrink-0">
             <Icon size={18} />
         </div>
         <div>
-            <p className="font-medium text-slate-800">{title}</p>
-            <p className="text-sm text-slate-500">{description}</p>
+            <p className="font-medium text-white">{title}</p>
+            <p className="text-sm text-white/70">{description}</p>
         </div>
     </div>
 );
@@ -114,14 +114,14 @@ export const ContractorAuthScreen = ({
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-white">krib</h1>
-                            <p className="text-emerald-100 text-sm">For Professionals</p>
+                            <p className="text-white/70 text-sm">For Professionals</p>
                         </div>
                     </div>
                     
                     <h2 className="text-4xl font-bold text-white mb-6 leading-tight">
                         Build lasting customer relationships
                     </h2>
-                    <p className="text-emerald-100 text-lg mb-12">
+                    <p className="text-white/80 text-lg mb-12">
                         Track every job, stay connected with customers, and grow your business 
                         through repeat work and referrals.
                     </p>
@@ -145,7 +145,7 @@ export const ContractorAuthScreen = ({
                     </div>
                 </div>
                 
-                <p className="text-emerald-200 text-sm">
+                <p className="text-white/60 text-sm">
                     © {new Date().getFullYear()} Krib. All rights reserved.
                 </p>
             </div>
