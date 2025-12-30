@@ -6,10 +6,11 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer, MapPin 
+    X, ExternalLink, Hammer, MapPin, Home 
 } from 'lucide-react';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
+import { PropertyIntelligence } from './PropertyIntelligence';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MaintenanceDashboard } from './MaintenanceDashboard'; 
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
@@ -204,6 +205,16 @@ export const ModernDashboard = ({
                     </div>
                 </div>
             </div>
+
+            {/* 0. PROPERTY INTELLIGENCE SECTION (NEW!) */}
+            <DashboardSection 
+                title="Property Intelligence" 
+                icon={Home} 
+                defaultOpen={true}
+                summary={<span className="text-xs text-emerald-600 font-medium">✨ Auto-discovered</span>}
+            >
+                <PropertyIntelligence propertyProfile={activeProperty} />
+            </DashboardSection>
             
             {/* 1. QUICK ACTIONS SECTION */}
             <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
