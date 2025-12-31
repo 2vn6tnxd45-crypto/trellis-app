@@ -762,9 +762,8 @@ export const SettingsPage = ({
                 />
             </SettingsSection>
 
-    
-                
-                {/* PRESERVED: Enhanced Cards toggle - exact same functionality */}
+            {/* Appearance Section */}
+            <SettingsSection title="Appearance" icon={Palette}>
                 <SettingsRow 
                     label="Enhanced Cards"
                     description="Rich inventory cards with quick actions"
