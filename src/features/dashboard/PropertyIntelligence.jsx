@@ -1,4 +1,11 @@
 // src/features/dashboard/PropertyIntelligence.jsx
+// ============================================
+// 🏠 PROPERTY INTELLIGENCE
+// ============================================
+// Shows property data from public records.
+// UPDATED: Removed speculative MaintenancePredictions - 
+// maintenance schedule now only shows tracked items.
+
 import React, { useState } from 'react';
 import { 
     Home, 
@@ -10,13 +17,10 @@ import {
     Bath,
     Droplets,
     AlertTriangle,
-    CheckCircle2,
     ChevronDown,
     ChevronUp,
     Loader2,
     Info,
-    Wrench,
-    Clock,
     Sparkles,
     Building2,
     LandPlot,
@@ -26,7 +30,7 @@ import {
     Car,
     Database
 } from 'lucide-react';
-import { usePropertyData } from '../../hooks/usePropertyData';
+import usePropertyData from '../../hooks/usePropertyData';
 
 // ============================================
 // HELPERS
@@ -239,91 +243,6 @@ const PropertyFeatures = ({ features, hoaFee }) => {
 };
 
 // ============================================
-// MAINTENANCE PREDICTIONS
-// ============================================
-const MaintenancePredictions = ({ predictions, homeAge }) => {
-    const [expanded, setExpanded] = useState(false);
-    
-    if (!predictions || predictions.length === 0) return null;
-    
-    const critical = predictions.filter(p => p.priority === 'critical');
-    const warning = predictions.filter(p => p.priority === 'warning');
-    const visibleItems = expanded ? predictions : predictions.slice(0, 4);
-    
-    const priorityConfig = {
-        critical: { text: 'text-red-700', badge: 'bg-red-100' },
-        warning: { text: 'text-amber-700', badge: 'bg-amber-100' },
-        monitor: { text: 'text-blue-700', badge: 'bg-blue-100' },
-        good: { text: 'text-emerald-700', badge: 'bg-emerald-100' }
-    };
-    
-    return (
-        <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Wrench size={18} className="text-slate-600" />
-                    <h4 className="font-bold text-slate-800">Maintenance Predictions</h4>
-                </div>
-                {homeAge && (
-                    <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
-                        Home Age: {homeAge} years
-                    </span>
-                )}
-            </div>
-            
-            {(critical.length > 0 || warning.length > 0) && (
-                <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2 flex-wrap">
-                    {critical.length > 0 && (
-                        <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">
-                            {critical.length} need attention soon
-                        </span>
-                    )}
-                    {warning.length > 0 && (
-                        <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
-                            {warning.length} upcoming
-                        </span>
-                    )}
-                </div>
-            )}
-            
-            <div className="divide-y divide-slate-100">
-                {visibleItems.map((item, idx) => {
-                    const config = priorityConfig[item.priority];
-                    return (
-                        <div key={idx} className="p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-lg ${config.badge}`}>
-                                    <Clock size={16} className={config.text} />
-                                </div>
-                                <div>
-                                    <p className="font-medium text-slate-800">{item.name}</p>
-                                    <p className="text-xs text-slate-500">{item.category}</p>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <p className={`font-bold ${config.text}`}>
-                                    {item.remainingYears <= 0 ? 'Due now' : `~${item.remainingYears} years`}
-                                </p>
-                                <p className="text-xs text-slate-400">Est. {item.replacementYear}</p>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-            
-            {predictions.length > 4 && (
-                <button 
-                    onClick={() => setExpanded(!expanded)}
-                    className="w-full p-3 bg-slate-50 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors flex items-center justify-center gap-1"
-                >
-                    {expanded ? <>Show Less <ChevronUp size={16} /></> : <>Show All {predictions.length} <ChevronDown size={16} /></>}
-                </button>
-            )}
-        </div>
-    );
-};
-
-// ============================================
 // DATA SOURCE BANNER
 // ============================================
 const DataSourceBanner = ({ source }) => {
@@ -358,7 +277,8 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
         pricePerSqft,
         appreciation,
         homeAge,
-        maintenancePredictions
+        // NOTE: We still fetch maintenancePredictions but don't display them
+        // Maintenance schedule is now only based on actual tracked items
     } = usePropertyData(address, coordinates);
 
     // Don't render if no address
@@ -386,7 +306,7 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
         );
     }
 
-    // Full content - ALWAYS shows everything when parent section is expanded
+    // Full content
     return (
         <div className="space-y-4">
             {/* Value Card */}
@@ -440,8 +360,12 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
             {/* Flood Risk */}
             <FloodRiskCard floodData={floodData} />
             
-            {/* Maintenance */}
-            <MaintenancePredictions predictions={maintenancePredictions} homeAge={homeAge} />
+            {/* REMOVED: MaintenancePredictions component
+               Maintenance schedule now only shows actual tracked items
+               instead of speculative predictions based on home age.
+               
+               <MaintenancePredictions predictions={maintenancePredictions} homeAge={homeAge} />
+            */}
             
             {/* Data Source */}
             <DataSourceBanner source={propertyData.source} />
