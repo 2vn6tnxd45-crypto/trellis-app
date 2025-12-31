@@ -927,3 +927,186 @@ body {
     --color-text-secondary: #333333;
   }
 }
+
+/* ============================================
+   CONTRACTOR PAGES - FORCE LIGHT MODE
+   ============================================
+   Add this to the END of your krib-theme.css file.
+   
+   This ensures contractor-facing pages always display
+   in light mode regardless of user's theme preference.
+   ============================================ */
+
+/* Force light mode on contractor pages */
+.force-light-mode,
+.force-light-mode *,
+.contractor-page,
+.contractor-page * {
+    color-scheme: light !important;
+}
+
+/* Reset all dark mode overrides for contractor pages */
+.dark .force-light-mode,
+.dark .contractor-page {
+    /* Backgrounds */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f8fafc;
+    --color-bg-tertiary: #f1f5f9;
+    --color-bg-card: #ffffff;
+    --color-bg-elevated: #f8fafc;
+    
+    /* Text */
+    --color-text-primary: #1e293b;
+    --color-text-secondary: #475569;
+    --color-text-tertiary: #94a3b8;
+    
+    /* Borders */
+    --color-border-default: #e2e8f0;
+    --color-border-subtle: #f1f5f9;
+    --color-border-strong: #cbd5e1;
+}
+
+/* Override Tailwind dark mode classes within contractor pages */
+.dark .force-light-mode .bg-white,
+.dark .contractor-page .bg-white {
+    background-color: #ffffff !important;
+}
+
+.dark .force-light-mode .bg-slate-50,
+.dark .contractor-page .bg-slate-50,
+.dark .force-light-mode .bg-gray-50,
+.dark .contractor-page .bg-gray-50 {
+    background-color: #f8fafc !important;
+}
+
+.dark .force-light-mode .bg-slate-100,
+.dark .contractor-page .bg-slate-100,
+.dark .force-light-mode .bg-gray-100,
+.dark .contractor-page .bg-gray-100 {
+    background-color: #f1f5f9 !important;
+}
+
+.dark .force-light-mode .bg-slate-200,
+.dark .contractor-page .bg-slate-200 {
+    background-color: #e2e8f0 !important;
+}
+
+/* Text colors */
+.dark .force-light-mode .text-slate-800,
+.dark .contractor-page .text-slate-800,
+.dark .force-light-mode .text-gray-800,
+.dark .contractor-page .text-gray-800 {
+    color: #1e293b !important;
+}
+
+.dark .force-light-mode .text-slate-700,
+.dark .contractor-page .text-slate-700,
+.dark .force-light-mode .text-gray-700,
+.dark .contractor-page .text-gray-700 {
+    color: #334155 !important;
+}
+
+.dark .force-light-mode .text-slate-600,
+.dark .contractor-page .text-slate-600,
+.dark .force-light-mode .text-gray-600,
+.dark .contractor-page .text-gray-600 {
+    color: #475569 !important;
+}
+
+.dark .force-light-mode .text-slate-500,
+.dark .contractor-page .text-slate-500,
+.dark .force-light-mode .text-gray-500,
+.dark .contractor-page .text-gray-500 {
+    color: #64748b !important;
+}
+
+.dark .force-light-mode .text-slate-400,
+.dark .contractor-page .text-slate-400,
+.dark .force-light-mode .text-gray-400,
+.dark .contractor-page .text-gray-400 {
+    color: #94a3b8 !important;
+}
+
+/* Border colors */
+.dark .force-light-mode .border-slate-100,
+.dark .contractor-page .border-slate-100 {
+    border-color: #f1f5f9 !important;
+}
+
+.dark .force-light-mode .border-slate-200,
+.dark .contractor-page .border-slate-200 {
+    border-color: #e2e8f0 !important;
+}
+
+.dark .force-light-mode .border-slate-300,
+.dark .contractor-page .border-slate-300 {
+    border-color: #cbd5e1 !important;
+}
+
+/* Special contractor page elements */
+.dark .force-light-mode .bg-amber-50,
+.dark .contractor-page .bg-amber-50 {
+    background-color: #fffbeb !important;
+}
+
+.dark .force-light-mode .bg-emerald-50,
+.dark .contractor-page .bg-emerald-50 {
+    background-color: #ecfdf5 !important;
+}
+
+.dark .force-light-mode .border-amber-200,
+.dark .contractor-page .border-amber-200 {
+    border-color: #fde68a !important;
+}
+
+.dark .force-light-mode .text-amber-800,
+.dark .contractor-page .text-amber-800 {
+    color: #92400e !important;
+}
+
+.dark .force-light-mode .text-amber-700,
+.dark .contractor-page .text-amber-700 {
+    color: #b45309 !important;
+}
+
+.dark .force-light-mode .text-amber-600,
+.dark .contractor-page .text-amber-600 {
+    color: #d97706 !important;
+}
+
+/* Gradient backgrounds (for contractor page header) */
+.dark .force-light-mode .bg-gradient-to-br.from-amber-50,
+.dark .contractor-page .bg-gradient-to-br.from-amber-50 {
+    background-image: linear-gradient(to bottom right, #fffbeb, #fff7ed) !important;
+}
+
+/* Input fields */
+.dark .force-light-mode input,
+.dark .force-light-mode textarea,
+.dark .force-light-mode select,
+.dark .contractor-page input,
+.dark .contractor-page textarea,
+.dark .contractor-page select {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border-color: #e2e8f0 !important;
+}
+
+.dark .force-light-mode input::placeholder,
+.dark .force-light-mode textarea::placeholder,
+.dark .contractor-page input::placeholder,
+.dark .contractor-page textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* Shadows */
+.dark .force-light-mode .shadow,
+.dark .force-light-mode .shadow-sm,
+.dark .force-light-mode .shadow-md,
+.dark .force-light-mode .shadow-lg,
+.dark .contractor-page .shadow,
+.dark .contractor-page .shadow-sm,
+.dark .contractor-page .shadow-md,
+.dark .contractor-page .shadow-lg {
+    --tw-shadow-color: rgba(0, 0, 0, 0.1);
+}
