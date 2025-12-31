@@ -130,6 +130,11 @@ export const AuthScreen = () => {
                 <p className="text-center text-xs text-slate-400 mt-8">
                     By continuing, you agree to our <a href="/privacy_policy.html" className="underline hover:text-emerald-600">Privacy Policy</a>.
                 </p>
+                
+                {/* NEW: Contractor portal link */}
+                <p className="text-center text-xs text-slate-400 mt-3">
+                    Are you a service professional? <a href="/?pro=landing" className="text-emerald-600 hover:text-emerald-700 font-medium">Contractor Portal →</a>
+                </p>
             </div>
         </div>
     );
