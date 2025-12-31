@@ -762,36 +762,7 @@ export const SettingsPage = ({
                 />
             </SettingsSection>
 
-            {/* Appearance Section */}
-            <SettingsSection title="Appearance" icon={Palette}>
-                <SettingsRow 
-                    label="Theme"
-                    description="Choose your preferred appearance"
-                >
-                    <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-                        <button
-                            onClick={() => handleThemeChange('light')}
-                            className={`p-2 rounded-md transition-colors ${theme === 'light' ? 'bg-white shadow' : 'hover:bg-slate-200'}`}
-                            title="Light"
-                        >
-                            <Sun size={16} className={theme === 'light' ? 'text-amber-500' : 'text-slate-400'} />
-                        </button>
-                        <button
-                            onClick={() => handleThemeChange('dark')}
-                            className={`p-2 rounded-md transition-colors ${theme === 'dark' ? 'bg-white shadow' : 'hover:bg-slate-200'}`}
-                            title="Dark"
-                        >
-                            <Moon size={16} className={theme === 'dark' ? 'text-indigo-500' : 'text-slate-400'} />
-                        </button>
-                        <button
-                            onClick={() => handleThemeChange('system')}
-                            className={`p-2 rounded-md transition-colors ${theme === 'system' ? 'bg-white shadow' : 'hover:bg-slate-200'}`}
-                            title="System"
-                        >
-                            <Monitor size={16} className={theme === 'system' ? 'text-emerald-500' : 'text-slate-400'} />
-                        </button>
-                    </div>
-                </SettingsRow>
+    
                 
                 {/* PRESERVED: Enhanced Cards toggle - exact same functionality */}
                 <SettingsRow 
