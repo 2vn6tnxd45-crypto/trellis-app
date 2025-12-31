@@ -198,12 +198,10 @@ export const NotificationPanel = ({
 }) => {
   const [showSnoozeFor, setShowSnoozeFor] = useState(null);
   
-  // Early return if not open
-  if (!isOpen) return null;
-  
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
   // Filter dismissed and sort by priority
   const visibleTasks = useMemo(() => {
-    const filtered = dueTasks.filter(task => {
+    const filtered = (dueTasks || []).filter(task => {
       const taskId = task.id || `${task.recordId}-${task.taskName}`;
       return !dismissedIds.has(taskId);
     });
@@ -226,6 +224,9 @@ export const NotificationPanel = ({
   const handlePanelClick = () => {
     if (showSnoozeFor) setShowSnoozeFor(null);
   };
+  
+  // Early return AFTER all hooks
+  if (!isOpen) return null;
   
   return (
     <div className="fixed inset-0 z-[70]" onClick={handlePanelClick}>
