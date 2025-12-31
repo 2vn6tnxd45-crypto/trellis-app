@@ -97,7 +97,7 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
     };
     
     return (
-        <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-4">
+        <div className="contractor-page min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-4">
             <div className="max-w-md w-full text-center">
                 <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckCircle className="h-10 w-10 text-emerald-600" />
@@ -1136,8 +1136,9 @@ export const ContractorInviteCreator = () => {
         return <SuccessState inviteLink={createdLink} onCreateAnother={handleCreateAnother} />;
     }
     
+    // DARK MODE FIX: Added 'contractor-page' class to force light mode
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="contractor-page min-h-screen bg-slate-50">
             <Toaster position="top-center" />
             
             {/* Header */}
