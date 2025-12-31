@@ -4,7 +4,10 @@ import { getAuth } from 'firebase/auth';
 import { 
     initializeFirestore, 
     persistentLocalCache, 
-    persistentMultipleTabManager 
+    persistentMultipleTabManager,
+    memoryLocalCache,
+    enableIndexedDbPersistence,
+    CACHE_SIZE_UNLIMITED
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getVertexAI, getGenerativeModel } from "firebase/vertexai";
@@ -27,16 +30,60 @@ let db;
 let storage;
 let geminiModel = null;
 
+// Helper to detect if we're in a contractor flow (doesn't need offline persistence)
+const isContractorFlow = () => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.has('pro') || params.has('requestId');
+};
+
+// Helper to check if IndexedDB is available and working
+const checkIndexedDB = async () => {
+    return new Promise((resolve) => {
+        try {
+            const request = indexedDB.open('test-idb-availability');
+            request.onerror = () => resolve(false);
+            request.onsuccess = () => {
+                request.result.close();
+                indexedDB.deleteDatabase('test-idb-availability');
+                resolve(true);
+            };
+        } catch (e) {
+            resolve(false);
+        }
+    });
+};
+
 try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
     
-    // Enable Offline Persistence
-    db = initializeFirestore(app, {
-        localCache: persistentLocalCache({
-            tabManager: persistentMultipleTabManager()
-        })
-    });
+    // Determine cache strategy
+    // - Contractor flows: use memory cache (simpler, no IndexedDB issues)
+    // - Main app: try persistent cache, fall back to memory if issues
+    if (isContractorFlow()) {
+        // Contractor pages don't need offline persistence
+        console.log('[Firebase] Using memory cache for contractor flow');
+        db = initializeFirestore(app, {
+            localCache: memoryLocalCache()
+        });
+    } else {
+        // Main app - try persistent cache with fallback
+        try {
+            db = initializeFirestore(app, {
+                localCache: persistentLocalCache({
+                    tabManager: persistentMultipleTabManager()
+                })
+            });
+            console.log('[Firebase] Using persistent cache');
+        } catch (persistenceError) {
+            console.warn('[Firebase] Persistent cache failed, falling back to memory:', persistenceError);
+            // Fall back to memory cache
+            db = initializeFirestore(app, {
+                localCache: memoryLocalCache()
+            });
+        }
+    }
     
     // Initialize Storage
     storage = getStorage(app);
@@ -46,11 +93,26 @@ try {
         const vertexAI = getVertexAI(app);
         geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
     } catch (aiError) {
-        console.warn("AI Initialization failed (optional feature):", aiError);
+        console.warn("[Firebase] AI Initialization failed (optional feature):", aiError);
     }
 
 } catch (e) {
-    console.error("Firebase Init Error:", e);
+    console.error("[Firebase] Init Error:", e);
+    
+    // Last resort: try to initialize with memory cache
+    if (!db) {
+        try {
+            app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = initializeFirestore(app, {
+                localCache: memoryLocalCache()
+            });
+            storage = getStorage(app);
+            console.warn('[Firebase] Recovered with memory cache');
+        } catch (recoveryError) {
+            console.error('[Firebase] Recovery failed:', recoveryError);
+        }
+    }
 }
 
 export { app, auth, db, storage, geminiModel };
