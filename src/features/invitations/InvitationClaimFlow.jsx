@@ -4,6 +4,8 @@
 // ============================================
 // This component handles the flow when a user clicks on an invitation link.
 // It shows a preview of what they'll receive, handles auth, and imports records.
+//
+// UPDATED: Now detects contractor sessions and prompts sign-out
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -11,7 +13,8 @@ import {
     createUserWithEmailAndPassword, 
     signInWithPopup, 
     GoogleAuthProvider, 
-    onAuthStateChanged
+    onAuthStateChanged,
+    signOut  // NEW: Added for contractor sign-out
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { 
@@ -25,6 +28,9 @@ import { appId, googleMapsApiKey } from '../../config/constants';
 import { validateInvitation, checkEmailMatch, claimInvitation, getInvitationPreview } from '../../lib/invitations';
 import { Logo } from '../../components/common/Logo';
 import { waitForAuthReady, retryWithBackoff } from '../../lib/authHelpers';
+
+// NEW: Import contractor profile check
+import { getContractorProfile } from '../contractor-pro/lib/contractorService';
 
 // ============================================
 // LOADING STATE
@@ -85,6 +91,68 @@ const ErrorState = ({ error, onGoHome }) => {
         </div>
     );
 };
+
+// ============================================
+// CONTRACTOR SESSION WARNING (NEW)
+// ============================================
+const ContractorSessionWarning = ({ contractorProfile, onSignOut, onCancel, isSigningOut }) => (
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+            <div className="bg-amber-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <AlertCircle className="h-8 w-8 text-amber-600" />
+            </div>
+            
+            <h1 className="text-xl font-bold text-slate-800 mb-2">
+                Contractor Account Detected
+            </h1>
+            
+            <p className="text-slate-600 mb-4">
+                You're currently logged in as a contractor
+                {contractorProfile?.profile?.companyName && (
+                    <span className="font-medium"> ({contractorProfile.profile.companyName})</span>
+                )}.
+            </p>
+            
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-left">
+                <p className="text-sm text-amber-800 font-medium">
+                    To claim this invitation as a homeowner:
+                </p>
+                <p className="text-sm text-amber-700 mt-1">
+                    Sign out of your contractor account first, then sign in or create a homeowner account.
+                </p>
+            </div>
+            
+            <div className="space-y-3">
+                <button
+                    onClick={onSignOut}
+                    disabled={isSigningOut}
+                    className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    {isSigningOut ? (
+                        <Loader2 className="animate-spin h-5 w-5" />
+                    ) : (
+                        <>
+                            <ArrowRight size={18} />
+                            Sign Out & Continue
+                        </>
+                    )}
+                </button>
+                
+                <button
+                    onClick={onCancel}
+                    disabled={isSigningOut}
+                    className="w-full py-3 bg-slate-100 text-slate-700 rounded-xl font-medium hover:bg-slate-200 transition-colors"
+                >
+                    Cancel
+                </button>
+            </div>
+            
+            <p className="text-xs text-slate-400 mt-4">
+                You can log back into your contractor account anytime at the Pro dashboard.
+            </p>
+        </div>
+    </div>
+);
 
 // ============================================
 // SUCCESS STATE
@@ -498,6 +566,11 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     const [profile, setProfile] = useState(null);
     const [checkingAuth, setCheckingAuth] = useState(true);
     
+    // NEW: Contractor detection state
+    const [isContractor, setIsContractor] = useState(false);
+    const [contractorProfile, setContractorProfile] = useState(null);
+    const [isSigningOut, setIsSigningOut] = useState(false);
+    
     // Flow state - UPDATED: Added 'setup' step
     const [step, setStep] = useState('preview'); // 'preview' | 'auth' | 'setup' | 'property' | 'importing' | 'success'
     const [selectedPropertyId, setSelectedPropertyId] = useState(null);
@@ -526,24 +599,47 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         validate();
     }, [token]);
     
-    // Check auth state
+    // Check auth state - UPDATED: Now checks for contractor session
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             setUser(firebaseUser);
             
             if (firebaseUser) {
-                // Load profile safely - won't throw or show errors for missing profiles
+                // NEW: Check if this is a contractor account
+                try {
+                    const contractorData = await getContractorProfile(firebaseUser.uid);
+                    
+                    if (contractorData) {
+                        console.log('[InvitationClaimFlow] Contractor session detected');
+                        setIsContractor(true);
+                        setContractorProfile(contractorData);
+                        setCheckingAuth(false);
+                        return; // Don't load homeowner profile
+                    }
+                } catch (err) {
+                    // Not a contractor, continue normally
+                    console.log('[InvitationClaimFlow] Not a contractor account');
+                }
+                
+                // Reset contractor state
+                setIsContractor(false);
+                setContractorProfile(null);
+                
+                // Load homeowner profile safely
                 const profileData = await loadProfileSafely(firebaseUser.uid);
                 
                 if (profileData) {
                     setProfile(profileData);
-                    // Auto-select first property if available
                     const props = profileData.properties || [];
                     if (props.length > 0) {
                         setSelectedPropertyId(props[0].id);
                     }
                 }
-                // If no profile, that's fine - user will create one during import
+            } else {
+                // No user - reset all state
+                setIsContractor(false);
+                setContractorProfile(null);
+                setProfile(null);
             }
             
             setCheckingAuth(false);
@@ -749,6 +845,21 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         }
     };
     
+    // NEW: Handle contractor sign out
+    const handleContractorSignOut = async () => {
+        setIsSigningOut(true);
+        try {
+            await signOut(auth);
+            toast.success('Signed out. You can now claim the invitation.');
+            // Auth listener will handle resetting state
+        } catch (err) {
+            console.error('Sign out error:', err);
+            toast.error('Failed to sign out');
+        } finally {
+            setIsSigningOut(false);
+        }
+    };
+    
     // Loading state
     if (loading || checkingAuth) {
         return <LoadingState />;
@@ -757,6 +868,18 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     // Error state
     if (error) {
         return <ErrorState error={error} onGoHome={handleGoHome} />;
+    }
+    
+    // NEW: Contractor session detected - show warning
+    if (isContractor && contractorProfile) {
+        return (
+            <ContractorSessionWarning
+                contractorProfile={contractorProfile}
+                onSignOut={handleContractorSignOut}
+                onCancel={handleGoHome}
+                isSigningOut={isSigningOut}
+            />
+        );
     }
     
     // Success state
@@ -770,7 +893,6 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         );
     }
     
-    // Importing state
     // Importing state - Enhanced with progress indicator
 if (step === 'importing') {
     return (
