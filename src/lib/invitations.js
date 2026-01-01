@@ -14,10 +14,12 @@ import {
     writeBatch 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { appId, INVITATIONS_COLLECTION_PATH } from '../config/constants';
-
-// CHANGE: Removed static import of ContractorPro to prevent circular dependency deadlocks.
-// We will use dynamic import() inside the function instead.
+// ADDED: Import the contractors path constant
+import { 
+    appId, 
+    INVITATIONS_COLLECTION_PATH,
+    CONTRACTORS_COLLECTION_PATH 
+} from '../config/constants';
 
 // Helper to log with timestamp for debugging
 const log = (msg, data) => console.log(`[Invitations Lib ${new Date().toISOString().split('T')[1]}] ${msg}`, data || '');
@@ -37,7 +39,6 @@ export const generateSecureToken = () => {
 export const createContractorInvitation = async (contractorInfo, records, recipientEmail = null) => {
     log('createContractorInvitation called');
     
-    // Ensure path exists - default to root if constant missing
     const path = INVITATIONS_COLLECTION_PATH || 'invitations';
     log('Using collection path:', path);
     
@@ -86,7 +87,6 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
     
     try {
         const inviteRef = await addDoc(collection(db, path), inviteDoc);
-        log('Invitation created with ID:', inviteRef.id);
         
         const baseUrl = typeof window !== 'undefined' 
             ? `${window.location.origin}${window.location.pathname}`
@@ -106,64 +106,37 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
 // ============================================
 // VALIDATE INVITATION (Homeowner Side)
 // ============================================
-/**
- * Validates an invitation token and checks if it can be claimed.
- * Now implements a fallback strategy to check multiple paths.
- */
 export const validateInvitation = async (token) => {
-    log('validateInvitation called with token:', token?.substring(0, 5) + '...');
+    if (!token) return { valid: false, error: 'no_token' };
     
-    if (!token) {
-        return { valid: false, error: 'no_token' };
-    }
-    
-    // Strategy: Define paths to check. 
-    // 1. The specific artifact path (primary)
-    // 2. The root 'invitations' path (fallback for legacy or permissions issues)
+    // Check both paths to be safe
     const pathsToCheck = [];
     if (INVITATIONS_COLLECTION_PATH) pathsToCheck.push(INVITATIONS_COLLECTION_PATH);
-    pathsToCheck.push('invitations'); // Always check root as fallback
+    pathsToCheck.push('invitations');
     
-    // Deduplicate
     const uniquePaths = [...new Set(pathsToCheck)];
     
     for (const path of uniquePaths) {
         try {
-            log(`Checking path: ${path}`);
-            
-            const q = query(
-                collection(db, path),
-                where('claimToken', '==', token)
-            );
-            
+            const q = query(collection(db, path), where('claimToken', '==', token));
             const snapshot = await getDocs(q);
             
             if (!snapshot.empty) {
                 const inviteDoc = snapshot.docs[0];
                 const invite = { id: inviteDoc.id, ...inviteDoc.data() };
-                log(`Found invitation at ${path}:`, invite.id);
                 
-                // Check if already claimed
-                if (invite.claimed) {
-                    return { valid: false, error: 'already_claimed', invite };
-                }
+                if (invite.claimed) return { valid: false, error: 'already_claimed', invite };
                 
-                // Check expiration
                 const expiresAt = invite.expiresAt?.toDate ? invite.expiresAt.toDate() : new Date(invite.expiresAt);
-                if (expiresAt < new Date()) {
-                    return { valid: false, error: 'expired', invite };
-                }
+                if (expiresAt < new Date()) return { valid: false, error: 'expired', invite };
                 
                 return { valid: true, invite };
             }
         } catch (err) {
             console.warn(`Failed to check path ${path}:`, err.message);
-            // Continue to next path if this one fails (e.g. permission denied)
         }
     }
     
-    // If we get here, we found nothing in any path
-    log('Token not found in any checked paths');
     return { valid: false, error: 'not_found' };
 };
 
@@ -171,9 +144,7 @@ export const validateInvitation = async (token) => {
 // CHECK EMAIL MATCH
 // ============================================
 export const checkEmailMatch = (invite, userEmail) => {
-    if (!invite.recipientEmail) {
-        return true;
-    }
+    if (!invite.recipientEmail) return true;
     return invite.recipientEmail.toLowerCase() === userEmail?.toLowerCase();
 };
 
@@ -182,7 +153,7 @@ export const checkEmailMatch = (invite, userEmail) => {
 // ============================================
 export const claimInvitation = async (inviteId, userId, propertyId, propertyName = null) => {
     try {
-        // We need to find *where* this invitation lives since we support multiple paths now
+        // 1. Find the invitation
         let inviteRef = null;
         let inviteData = null;
         
@@ -191,7 +162,6 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
         pathsToCheck.push('invitations');
         const uniquePaths = [...new Set(pathsToCheck)];
 
-        // Find the document again to get the correct reference
         for (const path of uniquePaths) {
             try {
                 const testRef = doc(db, path, inviteId);
@@ -204,14 +174,10 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
             } catch (e) { /* ignore */ }
         }
         
-        if (!inviteRef || !inviteData) {
-            return { success: false, error: 'Invitation not found' };
-        }
+        if (!inviteRef || !inviteData) return { success: false, error: 'Invitation not found' };
+        if (inviteData.claimed) return { success: false, error: 'This invitation has already been claimed' };
         
-        if (inviteData.claimed) {
-            return { success: false, error: 'This invitation has already been claimed' };
-        }
-        
+        // 2. Import records using batch
         const batch = writeBatch(db);
         const recordsRef = collection(db, 'artifacts', appId, 'users', userId, 'house_records');
         let importedCount = 0;
@@ -235,23 +201,28 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
         
         await batch.commit();
         
-        // Notify contractor if possible
+        // 3. Notify Contractor
         if (inviteData.contractorInfo?.email) {
             try {
-                // DYNAMIC IMPORT to avoid circular dependency
+                // Dynamic import to prevent circular dependency
                 const ContractorProService = await import('../features/contractor-pro');
                 
                 if (ContractorProService && ContractorProService.markInvitationClaimed) {
-                    // Find contractor by email
-                    // Try to find the contractor in the standard collection first
+                    
+                    // --- KEY FIX: Use the correct collection path ---
+                    const contractorsPath = CONTRACTORS_COLLECTION_PATH || 'contractors';
+                    log(`Searching for contractor in: ${contractorsPath}`);
+
                     const contractorsQuery = query(
-                        collection(db, 'contractors'), // Or try constants path if available
+                        collection(db, contractorsPath),
                         where('profile.email', '==', inviteData.contractorInfo.email.toLowerCase())
                     );
+                    
                     const contractorSnap = await getDocs(contractorsQuery);
                     
                     if (!contractorSnap.empty) {
                         const contractorId = contractorSnap.docs[0].id;
+                        log(`Found contractor: ${contractorId}`);
                         
                         await ContractorProService.markInvitationClaimed(contractorId, inviteId, {
                             userId,
@@ -267,7 +238,8 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
                                 recordIds: []
                             });
                         }
-                        console.log('[invitations.js] Updated contractor dashboard');
+                    } else {
+                        console.warn('[Invitations] Contractor profile not found for email:', inviteData.contractorInfo.email);
                     }
                 }
             } catch (err) {
