@@ -902,8 +902,8 @@ if (step === 'importing') {
                     {/* Animated icon */}
                     <div className="relative mx-auto w-16 h-16 mb-6">
                         <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-25" />
-                        <div className="relative bg-emerald-100 rounded-full w-16 h-16 flex items-center justify-center">
-                            <Home className="h-8 w-8 text-emerald-600" />
+                        <div className="relative bg-emerald-100 rounded-full w-16 h-16 flex items-center justify-center p-3">
+                            <Logo className="w-full h-full" variant="color" />
                         </div>
                     </div>
                     
