@@ -8,7 +8,15 @@ import {
     ToggleLeft, ToggleRight, Clock, Calendar, Lock,
     AlertTriangle, Loader2, Copy, CheckCircle2
 } from 'lucide-react';
-import { signOut, deleteUser, EmailAuthProvider, reauthenticateWithCredential, GoogleAuthProvider, reauthenticateWithPopup } from 'firebase/auth';
+import { 
+    signOut, 
+    deleteUser, 
+    EmailAuthProvider, 
+    reauthenticateWithCredential, 
+    GoogleAuthProvider, 
+    reauthenticateWithPopup, 
+    OAuthProvider 
+} from 'firebase/auth';
 import { doc, deleteDoc, collection, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { appId } from '../../config/constants';
@@ -102,19 +110,31 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
     const [error, setError] = useState('');
 
     const isGoogleUser = user?.providerData?.some(p => p.providerId === 'google.com');
+    // Note: We check user prop here for UI display, but use auth.currentUser for actions
     const isEmailUser = user?.providerData?.some(p => p.providerId === 'password');
 
     const handleReauthenticate = async () => {
         setError('');
         try {
-            if (isGoogleUser) {
-                await reauthenticateWithPopup(user, new GoogleAuthProvider());
-            } else if (isEmailUser) {
-                const credential = EmailAuthProvider.credential(user.email, password);
-                await reauthenticateWithCredential(user, credential);
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error('No user found');
+
+            const providers = currentUser.providerData.map(p => p.providerId);
+
+            if (providers.includes('google.com')) {
+                await reauthenticateWithPopup(currentUser, new GoogleAuthProvider());
+            } else if (providers.includes('apple.com')) {
+                const provider = new OAuthProvider('apple.com');
+                await reauthenticateWithPopup(currentUser, provider);
+            } else if (providers.includes('password')) {
+                const credential = EmailAuthProvider.credential(currentUser.email, password);
+                await reauthenticateWithCredential(currentUser, credential);
+            } else {
+                throw new Error('Please sign out and sign in again to delete your account.');
             }
             setStep(2);
         } catch (err) {
+            console.error('Re-auth error:', err);
             setError(err.message.replace('Firebase: ', ''));
         }
     };
@@ -141,13 +161,21 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
             await batch.commit();
             
             // Delete Firebase Auth user
-            await deleteUser(user);
+            // Critical fix: Use auth.currentUser to ensure we have the fresh token
+            if (auth.currentUser) {
+                await deleteUser(auth.currentUser);
+            }
             
             toast.success('Account deleted successfully');
             onDeleteSuccess();
         } catch (err) {
             console.error('Delete account error:', err);
-            setError(err.message.replace('Firebase: ', ''));
+            // Specific handling for security timeout
+            if (err.code === 'auth/requires-recent-login') {
+                setError('Security timeout. Please refresh the page and try again immediately.');
+            } else {
+                setError(err.message.replace('Firebase: ', ''));
+            }
             setIsDeleting(false);
         }
     };
@@ -227,9 +255,17 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
                                     </button>
                                 </div>
                             ) : (
-                                <p className="text-slate-600">
-                                    Please sign out and sign back in to delete your account.
-                                </p>
+                                <div className="text-center">
+                                    <p className="text-slate-600 mb-4">
+                                        Please re-authenticate to continue.
+                                    </p>
+                                    <button
+                                        onClick={handleReauthenticate}
+                                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
+                                    >
+                                        Verify Identity
+                                    </button>
+                                </div>
                             )}
                         </>
                     )}
