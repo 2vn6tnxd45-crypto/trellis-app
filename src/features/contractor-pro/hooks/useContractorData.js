@@ -12,7 +12,8 @@ import {
     subscribeToCustomers,
     getContractorStats,
     linkInvitationToContractor,
-    subscribeToContractorJobs // NEW IMPORT
+    subscribeToContractorJobs, // NEW IMPORT
+    subscribeToContractorInvoices // NEW IMPORT
 } from '../lib/contractorService';
 
 // ============================================
@@ -235,7 +236,7 @@ export const useCreateInvitation = (contractorId) => {
 };
 
 // ============================================
-// NEW: JOBS HOOK
+// JOBS HOOK
 // ============================================
 export const useContractorJobs = (contractorId) => {
     const [jobs, setJobs] = useState([]);
@@ -267,10 +268,35 @@ export const useContractorJobs = (contractorId) => {
     };
 };
 
+// ============================================
+// NEW: INVOICES HOOK
+// ============================================
+export const useContractorInvoices = (contractorId) => {
+    const [invoices, setInvoices] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!contractorId) {
+            setLoading(false);
+            return;
+        }
+
+        const unsubscribe = subscribeToContractorInvoices(contractorId, (data) => {
+            setInvoices(data);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [contractorId]);
+
+    return { invoices, loading };
+};
+
 export default {
     useInvitations,
     useCustomers,
     useDashboardStats,
     useCreateInvitation,
-    useContractorJobs // Exported here as well for default export compatibility
+    useContractorJobs,
+    useContractorInvoices // NEW EXPORT
 };
