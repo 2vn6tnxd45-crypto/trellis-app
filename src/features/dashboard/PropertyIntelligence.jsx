@@ -3,32 +3,29 @@
 // 🏠 PROPERTY INTELLIGENCE
 // ============================================
 // Shows property data from public records.
-// UPDATED: Removed speculative MaintenancePredictions - 
-// maintenance schedule now only shows tracked items.
+// UPDATED: Shows only FACTUAL data - no made-up estimates.
+// Tax assessment and last sale price are real; "estimated value" was removed.
 
 import React, { useState } from 'react';
 import { 
     Home, 
-    TrendingUp, 
-    TrendingDown,
     DollarSign, 
     Ruler, 
     BedDouble, 
     Bath,
     Droplets,
     AlertTriangle,
-    ChevronDown,
-    ChevronUp,
     Loader2,
     Info,
-    Sparkles,
     Building2,
     LandPlot,
     CalendarClock,
     Flame,
     Wind,
     Car,
-    Database
+    Database,
+    FileText,
+    Calendar
 } from 'lucide-react';
 import usePropertyData from '../../hooks/usePropertyData';
 
@@ -93,10 +90,12 @@ const StatCard = ({ icon: Icon, label, value, subvalue, iconColor = 'text-slate-
 );
 
 // ============================================
-// VALUE CARD (HERO)
+// PROPERTY VALUE CARD (HERO) - FACTUAL DATA ONLY
 // ============================================
-const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate }) => {
-    const isPositive = appreciation?.percentChange > 0;
+const PropertyValueCard = ({ taxAssessment, assessmentYear, lastSalePrice, lastSaleDate }) => {
+    // Calculate time since purchase
+    const purchaseYear = lastSaleDate ? new Date(lastSaleDate).getFullYear() : null;
+    const yearsOwned = purchaseYear ? new Date().getFullYear() - purchaseYear : null;
     
     return (
         <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-6 rounded-2xl text-white relative overflow-hidden">
@@ -105,57 +104,48 @@ const ValueCard = ({ estimatedValue, appreciation, lastSalePrice, lastSaleDate }
             </div>
             
             <div className="relative z-10">
-                <div className="flex items-start justify-between mb-4">
-                    <div>
-                        <p className="text-emerald-100 text-sm font-medium mb-1 flex items-center gap-1.5">
-                            <Sparkles size={14} />
-                            Estimated Home Value
-                        </p>
-                        <h2 className="text-4xl font-black tracking-tight">
-                            {formatCurrency(estimatedValue)}
-                        </h2>
-                    </div>
-                    
-                    {appreciation && appreciation.percentChange !== 0 && (
-                        <div className={`px-3 py-1.5 rounded-lg ${isPositive ? 'bg-white/20' : 'bg-red-500/30'}`}>
-                            <div className="flex items-center gap-1">
-                                {isPositive ? (
-                                    <TrendingUp size={16} className="text-emerald-200" />
-                                ) : (
-                                    <TrendingDown size={16} className="text-red-200" />
-                                )}
-                                <span className="font-bold text-lg">
-                                    {isPositive ? '+' : ''}{appreciation.percentChange}%
-                                </span>
-                            </div>
+                {/* Main Values - Tax Assessment & Last Sale */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Tax Assessment */}
+                    {taxAssessment && (
+                        <div>
+                            <p className="text-emerald-100 text-sm font-medium mb-1 flex items-center gap-1.5">
+                                <FileText size={14} />
+                                Tax Assessment {assessmentYear ? `(${assessmentYear})` : ''}
+                            </p>
+                            <h2 className="text-3xl md:text-4xl font-black tracking-tight">
+                                {formatCurrency(taxAssessment)}
+                            </h2>
+                        </div>
+                    )}
+
+                    {/* Last Sale */}
+                    {lastSalePrice && (
+                        <div>
+                            <p className="text-emerald-100 text-sm font-medium mb-1 flex items-center gap-1.5">
+                                <DollarSign size={14} />
+                                Purchase Price
+                            </p>
+                            <h2 className="text-3xl md:text-4xl font-black tracking-tight">
+                                {formatCurrency(lastSalePrice)}
+                            </h2>
+                            {lastSaleDate && (
+                                <p className="text-emerald-200 text-sm mt-1">
+                                    {formatDate(lastSaleDate)}
+                                    {yearsOwned !== null && yearsOwned > 0 && ` (${yearsOwned} year${yearsOwned !== 1 ? 's' : ''} ago)`}
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
-                
-                {lastSalePrice && (
-                    <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-white/20">
-                        <div>
-                            <p className="text-emerald-200 text-xs font-medium mb-0.5">Purchase Price</p>
-                            <p className="font-bold text-lg">{formatCurrency(lastSalePrice)}</p>
-                        </div>
-                        <div>
-                            <p className="text-emerald-200 text-xs font-medium mb-0.5">Purchase Date</p>
-                            <p className="font-bold text-lg">{formatDate(lastSaleDate)}</p>
-                        </div>
-                    </div>
-                )}
-                
-                {appreciation && appreciation.dollarChange !== 0 && (
-                    <div className="mt-4 p-3 bg-white/10 rounded-xl backdrop-blur-sm">
-                        <p className="text-sm">
-                            {isPositive ? '📈' : '📉'} Your home has {isPositive ? 'gained' : 'lost'}{' '}
-                            <span className="font-bold">{formatCurrency(Math.abs(appreciation.dollarChange))}</span>
-                            {appreciation.yearsPurchased && (
-                                <span className="text-emerald-200"> over {appreciation.yearsPurchased} years</span>
-                            )}
-                        </p>
-                    </div>
-                )}
+
+                {/* Info note */}
+                <div className="mt-4 p-3 bg-white/10 rounded-xl backdrop-blur-sm">
+                    <p className="text-sm text-emerald-100">
+                        <Info size={14} className="inline mr-1.5 opacity-70" />
+                        Values shown are from public records. For current market estimates, consult a real estate professional.
+                    </p>
+                </div>
             </div>
         </div>
     );
@@ -250,7 +240,7 @@ const DataSourceBanner = ({ source }) => {
         return (
             <div className="flex items-center justify-center gap-2 text-xs text-emerald-600 bg-emerald-50 p-2 rounded-lg">
                 <Database size={12} />
-                <span>Live data from public records via RentCast</span>
+                <span>Data from public records via RentCast</span>
             </div>
         );
     }
@@ -273,12 +263,8 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
         propertyData,
         floodData,
         loading,
-        estimatedValue,
         pricePerSqft,
-        appreciation,
         homeAge,
-        // NOTE: We still fetch maintenancePredictions but don't display them
-        // Maintenance schedule is now only based on actual tracked items
     } = usePropertyData(address, coordinates);
 
     // Don't render if no address
@@ -309,10 +295,10 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
     // Full content
     return (
         <div className="space-y-4">
-            {/* Value Card */}
-            <ValueCard 
-                estimatedValue={estimatedValue}
-                appreciation={appreciation}
+            {/* Property Value Card - Factual Data Only */}
+            <PropertyValueCard 
+                taxAssessment={propertyData.taxAssessment}
+                assessmentYear={propertyData.assessmentYear}
                 lastSalePrice={propertyData.lastSalePrice}
                 lastSaleDate={propertyData.lastSaleDate}
             />
@@ -359,13 +345,6 @@ export const PropertyIntelligence = ({ propertyProfile }) => {
             
             {/* Flood Risk */}
             <FloodRiskCard floodData={floodData} />
-            
-            {/* REMOVED: MaintenancePredictions component
-               Maintenance schedule now only shows actual tracked items
-               instead of speculative predictions based on home age.
-               
-               <MaintenancePredictions predictions={maintenancePredictions} homeAge={homeAge} />
-            */}
             
             {/* Data Source */}
             <DataSourceBanner source={propertyData.source} />
