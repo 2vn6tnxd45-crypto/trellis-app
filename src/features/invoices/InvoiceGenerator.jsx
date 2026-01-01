@@ -8,7 +8,7 @@ import React, { useState, useRef } from 'react';
 import { 
     Plus, Trash2, Save, Printer, Send, 
     User, Calendar, DollarSign, FileText,
-    ChevronLeft, CheckCircle, Loader2
+    ChevronLeft, CheckCircle, Loader2, Link as LinkIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { doc, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
@@ -16,6 +16,40 @@ import { db } from '../../config/firebase';
 import { Logo } from '../../components/common/Logo';
 // FIX: Import the correct path constant
 import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
+
+// --- SHARE MODAL ---
+const ShareModal = ({ isOpen, onClose, link, onCopy }) => {
+    if (!isOpen) return null;
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95">
+                <div className="text-center mb-6">
+                    <div className="bg-emerald-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircle className="h-8 w-8 text-emerald-600" />
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800">Invoice Finalized!</h2>
+                    <p className="text-slate-600 mt-2">
+                        Your invoice has been saved. Share this link with your customer so they can view and pay.
+                    </p>
+                </div>
+                
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-lg border border-slate-200">
+                        <LinkIcon size={20} className="text-slate-400" />
+                    </div>
+                    <p className="flex-1 font-mono text-sm text-slate-600 truncate">{link}</p>
+                    <button onClick={onCopy} className="text-emerald-600 font-bold hover:underline">
+                        Copy
+                    </button>
+                </div>
+                
+                <button onClick={onClose} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800">
+                    Done
+                </button>
+            </div>
+        </div>
+    );
+};
 
 // --- INVOICE TEMPLATE (The Printable Part) ---
 const InvoiceTemplate = ({ data, contractorProfile }) => {
@@ -127,6 +161,8 @@ const InvoiceTemplate = ({ data, contractorProfile }) => {
 export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
     const [step, setStep] = useState('edit'); // 'edit' | 'preview'
     const [saving, setSaving] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [shareLink, setShareLink] = useState('');
     
     // Form State
     const [invoiceData, setInvoiceData] = useState({
@@ -152,7 +188,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                 ...prev,
                 customerId: customer.id,
                 customerName: customer.customerName || 'Valued Customer',
-                customerEmail: '', // Could be pulled from customer record if available
+                customerEmail: '', 
                 customerAddress: customer.propertyName || ''
             }));
         }
@@ -200,12 +236,11 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
             const total = invoiceData.items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0);
             
             // 2. Define Path (Using correct constant)
-            // FIX: Use the constant path to ensure we write to where permissions allow
             const collectionPath = CONTRACTORS_COLLECTION_PATH || 'contractors';
             const invoiceCollectionRef = collection(db, collectionPath, contractorId, 'invoices');
 
             // 3. Save Invoice to Firestore
-            await addDoc(invoiceCollectionRef, {
+            const docRef = await addDoc(invoiceCollectionRef, {
                 ...invoiceData,
                 contractorId: contractorId,
                 contractorName: contractorProfile.profile?.companyName || '',
@@ -214,12 +249,18 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                 createdAt: serverTimestamp()
             });
 
-            toast.success(`Invoice ${status === 'sent' ? 'sent' : 'saved'} successfully!`);
-            if (onBack) onBack();
+            if (status === 'sent') {
+                // Generate a link for sharing
+                const link = `${window.location.origin}/invoice/${docRef.id}`;
+                setShareLink(link);
+                setShowShareModal(true);
+            } else {
+                toast.success('Draft saved successfully!');
+                if (onBack) onBack();
+            }
             
         } catch (error) {
             console.error("Save Invoice Error:", error);
-            // Show more specific error if permission denied
             if (error.code === 'permission-denied') {
                 toast.error('Permission denied: Cannot save to database.');
             } else {
@@ -235,6 +276,13 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
     if (step === 'preview') {
         return (
             <div className="min-h-screen bg-slate-100 pb-20">
+                <ShareModal 
+                    isOpen={showShareModal} 
+                    link={shareLink} 
+                    onClose={() => { setShowShareModal(false); if(onBack) onBack(); }}
+                    onCopy={() => { navigator.clipboard.writeText(shareLink); toast.success('Link copied'); }}
+                />
+
                 {/* Preview Header */}
                 <div className="bg-slate-900 text-white p-4 sticky top-0 z-50 flex justify-between items-center shadow-lg no-print">
                     <button onClick={() => setStep('edit')} className="text-slate-300 hover:text-white flex items-center gap-2">
@@ -248,7 +296,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                             <Printer size={18} /> Print / Save PDF
                         </button>
                         <button onClick={() => handleSave('sent')} className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 flex items-center gap-2">
-                            <Send size={18} /> Finalize & Send
+                            <Send size={18} /> Finalize & Share
                         </button>
                     </div>
                 </div>
