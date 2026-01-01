@@ -1,12 +1,13 @@
 // src/features/report/components/PropertyValueCard.jsx
 // ============================================
-// PROPERTY VALUE CARD
-// Shows estimated value, appreciation, and key stats
+// PROPERTY DETAILS CARD
+// Shows FACTUAL property data from public records
+// NO made-up estimates - only verified data
 // ONLY renders when real RentCast data is available
 // ============================================
 
 import React from 'react';
-import { TrendingUp, TrendingDown, Home, Calendar, Ruler, DollarSign, MapPin } from 'lucide-react';
+import { Home, Calendar, Ruler, DollarSign, MapPin, FileText } from 'lucide-react';
 
 const formatCurrency = (value) => {
   if (!value) return '--';
@@ -40,80 +41,76 @@ export const PropertyValueCard = ({ propertyData, className = '' }) => {
     lotSize,
   } = propertyData;
 
-  // Calculate estimated value (typically 10-15% above tax assessment)
-  const estimatedValue = taxAssessment ? Math.round(taxAssessment * 1.12) : null;
-  
-  // Calculate appreciation since purchase
-  const purchaseYear = lastSaleDate ? new Date(lastSaleDate).getFullYear() : null;
-  const yearsOwned = purchaseYear ? new Date().getFullYear() - purchaseYear : null;
-  const appreciation = lastSalePrice && estimatedValue ? {
-    dollar: estimatedValue - lastSalePrice,
-    percent: Math.round(((estimatedValue - lastSalePrice) / lastSalePrice) * 100),
-  } : null;
-
-  // Price per square foot
-  const pricePerSqft = estimatedValue && squareFootage 
-    ? Math.round(estimatedValue / squareFootage) 
-    : null;
-
   // Home age
   const homeAge = yearBuilt ? new Date().getFullYear() - yearBuilt : null;
 
-  const isPositiveAppreciation = appreciation && appreciation.dollar > 0;
+  // Price per square foot based on tax assessment (factual)
+  const assessedPricePerSqft = taxAssessment && squareFootage 
+    ? Math.round(taxAssessment / squareFootage) 
+    : null;
+
+  // Calculate time since purchase
+  const purchaseYear = lastSaleDate ? new Date(lastSaleDate).getFullYear() : null;
+  const yearsOwned = purchaseYear ? new Date().getFullYear() - purchaseYear : null;
 
   return (
     <section className={`print:break-inside-avoid ${className}`}>
       <h3 className="text-xl font-bold text-slate-900 mb-4 flex items-center">
         <Home className="mr-3 text-emerald-600" size={24} />
-        Property Value & Details
+        Property Details
       </h3>
 
-      <div className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 rounded-2xl border border-emerald-100 overflow-hidden">
-        {/* Main Value Section */}
-        <div className="p-6 border-b border-emerald-100">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-            {/* Estimated Value */}
-            <div>
-              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">
-                Estimated Market Value
-              </p>
-              <p className="text-4xl font-black text-slate-900">
-                {formatCurrency(estimatedValue)}
-              </p>
-              {taxAssessment && (
-                <p className="text-sm text-slate-500 mt-1">
-                  Tax Assessment: {formatCurrency(taxAssessment)} ({assessmentYear || 'Latest'})
-                </p>
-              )}
-            </div>
-
-            {/* Appreciation Badge */}
-            {appreciation && yearsOwned && (
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${
-                isPositiveAppreciation 
-                  ? 'bg-emerald-100 text-emerald-700' 
-                  : 'bg-red-100 text-red-700'
-              }`}>
-                {isPositiveAppreciation ? (
-                  <TrendingUp size={20} className="text-emerald-600" />
-                ) : (
-                  <TrendingDown size={20} className="text-red-600" />
-                )}
-                <div>
-                  <p className="font-bold text-lg">
-                    {isPositiveAppreciation ? '+' : ''}{formatCurrency(appreciation.dollar)}
-                  </p>
-                  <p className="text-xs opacity-80">
-                    {isPositiveAppreciation ? '+' : ''}{appreciation.percent}% since {purchaseYear} ({yearsOwned} yrs)
+      <div className="bg-gradient-to-br from-slate-50 via-white to-slate-50 rounded-2xl border border-slate-200 overflow-hidden">
+        
+        {/* Main Values Section - Tax Assessment & Last Sale */}
+        <div className="p-6 border-b border-slate-100">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Tax Assessment */}
+            {taxAssessment && (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText size={14} className="text-slate-400" />
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Tax Assessment {assessmentYear ? `(${assessmentYear})` : ''}
                   </p>
                 </div>
+                <p className="text-3xl font-black text-slate-900">
+                  {formatCurrency(taxAssessment)}
+                </p>
+                {assessedPricePerSqft && (
+                  <p className="text-sm text-slate-500 mt-1">
+                    {formatCurrency(assessedPricePerSqft)}/sqft assessed
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Last Sale */}
+            {lastSalePrice && (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign size={14} className="text-slate-400" />
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Last Sale Price
+                  </p>
+                </div>
+                <p className="text-3xl font-black text-slate-900">
+                  {formatCurrency(lastSalePrice)}
+                </p>
+                {lastSaleDate && (
+                  <p className="text-sm text-slate-500 mt-1">
+                    {new Date(lastSaleDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                    {yearsOwned && ` (${yearsOwned} years ago)`}
+                  </p>
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-emerald-100">
+        {/* Property Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-slate-100">
           {/* Year Built */}
           <div className="p-4 text-center">
             <div className="flex items-center justify-center gap-2 text-slate-400 mb-1">
@@ -133,9 +130,6 @@ export const PropertyValueCard = ({ propertyData, className = '' }) => {
               <span className="text-xs font-bold uppercase tracking-wider">Sqft</span>
             </div>
             <p className="text-2xl font-bold text-slate-800">{formatNumber(squareFootage)}</p>
-            {pricePerSqft && (
-              <p className="text-xs text-slate-500">{formatCurrency(pricePerSqft)}/sqft</p>
-            )}
           </div>
 
           {/* Bed/Bath */}
@@ -147,7 +141,6 @@ export const PropertyValueCard = ({ propertyData, className = '' }) => {
             <p className="text-2xl font-bold text-slate-800">
               {bedrooms || '--'} / {bathrooms || '--'}
             </p>
-            <p className="text-xs text-slate-500">Bedrooms / Baths</p>
           </div>
 
           {/* Lot Size */}
@@ -163,21 +156,9 @@ export const PropertyValueCard = ({ propertyData, className = '' }) => {
           </div>
         </div>
 
-        {/* Purchase Info Footer */}
-        {lastSalePrice && lastSaleDate && (
-          <div className="px-6 py-3 bg-slate-50 border-t border-emerald-100 flex items-center justify-between text-sm">
-            <span className="text-slate-500">
-              Last sold: <span className="font-medium text-slate-700">{formatCurrency(lastSalePrice)}</span>
-            </span>
-            <span className="text-slate-500">
-              {new Date(lastSaleDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </span>
-          </div>
-        )}
-
         {/* Data Source Badge */}
         <div className="px-6 py-2 bg-emerald-600 text-white text-xs text-center font-medium">
-          ✓ Verified from public records via RentCast
+          ✓ Data from public records via RentCast
         </div>
       </div>
     </section>
