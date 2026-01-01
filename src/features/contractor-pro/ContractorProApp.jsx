@@ -28,7 +28,8 @@ import {
     useInvitations, 
     useCustomers, 
     useDashboardStats,
-    useContractorJobs
+    useContractorJobs,
+    useContractorInvoices // ADDED: Hook for Invoices (ready for list view)
 } from './hooks/useContractorData';
 import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService';
 import { deleteUser } from 'firebase/auth';
@@ -163,7 +164,7 @@ const MobileNav = ({ activeView, onNavigate, pendingCount }) => (
                 { id: 'jobs', icon: Briefcase, label: 'Jobs' },
                 { id: 'invoices', icon: ScrollIcon, label: 'Invoice' }, // ADDED: Invoices
                 { id: 'invitations', icon: FileText, label: 'Invites', badge: pendingCount },
-                { id: 'profile', icon: User, label: 'Profile' }, // Swapped Customers for Profile on mobile to fit
+                { id: 'profile', icon: User, label: 'Profile' },
             ].map(item => (
                 <button
                     key={item.id}
@@ -210,7 +211,7 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 // FEATURE VIEWS
 // ============================================
 
-// --- JOBS VIEW (Existing) ---
+// --- JOBS VIEW ---
 const JobsView = ({ jobs, loading }) => {
     const activeJobs = jobs?.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
     
@@ -305,9 +306,7 @@ const InvoicesView = ({ onCreateInvoice }) => (
     </div>
 );
 
-// ... [InvitationsView, CustomersView, ProfileView, SettingsView remain exactly as they were] ...
-// Assuming you want me to keep the rest identical, I will include them for completeness.
-
+// --- INVITATIONS LIST ---
 const InvitationsView = ({ invitations, loading, onCreate }) => (
     <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -358,6 +357,7 @@ const InvitationsView = ({ invitations, loading, onCreate }) => (
     </div>
 );
 
+// --- CUSTOMERS LIST ---
 const CustomersView = ({ customers, loading }) => {
     const [search, setSearch] = useState('');
     
@@ -424,6 +424,7 @@ const CustomersView = ({ customers, loading }) => {
     );
 };
 
+// --- PROFILE EDITOR ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
     const [formData, setFormData] = useState({
         displayName: profile?.profile?.displayName || '',
@@ -516,6 +517,7 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
     );
 };
 
+// --- SETTINGS ---
 const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
     const [settings, setSettings] = useState(profile?.settings || {
         emailNotifications: true,
@@ -523,7 +525,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
         weeklyDigest: true
     });
     
-    // NEW STATE: Delete Modal
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -538,7 +539,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
         }
     };
     
-    // NEW HANDLER: Delete Account
     const handleDeleteAccount = async () => {
         setIsDeleting(true);
         try {
@@ -605,7 +605,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
                 <LogOut size={18}/> Sign Out
             </button>
             
-            {/* DANGER ZONE */}
             <div className="pt-8 border-t border-slate-200">
                 <h3 className="text-sm font-bold text-red-600 uppercase mb-2">Danger Zone</h3>
                 <div className="bg-red-50 rounded-xl p-4 border border-red-100">
@@ -639,7 +638,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
     
-    // Auth hook
     const {
         user,
         profile,
@@ -660,25 +658,25 @@ export const ContractorProApp = () => {
     const { stats, loading: statsLoading } = useDashboardStats(user?.uid);
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
     
-    // Navigation
+    // NEW: Load Invoices
+    const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
+    
     const handleNavigate = useCallback((view) => {
         setActiveView(view);
     }, []);
     
-    // Create invitation handler
     const handleCreateInvitation = useCallback(() => {
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'invite');
         window.location.href = url.toString();
     }, []);
     
-    // View title
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
             case 'jobs': return 'My Jobs'; 
-            case 'invoices': return 'Invoices'; // NEW TITLE
-            case 'create-invoice': return 'New Invoice'; // NEW TITLE
+            case 'invoices': return 'Invoices';
+            case 'create-invoice': return 'New Invoice';
             case 'invitations': return 'Invitations';
             case 'customers': return 'Customers';
             case 'profile': return 'Profile';
