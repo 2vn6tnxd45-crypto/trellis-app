@@ -120,9 +120,7 @@ export function PropertyProvider({ children, propertyProfile }) {
     const computed = useMemo(() => {
         if (!propertyData) {
             return {
-                estimatedValue: null,
                 pricePerSqft: null,
-                appreciation: null,
                 homeAge: null,
                 roomOptions: getDefaultRoomOptions()
             };
@@ -135,23 +133,11 @@ export function PropertyProvider({ children, propertyProfile }) {
             ? Math.round(propertyData.taxAssessment / propertyData.squareFootage)
             : null;
 
-        const estimatedValue = propertyData.taxAssessment
-            ? Math.round(propertyData.taxAssessment * 1.15)
-            : null;
-
-        const appreciation = propertyData.lastSalePrice && estimatedValue ? {
-            dollarChange: estimatedValue - propertyData.lastSalePrice,
-            percentChange: Math.round(((estimatedValue - propertyData.lastSalePrice) / propertyData.lastSalePrice) * 100),
-            yearsPurchased: propertyData.lastSaleDate ? currentYear - new Date(propertyData.lastSaleDate).getFullYear() : null
-        } : null;
-
         // Generate dynamic room options based on property data
         const roomOptions = generateRoomOptions(propertyData);
 
         return {
-            estimatedValue,
             pricePerSqft,
-            appreciation,
             homeAge,
             roomOptions
         };
@@ -166,9 +152,7 @@ export function PropertyProvider({ children, propertyProfile }) {
         error,
         
         // Computed values
-        estimatedValue: computed.estimatedValue,
         pricePerSqft: computed.pricePerSqft,
-        appreciation: computed.appreciation,
         homeAge: computed.homeAge,
         
         // Dynamic room options
@@ -209,9 +193,7 @@ export function useProperty() {
             floodData: null,
             loading: false,
             error: null,
-            estimatedValue: null,
             pricePerSqft: null,
-            appreciation: null,
             homeAge: null,
             roomOptions: getDefaultRoomOptions(),
             bedrooms: null,
