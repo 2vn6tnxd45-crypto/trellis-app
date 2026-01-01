@@ -7,7 +7,8 @@
 import React, { useState, useCallback } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
-    LogOut, Menu, X, Plus, Bell, ChevronLeft
+    LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
+    MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -19,6 +20,7 @@ import { Logo } from '../../components/common/Logo';
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
 import { useInvitations, useCustomers, useDashboardStats } from './hooks/useContractorData';
+import { updateContractorSettings } from './lib/contractorService';
 
 // ============================================
 // NAV ITEM
@@ -56,7 +58,7 @@ const SidebarNav = ({
     const email = profile?.profile?.email || '';
     
     return (
-        <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col">
+        <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col sticky top-0 h-screen">
             {/* Logo */}
             <div className="p-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -77,7 +79,7 @@ const SidebarNav = ({
             </div>
             
             {/* Nav Items */}
-            <nav className="flex-1 p-4 space-y-1">
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 <NavItem 
                     icon={Home}
                     label="Dashboard"
@@ -129,7 +131,7 @@ const SidebarNav = ({
 // MOBILE NAV
 // ============================================
 const MobileNav = ({ activeView, onNavigate, pendingCount }) => (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
@@ -179,52 +181,286 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 );
 
 // ============================================
-// PLACEHOLDER VIEWS
+// FEATURE VIEWS
 // ============================================
-const InvitationsView = ({ invitations, loading }) => (
-    <div className="space-y-4">
+
+// --- INVITATIONS LIST ---
+const InvitationsView = ({ invitations, loading, onCreate }) => (
+    <div className="space-y-6">
         <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-slate-800">Invitations</h1>
-            <button className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Invitations</h1>
+                <p className="text-slate-500">Track and manage sent invites</p>
+            </div>
+            <button onClick={onCreate} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2">
                 <Plus size={18} />
-                New Invitation
+                <span className="hidden md:inline">New Invitation</span>
             </button>
         </div>
-        <p className="text-slate-500">Coming soon: Full invitation management</p>
-        {/* TODO: Implement full invitations list */}
+
+        {loading ? (
+            <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
+        ) : invitations.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4"/>
+                <h3 className="font-bold text-slate-800 text-lg mb-2">No invitations yet</h3>
+                <p className="text-slate-500 mb-6">Create an invitation to start tracking jobs.</p>
+                <button onClick={onCreate} className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl">Create First Invite</button>
+            </div>
+        ) : (
+            <div className="grid gap-3">
+                {invitations.map(invite => (
+                    <div key={invite.id} className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition-shadow">
+                        <div className="flex items-start gap-3">
+                            <div className={`p-2 rounded-lg ${invite.status === 'claimed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                {invite.status === 'claimed' ? <CheckCircle size={20}/> : <FileText size={20}/>}
+                            </div>
+                            <div>
+                                <p className="font-bold text-slate-800">{invite.customerName || 'Pending Claim'}</p>
+                                <p className="text-xs text-slate-500">
+                                    {new Date(invite.createdAt?.toDate ? invite.createdAt.toDate() : invite.createdAt).toLocaleDateString()}
+                                    {' • '}{invite.recordCount} records
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${invite.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                                {invite.status}
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
     </div>
 );
 
-const CustomersView = ({ customers, loading }) => (
-    <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
-        <p className="text-slate-500">Coming soon: Full customer management</p>
-        {/* TODO: Implement full customers list */}
-    </div>
-);
+// --- CUSTOMERS LIST ---
+const CustomersView = ({ customers, loading }) => {
+    const [search, setSearch] = useState('');
+    
+    const filtered = customers.filter(c => 
+        c.customerName?.toLowerCase().includes(search.toLowerCase()) || 
+        c.propertyName?.toLowerCase().includes(search.toLowerCase())
+    );
 
-const ProfileView = ({ profile, onUpdateProfile }) => (
-    <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Profile</h1>
-        <p className="text-slate-500">Coming soon: Profile editor</p>
-        {/* TODO: Implement profile editor */}
-    </div>
-);
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
+            </div>
 
-const SettingsView = ({ onSignOut }) => (
-    <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="font-bold text-slate-800 mb-4">Account</h2>
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
+                <input 
+                    type="text" 
+                    placeholder="Search customers..." 
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                />
+            </div>
+
+            {loading ? (
+                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
+            ) : filtered.length === 0 ? (
+                <div className="text-center py-10 text-slate-500">No customers found.</div>
+            ) : (
+                <div className="grid gap-3">
+                    {filtered.map(c => (
+                        <div key={c.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex gap-3">
+                                    <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold">
+                                        {(c.customerName || c.propertyName || 'C').charAt(0)}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">{c.customerName || 'Unknown Name'}</h3>
+                                        <div className="flex items-center gap-1 text-xs text-slate-500">
+                                            <MapPin size={12}/> {c.propertyName || 'No Address'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <ChevronRight className="text-slate-300 group-hover:text-emerald-500 transition-colors"/>
+                            </div>
+                            
+                            <div className="flex gap-2 text-xs">
+                                <span className="bg-slate-50 px-2 py-1 rounded-md text-slate-600 font-medium">
+                                    {c.totalJobs || 0} Jobs
+                                </span>
+                                {c.totalSpend > 0 && (
+                                    <span className="bg-emerald-50 px-2 py-1 rounded-md text-emerald-700 font-bold">
+                                        ${c.totalSpend.toLocaleString()} Value
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- PROFILE EDITOR ---
+const ProfileView = ({ profile, onUpdateProfile }) => {
+    const [formData, setFormData] = useState({
+        displayName: profile?.profile?.displayName || '',
+        companyName: profile?.profile?.companyName || '',
+        phone: profile?.profile?.phone || '',
+        email: profile?.profile?.email || '',
+        license: profile?.profile?.license || ''
+    });
+    const [saving, setSaving] = useState(false);
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setSaving(true);
+        await onUpdateProfile(formData);
+        setSaving(false);
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto space-y-6">
+            <h1 className="text-2xl font-bold text-slate-800">Company Profile</h1>
+            
+            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Your Name</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-3 border border-slate-200 rounded-xl"
+                            value={formData.displayName}
+                            onChange={e => setFormData({...formData, displayName: e.target.value})}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Company Name</label>
+                        <input 
+                            type="text" 
+                            className="w-full p-3 border border-slate-200 rounded-xl"
+                            value={formData.companyName}
+                            onChange={e => setFormData({...formData, companyName: e.target.value})}
+                        />
+                    </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Phone Number</label>
+                        <input 
+                            type="tel" 
+                            className="w-full p-3 border border-slate-200 rounded-xl"
+                            value={formData.phone}
+                            onChange={e => setFormData({...formData, phone: e.target.value})}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Email (Read Only)</label>
+                        <input 
+                            type="email" 
+                            disabled
+                            className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-500"
+                            value={formData.email}
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1.5">License Number</label>
+                    <div className="relative">
+                        <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                        <input 
+                            type="text" 
+                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl"
+                            value={formData.license}
+                            onChange={e => setFormData({...formData, license: e.target.value})}
+                            placeholder="State License #"
+                        />
+                    </div>
+                </div>
+
+                <div className="pt-4">
+                    <button 
+                        type="submit" 
+                        disabled={saving}
+                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 flex justify-center gap-2 items-center"
+                    >
+                        {saving ? 'Saving...' : <><Save size={18}/> Save Changes</>}
+                    </button>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+// --- SETTINGS ---
+const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
+    const [settings, setSettings] = useState(profile?.settings || {
+        emailNotifications: true,
+        smsNotifications: false,
+        weeklyDigest: true
+    });
+
+    const handleToggle = async (key) => {
+        const newSettings = { ...settings, [key]: !settings[key] };
+        setSettings(newSettings);
+        try {
+            await onUpdateSettings(profile.uid, newSettings);
+            toast.success('Settings saved');
+        } catch (e) {
+            toast.error('Failed to save settings');
+        }
+    };
+
+    return (
+        <div className="max-w-2xl mx-auto space-y-6">
+            <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+            
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 className="font-bold text-slate-800">Notifications</h3>
+                </div>
+                <div className="p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium text-slate-800">Email Alerts</p>
+                            <p className="text-xs text-slate-500">Get notified when invitations are claimed</p>
+                        </div>
+                        <button 
+                            onClick={() => handleToggle('emailNotifications')}
+                            className={`w-12 h-7 rounded-full transition-colors relative ${settings.emailNotifications ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.emailNotifications ? 'translate-x-5' : ''}`} />
+                        </button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium text-slate-800">Weekly Digest</p>
+                            <p className="text-xs text-slate-500">Summary of activity and new customers</p>
+                        </div>
+                        <button 
+                            onClick={() => handleToggle('weeklyDigest')}
+                            className={`w-12 h-7 rounded-full transition-colors relative ${settings.weeklyDigest ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.weeklyDigest ? 'translate-x-5' : ''}`} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <button
                 onClick={onSignOut}
-                className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors"
+                className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
             >
-                Sign Out
+                <LogOut size={18}/> Sign Out
             </button>
         </div>
-    </div>
-);
+    );
+};
 
 // ============================================
 // MAIN APP
@@ -273,8 +509,6 @@ export const ContractorProApp = () => {
     
     // Create invitation handler
     const handleCreateInvitation = useCallback(() => {
-        // Navigate to invitation creator
-        // For now, redirect to existing flow
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'invite');
         window.location.href = url.toString();
@@ -311,7 +545,7 @@ export const ContractorProApp = () => {
                 onSignIn={signIn}
                 onSignUp={signUp}
                 onGoogleSignIn={signInWithGoogle}
-                onResetPassword={() => {}} // TODO
+                onResetPassword={() => {}} 
                 loading={authLoading}
                 error={authError}
                 onClearError={clearError}
@@ -360,6 +594,7 @@ export const ContractorProApp = () => {
                         <InvitationsView 
                             invitations={invitations}
                             loading={invitationsLoading}
+                            onCreate={handleCreateInvitation}
                         />
                     )}
                     
@@ -378,7 +613,11 @@ export const ContractorProApp = () => {
                     )}
                     
                     {activeView === 'settings' && (
-                        <SettingsView onSignOut={signOut} />
+                        <SettingsView 
+                            profile={profile}
+                            onUpdateSettings={updateContractorSettings}
+                            onSignOut={signOut} 
+                        />
                     )}
                 </main>
                 
