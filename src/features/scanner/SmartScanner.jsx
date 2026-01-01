@@ -4,31 +4,19 @@ import { motion } from 'framer-motion';
 import { X, Upload, Camera, Loader2, Check, CheckSquare, Square, Trash2, AlertCircle, FileText, ChevronDown, User, Hash, ArrowRight, Sparkles, ScanLine, CheckCircle2 } from 'lucide-react';
 import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
+import { Logo } from '../../components/common/Logo';
 
 const ScanningOverlay = () => (
     <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
         <div className="relative mb-6" style={{ width: '96px', height: '96px' }}>
             {/* Outer pulsing ring - explicit square */}
             <div className="absolute inset-0 border-4 border-emerald-100 rounded-2xl animate-ping opacity-75" style={{ width: '96px', height: '96px' }}></div>
-            
+
             {/* Logo container - explicit square */}
-            <div className="bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse" style={{ width: '96px', height: '96px' }}>
-                {/* Krib Logo */}
-                <svg 
-                    width="48"
-                    height="48"
-                    viewBox="0 0 100 100"
-                    fill="none" 
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path 
-                        d="M8 50 L50 24 L92 50 L84 50 L84 90 L60 90 L60 58 C60 55 57 52 54 52 L46 52 C43 52 40 55 40 58 L40 90 L16 90 L16 50 Z" 
-                        fill="#10b981"
-                        fillRule="evenodd"
-                    />
-                </svg>
+            <div className="bg-emerald-50 rounded-2xl border-2 border-emerald-200 flex items-center justify-center animate-pulse p-5" style={{ width: '96px', height: '96px' }}>
+                <Logo className="w-full h-full" variant="color" />
             </div>
-            
+
             {/* Sparkle decorations */}
             <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-emerald-500 animate-pulse" style={{ animationDelay: '0.2s' }} />
             <Sparkles className="absolute -bottom-1 -left-1 w-4 h-4 text-emerald-400 animate-pulse" style={{ animationDelay: '0.5s' }} />
