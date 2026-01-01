@@ -4,6 +4,7 @@ export const appId = 'krib-app';
 export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 export const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 export const INVITATIONS_COLLECTION_PATH = `/artifacts/${appId}/public/data/invitations`;
+export const CONTRACTORS_COLLECTION_PATH = `/artifacts/${appId}/public/data/contractors`;
 export const STANDARD_MAINTENANCE_ITEMS = [
     { category: "HVAC & Systems", item: "Replace HVAC Filters", maintenanceFrequency: "quarterly", tasks: ["Check filter size", "Replace if dirty", "Mark installation date"] },
     { category: "HVAC & Systems", item: "Clean AC Condenser Unit", maintenanceFrequency: "annual", tasks: ["Remove leaves/debris", "Spray down fins with water", "Check for damage"] },
