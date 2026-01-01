@@ -11,7 +11,8 @@ import {
     getContractorCustomers,
     subscribeToCustomers,
     getContractorStats,
-    linkInvitationToContractor
+    linkInvitationToContractor,
+    subscribeToContractorJobs // NEW IMPORT
 } from '../lib/contractorService';
 
 // ============================================
@@ -233,9 +234,43 @@ export const useCreateInvitation = (contractorId) => {
     return { createInvitation, isCreating };
 };
 
+// ============================================
+// NEW: JOBS HOOK
+// ============================================
+export const useContractorJobs = (contractorId) => {
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!contractorId) {
+            setLoading(false);
+            return;
+        }
+
+        const unsubscribe = subscribeToContractorJobs(contractorId, (data) => {
+            setJobs(data);
+            setLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [contractorId]);
+
+    // Derived state for convenience
+    const activeJobs = jobs.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+
+    return { 
+        jobs, 
+        activeJobs,
+        completedJobs,
+        loading 
+    };
+};
+
 export default {
     useInvitations,
     useCustomers,
     useDashboardStats,
-    useCreateInvitation
+    useCreateInvitation,
+    useContractorJobs // Exported here as well for default export compatibility
 };
