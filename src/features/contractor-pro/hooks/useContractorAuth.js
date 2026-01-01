@@ -71,13 +71,19 @@ export const useContractorAuth = () => {
             });
             
             // Check for existing invitations to migrate
-            const migrationResult = await migrateAnonymousInvitations(newUser.uid, email);
-            
-            if (migrationResult.migratedCount > 0) {
-                toast.success(
-                    `Found ${migrationResult.migratedCount} existing invitation${migrationResult.migratedCount !== 1 ? 's' : ''}!`,
-                    { duration: 5000 }
-                );
+            // Wrapped in try/catch to prevent non-critical errors from blocking signup
+            try {
+                const migrationResult = await migrateAnonymousInvitations(newUser.uid, email);
+                
+                if (migrationResult.migratedCount > 0) {
+                    toast.success(
+                        `Found ${migrationResult.migratedCount} existing invitation${migrationResult.migratedCount !== 1 ? 's' : ''}!`,
+                        { duration: 5000 }
+                    );
+                }
+            } catch (migErr) {
+                console.warn("Migration failed silently:", migErr);
+                // Continue with login flow
             }
             
             // Reload profile
@@ -144,16 +150,21 @@ export const useContractorAuth = () => {
                 
                 // Check for existing invitations
                 if (googleUser.email) {
-                    const migrationResult = await migrateAnonymousInvitations(
-                        googleUser.uid, 
-                        googleUser.email
-                    );
-                    
-                    if (migrationResult.migratedCount > 0) {
-                        toast.success(
-                            `Found ${migrationResult.migratedCount} existing invitation${migrationResult.migratedCount !== 1 ? 's' : ''}!`,
-                            { duration: 5000 }
+                    try {
+                        const migrationResult = await migrateAnonymousInvitations(
+                            googleUser.uid, 
+                            googleUser.email
                         );
+                        
+                        if (migrationResult.migratedCount > 0) {
+                            toast.success(
+                                `Found ${migrationResult.migratedCount} existing invitation${migrationResult.migratedCount !== 1 ? 's' : ''}!`,
+                                { duration: 5000 }
+                            );
+                        }
+                    } catch (migErr) {
+                        console.warn("Migration failed silently:", migErr);
+                        // Continue with login flow
                     }
                 }
                 
