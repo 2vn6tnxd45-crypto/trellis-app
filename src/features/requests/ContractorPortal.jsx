@@ -7,11 +7,12 @@ import { REQUESTS_COLLECTION_PATH, CATEGORIES, ROOMS } from '../../config/consta
 import { 
     Home, Camera, Upload, Send, CheckCircle, AlertCircle, Loader2, 
     FileText, X, DollarSign, Receipt, Wrench, Package, MapPin,
-    Mic, Image as ImageIcon, ExternalLink, ChevronDown, ChevronUp
+    Mic, Image as ImageIcon, ExternalLink, ChevronDown, ChevronUp, ChevronLeft
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { compressImage } from '../../lib/images';
 import { Logo } from '../../components/common/Logo';
+import { JobScheduler } from '../jobs/JobScheduler';
 
 // --- SUB-COMPONENTS ---
 
@@ -71,6 +72,9 @@ export const ContractorPortal = () => {
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState(null);
     
+    // View State: 'scheduler' or 'worklog'
+    const [viewMode, setViewMode] = useState('scheduler');
+    
     // Form State
     const [formData, setFormData] = useState({
         description: '',
@@ -110,6 +114,14 @@ export const ContractorPortal = () => {
                 const data = docSnap.data();
                 if (data.status === 'submitted') setSubmitted(true);
                 setRequest({ id: docSnap.id, ...data });
+                
+                // Determine initial view mode
+                // If submitted or specifically marked as "in progress" (skipped scheduler), go to work log
+                if (data.status === 'submitted' || data.status === 'in_progress') {
+                    setViewMode('worklog');
+                } else {
+                    setViewMode('scheduler');
+                }
                 
                 // INTELLIGENT PRE-FILL
                 setFormData(prev => ({
@@ -276,6 +288,59 @@ export const ContractorPortal = () => {
         </div>
     );
 
+    // SCHEDULER VIEW
+    if (viewMode === 'scheduler' && !submitted) {
+        return (
+            <div className="min-h-screen bg-slate-50 pb-32">
+                <Toaster position="top-center" />
+                
+                {/* Header */}
+                <div className="bg-white border-b border-slate-100 sticky top-0 z-40 px-6 py-4 flex justify-between items-center shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <Logo className="h-8 w-8" />
+                        <div>
+                            <span className="font-bold text-slate-800 text-lg tracking-tight">krib</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 ml-1">Connect</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-900 mb-1">New Service Request</h1>
+                        <p className="text-slate-500">From {request?.propertyName || 'Homeowner'}</p>
+                    </div>
+
+                    {request?.linkedContext && <ContextCard context={request.linkedContext} />}
+
+                    {/* Job Scheduler */}
+                    <JobScheduler 
+                        job={request} 
+                        userType="contractor" 
+                        onUpdate={() => {
+                            // Optionally refresh request data here if needed, 
+                            // or rely on snapshot listeners if implemented later.
+                        }} 
+                    />
+
+                    {/* Skip Button */}
+                    <div className="border-t border-slate-200 pt-6">
+                        <h3 className="font-bold text-slate-800 mb-2">Ready to log work?</h3>
+                        <p className="text-sm text-slate-500 mb-4">If the job is already done, or you don't need to schedule it here.</p>
+                        <button 
+                            onClick={() => setViewMode('worklog')}
+                            className="w-full py-3 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <FileText size={18} />
+                            Skip to Work Log
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // WORK LOG VIEW (Original Form)
     return (
         <div className="min-h-screen bg-slate-50 pb-32">
             <Toaster position="top-center" />
@@ -292,6 +357,11 @@ export const ContractorPortal = () => {
             </div>
 
             <div className="max-w-2xl mx-auto p-4 md:p-6">
+                
+                {/* Back Button */}
+                <button onClick={() => setViewMode('scheduler')} className="mb-6 text-sm text-slate-500 hover:text-emerald-600 flex items-center gap-1 transition-colors font-medium">
+                    <ChevronLeft size={16} /> Back to Request Details
+                </button>
                 
                 {/* Intro */}
                 <div className="mb-6">
