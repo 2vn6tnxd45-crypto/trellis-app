@@ -16,19 +16,19 @@ import {
     ChevronDown, ChevronUp, Camera, FileText, X,
     Link as LinkIcon, QrCode, Share2, MessageSquare,
     AlertCircle, Info, Sparkles, Upload, ScanLine, Receipt,
-    Calendar, Clock, Bell, CheckSquare, Square
+    Calendar, Clock, Bell, CheckSquare, Square,
+    ArrowLeft // ADDED: ArrowLeft icon
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { createContractorInvitation } from '../../lib/invitations';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signInAnonymously } from 'firebase/auth';  // 🔧 FIX: Added for anonymous auth
-import { storage, auth } from '../../config/firebase';  // 🔧 FIX: Added auth import
+import { signInAnonymously } from 'firebase/auth';  
+import { storage, auth } from '../../config/firebase';  
 import { Logo } from '../../components/common/Logo';
 import { useGemini } from '../../hooks/useGemini';
 
-// CHANGE 1: Import contractor pro hook for linking invitations to logged-in contractors
 import { useContractorAuth, linkInvitationToContractor } from '../contractor-pro';
 
 // ============================================
@@ -145,9 +145,10 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
     );
 };
 
-// ============================================
-// MAINTENANCE TASK ITEM
-// ============================================
+// ... [MaintenanceTaskItem, AddTaskForm, RecordItemCard, InvoiceUploadSection remain unchanged] ...
+// I will keep them exactly as is, but for brevity in this response I'm just indicating they are here.
+// Please assume the previous code for these components is preserved.
+
 const MaintenanceTaskItem = ({ task, onToggle, onRemove, isCustom }) => {
     return (
         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-200">
@@ -191,9 +192,6 @@ const MaintenanceTaskItem = ({ task, onToggle, onRemove, isCustom }) => {
     );
 };
 
-// ============================================
-// ADD CUSTOM TASK FORM
-// ============================================
 const AddTaskForm = ({ onAdd }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [taskName, setTaskName] = useState('');
@@ -292,9 +290,6 @@ const AddTaskForm = ({ onAdd }) => {
     );
 };
 
-// ============================================
-// RECORD ITEM CARD
-// ============================================
 const RecordItemCard = ({ record, index, onChange, onRemove }) => {
     const [expanded, setExpanded] = useState(index === 0);
     const fileInputRef = useRef(null);
@@ -651,9 +646,6 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
     );
 };
 
-// ============================================
-// INVOICE UPLOAD SECTION
-// ============================================
 const InvoiceUploadSection = ({ onInvoiceParsed }) => {
     const fileInputRef = useRef(null);
     // IMPORTANT: Use isScanning from the SAME hook instance as scanReceipt
@@ -1135,6 +1127,14 @@ export const ContractorInviteCreator = () => {
     if (createdLink) {
         return <SuccessState inviteLink={createdLink} onCreateAnother={handleCreateAnother} />;
     }
+
+    // ADDED: Back to Dashboard Handler
+    const handleBackToDashboard = () => {
+        // Remove 'pro' param to return to dashboard
+        const url = new URL(window.location.href);
+        url.searchParams.delete('pro');
+        window.location.href = url.toString();
+    };
     
     // DARK MODE FIX: Added 'contractor-page' class to force light mode
     return (
@@ -1144,6 +1144,15 @@ export const ContractorInviteCreator = () => {
             {/* Header */}
             <header className="bg-white border-b border-slate-100 sticky top-0 z-40">
                 <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
+                    {/* ADDED: Back Button */}
+                    <button 
+                        onClick={handleBackToDashboard}
+                        className="p-2 -ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        title="Back to Dashboard"
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+
                     <div className="bg-emerald-100 p-2 rounded-xl">
                         <Logo className="h-8 w-8" />
                     </div>
