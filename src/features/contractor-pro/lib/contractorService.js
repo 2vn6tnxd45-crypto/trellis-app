@@ -21,9 +21,14 @@ import {
     increment
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { 
+    CONTRACTORS_COLLECTION_PATH, 
+    INVITATIONS_COLLECTION_PATH 
+} from '../../../config/constants';
 
 // Collection paths
-const CONTRACTORS_COLLECTION = 'contractors';
+// Fallback to 'contractors' if the constant is missing, but it should be there
+const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
 const INVITATIONS_SUBCOLLECTION = 'invitations';
 const CUSTOMERS_SUBCOLLECTION = 'customers';
 
@@ -361,10 +366,16 @@ export const subscribeToCustomers = (contractorId, callback) => {
  * Called when a contractor signs up with an email that matches previous invitations
  */
 export const migrateAnonymousInvitations = async (contractorId, email) => {
+    // IMPORTANT: Return early if no email to avoid empty query error
+    if (!email) return { migratedCount: 0 };
+    
     try {
-        // Find invitations where contractor email matches
+        // Use the proper collection path for invitations, or default to standard invitations collection
+        // This ensures we respect the app's artifact path structure
+        const inviteCollectionPath = INVITATIONS_COLLECTION_PATH || 'invitations';
+        
         const q = query(
-            collection(db, 'contractor_invitations'),
+            collection(db, inviteCollectionPath),
             where('contractorInfo.email', '==', email.toLowerCase())
         );
         
@@ -424,8 +435,10 @@ export const migrateAnonymousInvitations = async (contractorId, email) => {
             claimedCount
         };
     } catch (error) {
-        console.error('Error migrating invitations:', error);
-        throw error;
+        // Log error but DO NOT THROW. This prevents login/signup failures due to
+        // migration issues (like permission errors).
+        console.warn('Migration warning (non-fatal):', error);
+        return { migratedCount: 0, error: error.message };
     }
 };
 
