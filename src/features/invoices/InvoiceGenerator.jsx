@@ -1,4 +1,9 @@
 // src/features/invoices/InvoiceGenerator.jsx
+// ============================================
+// INVOICE GENERATOR
+// ============================================
+// Allows contractors to create, preview, and save PDF-ready invoices.
+
 import React, { useState, useRef } from 'react';
 import { 
     Plus, Trash2, Save, Printer, Send, 
@@ -145,7 +150,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                 ...prev,
                 customerId: customer.id,
                 customerName: customer.customerName || 'Valued Customer',
-                customerEmail: '', // Need to pull from customer record if available
+                customerEmail: '', // Could be pulled from customer record if available
                 customerAddress: customer.propertyName || ''
             }));
         }
@@ -177,25 +182,27 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
     };
 
     const handleSave = async (status = 'draft') => {
+        if (!contractorProfile?.uid) {
+            toast.error("Error: Contractor profile missing");
+            return;
+        }
+
         setSaving(true);
         try {
             // 1. Calculate Totals
             const total = invoiceData.items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0);
             
             // 2. Save Invoice to Firestore
-            const invoiceRef = await addDoc(collection(db, `contractors/${contractorProfile.uid}/invoices`), {
+            // Using a subcollection under the contractor for security/organization
+            await addDoc(collection(db, `contractors/${contractorProfile.uid}/invoices`), {
                 ...invoiceData,
                 contractorId: contractorProfile.uid,
-                contractorName: contractorProfile.profile.companyName,
+                contractorName: contractorProfile.profile?.companyName || '',
                 total: total,
                 status: status,
                 createdAt: serverTimestamp()
             });
 
-            // 3. IMPORTANT: If 'sent', auto-create records for the homeowner
-            // Note: In a real app, this would trigger a Cloud Function or complex client logic
-            // For MVP, we'll just save the invoice and toast the success
-            
             toast.success(`Invoice ${status === 'sent' ? 'sent' : 'saved'} successfully!`);
             if (onBack) onBack();
             
@@ -274,7 +281,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                                     value={invoiceData.customerId}
                                 >
                                     <option value="">-- Choose existing --</option>
-                                    {customers.map(c => (
+                                    {customers?.map(c => (
                                         <option key={c.id} value={c.id}>{c.customerName || c.propertyName}</option>
                                     ))}
                                 </select>
