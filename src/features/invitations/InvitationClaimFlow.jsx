@@ -69,6 +69,10 @@ const ErrorState = ({ error, onGoHome }) => {
             title: 'Access Denied',
             message: 'We could not access this invitation. The link may be invalid or restricted.'
         },
+        'timeout': {
+            title: 'Connection Timed Out',
+            message: 'The server took too long to respond. Please check your connection and try again.'
+        },
         'default': {
             title: 'Something Went Wrong',
             message: 'We encountered an error loading this invitation. Please try again.'
@@ -585,29 +589,51 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     const [newPropertyData, setNewPropertyData] = useState(null);
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     
-    // Validate the invitation on mount - FIXED WITH TRY/CATCH
+    // Validate the invitation on mount - FIXED WITH TIMEOUT AND TRY/CATCH
     useEffect(() => {
+        let isMounted = true;
         const validate = async () => {
+            console.log('[ClaimFlow] Starting validation for token:', token);
             try {
-                const result = await validateInvitation(token);
+                // FORCE TIMEOUT: If validation takes > 5s, throw error
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Validation timed out')), 5000)
+                );
                 
+                const result = await Promise.race([
+                    validateInvitation(token),
+                    timeoutPromise
+                ]);
+
+                if (!isMounted) return;
+
                 if (!result.valid) {
+                    console.error('[ClaimFlow] Validation invalid:', result.error);
                     setError(result.error);
                 } else {
+                    console.log('[ClaimFlow] Validation success');
                     setInvite(result.invite);
                     setPreview(getInvitationPreview(result.invite));
                 }
             } catch (err) {
-                console.error('Validation error:', err);
-                // Treat system errors (permissions, etc) as generic errors
-                // This ensures we always clear the loading state
-                setError(err.code === 'permission-denied' ? 'permission_denied' : 'default');
+                console.error('[ClaimFlow] Validation failed:', err);
+                if (isMounted) {
+                    // Check specifically for permission issues or timeouts
+                    if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+                        setError('permission_denied');
+                    } else if (err.message?.includes('time')) {
+                        setError('timeout');
+                    } else {
+                        setError('default');
+                    }
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
         
         validate();
+        return () => { isMounted = false; };
     }, [token]);
     
     // Check auth state
