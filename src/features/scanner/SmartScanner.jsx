@@ -6,7 +6,8 @@ import { useGemini } from '../../hooks/useGemini';
 import { Camera as CameraPro } from 'react-camera-pro';
 
 const ScanningOverlay = () => (
-    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-8 text-center animate-in fade-in">
+    // CHANGED: Increased padding from p-8 to p-12 for more breathing room
+    <div className="absolute inset-0 bg-white/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-12 text-center animate-in fade-in">
         <div className="relative mb-6" style={{ width: '96px', height: '96px' }}>
             {/* Outer pulsing ring - explicit square */}
             <div className="absolute inset-0 border-4 border-emerald-100 rounded-2xl animate-ping opacity-75" style={{ width: '96px', height: '96px' }}></div>
@@ -192,7 +193,8 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] flex flex-col overflow-hidden relative">
+      {/* CHANGED: Added min-h-[500px] to ensure the box is big enough during animation */}
+      <motion.div initial={{opacity:0, scale:0.95}} animate={{opacity:1, scale:1}} className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] min-h-[500px] flex flex-col overflow-hidden relative">
         
         {isAnalyzing && <ScanningOverlay />}
 
