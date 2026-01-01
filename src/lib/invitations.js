@@ -16,11 +16,10 @@ import {
 import { db } from '../config/firebase';
 import { appId, INVITATIONS_COLLECTION_PATH } from '../config/constants';
 
-// CHANGE 1: Import contractor pro service functions
-import { 
-    markInvitationClaimed as markContractorInvitationClaimed, 
-    upsertCustomer 
-} from '../features/contractor-pro';
+// --- CRITICAL FIX: CIRCULAR DEPENDENCY ---
+// Instead of destructuring immediately, we import the namespace.
+// This prevents the app from freezing if the module isn't fully loaded yet.
+import * as ContractorProService from '../features/contractor-pro';
 
 // ============================================
 // GENERATE SECURE TOKEN
@@ -41,13 +40,15 @@ export const generateSecureToken = () => {
  * @param {string|null} recipientEmail - Optional email lock for the invitation
  * @returns {Object} - { inviteId, claimToken, link }
  */
-// src/lib/invitations.js
-
 export const createContractorInvitation = async (contractorInfo, records, recipientEmail = null) => {
     console.log('[invitations.js] createContractorInvitation called');
     console.log('[invitations.js] contractorInfo:', contractorInfo);
     console.log('[invitations.js] records count:', records?.length);
     
+    // Ensure we use the correct path constant
+    const collectionPath = INVITATIONS_COLLECTION_PATH || 'invitations';
+    console.log('[invitations.js] Using collection path:', collectionPath);
+
     const claimToken = generateSecureToken();
     console.log('[invitations.js] Generated token:', claimToken.substring(0, 8) + '...');
     
@@ -57,7 +58,7 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
     
     // Prepare records with proper structure
     const preparedRecords = records.map((record, idx) => {
-        console.log(`[invitations.js] Preparing record ${idx}:`, record.item);
+        // console.log(`[invitations.js] Preparing record ${idx}:`, record.item);
         return {
             item: record.item || '',
             category: record.category || 'Other',
@@ -86,7 +87,7 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
     
     const inviteDoc = {
         claimToken,
-        // FIX: Added optional chaining (?.trim()) to prevent crash when email is null/undefined
+        // FIX: Added optional chaining to prevent crash when email is null/undefined
         recipientEmail: recipientEmail?.toLowerCase()?.trim() || null,
         claimed: false,
         claimedBy: null,
@@ -98,18 +99,13 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
             phone: contractorInfo.phone || '',
             email: contractorInfo.email || ''
         },
-        // FIX: Use regular Date instead of serverTimestamp() to avoid offline persistence hanging
-        // serverTimestamp() is a sentinel value that requires server confirmation, which can hang
-        // when Firestore's offline persistence is enabled and there are sync issues
+        // FIX: Use regular Date instead of serverTimestamp to avoid offline persistence hangs
         createdAt: new Date(),
         expiresAt: expiresAt
     };
     
-    console.log('[invitations.js] About to call addDoc...');
-    console.log('[invitations.js] Collection path:', INVITATIONS_COLLECTION_PATH);
-    
     try {
-        const inviteRef = await addDoc(collection(db, INVITATIONS_COLLECTION_PATH), inviteDoc);
+        const inviteRef = await addDoc(collection(db, collectionPath), inviteDoc);
         console.log('[invitations.js] addDoc succeeded, id:', inviteRef.id);
         
         // Generate the claim link
@@ -137,7 +133,6 @@ export const createContractorInvitation = async (contractorInfo, records, recipi
 /**
  * Validates an invitation token and checks if it can be claimed
  * @param {string} token - The claim token from the URL
- * @param {string|null} userEmail - The email of the user trying to claim (if signed in)
  * @returns {Object} - { valid: boolean, invite?: Object, error?: string }
  */
 export const validateInvitation = async (token) => {
@@ -146,19 +141,25 @@ export const validateInvitation = async (token) => {
     }
     
     try {
+        console.log('[invitations.js] Validating token:', token);
+        const collectionPath = INVITATIONS_COLLECTION_PATH || 'invitations';
+        
         const q = query(
-            collection(db, INVITATIONS_COLLECTION_PATH),
+            collection(db, collectionPath),
             where('claimToken', '==', token)
         );
         
         const snapshot = await getDocs(q);
         
         if (snapshot.empty) {
+            console.warn('[invitations.js] Token not found in DB');
             return { valid: false, error: 'not_found' };
         }
         
         const inviteDoc = snapshot.docs[0];
         const invite = { id: inviteDoc.id, ...inviteDoc.data() };
+        
+        console.log('[invitations.js] Invitation found:', invite.id);
         
         // Check if already claimed
         if (invite.claimed) {
@@ -174,7 +175,11 @@ export const validateInvitation = async (token) => {
         return { valid: true, invite };
         
     } catch (error) {
-        console.error('Error validating invitation:', error);
+        console.error('[invitations.js] Error validating invitation:', error);
+        // Return a specific error code if permissions failed
+        if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+            return { valid: false, error: 'permission_denied' };
+        }
         return { valid: false, error: 'fetch_error' };
     }
 };
@@ -182,12 +187,6 @@ export const validateInvitation = async (token) => {
 // ============================================
 // CHECK EMAIL MATCH
 // ============================================
-/**
- * Checks if the user's email matches the invitation's recipient email (if locked)
- * @param {Object} invite - The invitation object
- * @param {string} userEmail - The user's email
- * @returns {boolean} - True if email matches or no lock exists
- */
 export const checkEmailMatch = (invite, userEmail) => {
     if (!invite.recipientEmail) {
         return true; // No email lock
@@ -200,16 +199,11 @@ export const checkEmailMatch = (invite, userEmail) => {
 // ============================================
 /**
  * Claims an invitation and imports records to the user's account
- * @param {string} inviteId - The invitation document ID
- * @param {string} userId - The claiming user's ID
- * @param {string} propertyId - The property to import records to
- * @param {string} propertyName - The property name (optional, for contractor dashboard)
- * @returns {Object} - { success: boolean, importedCount?: number, error?: string }
  */
-// CHANGE 2: Added propertyName parameter for contractor dashboard integration
 export const claimInvitation = async (inviteId, userId, propertyId, propertyName = null) => {
     try {
-        const inviteRef = doc(db, INVITATIONS_COLLECTION_PATH, inviteId);
+        const collectionPath = INVITATIONS_COLLECTION_PATH || 'invitations';
+        const inviteRef = doc(db, collectionPath, inviteId);
         const inviteSnap = await getDoc(inviteRef);
         
         if (!inviteSnap.exists()) {
@@ -250,35 +244,46 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
         
         await batch.commit();
         
-        // CHANGE 3: Notify contractor's dashboard (if they have a Pro account)
+        // --- SAFE NOTIFICATION LOGIC ---
+        // Notify contractor's dashboard (if they have a Pro account)
         if (invite.contractorInfo?.email) {
             try {
-                // Find contractor by email
-                const contractorsQuery = query(
-                    collection(db, 'contractors'),
-                    where('profile.email', '==', invite.contractorInfo.email.toLowerCase())
-                );
-                const contractorSnap = await getDocs(contractorsQuery);
-                
-                if (!contractorSnap.empty) {
-                    const contractorId = contractorSnap.docs[0].id;
+                // Ensure the service functions exist before calling them
+                // This protects against circular dependency issues where imports might be undefined
+                if (ContractorProService && ContractorProService.markInvitationClaimed) {
                     
-                    // Mark invitation as claimed in contractor's subcollection
-                    await markContractorInvitationClaimed(contractorId, inviteId, {
-                        userId,
-                        propertyName
-                    });
+                    // Find contractor by email
+                    // Note: We use the 'contractors' collection path directly here or via constant if available
+                    const contractorsQuery = query(
+                        collection(db, 'contractors'), // Or use CONTRACTORS_COLLECTION_PATH if available globally
+                        where('profile.email', '==', invite.contractorInfo.email.toLowerCase())
+                    );
+                    const contractorSnap = await getDocs(contractorsQuery);
                     
-                    // Create/update customer relationship
-                    await upsertCustomer(contractorId, {
-                        userId,
-                        propertyId,
-                        propertyName,
-                        jobValue: invite.records?.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0) || 0,
-                        recordIds: []
-                    });
-                    
-                    console.log('[invitations.js] Updated contractor dashboard for:', contractorId);
+                    if (!contractorSnap.empty) {
+                        const contractorId = contractorSnap.docs[0].id;
+                        
+                        // Mark invitation as claimed in contractor's subcollection
+                        await ContractorProService.markInvitationClaimed(contractorId, inviteId, {
+                            userId,
+                            propertyName
+                        });
+                        
+                        // Create/update customer relationship
+                        if (ContractorProService.upsertCustomer) {
+                            await ContractorProService.upsertCustomer(contractorId, {
+                                userId,
+                                propertyId,
+                                propertyName,
+                                jobValue: invite.records?.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0) || 0,
+                                recordIds: []
+                            });
+                        }
+                        
+                        console.log('[invitations.js] Updated contractor dashboard for:', contractorId);
+                    }
+                } else {
+                    console.warn('[invitations.js] ContractorService not available, skipping dashboard update');
                 }
             } catch (contractorErr) {
                 // Don't fail the claim if contractor update fails
@@ -299,13 +304,8 @@ export const claimInvitation = async (inviteId, userId, propertyId, propertyName
 };
 
 // ============================================
-// GET INVITATION PREVIEW (For display before auth)
+// GET INVITATION PREVIEW
 // ============================================
-/**
- * Gets a safe preview of an invitation for display before the user signs in
- * @param {Object} invite - The full invitation object
- * @returns {Object} - Safe preview data
- */
 export const getInvitationPreview = (invite) => {
     if (!invite) return null;
     
