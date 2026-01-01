@@ -14,6 +14,8 @@ import toast from 'react-hot-toast';
 import { doc, collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { Logo } from '../../components/common/Logo';
+// FIX: Import the correct path constant
+import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // --- INVOICE TEMPLATE (The Printable Part) ---
 const InvoiceTemplate = ({ data, contractorProfile }) => {
@@ -182,21 +184,30 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
     };
 
     const handleSave = async (status = 'draft') => {
-        if (!contractorProfile?.uid) {
+        // Validation: Ensure we have a contractor profile ID
+        if (!contractorProfile?.id && !contractorProfile?.uid) {
             toast.error("Error: Contractor profile missing");
+            console.error("Missing Profile ID:", contractorProfile);
             return;
         }
+
+        // Use uid or id, whichever is available
+        const contractorId = contractorProfile.uid || contractorProfile.id;
 
         setSaving(true);
         try {
             // 1. Calculate Totals
             const total = invoiceData.items.reduce((sum, i) => sum + (parseFloat(i.cost) || 0), 0);
             
-            // 2. Save Invoice to Firestore
-            // Using a subcollection under the contractor for security/organization
-            await addDoc(collection(db, `contractors/${contractorProfile.uid}/invoices`), {
+            // 2. Define Path (Using correct constant)
+            // FIX: Use the constant path to ensure we write to where permissions allow
+            const collectionPath = CONTRACTORS_COLLECTION_PATH || 'contractors';
+            const invoiceCollectionRef = collection(db, collectionPath, contractorId, 'invoices');
+
+            // 3. Save Invoice to Firestore
+            await addDoc(invoiceCollectionRef, {
                 ...invoiceData,
-                contractorId: contractorProfile.uid,
+                contractorId: contractorId,
                 contractorName: contractorProfile.profile?.companyName || '',
                 total: total,
                 status: status,
@@ -207,8 +218,13 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
             if (onBack) onBack();
             
         } catch (error) {
-            console.error(error);
-            toast.error('Failed to save invoice');
+            console.error("Save Invoice Error:", error);
+            // Show more specific error if permission denied
+            if (error.code === 'permission-denied') {
+                toast.error('Permission denied: Cannot save to database.');
+            } else {
+                toast.error('Failed to save invoice: ' + error.message);
+            }
         } finally {
             setSaving(false);
         }
@@ -280,7 +296,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                                     onChange={handleCustomerSelect}
                                     value={invoiceData.customerId}
                                 >
-                                    <option value="">-- Choose existing --</option>
+                                    <option value="">-- Or enter manually --</option>
                                     {customers?.map(c => (
                                         <option key={c.id} value={c.id}>{c.customerName || c.propertyName}</option>
                                     ))}
@@ -294,6 +310,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                                     className="w-full p-2 border border-slate-200 rounded-lg" 
                                     value={invoiceData.customerName}
                                     onChange={e => setInvoiceData({...invoiceData, customerName: e.target.value})}
+                                    placeholder="Enter customer name..."
                                 />
                             </div>
                             <div>
@@ -303,6 +320,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                                     className="w-full p-2 border border-slate-200 rounded-lg"
                                     value={invoiceData.customerEmail}
                                     onChange={e => setInvoiceData({...invoiceData, customerEmail: e.target.value})}
+                                    placeholder="email@example.com"
                                 />
                             </div>
                             <div>
@@ -311,6 +329,7 @@ export const InvoiceGenerator = ({ contractorProfile, customers, onBack }) => {
                                     className="w-full p-2 border border-slate-200 rounded-lg h-20 resize-none"
                                     value={invoiceData.customerAddress}
                                     onChange={e => setInvoiceData({...invoiceData, customerAddress: e.target.value})}
+                                    placeholder="Street, City, State ZIP"
                                 />
                             </div>
                         </div>
