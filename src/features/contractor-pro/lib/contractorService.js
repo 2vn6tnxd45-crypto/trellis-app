@@ -9,15 +9,16 @@ import {
     getDoc, 
     setDoc, 
     updateDoc,
-    collection,
-    query,
-    where,
-    orderBy,
-    limit,
-    getDocs,
-    onSnapshot,
-    serverTimestamp,
-    writeBatch,
+    deleteDoc, // ADDED: Import deleteDoc
+    collection, 
+    query, 
+    where, 
+    orderBy, 
+    limit, 
+    getDocs, 
+    onSnapshot, 
+    serverTimestamp, 
+    writeBatch, 
     increment
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -510,4 +511,28 @@ export const subscribeToContractorJobs = (contractorId, callback) => {
         console.error('Jobs subscription error:', error);
         callback([]); 
     });
+};
+
+// ============================================
+// ACCOUNT DELETION
+// ============================================
+
+/**
+ * Delete contractor account and data
+ * Note: This deletes the profile data. Auth deletion requires client-side re-auth.
+ */
+export const deleteContractorAccount = async (contractorId) => {
+    try {
+        // 1. Delete Profile
+        await deleteDoc(doc(db, CONTRACTORS_COLLECTION, contractorId));
+        
+        // 2. Optional: You could trigger a Cloud Function here to clean up 
+        // invitations/customers recursively, but for MVP, profile deletion is sufficient 
+        // to "hide" the user.
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting account:', error);
+        throw error;
+    }
 };
