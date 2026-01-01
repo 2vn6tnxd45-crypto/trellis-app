@@ -9,7 +9,8 @@ import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
 
-export const JobScheduler = ({ job, userType, onUpdate }) => {
+// ADD: contractorId prop
+export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     // userType: 'homeowner' | 'contractor'
     const [isProposing, setIsProposing] = useState(false);
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
@@ -28,11 +29,19 @@ export const JobScheduler = ({ job, userType, onUpdate }) => {
                 createdAt: new Date().toISOString()
             };
 
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+            // Prepare update data
+            const updateData = {
                 proposedTimes: arrayUnion(newProposal),
                 status: 'scheduling', // Update status to reflect active negotiation
                 lastActivity: serverTimestamp()
-            });
+            };
+
+            // CRITICAL CHANGE: Link the contractor to this job if they are the one proposing
+            if (userType === 'contractor' && contractorId) {
+                updateData.contractorId = contractorId;
+            }
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), updateData);
             
             toast.success("Time proposed!");
             setIsProposing(false);
@@ -60,13 +69,20 @@ export const JobScheduler = ({ job, userType, onUpdate }) => {
     const handleSendEstimate = async () => {
         if (!estimateAmount) return;
         try {
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+            const updateData = {
                 estimate: {
                     amount: parseFloat(estimateAmount),
                     status: 'pending'
                 },
                 status: 'quoted'
-            });
+            };
+            
+            // Link contractor here too just in case
+            if (userType === 'contractor' && contractorId) {
+                updateData.contractorId = contractorId;
+            }
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), updateData);
             toast.success("Estimate sent");
             setShowEstimateInput(false);
             if (onUpdate) onUpdate();
