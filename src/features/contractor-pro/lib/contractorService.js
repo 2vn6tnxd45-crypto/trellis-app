@@ -23,7 +23,8 @@ import {
 import { db } from '../../../config/firebase';
 import { 
     CONTRACTORS_COLLECTION_PATH, 
-    INVITATIONS_COLLECTION_PATH 
+    INVITATIONS_COLLECTION_PATH,
+    REQUESTS_COLLECTION_PATH 
 } from '../../../config/constants';
 
 // Collection paths
@@ -483,4 +484,30 @@ export const getContractorStats = async (contractorId) => {
         console.error('Error getting stats:', error);
         throw error;
     }
+};
+
+// ============================================
+// ACTIVE JOBS
+// ============================================
+
+/**
+ * Subscribe to active jobs/requests for a contractor
+ */
+export const subscribeToContractorJobs = (contractorId, callback) => {
+    const q = query(
+        collection(db, REQUESTS_COLLECTION_PATH),
+        where('contractorId', '==', contractorId),
+        orderBy('lastActivity', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const jobs = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+        }));
+        callback(jobs);
+    }, (error) => {
+        console.error('Jobs subscription error:', error);
+        callback([]); 
+    });
 };
