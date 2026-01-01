@@ -46,24 +46,20 @@ const formatCurrency = (value) => {
   }).format(num);
 };
 
-const generatePedigreeId = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let id = 'KR-';
-  for (let i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
-  id += '-';
-  for (let i = 0; i < 2; i++) id += chars[Math.floor(Math.random() * chars.length)];
-  return id;
-};
-
 // ============================================
 // REPORT HEADER COMPONENT
 // ============================================
 
-const ReportHeader = ({ property, pedigreeId }) => {
-  const address = property?.address;
-  const addressString = address 
-    ? `${address.street || ''}, ${address.city || ''}, ${address.state || ''} ${address.zip || ''}`.replace(/^,\s*/, '')
-    : 'Property Address';
+const ReportHeader = ({ property, propertyData }) => {
+  // Try to get address from property prop first, then fall back to propertyData
+  const address = property?.address || {
+    street: propertyData?.formattedAddress?.split(',')[0] || null,
+    city: propertyData?.city || null,
+    state: propertyData?.state || null,
+    zip: propertyData?.zipCode || null,
+  };
+  
+  const hasAddress = address.street || address.city;
 
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 text-white p-8 md:p-12">
@@ -75,21 +71,20 @@ const ReportHeader = ({ property, pedigreeId }) => {
             <span className="text-sm font-bold uppercase tracking-wider">Property Pedigree™</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-black mb-2">
-            {address?.street || 'Your Property'}
+            {address.street || 'Your Property'}
           </h1>
-          <p className="text-slate-300 flex items-center gap-2">
-            <MapPin size={16} />
-            {address?.city && `${address.city}, ${address.state} ${address.zip}`}
-          </p>
+          {hasAddress && (
+            <p className="text-slate-300 flex items-center gap-2">
+              <MapPin size={16} />
+              {[address.city, address.state, address.zip].filter(Boolean).join(', ')}
+            </p>
+          )}
         </div>
 
-        {/* Pedigree ID Badge */}
+        {/* Generated Date Badge */}
         <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-          <p className="text-xs text-indigo-300 uppercase tracking-widest font-bold mb-1">Pedigree ID</p>
-          <p className="font-mono text-xl font-bold text-white tracking-wider">{pedigreeId}</p>
-          <div className="my-3 border-t border-white/20"></div>
-          <p className="text-xs text-indigo-300 uppercase tracking-widest font-bold mb-1">Generated</p>
-          <p className="font-mono text-white">
+          <p className="text-xs text-indigo-300 uppercase tracking-widest font-bold mb-1">Report Generated</p>
+          <p className="font-mono text-xl font-bold text-white">
             {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </p>
         </div>
@@ -409,9 +404,6 @@ const ReportFooter = () => (
 export const PedigreeReport = ({ property, records = [] }) => {
   // Get property data from context
   const { propertyData, isRealData } = useProperty();
-  
-  // Generate consistent pedigree ID
-  const pedigreeId = useMemo(() => generatePedigreeId(), []);
 
   // Calculate system ages
   const systemAges = useMemo(() => {
@@ -482,7 +474,7 @@ export const PedigreeReport = ({ property, records = [] }) => {
       <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden print:shadow-none print:rounded-none print:border-none">
         
         {/* 1. HEADER */}
-        <ReportHeader property={property} pedigreeId={pedigreeId} />
+        <ReportHeader property={property} propertyData={propertyData} />
 
         {/* 2. QUICK STATS BAR */}
         <QuickStatsBar 
