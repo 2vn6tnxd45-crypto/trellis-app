@@ -54,6 +54,7 @@ import { PropertyProvider } from './contexts/PropertyContext';
 
 // CHANGE 1: Import Contractor Pro Dashboard
 import { ContractorProApp } from './features/contractor-pro';
+import './features/report/report-print.css';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
