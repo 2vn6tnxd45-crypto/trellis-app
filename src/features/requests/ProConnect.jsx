@@ -4,13 +4,14 @@ import {
     Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, 
     Send, Phone, Mail, User, Wrench, Star, Plus, Search,
     Clock, DollarSign, ChevronRight, Calendar, CheckCircle2,
-    Copy, ExternalLink, Building2, Filter, SlidersHorizontal
+    Copy, ExternalLink, Building2, Filter, SlidersHorizontal, X
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH, CATEGORIES } from '../../config/constants';
 import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
+import { JobScheduler } from '../jobs/JobScheduler';
 
 // Pro Card Component
 const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
@@ -160,19 +161,26 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
     );
 };
 
-// Active Request Card (Simplified for brevity)
-const RequestCard = ({ request, onCopyLink, onDelete, onImport }) => {
+// Active Request Card
+const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
     const handleCopy = () => {
         const url = `${window.location.origin}${window.location.pathname}?requestId=${request.id}`;
         navigator.clipboard.writeText(url);
         toast.success('Link copied!');
     };
+
+    // Check if there is activity (proposals or estimates)
+    const hasActivity = request.proposedTimes?.length > 0 || request.estimate;
+    const statusLabel = request.status === 'scheduled' ? 'Scheduled' : request.status;
+
     return (
         <div className={`p-4 rounded-xl border ${request.status === 'submitted' ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 mb-2">
                 <div>
                     <h4 className="font-bold text-slate-800">{request.description}</h4>
-                    <span className="text-xs text-slate-500 uppercase font-bold">{request.status}</span>
+                    <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded-full ${request.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>
+                        {statusLabel}
+                    </span>
                 </div>
                 <div className="flex gap-2">
                     {request.status === 'submitted' && <button onClick={() => onImport(request)} className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg">Import</button>}
@@ -180,6 +188,18 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport }) => {
                     <button onClick={() => onDelete(request.id)} className="p-2 bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button>
                 </div>
             </div>
+
+            {/* NEW: Action Area for Managing Requests */}
+            {request.status !== 'submitted' && (
+                <div className="mt-3 pt-3 border-t border-slate-50 flex gap-2">
+                    <button 
+                        onClick={() => onManage(request)}
+                        className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 ${hasActivity ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                        {hasActivity ? 'View Proposal' : 'Manage Request'}
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
@@ -189,6 +209,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
     const [activeTab, setActiveTab] = useState('pros');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('all');
+    const [selectedJob, setSelectedJob] = useState(null); // State for the management modal
     
     useEffect(() => {
         if (!userId) return;
@@ -223,7 +244,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
         });
     }, [contractors, searchTerm, filterCategory]);
     
-    const pendingRequests = requests.filter(r => r.status === 'pending');
+    const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'scheduling' || r.status === 'quoted' || r.status === 'scheduled');
     
     const handleDeleteRequest = async (id) => {
         if (!confirm('Delete this request?')) return;
@@ -257,7 +278,41 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
             
             {activeTab === 'requests' && (
                 <div className="space-y-3">
-                    {pendingRequests.length === 0 ? <EmptyState icon={Send} title="No Requests" description="Create a link to send to a contractor."/> : pendingRequests.map(req => <RequestCard key={req.id} request={req} onDelete={handleDeleteRequest} onImport={onRequestImport}/>)}
+                    {pendingRequests.length === 0 ? 
+                        <EmptyState icon={Send} title="No Requests" description="Create a link to send to a contractor."/> 
+                        : pendingRequests.map(req => (
+                            <RequestCard 
+                                key={req.id} 
+                                request={req} 
+                                onDelete={handleDeleteRequest} 
+                                onImport={onRequestImport}
+                                onManage={(job) => setSelectedJob(job)}
+                            />
+                        ))
+                    }
+                </div>
+            )}
+
+            {/* Job Scheduler Modal for Homeowner */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800">Manage Job</h3>
+                            <button onClick={() => setSelectedJob(null)}><X size={20} className="text-slate-400" /></button>
+                        </div>
+                        <div className="p-4 bg-slate-50">
+                            <JobScheduler 
+                                job={selectedJob} 
+                                userType="homeowner" 
+                                onUpdate={() => {
+                                    // Optionally refresh if needed, but snapshot listener handles it.
+                                    // We keep the modal open or close it? Let's keep it open to see result.
+                                }} 
+                            />
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
