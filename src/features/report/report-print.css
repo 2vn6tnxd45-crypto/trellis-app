@@ -1,0 +1,213 @@
+/* src/features/report/report-print.css */
+/* ============================================
+   PRINT-SPECIFIC STYLES FOR PEDIGREE REPORT
+   Add this to your global CSS or import in the report
+   ============================================ */
+
+@media print {
+  /* Page setup */
+  @page {
+    size: letter;
+    margin: 0.5in;
+  }
+
+  /* Hide non-print elements */
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .hidden.print\\:block {
+    display: block !important;
+  }
+
+  .hidden.print\\:flex {
+    display: flex !important;
+  }
+
+  /* Reset backgrounds for printing */
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Force backgrounds to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Page break controls */
+  .print\\:break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print\\:break-before-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .print\\:break-after-page {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  /* Report container */
+  .max-w-5xl {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Remove shadows and rounded corners */
+  .shadow-2xl,
+  .shadow-xl,
+  .shadow-lg,
+  .shadow-md,
+  .shadow-sm {
+    box-shadow: none !important;
+  }
+
+  .rounded-\\[2rem\\] {
+    border-radius: 0 !important;
+  }
+
+  /* Ensure gradients print */
+  .bg-gradient-to-br,
+  .bg-gradient-to-r {
+    background: #f8fafc !important; /* Fallback for older printers */
+  }
+
+  /* Header stays colorful */
+  .bg-gradient-to-br.from-slate-900 {
+    background: linear-gradient(135deg, #1e293b 0%, #312e81 100%) !important;
+  }
+
+  /* Section spacing */
+  section {
+    margin-bottom: 24px;
+  }
+
+  /* Table improvements */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th, td {
+    padding: 8px 12px;
+  }
+
+  /* Timeline fixes */
+  .border-l-2 {
+    border-left-width: 2px !important;
+  }
+
+  /* Donut chart - hide on print, show bars instead */
+  /* (Already handled via Tailwind classes) */
+
+  /* Link colors */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  /* Warranty bars */
+  .rounded-xl {
+    border-radius: 8px !important;
+  }
+
+  /* Ensure expanded state for warranty items */
+  [data-expanded="true"],
+  .print\\:expanded {
+    display: block !important;
+  }
+
+  /* Stats grid */
+  .divide-x > * + * {
+    border-left-width: 1px !important;
+  }
+
+  /* Typography adjustments */
+  h1 { font-size: 28px !important; }
+  h2 { font-size: 22px !important; }
+  h3 { font-size: 18px !important; }
+  
+  p, span, td, th {
+    font-size: 12px !important;
+  }
+
+  .text-4xl { font-size: 28px !important; }
+  .text-3xl { font-size: 24px !important; }
+  .text-2xl { font-size: 20px !important; }
+  .text-xl { font-size: 16px !important; }
+  .text-lg { font-size: 14px !important; }
+  .text-sm { font-size: 11px !important; }
+  .text-xs { font-size: 10px !important; }
+
+  /* Preserve important colors */
+  .text-emerald-600 { color: #059669 !important; }
+  .text-emerald-700 { color: #047857 !important; }
+  .text-blue-600 { color: #2563eb !important; }
+  .text-indigo-600 { color: #4f46e5 !important; }
+  .text-purple-600 { color: #9333ea !important; }
+  .text-amber-600 { color: #d97706 !important; }
+  .text-red-600 { color: #dc2626 !important; }
+  .text-slate-800 { color: #1e293b !important; }
+  .text-slate-500 { color: #64748b !important; }
+
+  /* Background colors for badges */
+  .bg-emerald-100 { background-color: #d1fae5 !important; }
+  .bg-emerald-500 { background-color: #10b981 !important; }
+  .bg-blue-100 { background-color: #dbeafe !important; }
+  .bg-amber-100 { background-color: #fef3c7 !important; }
+  .bg-amber-500 { background-color: #f59e0b !important; }
+  .bg-red-50 { background-color: #fef2f2 !important; }
+  .bg-red-500 { background-color: #ef4444 !important; }
+  .bg-slate-50 { background-color: #f8fafc !important; }
+  .bg-slate-100 { background-color: #f1f5f9 !important; }
+
+  /* Progress bars */
+  .bg-emerald-500.rounded-full,
+  .bg-amber-500.rounded-full,
+  .bg-red-500.rounded-full {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Footer */
+  .border-t {
+    border-top-width: 1px !important;
+    border-color: #e2e8f0 !important;
+  }
+}
+
+/* ============================================
+   ADDITIONAL UTILITY CLASSES FOR REPORT
+   ============================================ */
+
+/* Ensure SVG charts render properly */
+svg {
+  overflow: visible;
+}
+
+/* Smooth transitions (web only) */
+@media screen {
+  .transition-all {
+    transition: all 0.2s ease;
+  }
+}
+
+/* Chart tooltip styles */
+.chart-tooltip {
+  position: absolute;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 50;
+}
