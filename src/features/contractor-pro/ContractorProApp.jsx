@@ -8,7 +8,8 @@ import React, { useState, useCallback } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
-    MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield
+    MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
+    Briefcase // ADDED: Icon for Jobs
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -19,7 +20,12 @@ import { Logo } from '../../components/common/Logo';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
-import { useInvitations, useCustomers, useDashboardStats } from './hooks/useContractorData';
+import { 
+    useInvitations, 
+    useCustomers, 
+    useDashboardStats,
+    useContractorJobs // ADDED: Hook for Jobs
+} from './hooks/useContractorData';
 import { updateContractorSettings } from './lib/contractorService';
 
 // ============================================
@@ -87,6 +93,12 @@ const SidebarNav = ({
                     onClick={() => onNavigate('dashboard')}
                 />
                 <NavItem 
+                    icon={Briefcase}
+                    label="My Jobs"
+                    active={activeView === 'jobs'}
+                    onClick={() => onNavigate('jobs')}
+                />
+                <NavItem 
                     icon={FileText}
                     label="Invitations"
                     active={activeView === 'invitations'}
@@ -135,6 +147,7 @@ const MobileNav = ({ activeView, onNavigate, pendingCount }) => (
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
+                { id: 'jobs', icon: Briefcase, label: 'Jobs' },
                 { id: 'invitations', icon: FileText, label: 'Invites', badge: pendingCount },
                 { id: 'customers', icon: Users, label: 'Customers' },
                 { id: 'profile', icon: User, label: 'Profile' },
@@ -183,6 +196,75 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 // ============================================
 // FEATURE VIEWS
 // ============================================
+
+// --- NEW: JOBS VIEW ---
+const JobsView = ({ jobs, loading }) => {
+    const activeJobs = jobs?.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
+    
+    // Quick helper to get status color
+    const getStatusColor = (status) => {
+        switch(status) {
+            case 'scheduled': return 'bg-emerald-100 text-emerald-700';
+            case 'quoted': return 'bg-blue-100 text-blue-700';
+            case 'scheduling': return 'bg-purple-100 text-purple-700';
+            default: return 'bg-slate-100 text-slate-600';
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
+                    <p className="text-slate-500">Active service requests and appointments</p>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
+            ) : activeJobs?.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+                    <Briefcase className="h-12 w-12 text-slate-300 mx-auto mb-4"/>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No active jobs</h3>
+                    <p className="text-slate-500">Requests will appear here when you interact with them.</p>
+                </div>
+            ) : (
+                <div className="grid gap-4">
+                    {activeJobs.map(job => (
+                        <div 
+                            key={job.id} 
+                            onClick={() => window.location.href = `/contractor-portal?requestId=${job.id}`}
+                            className="bg-white p-5 rounded-xl border border-slate-200 hover:shadow-md transition-all cursor-pointer group"
+                        >
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="font-bold text-lg text-slate-800 group-hover:text-emerald-700 transition-colors">
+                                        {job.description || 'Service Request'}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
+                                        <span>{job.propertyName || 'Homeowner'}</span>
+                                        <span>•</span>
+                                        <span>
+                                            {new Date(job.createdAt?.toDate ? job.createdAt.toDate() : (job.createdAt || Date.now())).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${getStatusColor(job.status)}`}>
+                                    {job.status}
+                                </span>
+                            </div>
+                            
+                            <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between text-sm">
+                                <span className="text-slate-400">Tap to view details</span>
+                                <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500"/>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- INVITATIONS LIST ---
 const InvitationsView = ({ invitations, loading, onCreate }) => (
@@ -501,6 +583,12 @@ export const ContractorProApp = () => {
         stats, 
         loading: statsLoading 
     } = useDashboardStats(user?.uid);
+
+    // NEW: Load Active Jobs
+    const { 
+        jobs, 
+        loading: jobsLoading 
+    } = useContractorJobs(user?.uid);
     
     // Navigation
     const handleNavigate = useCallback((view) => {
@@ -518,6 +606,7 @@ export const ContractorProApp = () => {
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
+            case 'jobs': return 'My Jobs'; // NEW TITLE
             case 'invitations': return 'Invitations';
             case 'customers': return 'Customers';
             case 'profile': return 'Profile';
@@ -587,6 +676,13 @@ export const ContractorProApp = () => {
                             onCreateInvitation={handleCreateInvitation}
                             onViewAllInvitations={() => handleNavigate('invitations')}
                             onViewAllCustomers={() => handleNavigate('customers')}
+                        />
+                    )}
+
+                    {activeView === 'jobs' && (
+                        <JobsView 
+                            jobs={jobs}
+                            loading={jobsLoading}
                         />
                     )}
                     
