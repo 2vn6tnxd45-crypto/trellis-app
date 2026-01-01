@@ -14,7 +14,7 @@ import {
     signInWithPopup, 
     GoogleAuthProvider, 
     onAuthStateChanged,
-    signOut  // NEW: Added for contractor sign-out
+    signOut
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { 
@@ -29,7 +29,7 @@ import { validateInvitation, checkEmailMatch, claimInvitation, getInvitationPrev
 import { Logo } from '../../components/common/Logo';
 import { waitForAuthReady, retryWithBackoff } from '../../lib/authHelpers';
 
-// NEW: Import contractor profile check
+// Import contractor profile check
 import { getContractorProfile } from '../contractor-pro/lib/contractorService';
 
 // ============================================
@@ -65,13 +65,24 @@ const ErrorState = ({ error, onGoHome }) => {
             title: 'Email Mismatch',
             message: 'This invitation was sent to a different email address. Please sign in with the correct email.'
         },
+        'permission_denied': {
+            title: 'Access Denied',
+            message: 'We could not access this invitation. The link may be invalid or restricted.'
+        },
         'default': {
             title: 'Something Went Wrong',
             message: 'We encountered an error loading this invitation. Please try again.'
         }
     };
     
-    const { title, message } = errorMessages[error] || errorMessages.default;
+    // Check if error is an object (from try/catch) or string
+    const errorKey = typeof error === 'string' ? error : 'default';
+    const { title, message } = errorMessages[errorKey] || errorMessages.default;
+    
+    // If it's a real error object, log it for debugging
+    if (typeof error === 'object') {
+        console.error("Invitation Error:", error);
+    }
     
     return (
         <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
@@ -255,8 +266,6 @@ const AuthForm = ({ onSuccess, invite, lockedEmail }) => {
                     </svg>
                     Continue with Google
                 </button>
-                
-                
             </div>
             
             <div className="relative my-4">
@@ -337,7 +346,7 @@ const AuthForm = ({ onSuccess, invite, lockedEmail }) => {
 };
 
 // ============================================
-// ADDRESS SETUP STEP (NEW)
+// ADDRESS SETUP STEP
 // ============================================
 const AddressSetupStep = ({ onComplete, isSaving }) => {
     const [name, setName] = useState('');
@@ -529,7 +538,6 @@ const PropertySelector = ({ properties, selectedId, onSelect, onCreateNew }) => 
 // ============================================
 // SAFE PROFILE LOADER
 // ============================================
-// This handles new users gracefully.
 const loadProfileSafely = async (userId) => {
     if (!userId || !appId) return null;
     
@@ -540,11 +548,8 @@ const loadProfileSafely = async (userId) => {
         if (profileSnap.exists()) {
             return profileSnap.data();
         }
-        // Profile doesn't exist yet - this is normal for new users
         return null;
     } catch (err) {
-        // Only log if it's NOT a permission error (which is expected for some cases)
-        // Permission errors during claim flow are expected and handled by proceeding without profile
         if (!err.message?.includes('permission') && !err.code?.includes('permission')) {
             console.error('Error loading profile:', err);
         }
@@ -566,46 +571,51 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     const [profile, setProfile] = useState(null);
     const [checkingAuth, setCheckingAuth] = useState(true);
     
-    // NEW: Contractor detection state
+    // Contractor detection state
     const [isContractor, setIsContractor] = useState(false);
     const [contractorProfile, setContractorProfile] = useState(null);
     const [isSigningOut, setIsSigningOut] = useState(false);
     
-    // Flow state - UPDATED: Added 'setup' step
-    const [step, setStep] = useState('preview'); // 'preview' | 'auth' | 'setup' | 'property' | 'importing' | 'success'
+    // Flow state
+    const [step, setStep] = useState('preview');
     const [selectedPropertyId, setSelectedPropertyId] = useState(null);
     const [importResult, setImportResult] = useState(null);
     
-    // NEW: State for address setup
+    // Address setup state
     const [newPropertyData, setNewPropertyData] = useState(null);
     const [isSavingProperty, setIsSavingProperty] = useState(false);
     
-    // Validate the invitation on mount
+    // Validate the invitation on mount - FIXED WITH TRY/CATCH
     useEffect(() => {
         const validate = async () => {
-            const result = await validateInvitation(token);
-            
-            if (!result.valid) {
-                setError(result.error);
+            try {
+                const result = await validateInvitation(token);
+                
+                if (!result.valid) {
+                    setError(result.error);
+                } else {
+                    setInvite(result.invite);
+                    setPreview(getInvitationPreview(result.invite));
+                }
+            } catch (err) {
+                console.error('Validation error:', err);
+                // Treat system errors (permissions, etc) as generic errors
+                // This ensures we always clear the loading state
+                setError(err.code === 'permission-denied' ? 'permission_denied' : 'default');
+            } finally {
                 setLoading(false);
-                return;
             }
-            
-            setInvite(result.invite);
-            setPreview(getInvitationPreview(result.invite));
-            setLoading(false);
         };
         
         validate();
     }, [token]);
     
-    // Check auth state - UPDATED: Now checks for contractor session
+    // Check auth state
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             setUser(firebaseUser);
             
             if (firebaseUser) {
-                // NEW: Check if this is a contractor account
                 try {
                     const contractorData = await getContractorProfile(firebaseUser.uid);
                     
@@ -650,142 +660,125 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
     
     // Handle auth success
     const handleAuthSuccess = async () => {
-    try {
-        // ✅ FIX: Wait for auth to be fully ready
-        const currentUser = await waitForAuthReady();
-        
-        if (!currentUser) {
-            toast.error('Authentication failed. Please try again.');
-            return;
-        }
-        
-        // Check email lock if applicable
-        if (invite?.recipientEmail) {
-            const matches = checkEmailMatch(invite, currentUser.email);
-            if (!matches) {
-                setError('email_mismatch');
+        try {
+            const currentUser = await waitForAuthReady();
+            
+            if (!currentUser) {
+                toast.error('Authentication failed. Please try again.');
                 return;
             }
-        }
-        
-        // Load profile safely to check for properties
-        const profileData = await loadProfileSafely(currentUser.uid);
-        
-        if (profileData) {
-            setProfile(profileData);
             
-            const props = profileData.properties || [];
-            if (props.length > 0) {
-                setSelectedPropertyId(props[0].id);
-                setStep('property');
-            } else {
-                setStep('setup');
-            }
-        } else {
-            // New user - need to set up property with address
-            setStep('setup');
-        }
-    } catch (err) {
-        console.error('Auth verification error:', err);
-        toast.error('Please try signing in again.');
-    }
-};
-    
-    // NEW: Handle address setup completion
-    const handleAddressSetupComplete = (propertyData) => {
-        setNewPropertyData(propertyData);
-        // Immediately proceed to import with the new property data
-        handleImportWithNewProperty(propertyData);
-    };
-    
-    // NEW: Handle import with new property (includes address)
-    const handleImportWithNewProperty = async (propertyData) => {
-    if (!invite) return;
-    
-    setIsSavingProperty(true);
-    setStep('importing');
-    
-    // ✅ FIX: Ensure we have a valid authenticated user
-    let currentUser;
-    try {
-        currentUser = await waitForAuthReady();
-    } catch (err) {
-        console.error('Auth not ready:', err);
-        toast.error('Authentication error. Please try again.');
-        setStep('setup');
-        setIsSavingProperty(false);
-        return;
-    }
-    
-    // ✅ FIX: Retry logic with exponential backoff
-    const maxRetries = 3;
-    let lastError;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const newPropertyId = Date.now().toString();
-            const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
-            
-            const existingProfile = profile || {};
-            const existingProperties = existingProfile.properties || [];
-            
-            const newProperty = {
-                id: newPropertyId,
-                name: propertyData.name || 'My Home',
-                address: propertyData.address,
-                coordinates: propertyData.coordinates || null
-            };
-            
-            // Create/update profile
-            await setDoc(profileRef, {
-                ...existingProfile,
-                properties: [...existingProperties, newProperty],
-                activePropertyId: newPropertyId,
-                updatedAt: serverTimestamp()
-            }, { merge: true });
-            
-            // Now claim the invitation
-            const result = await claimInvitation(invite.id, currentUser.uid, newPropertyId);
-            
-            if (result.success) {
-                setImportResult(result);
-                setStep('success');
-                return; // Success! Exit the retry loop
-            } else {
-                throw new Error(result.error || 'Failed to import records');
-            }
-            
-        } catch (err) {
-            lastError = err;
-            console.error(`Attempt ${attempt} failed:`, err);
-            
-            // Check if it's a permissions error - wait and retry
-            if (err.code === 'permission-denied' || err.message?.includes('permission')) {
-                if (attempt < maxRetries) {
-                    // Wait before retry (exponential backoff)
-                    await new Promise(r => setTimeout(r, 1000 * attempt));
-                    
-                    // Force token refresh before retry
-                    try {
-                        await currentUser.getIdToken(true);
-                    } catch (tokenErr) {
-                        console.error('Token refresh failed:', tokenErr);
-                    }
-                    continue;
+            if (invite?.recipientEmail) {
+                const matches = checkEmailMatch(invite, currentUser.email);
+                if (!matches) {
+                    setError('email_mismatch');
+                    return;
                 }
             }
             
-            // Non-permission error or max retries reached
-            break;
+            const profileData = await loadProfileSafely(currentUser.uid);
+            
+            if (profileData) {
+                setProfile(profileData);
+                const props = profileData.properties || [];
+                if (props.length > 0) {
+                    setSelectedPropertyId(props[0].id);
+                    setStep('property');
+                } else {
+                    setStep('setup');
+                }
+            } else {
+                setStep('setup');
+            }
+        } catch (err) {
+            console.error('Auth verification error:', err);
+            toast.error('Please try signing in again.');
         }
-    }
+    };
     
-    // All retries failed
-    console.error('All import attempts failed:', lastError);
-    toast.error('Failed to create home. Please try again.');
-    setStep('setup');
-    setIsSavingProperty(false);
-};
+    // Handle address setup completion
+    const handleAddressSetupComplete = (propertyData) => {
+        setNewPropertyData(propertyData);
+        handleImportWithNewProperty(propertyData);
+    };
+    
+    // Handle import with new property
+    const handleImportWithNewProperty = async (propertyData) => {
+        if (!invite) return;
+        
+        setIsSavingProperty(true);
+        setStep('importing');
+        
+        let currentUser;
+        try {
+            currentUser = await waitForAuthReady();
+        } catch (err) {
+            console.error('Auth not ready:', err);
+            toast.error('Authentication error. Please try again.');
+            setStep('setup');
+            setIsSavingProperty(false);
+            return;
+        }
+        
+        const maxRetries = 3;
+        let lastError;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const newPropertyId = Date.now().toString();
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
+                
+                const existingProfile = profile || {};
+                const existingProperties = existingProfile.properties || [];
+                
+                const newProperty = {
+                    id: newPropertyId,
+                    name: propertyData.name || 'My Home',
+                    address: propertyData.address,
+                    coordinates: propertyData.coordinates || null
+                };
+                
+                await setDoc(profileRef, {
+                    ...existingProfile,
+                    properties: [...existingProperties, newProperty],
+                    activePropertyId: newPropertyId,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+                
+                const result = await claimInvitation(invite.id, currentUser.uid, newPropertyId);
+                
+                if (result.success) {
+                    setImportResult(result);
+                    setStep('success');
+                    return;
+                } else {
+                    throw new Error(result.error || 'Failed to import records');
+                }
+                
+            } catch (err) {
+                lastError = err;
+                console.error(`Attempt ${attempt} failed:`, err);
+                
+                if (err.code === 'permission-denied' || err.message?.includes('permission')) {
+                    if (attempt < maxRetries) {
+                        await new Promise(r => setTimeout(r, 1000 * attempt));
+                        try {
+                            await currentUser.getIdToken(true);
+                        } catch (tokenErr) {
+                            console.error('Token refresh failed:', tokenErr);
+                        }
+                        continue;
+                    }
+                }
+                break;
+            }
+        }
+        
+        console.error('All import attempts failed:', lastError);
+        toast.error('Failed to create home. Please try again.');
+        setStep('setup');
+        setIsSavingProperty(false);
+    };
     
     // Handle import (for existing properties)
     const handleImport = async () => {
@@ -793,7 +786,6 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         
         let propertyId = selectedPropertyId;
         
-        // If no property selected but user chose to create new, go to setup step
         if (!propertyId) {
             setStep('setup');
             return;
@@ -818,9 +810,7 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         }
     };
     
-    // Handle continue after success
     const handleContinue = () => {
-        // Clear the URL param and reload to go to main app
         const url = new URL(window.location.href);
         url.searchParams.delete('invite');
         window.history.replaceState({}, '', url.toString());
@@ -832,7 +822,6 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         }
     };
     
-    // Handle go home on error
     const handleGoHome = () => {
         const url = new URL(window.location.href);
         url.searchParams.delete('invite');
@@ -845,13 +834,11 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         }
     };
     
-    // NEW: Handle contractor sign out
     const handleContractorSignOut = async () => {
         setIsSigningOut(true);
         try {
             await signOut(auth);
             toast.success('Signed out. You can now claim the invitation.');
-            // Auth listener will handle resetting state
         } catch (err) {
             console.error('Sign out error:', err);
             toast.error('Failed to sign out');
@@ -870,7 +857,7 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         return <ErrorState error={error} onGoHome={handleGoHome} />;
     }
     
-    // NEW: Contractor session detected - show warning
+    // Contractor session detected
     if (isContractor && contractorProfile) {
         return (
             <ContractorSessionWarning
@@ -893,55 +880,52 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         );
     }
     
-    // Importing state - Enhanced with progress indicator
-if (step === 'importing') {
-    return (
-        <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full">
-                <div className="text-center">
-                    {/* Animated icon */}
-                    <div className="relative mx-auto w-16 h-16 mb-6">
-                        <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-25" />
-                        <div className="relative bg-emerald-100 rounded-full w-16 h-16 flex items-center justify-center">
-                            <Home className="h-8 w-8 text-emerald-600" />
+    // Importing state
+    if (step === 'importing') {
+        return (
+            <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
+                <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full">
+                    <div className="text-center">
+                        <div className="relative mx-auto w-16 h-16 mb-6">
+                            <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-25" />
+                            <div className="relative bg-emerald-100 rounded-full w-16 h-16 flex items-center justify-center">
+                                <Home className="h-8 w-8 text-emerald-600" />
+                            </div>
                         </div>
-                    </div>
-                    
-                    <h3 className="text-lg font-bold text-slate-800 mb-2">
-                        Setting up your home...
-                    </h3>
-                    <p className="text-slate-500 text-sm mb-6">
-                        This may take a moment
-                    </p>
-                    
-                    {/* Progress bar */}
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
-                        <div 
-                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full animate-pulse"
-                            style={{ width: '70%' }}
-                        />
-                    </div>
-                    
-                    {/* Status steps */}
-                    <div className="space-y-2 text-left">
-                        <div className="flex items-center gap-2 text-sm text-emerald-600">
-                            <CheckCircle size={16} />
-                            <span>Account verified</span>
+                        
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">
+                            Setting up your home...
+                        </h3>
+                        <p className="text-slate-500 text-sm mb-6">
+                            This may take a moment
+                        </p>
+                        
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-4">
+                            <div 
+                                className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full animate-pulse"
+                                style={{ width: '70%' }}
+                            />
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-emerald-600">
-                            <Loader2 size={16} className="animate-spin" />
-                            <span>Importing {preview?.recordCount || ''} records...</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-slate-400">
-                            <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
-                            <span>Finalizing</span>
+                        
+                        <div className="space-y-2 text-left">
+                            <div className="flex items-center gap-2 text-sm text-emerald-600">
+                                <CheckCircle size={16} />
+                                <span>Account verified</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-emerald-600">
+                                <Loader2 size={16} className="animate-spin" />
+                                <span>Importing {preview?.recordCount || ''} records...</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-slate-400">
+                                <div className="w-4 h-4 rounded-full border-2 border-slate-300" />
+                                <span>Finalizing</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    );
-}
+        );
+    }
     
     // Main flow
     return (
@@ -969,7 +953,6 @@ if (step === 'importing') {
             {/* Content Card */}
             <div className="max-w-md mx-auto px-4 -mt-10">
                 <div className="bg-white rounded-2xl shadow-lg p-6">
-                    {/* Preview Items - Show on preview and auth steps */}
                     {(step === 'preview' || step === 'auth') && (
                         <div className="mb-6">
                             <h2 className="font-bold text-slate-800 mb-3 flex items-center gap-2">
@@ -998,7 +981,6 @@ if (step === 'importing') {
                         </div>
                     )}
                     
-                    {/* Step: Preview (not signed in) */}
                     {step === 'preview' && !user && (
                         <button
                             onClick={() => setStep('auth')}
@@ -1009,14 +991,12 @@ if (step === 'importing') {
                         </button>
                     )}
                     
-                    {/* Step: Preview (signed in) */}
                     {step === 'preview' && user && (
                         <button
                             onClick={() => {
                                 if (profile?.properties?.length > 0) {
                                     setStep('property');
                                 } else {
-                                    // No properties - go to address setup
                                     setStep('setup');
                                 }
                             }}
@@ -1027,7 +1007,6 @@ if (step === 'importing') {
                         </button>
                     )}
                     
-                    {/* Step: Auth */}
                     {step === 'auth' && (
                         <AuthForm 
                             onSuccess={handleAuthSuccess}
@@ -1036,7 +1015,6 @@ if (step === 'importing') {
                         />
                     )}
                     
-                    {/* Step: Address Setup (NEW) */}
                     {step === 'setup' && (
                         <AddressSetupStep 
                             onComplete={handleAddressSetupComplete}
@@ -1044,7 +1022,6 @@ if (step === 'importing') {
                         />
                     )}
                     
-                    {/* Step: Property Selection */}
                     {step === 'property' && (
                         <div>
                             {profile?.properties?.length > 0 ? (
@@ -1083,7 +1060,6 @@ if (step === 'importing') {
                 </div>
             </div>
             
-            {/* Privacy Note */}
             <p className="text-center text-xs text-slate-500 mt-6 px-4">
                 <Shield size={12} className="inline mr-1" />
                 Your data is private and secure. Only you can access your records.
