@@ -17,6 +17,8 @@ import toast, { Toaster } from 'react-hot-toast';
 import { ContractorAuthScreen } from './components/ContractorAuthScreen';
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
+// ADDED: Delete Modal
+import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
@@ -26,7 +28,9 @@ import {
     useDashboardStats,
     useContractorJobs // ADDED: Hook for Jobs
 } from './hooks/useContractorData';
-import { updateContractorSettings } from './lib/contractorService';
+import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService'; // ADDED: deleteContractorAccount
+import { deleteUser } from 'firebase/auth'; // ADDED: deleteUser
+import { auth } from '../../config/firebase'; // Ensure auth is imported for deleteUser
 
 // ============================================
 // NAV ITEM
@@ -485,6 +489,10 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
         smsNotifications: false,
         weeklyDigest: true
     });
+    
+    // NEW STATE: Delete Modal
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleToggle = async (key) => {
         const newSettings = { ...settings, [key]: !settings[key] };
@@ -494,6 +502,34 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
             toast.success('Settings saved');
         } catch (e) {
             toast.error('Failed to save settings');
+        }
+    };
+    
+    // NEW HANDLER: Delete Account
+    const handleDeleteAccount = async () => {
+        setIsDeleting(true);
+        try {
+            // 1. Delete Firestore Data
+            await deleteContractorAccount(profile.uid);
+            
+            // 2. Delete Auth User (Best effort - requires recent login)
+            const user = auth.currentUser;
+            if (user) {
+                await deleteUser(user);
+            }
+            
+            // 3. Sign out/Redirect handled by auth state listener
+            toast.success('Account deleted');
+        } catch (error) {
+            console.error(error);
+            if (error.code === 'auth/requires-recent-login') {
+                toast.error('Please sign out and sign in again to delete your account.');
+            } else {
+                toast.error('Failed to delete account');
+            }
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteModal(false);
         }
     };
 
@@ -534,12 +570,40 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
                 </div>
             </div>
 
+            <h2 className="text-xl font-bold text-slate-800 pt-4">Account Actions</h2>
+            
             <button
                 onClick={onSignOut}
-                className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
             >
                 <LogOut size={18}/> Sign Out
             </button>
+            
+            {/* DANGER ZONE */}
+            <div className="pt-8 border-t border-slate-200">
+                <h3 className="text-sm font-bold text-red-600 uppercase mb-2">Danger Zone</h3>
+                <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                    <p className="text-sm text-red-800 mb-4">
+                        Deleting your account is permanent. All your customer links and invitations will stop working.
+                    </p>
+                    <button 
+                        onClick={() => setShowDeleteModal(true)}
+                        className="text-sm font-bold text-red-600 hover:text-red-700 underline"
+                    >
+                        Delete My Account
+                    </button>
+                </div>
+            </div>
+
+            {/* DELETE MODAL */}
+            <DeleteConfirmModal
+                isOpen={showDeleteModal}
+                onClose={() => setShowDeleteModal(false)}
+                onConfirm={handleDeleteAccount}
+                title="Delete Contractor Account?"
+                message="This will permanently delete your profile, settings, and disconnect you from all homeowners. This action cannot be undone."
+                isDeleting={isDeleting}
+            />
         </div>
     );
 };
