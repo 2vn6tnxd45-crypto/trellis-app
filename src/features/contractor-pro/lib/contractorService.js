@@ -536,3 +536,30 @@ export const deleteContractorAccount = async (contractorId) => {
         throw error;
     }
 };
+
+// ... existing imports
+
+// ============================================
+// INVOICES
+// ============================================
+
+/**
+ * Subscribe to invoices for a contractor
+ */
+export const subscribeToContractorInvoices = (contractorId, callback) => {
+    const q = query(
+        collection(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'invoices'),
+        orderBy('createdAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const invoices = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+        }));
+        callback(invoices);
+    }, (error) => {
+        console.error('Invoices subscription error:', error);
+        callback([]); 
+    });
+};
