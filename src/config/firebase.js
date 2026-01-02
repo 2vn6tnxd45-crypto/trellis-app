@@ -338,4 +338,9 @@ export const recoverFromStorageIssues = async () => {
     window.location.reload();
 };
 
+export const reportFirestoreHang = () => {
+    recordFailure();
+    return getFailureCount();
+};
+
 export { app, auth, db, storage, geminiModel };
