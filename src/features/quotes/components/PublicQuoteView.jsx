@@ -431,10 +431,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [pendingSave, setPendingSave] = useState(false);
 
     useEffect(() => {
+        let isMounted = true;
         const loadQuote = async () => {
             try {
                 const result = await getQuoteByShareToken(shareToken);
                 
+                if (!isMounted) return;
+
                 if (!result) {
                     setError('This quote could not be found. It may have been deleted.');
                     return;
@@ -447,14 +450,30 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                     await markQuoteViewed(result.contractorId, result.quote.id);
                 }
             } catch (err) {
+                if (!isMounted) return;
                 console.error('Error loading quote:', err);
                 setError('Unable to load this quote. Please try again later.');
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
         
         loadQuote();
+
+        // Safety Timeout: Force stop loading if it hangs for 10s
+        const timeout = setTimeout(() => {
+            if (isMounted && loading) {
+                setLoading(false);
+                if (!data && !error) {
+                    setError('Request timed out. Please refresh the page.');
+                }
+            }
+        }, 10000);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timeout);
+        };
     }, [shareToken]);
 
     // NEW: Handle Save/Claim
@@ -468,9 +487,14 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         try {
             await claimQuote(data.contractorId, data.quote.id, user.uid);
             toast.success('Quote saved to your account!');
-            // Refresh data to update UI
-            const result = await getQuoteByShareToken(shareToken);
-            setData(result);
+            
+            // REDIRECT TO DASHBOARD
+            // We use window.location to force a full navigation out of the "Quote View" mode (which is triggered by URL param)
+            setTimeout(() => {
+                // Clear the query string to return to the dashboard view
+                window.location.href = window.location.origin + '/app';
+            }, 1000);
+            
         } catch (err) {
             console.error('Error saving quote:', err);
             toast.error('Failed to save quote.');
