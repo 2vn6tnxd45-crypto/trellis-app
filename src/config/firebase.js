@@ -144,7 +144,8 @@ const clearFirebaseIndexedDB = async () => {
 const isContractorFlow = () => {
     if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
-    return params.has('pro') || params.has('requestId');
+    // Include quote viewing - homeowners don't need persistence either
+    return params.has('pro') || params.has('requestId') || params.has('quote');
 };
 
 // ============================================
