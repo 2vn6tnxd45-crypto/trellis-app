@@ -11,7 +11,7 @@ import React, { useMemo } from 'react';
 import { 
     Camera, Plus, Package, Sparkles, MapPin, Wrench, Send,
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
-    TrendingUp, TrendingDown
+    TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle
 } from 'lucide-react';
 
 // Existing components
@@ -21,12 +21,71 @@ import { ReportTeaser } from './ReportTeaser';
 
 // NEW: Property data hook for getting started view
 import usePropertyData from '../../hooks/usePropertyData';
+// NEW: Quotes hook
+import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 
 // ============================================
 // HELPERS
 // ============================================
 const formatNumber = (num) => num ? num.toLocaleString() : '--';
 const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
+
+// ============================================
+// QUOTES SECTION COMPONENT (Reusable)
+// ============================================
+const MyQuotesSection = ({ userId }) => {
+    const { quotes, loading, error } = useCustomerQuotes(userId);
+
+    if (loading || (!quotes.length && error !== 'missing-index')) return null;
+
+    return (
+        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <FileText className="text-emerald-600" />
+                My Quotes & Estimates
+            </h2>
+
+            {error === 'missing-index' ? (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
+                    <AlertTriangle className="shrink-0" />
+                    <div>
+                        <p className="font-bold">Setup Required (Developer Only)</p>
+                        <p>A "Collection Group Index" is required to view these quotes.</p>
+                        <p className="mt-1">Check the browser console for the creation link.</p>
+                    </div>
+                </div>
+            ) : quotes.length > 0 ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                    {quotes.map(quote => (
+                        <a 
+                            key={quote.id}
+                            href={`/app/?quote=${quote.contractorId}_${quote.id}`}
+                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group"
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
+                                    {quote.title}
+                                </h3>
+                                <span className={`px-2 py-1 rounded text-xs font-bold capitalize
+                                    ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
+                                      quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}
+                                `}>
+                                    {quote.status}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-slate-500">
+                                <span>${(quote.total || 0).toLocaleString()}</span>
+                                <span className="flex items-center gap-1">
+                                    View <ExternalLink size={14} />
+                                </span>
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            ) : null}
+        </div>
+    );
+};
 
 // ============================================
 // EMPTY STATE (0 items)
@@ -52,6 +111,11 @@ const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt
                 </p>
             </div>
         )}
+
+        {/* SHOW QUOTES EVEN ON EMPTY STATE */}
+        <div className="w-full max-w-lg text-left mb-8">
+            <MyQuotesSection userId={activeProperty?.userId} />
+        </div>
         
         <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
             Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
@@ -287,6 +351,9 @@ const GettingStartedDashboard = ({
                 </div>
             </div>
 
+            {/* MY QUOTES SECTION (Getting Started) */}
+            <MyQuotesSection userId={activeProperty?.userId} />
+
             {/* Property Intelligence Teaser - NEW! */}
             {activeProperty?.address && (
                 <PropertyIntelTeaser 
@@ -426,26 +493,30 @@ export const ProgressiveDashboard = ({
     
     case 'established':
     default:
+        // INJECT QUOTES HERE for established dashboard
         return (
-            <ModernDashboard 
-                records={records}
-                contractors={contractors}
-                activeProperty={activeProperty}
-                onScanReceipt={onScanReceipt}
-                onAddRecord={onAddRecord}
-                onNavigateToItems={onNavigateToItems}
-                onNavigateToContractors={onNavigateToContractors}
-                onNavigateToReports={onNavigateToReports}
-                onCreateContractorLink={onCreateContractorLink}
-                onNavigateToMaintenance={onNavigateToMaintenance}
-                onBookService={onBookService}
-                onMarkTaskDone={onMarkTaskDone}
-                onDeleteHistoryItem={onDeleteHistoryItem}
-                onRestoreHistoryItem={onRestoreHistoryItem}
-                onDeleteTask={onDeleteTask}
-                onScheduleTask={onScheduleTask}
-                onSnoozeTask={onSnoozeTask}
-            />
+            <>
+                <MyQuotesSection userId={activeProperty?.userId} />
+                <ModernDashboard 
+                    records={records}
+                    contractors={contractors}
+                    activeProperty={activeProperty}
+                    onScanReceipt={onScanReceipt}
+                    onAddRecord={onAddRecord}
+                    onNavigateToItems={onNavigateToItems}
+                    onNavigateToContractors={onNavigateToContractors}
+                    onNavigateToReports={onNavigateToReports}
+                    onCreateContractorLink={onCreateContractorLink}
+                    onNavigateToMaintenance={onNavigateToMaintenance}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
+                />
+            </>
         );
     }
 };
