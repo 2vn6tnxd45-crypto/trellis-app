@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
-    FileText, Clock, UserPlus, Save, ArrowLeft // <--- ADDED ArrowLeft
+    FileText, Clock, UserPlus, Save, ArrowLeft, Shield
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -229,6 +229,10 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
     
     const canRespond = ['sent', 'viewed'].includes(quote.status);
 
+    // Calculate Deposit logic if present
+    const depositAmount = quote.depositAmount || 0;
+    const balanceDue = (quote.total || 0) - depositAmount;
+
     return (
         <div className="min-h-screen bg-slate-50 py-8 px-4">
             <Toaster position="top-center" />
@@ -278,9 +282,13 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
                     <div className="bg-emerald-600 text-white p-6">
                         <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-                                <Building2 size={28} />
-                            </div>
+                            {contractor?.logoUrl ? (
+                                <img src={contractor.logoUrl} alt="Logo" className="w-14 h-14 rounded-xl bg-white object-contain p-1" />
+                            ) : (
+                                <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                                    <Building2 size={28} />
+                                </div>
+                            )}
                             <div>
                                 <h1 className="text-xl font-bold">
                                     {contractor?.companyName || 'Service Quote'}
@@ -332,19 +340,31 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {(quote.lineItems || []).map((item, idx) => (
-                                    <tr key={item.id || idx}>
-                                        <td className="px-4 py-3">
-                                            <p className="text-slate-800">{item.description}</p>
-                                            <p className="text-xs text-slate-400 capitalize">{item.type}</p>
-                                        </td>
-                                        <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
-                                        <td className="px-4 py-3 text-right text-slate-600">
-                                            ${(item.unitPrice || 0).toFixed(2)}
-                                        </td>
-                                        <td className="px-4 py-3 text-right font-medium text-slate-800">
-                                            ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
-                                        </td>
-                                    </tr>
+                                    <React.Fragment key={item.id || idx}>
+                                        <tr>
+                                            <td className="px-4 py-3">
+                                                <p className="font-medium text-slate-800">{item.description}</p>
+                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                                     <p className="text-xs text-slate-400 capitalize inline-block">{item.type}</p>
+                                                     {/* Specs */}
+                                                     {item.brand && <span className="text-xs text-slate-500">Brand: {item.brand}</span>}
+                                                     {item.model && <span className="text-xs text-slate-500">Model: {item.model}</span>}
+                                                     {item.warranty && (
+                                                        <span className="text-xs text-emerald-600 flex items-center gap-1">
+                                                            <Shield size={10} /> {item.warranty}
+                                                        </span>
+                                                     )}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
+                                            <td className="px-4 py-3 text-right text-slate-600">
+                                                ${(item.unitPrice || 0).toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-3 text-right font-medium text-slate-800">
+                                                ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                            </td>
+                                        </tr>
+                                    </React.Fragment>
                                 ))}
                             </tbody>
                         </table>
@@ -352,7 +372,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                     
                     {/* Totals */}
                     <div className="flex justify-end mb-6">
-                        <div className="w-64 space-y-2">
+                        <div className="w-72 space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Subtotal</span>
                                 <span className="font-medium">${(quote.subtotal || 0).toFixed(2)}</span>
@@ -367,16 +387,38 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                     ${(quote.total || 0).toFixed(2)}
                                 </span>
                             </div>
+                            
+                            {/* DEPOSIT DISPLAY */}
+                            {depositAmount > 0 && (
+                                <div className="mt-4 pt-3 border-t border-dashed border-slate-300">
+                                    <div className="flex justify-between text-sm font-bold text-emerald-700">
+                                        <span>Required Deposit</span>
+                                        <span>${depositAmount.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-slate-500 mt-1">
+                                        <span>Balance Due Upon Completion</span>
+                                        <span>${balanceDue.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     
-                    {/* Notes */}
-                    {quote.notes && (
-                        <div className="bg-slate-50 rounded-xl p-4 mb-6">
-                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Notes</p>
-                            <p className="text-sm text-slate-600">{quote.notes}</p>
-                        </div>
-                    )}
+                    {/* Notes & Exclusions */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {quote.notes && (
+                            <div className="bg-slate-50 rounded-xl p-4">
+                                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Scope Notes</p>
+                                <p className="text-sm text-slate-600">{quote.notes}</p>
+                            </div>
+                        )}
+                        {quote.exclusions && (
+                            <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+                                <p className="text-xs font-bold text-red-500 uppercase mb-2">Exclusions</p>
+                                <p className="text-sm text-slate-600">{quote.exclusions}</p>
+                            </div>
+                        )}
+                    </div>
                     
                     {/* Terms */}
                     {quote.terms && (
@@ -412,7 +454,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                 ) : (
                                     <CheckCircle size={18} />
                                 )}
-                                Accept Quote
+                                {depositAmount > 0 ? `Accept & Pay Deposit` : 'Accept Quote'}
                             </button>
                         </div>
                     </div>
