@@ -409,7 +409,8 @@ const AppContent = () => {
                         <ProgressiveDashboard 
                             records={app.activePropertyRecords} 
                             contractors={contractorsList} 
-                            activeProperty={app.activeProperty} 
+                            // FIX: Inject userId so the dashboard can find my quotes
+                            activeProperty={app.activeProperty ? { ...app.activeProperty, userId: app.user.uid } : null} 
                             onScanReceipt={() => app.setShowScanner(true)} 
                             onAddRecord={() => openAddModal()} 
                             onNavigateToItems={() => app.setActiveTab('Items')} 
