@@ -18,6 +18,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Components
 import { ContractorAuthScreen } from './components/ContractorAuthScreen';
+import { SetupBusinessProfile } from './components/SetupBusinessProfile'; // <--- NEW IMPORT
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
@@ -568,7 +569,8 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
     const [selectedQuote, setSelectedQuote] = useState(null); // ADDED: Selected quote state
-    
+    const [isSavingProfile, setIsSavingProfile] = useState(false); // NEW: State for setup screen
+
     const {
         user,
         profile,
@@ -612,6 +614,20 @@ export const ContractorProApp = () => {
         isSending: isSendingQuote
     } = useQuoteOperations(contractorId);
     
+    // NEW: Handler for initial profile setup
+    const handleInitialSetup = async (formData) => {
+        setIsSavingProfile(true);
+        try {
+            await updateProfile(formData);
+            toast.success("Profile setup complete!");
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to save profile.");
+        } finally {
+            setIsSavingProfile(false);
+        }
+    };
+
     const handleNavigate = useCallback((view) => {
         // Reset selected quote when navigating away from quote views
         if (!['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(view)) {
@@ -722,6 +738,21 @@ export const ContractorProApp = () => {
     
     if (!isAuthenticated) return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} loading={authLoading} error={authError} onClearError={clearError} />;
     
+    // --- NEW: CHECK FOR INCOMPLETE PROFILE ---
+    // If authenticated but missing key business details, force setup screen.
+    const isProfileComplete = profile?.profile?.companyName && profile?.profile?.phone;
+
+    if (!isProfileComplete) {
+        return (
+            <SetupBusinessProfile 
+                profile={profile} 
+                onSave={handleInitialSetup} 
+                saving={isSavingProfile} 
+            />
+        );
+    }
+    // -----------------------------------------
+
     return (
         <div className="min-h-screen bg-slate-50 flex">
             <Toaster position="top-center" />
