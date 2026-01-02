@@ -86,11 +86,6 @@ const ExpiredState = ({ quote, contractor }) => (
 // ============================================
 // SUCCESS STATE (After accepting)
 // ============================================
-// ============================================
-// SUCCESS STATE (After accepting)
-// ============================================
-// Replace the existing SuccessState in PublicQuoteView.jsx with this:
-
 const SuccessState = ({ quote, contractor }) => {
     const handleGoToDashboard = () => {
         // Remove the quote param and redirect to the app
@@ -185,9 +180,6 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 // ============================================
 // MAIN QUOTE VIEW
 // ============================================
-// ============================================
-// MAIN QUOTE VIEW
-// ============================================
 const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
@@ -268,7 +260,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                 Save this Quote to Krib
                             </h3>
                             <p className="text-emerald-100 text-sm mt-1">
-                                Create a free account to track this project, manage receipts, and organize your home.
+                                Create a free account or add to existing account to track this project.
                             </p>
                         </div>
                         <button 
@@ -277,7 +269,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             className="whitespace-nowrap px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center gap-2"
                         >
                             {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            {user ? 'Save to My Account' : 'Create Free Account'}
+                            {user ? 'Save to My Account' : 'Create Free Account or Add to Existing'}
                         </button>
                     </div>
                 )}
@@ -534,56 +526,64 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         };
     }, [shareToken]);
 
-    // NEW: Handle Save/Claim
-    // NEW: Handle Save/Claim
+    // Handle Save/Claim
     const handleSaveQuote = async () => {
-    // If not logged in, show auth modal and set pending flag
-    if (!user) {
-        setPendingSave(true);
-        setShowAuth(true);
-        return;
-    }
-
-    // Prevent double-claiming
-    if (alreadyClaimed) {
-        toast.info('This quote is already in your account');
-        window.location.href = window.location.origin + '/app?from=quote';
-        return;
-    }
-
-    // Prevent multiple clicks
-    if (isClaiming) return;
-
-    setIsClaiming(true);
-
-    try {
-        await claimQuote(data.contractorId, data.quote.id, user.uid);
-        toast.success('Quote saved to your account!');
-        
-        // FIX: Properly wait for Firestore to sync all pending writes
-        // This prevents IndexedDB corruption from page unload during sync
-        try {
-            await waitForPendingWrites(db);
-        } catch (syncErr) {
-            // If waitForPendingWrites fails, it's likely already using memory cache
-            // which doesn't need sync - safe to proceed
-            console.warn('waitForPendingWrites skipped:', syncErr.message);
+        // If not logged in, show auth modal and set pending flag
+        if (!user) {
+            setPendingSave(true);
+            setShowAuth(true);
+            
+            // NEW: Store quote address for potential new user onboarding
+            if (data?.quote?.customer?.address) {
+                try {
+                    localStorage.setItem('pendingQuoteAddress', data.quote.customer.address);
+                } catch (e) {
+                    console.warn('Failed to save pending quote address', e);
+                }
+            }
+            return;
         }
-        
-        // Small additional buffer for IndexedDB transaction completion
-        await new Promise(r => setTimeout(r, 300));
-        
-        // REDIRECT TO DASHBOARD
-        window.location.href = window.location.origin + '/app?from=quote';
-        
-    } catch (err) {
-        console.error('Error saving quote:', err);
-        toast.error('Failed to save quote.');
-        setIsClaiming(false); // Only reset on error, not on success (page will redirect)
-    }
-};
 
-    // NEW: Effect to trigger save AFTER login
+        // Prevent double-claiming
+        if (alreadyClaimed) {
+            toast.info('This quote is already in your account');
+            window.location.href = window.location.origin + '/app?from=quote';
+            return;
+        }
+
+        // Prevent multiple clicks
+        if (isClaiming) return;
+
+        setIsClaiming(true);
+
+        try {
+            await claimQuote(data.contractorId, data.quote.id, user.uid);
+            toast.success('Quote saved to your account!');
+            
+            // Clear pending address now that we claimed
+            localStorage.removeItem('pendingQuoteAddress');
+            
+            // FIX: Properly wait for Firestore to sync all pending writes
+            try {
+                await waitForPendingWrites(db);
+            } catch (syncErr) {
+                console.warn('waitForPendingWrites skipped:', syncErr.message);
+            }
+            
+            // Small additional buffer for IndexedDB transaction completion
+            await new Promise(r => setTimeout(r, 300));
+            
+            // REDIRECT TO DASHBOARD
+            window.location.href = window.location.origin + '/app?from=quote';
+            
+        } catch (err) {
+            console.error('Error saving quote:', err);
+            toast.error('Failed to save quote.');
+            setIsClaiming(false); 
+        }
+    };
+
+    // Effect to trigger save AFTER login
     useEffect(() => {
         if (user && pendingSave && data && !isClaiming) {
             setPendingSave(false);
