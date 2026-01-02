@@ -9,9 +9,15 @@ export const useCustomerQuotes = (userId) => {
 
     useEffect(() => {
         if (!userId) {
+            console.warn('[useCustomerQuotes] No userId provided - cannot fetch quotes');
             setLoading(false);
+            setError('no-user');
             return;
         }
+
+        // Reset state when userId changes
+        setLoading(true);
+        setError(null);
 
         // QUERY: Find ALL quotes where customerId matches the logged-in user
         // This requires a "Collection Group Index" in Firestore
@@ -30,11 +36,16 @@ export const useCustomerQuotes = (userId) => {
             }));
             setQuotes(results);
             setLoading(false);
+            setError(null);
         }, (err) => {
             console.error("Error fetching my quotes:", err);
             // This specific error code means you need to create the index
             if (err.code === 'failed-precondition') {
                 setError('missing-index');
+                console.error(
+                    'Missing Firestore index for quotes collection group.',
+                    'Please create a composite index: customerId (asc) + updatedAt (desc)'
+                );
             } else {
                 setError(err.message);
             }
