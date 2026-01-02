@@ -652,6 +652,26 @@ export const generateQuoteShareLink = (contractorId, quoteId) => {
     return `${window.location.origin}/app/?quote=${shareToken}`;
 };
 
+/**
+ * Claim a quote for a specific user (homeowner)
+ */
+export const claimQuote = async (contractorId, quoteId, userId) => {
+    try {
+        const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+        
+        await updateDoc(quoteRef, {
+            customerId: userId,
+            // Optional: You could also change status to 'viewed' or keep it as is
+            updatedAt: serverTimestamp()
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error claiming quote:', error);
+        throw error;
+    }
+};
+
 export default {
     generateQuoteNumber,
     createQuote,
@@ -673,5 +693,6 @@ export default {
     linkQuoteToJob,
     getQuoteStats,
     getQuoteByShareToken,
-    generateQuoteShareLink
+    generateQuoteShareLink,
+    claimQuote
 };
