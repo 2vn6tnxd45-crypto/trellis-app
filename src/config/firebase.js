@@ -145,7 +145,7 @@ const isContractorFlow = () => {
     if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
     // Include quote viewing - homeowners don't need persistence either
-    return params.has('pro') || params.has('requestId') || params.has('quote');
+    return params.has('pro') || params.has('requestId') || params.has('quote') || params.get('from') === 'quote';
 };
 
 // ============================================
