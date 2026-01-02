@@ -1132,7 +1132,7 @@ export const ContractorInviteCreator = () => {
     // FIX: Explicitly navigate to the base URL which loads ContractorProApp
     const handleBackToDashboard = () => {
         // Clear all search params to return to the clean dashboard URL
-        window.location.href = window.location.origin + window.location.pathname;
+        window.location.href = window.location.origin + window.location.pathname + '?pro=dashboard';
     };
     
     // DARK MODE FIX: Added 'contractor-page' class to force light mode
