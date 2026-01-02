@@ -3,11 +3,10 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
-import { auth, db } from '../config/firebase';
+import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
 import { calculateNextDate } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
-import { db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
 
 const withTimeout = (promise, ms, operation = 'Operation') => {
     let timeoutId;
