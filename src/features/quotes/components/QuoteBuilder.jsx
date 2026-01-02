@@ -96,6 +96,9 @@ const TemplatePicker = ({ templates = [], onSelect, onClose }) => {
 // ============================================
 // CUSTOMER SELECTOR (Enhanced with Maps)
 // ============================================
+// ============================================
+// CUSTOMER SELECTOR (Enhanced with Maps)
+// ============================================
 const CustomerSection = ({ 
     customer, 
     customers = [], 
@@ -109,6 +112,14 @@ const CustomerSection = ({
     const isMapsLoaded = useGoogleMaps();
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
+    
+    // 1. Create a Ref to track the LATEST customer state
+    const customerRef = useRef(customer);
+
+    // 2. Keep the Ref updated whenever props change
+    useEffect(() => {
+        customerRef.current = customer;
+    }, [customer]);
 
     useEffect(() => {
         if (isMapsLoaded && addressInputRef.current && !autocompleteRef.current) {
@@ -124,15 +135,21 @@ const CustomerSection = ({
                 autocompleteRef.current.addListener('place_changed', () => {
                     const place = autocompleteRef.current.getPlace();
                     if (place.formatted_address) {
-                        // We use the full formatted address to ensure standardization
-                        onChange({ ...customer, address: place.formatted_address });
+                        // 3. Use customerRef.current inside the listener to get the latest data
+                        const currentCustomer = customerRef.current;
+                        
+                        // Merge the new address with the EXISTING name/phone/email
+                        onChange({ 
+                            ...currentCustomer, 
+                            address: place.formatted_address 
+                        });
                     }
                 });
             } catch (err) {
                 console.error("Autocomplete init failed", err);
             }
         }
-    }, [isMapsLoaded, customer, onChange]);
+    }, [isMapsLoaded, onChange]); // Removed 'customer' from dependency array to prevent re-binding
     // -- GOOGLE MAPS INTEGRATION END --
     
     const handleCustomerSelect = (selectedCustomer) => {
