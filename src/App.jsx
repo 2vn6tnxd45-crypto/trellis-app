@@ -55,6 +55,7 @@ import { PropertyProvider } from './contexts/PropertyContext';
 // CHANGE 1: Import Contractor Pro Dashboard
 import { ContractorProApp } from './features/contractor-pro';
 import './features/report/report-print.css';
+import { PublicQuoteView } from './features/quotes';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -101,6 +102,7 @@ const AppContent = () => {
     const isContractor = urlParams.get('requestId');
     const inviteToken = urlParams.get('invite');
     const proParam = urlParams.get('pro');
+    const quoteToken = urlParams.get('quote');
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -269,7 +271,9 @@ const AppContent = () => {
     };
 
     // -- Early Returns --
-    
+    if (quoteToken) {
+    return <PublicQuoteView shareToken={quoteToken} />;
+}
     // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
     if (proParam !== null && proParam !== 'invite') {
         // If ?pro=dashboard, show the full Pro Dashboard
