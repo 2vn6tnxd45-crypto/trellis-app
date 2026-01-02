@@ -148,7 +148,8 @@ export const createQuote = async (contractorId, quoteData) => {
             // Content
             notes: quoteData.notes || '',
             exclusions: quoteData.exclusions || '', // New Exclusions Field
-            terms: quoteData.terms || 'Quote valid for 14 days. 50% deposit required to schedule work.',
+            clientWarranty: quoteData.clientWarranty || '', // New Global Warranty Field
+            terms: quoteData.terms || 'Quote valid for 14 days. Final payment due upon completion.',
             
             // Timestamps
             createdAt: serverTimestamp(),
@@ -667,6 +668,7 @@ export const createQuoteTemplate = async (contractorId, templateData) => {
             lineItems: templateData.lineItems || [],
             defaultNotes: templateData.defaultNotes || '',
             defaultTerms: templateData.defaultTerms || '',
+            defaultWarranty: templateData.defaultWarranty || '', // New field for template warranties
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         });
