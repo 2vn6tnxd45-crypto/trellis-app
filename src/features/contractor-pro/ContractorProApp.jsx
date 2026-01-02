@@ -3,14 +3,16 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
+// UPDATED: Added Quote System integration
 
 import React, { useState, useCallback } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase, // Icon for Jobs
-    Scroll as ScrollIcon // ADDED: Icon for Invoices
+    Briefcase,
+    Scroll as ScrollIcon,
+    Receipt // ADDED: Icon for Quotes
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -19,8 +21,14 @@ import { ContractorAuthScreen } from './components/ContractorAuthScreen';
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
-// ADDED: Invoice Generator
 import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
+
+// ADDED: Quote Components
+import { 
+    QuotesListView, 
+    QuoteBuilder, 
+    QuoteDetailView 
+} from '../quotes';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
@@ -29,8 +37,16 @@ import {
     useCustomers, 
     useDashboardStats,
     useContractorJobs,
-    useContractorInvoices // ADDED: Hook for Invoices (ready for list view)
+    useContractorInvoices
 } from './hooks/useContractorData';
+
+// ADDED: Quote Hooks
+import { 
+    useQuotes, 
+    useQuoteTemplates, 
+    useQuoteOperations 
+} from '../quotes/hooks/useQuotes';
+
 import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService';
 import { deleteUser } from 'firebase/auth';
 import { auth } from '../../config/firebase';
@@ -65,7 +81,8 @@ const SidebarNav = ({
     activeView, 
     onNavigate, 
     onSignOut,
-    pendingCount 
+    pendingCount,
+    pendingQuotesCount // ADDED: Quote badge count
 }) => {
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
     const email = profile?.profile?.email || '';
@@ -105,7 +122,14 @@ const SidebarNav = ({
                     active={activeView === 'jobs'}
                     onClick={() => onNavigate('jobs')}
                 />
-                {/* ADDED: Invoices Tab */}
+                {/* ADDED: Quotes Tab */}
+                <NavItem 
+                    icon={Receipt}
+                    label="Quotes"
+                    active={activeView === 'quotes' || activeView === 'create-quote' || activeView === 'quote-detail' || activeView === 'edit-quote'}
+                    onClick={() => onNavigate('quotes')}
+                    badge={pendingQuotesCount}
+                />
                 <NavItem 
                     icon={ScrollIcon}
                     label="Invoices"
@@ -156,21 +180,23 @@ const SidebarNav = ({
 // ============================================
 // MOBILE NAV
 // ============================================
-const MobileNav = ({ activeView, onNavigate, pendingCount }) => (
+const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount }) => (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
                 { id: 'jobs', icon: Briefcase, label: 'Jobs' },
-                { id: 'invoices', icon: ScrollIcon, label: 'Invoice' }, // ADDED: Invoices
-                { id: 'invitations', icon: FileText, label: 'Invites', badge: pendingCount },
+                { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount }, // ADDED
+                { id: 'invoices', icon: ScrollIcon, label: 'Invoice' },
                 { id: 'profile', icon: User, label: 'Profile' },
             ].map(item => (
                 <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
                     className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-colors relative ${
-                        activeView === item.id || (item.id === 'invoices' && activeView === 'create-invoice')
+                        activeView === item.id || 
+                        (item.id === 'invoices' && activeView === 'create-invoice') ||
+                        (item.id === 'quotes' && ['create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
                             ? 'text-emerald-600'
                             : 'text-slate-400'
                     }`}
@@ -236,40 +262,23 @@ const JobsView = ({ jobs, loading }) => {
             {loading ? (
                 <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
             ) : activeJobs?.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
-                    <Briefcase className="h-12 w-12 text-slate-300 mx-auto mb-4"/>
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">No active jobs</h3>
-                    <p className="text-slate-500">Requests will appear here when you interact with them.</p>
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                    <Briefcase className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Active Jobs</h3>
+                    <p className="text-slate-500">New service requests from homeowners will appear here.</p>
                 </div>
             ) : (
-                <div className="grid gap-4">
+                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
                     {activeJobs.map(job => (
-                        <div 
-                            key={job.id} 
-                            onClick={() => window.location.href = `/contractor-portal?requestId=${job.id}`}
-                            className="bg-white p-5 rounded-xl border border-slate-200 hover:shadow-md transition-all cursor-pointer group"
-                        >
-                            <div className="flex justify-between items-start">
+                        <div key={job.id} className="p-4 hover:bg-slate-50 transition-colors">
+                            <div className="flex items-start justify-between">
                                 <div>
-                                    <h3 className="font-bold text-lg text-slate-800 group-hover:text-emerald-700 transition-colors">
-                                        {job.description || 'Service Request'}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
-                                        <span>{job.propertyName || 'Homeowner'}</span>
-                                        <span>•</span>
-                                        <span>
-                                            {new Date(job.createdAt?.toDate ? job.createdAt.toDate() : (job.createdAt || Date.now())).toLocaleDateString()}
-                                        </span>
-                                    </div>
+                                    <p className="font-bold text-slate-800">{job.description || 'Service Request'}</p>
+                                    <p className="text-sm text-slate-500">{job.propertyName}</p>
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${getStatusColor(job.status)}`}>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(job.status)}`}>
                                     {job.status}
                                 </span>
-                            </div>
-                            
-                            <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between text-sm">
-                                <span className="text-slate-400">Tap to view details</span>
-                                <ChevronRight size={16} className="text-slate-300 group-hover:text-emerald-500"/>
                             </div>
                         </div>
                     ))}
@@ -279,76 +288,116 @@ const JobsView = ({ jobs, loading }) => {
     );
 };
 
-// --- NEW: INVOICES VIEW (Placeholder List) ---
+// --- INVOICES VIEW ---
 const InvoicesView = ({ onCreateInvoice }) => (
     <div className="space-y-6">
         <div className="flex items-center justify-between">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">Invoices</h1>
-                <p className="text-slate-500">Create and manage invoices</p>
+                <p className="text-slate-500">Manage your invoices and payments</p>
             </div>
-            <button onClick={onCreateInvoice} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2">
+            <button 
+                onClick={onCreateInvoice}
+                className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
+            >
                 <Plus size={18} />
-                <span className="hidden md:inline">New Invoice</span>
+                New Invoice
             </button>
         </div>
-
-        <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-12 text-center">
-            <ScrollIcon className="h-16 w-16 text-slate-200 mx-auto mb-4"/>
-            <h3 className="font-bold text-slate-800 text-lg mb-2">Create professional invoices</h3>
-            <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                Generate PDF invoices that automatically update your customer's home records and warranty info.
-            </p>
-            <button onClick={onCreateInvoice} className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors">
-                Create New Invoice
-            </button>
+        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+            <ScrollIcon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+            <h3 className="font-bold text-slate-800 text-lg mb-2">Invoice List Coming Soon</h3>
+            <p className="text-slate-500 mb-4">For now, create new invoices using the button above.</p>
         </div>
     </div>
 );
 
-// --- INVITATIONS LIST ---
-const InvitationsView = ({ invitations, loading, onCreate }) => (
-    <div className="space-y-6">
-        <div className="flex items-center justify-between">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">Invitations</h1>
-                <p className="text-slate-500">Track and manage sent invites</p>
+// --- INVITATIONS VIEW ---
+const InvitationsView = ({ invitations, loading, onCreate }) => {
+    const getStatusInfo = (status) => {
+        switch(status) {
+            case 'claimed': return { color: 'bg-emerald-100 text-emerald-700', label: 'Claimed' };
+            case 'pending': return { color: 'bg-amber-100 text-amber-700', label: 'Pending' };
+            default: return { color: 'bg-slate-100 text-slate-600', label: status };
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Invitations</h1>
+                    <p className="text-slate-500">Records you've shared with homeowners</p>
+                </div>
+                <button onClick={onCreate} className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2">
+                    <Plus size={18} />
+                    Create Invitation
+                </button>
             </div>
-            <button onClick={onCreate} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2">
-                <Plus size={18} />
-                <span className="hidden md:inline">New Invitation</span>
-            </button>
+
+            {loading ? (
+                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
+            ) : invitations.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                    <FileText className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Invitations Yet</h3>
+                    <p className="text-slate-500 mb-4">Create your first invitation to share service records with a homeowner.</p>
+                    <button onClick={onCreate} className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Create Invitation</button>
+                </div>
+            ) : (
+                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+                    {invitations.map(inv => {
+                        const statusInfo = getStatusInfo(inv.status);
+                        return (
+                            <div key={inv.id} className="p-4 hover:bg-slate-50 transition-colors">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="font-bold text-slate-800">{inv.recordCount || 0} record(s)</p>
+                                        <p className="text-sm text-slate-500">{inv.recipientEmail || 'No email specified'}</p>
+                                    </div>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>{statusInfo.label}</span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- CUSTOMERS VIEW ---
+const CustomersView = ({ customers, loading }) => (
+    <div className="space-y-6">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
+            <p className="text-slate-500">Homeowners who have claimed your invitations</p>
         </div>
 
         {loading ? (
             <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
-        ) : invitations.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
-                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-4"/>
-                <h3 className="font-bold text-slate-800 text-lg mb-2">No invitations yet</h3>
-                <p className="text-slate-500 mb-6">Create an invitation to start tracking jobs.</p>
-                <button onClick={onCreate} className="px-6 py-3 bg-slate-900 text-white font-bold rounded-xl">Create First Invite</button>
+        ) : customers.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                <h3 className="font-bold text-slate-800 text-lg mb-2">No Customers Yet</h3>
+                <p className="text-slate-500">When homeowners claim your invitations, they'll appear here.</p>
             </div>
         ) : (
-            <div className="grid gap-3">
-                {invitations.map(invite => (
-                    <div key={invite.id} className="bg-white p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:shadow-sm transition-shadow">
-                        <div className="flex items-start gap-3">
-                            <div className={`p-2 rounded-lg ${invite.status === 'claimed' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                {invite.status === 'claimed' ? <CheckCircle size={20}/> : <FileText size={20}/>}
+            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+                {customers.map(customer => (
+                    <div key={customer.id} className="p-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                                <User className="h-6 w-6 text-emerald-600" />
                             </div>
                             <div>
-                                <p className="font-bold text-slate-800">{invite.customerName || 'Pending Claim'}</p>
-                                <p className="text-xs text-slate-500">
-                                    {new Date(invite.createdAt?.toDate ? invite.createdAt.toDate() : invite.createdAt).toLocaleDateString()}
-                                    {' • '}{invite.recordCount} records
-                                </p>
+                                <p className="font-bold text-slate-800">{customer.customerName || 'Homeowner'}</p>
+                                <p className="text-sm text-slate-500">{customer.propertyName}</p>
                             </div>
-                        </div>
-                        <div className="text-right">
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full uppercase ${invite.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                                {invite.status}
-                            </span>
+                            <div className="ml-auto text-right">
+                                <p className="text-sm font-bold text-slate-800">{customer.totalJobs || 0} jobs</p>
+                                <p className="text-xs text-slate-500">${customer.totalSpend?.toLocaleString() || 0} total</p>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -357,202 +406,110 @@ const InvitationsView = ({ invitations, loading, onCreate }) => (
     </div>
 );
 
-// --- CUSTOMERS LIST ---
-const CustomersView = ({ customers, loading }) => {
-    const [search, setSearch] = useState('');
-    
-    const filtered = customers.filter(c => 
-        c.customerName?.toLowerCase().includes(search.toLowerCase()) || 
-        c.propertyName?.toLowerCase().includes(search.toLowerCase())
-    );
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
-            </div>
-
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
-                <input 
-                    type="text" 
-                    placeholder="Search customers..." 
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-            </div>
-
-            {loading ? (
-                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
-            ) : filtered.length === 0 ? (
-                <div className="text-center py-10 text-slate-500">No customers found.</div>
-            ) : (
-                <div className="grid gap-3">
-                    {filtered.map(c => (
-                        <div key={c.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
-                            <div className="flex justify-between items-start mb-3">
-                                <div className="flex gap-3">
-                                    <div className="h-10 w-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold">
-                                        {(c.customerName || c.propertyName || 'C').charAt(0)}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-slate-800">{c.customerName || 'Unknown Name'}</h3>
-                                        <div className="flex items-center gap-1 text-xs text-slate-500">
-                                            <MapPin size={12}/> {c.propertyName || 'No Address'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <ChevronRight className="text-slate-300 group-hover:text-emerald-500 transition-colors"/>
-                            </div>
-                            
-                            <div className="flex gap-2 text-xs">
-                                <span className="bg-slate-50 px-2 py-1 rounded-md text-slate-600 font-medium">
-                                    {c.totalJobs || 0} Jobs
-                                </span>
-                                {c.totalSpend > 0 && (
-                                    <span className="bg-emerald-50 px-2 py-1 rounded-md text-emerald-700 font-bold">
-                                        ${c.totalSpend.toLocaleString()} Value
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// --- PROFILE EDITOR ---
+// --- PROFILE VIEW ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
     const [formData, setFormData] = useState({
-        displayName: profile?.profile?.displayName || '',
         companyName: profile?.profile?.companyName || '',
-        phone: profile?.profile?.phone || '',
+        displayName: profile?.profile?.displayName || '',
         email: profile?.profile?.email || '',
-        license: profile?.profile?.license || ''
+        phone: profile?.profile?.phone || '',
+        address: profile?.profile?.address || '',
+        licenseNumber: profile?.profile?.licenseNumber || '',
+        specialty: profile?.profile?.specialty || ''
     });
     const [saving, setSaving] = useState(false);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSave = async () => {
         setSaving(true);
-        await onUpdateProfile(formData);
-        setSaving(false);
+        try {
+            await onUpdateProfile(formData);
+            toast.success('Profile updated!');
+        } catch (err) {
+            toast.error('Failed to save profile');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <h1 className="text-2xl font-bold text-slate-800">Company Profile</h1>
-            
-            <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Your Name</label>
-                        <input 
-                            type="text" 
-                            className="w-full p-3 border border-slate-200 rounded-xl"
-                            value={formData.displayName}
-                            onChange={e => setFormData({...formData, displayName: e.target.value})}
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Company Name</label>
-                        <input 
-                            type="text" 
-                            className="w-full p-3 border border-slate-200 rounded-xl"
-                            value={formData.companyName}
-                            onChange={e => setFormData({...formData, companyName: e.target.value})}
-                        />
-                    </div>
-                </div>
+        <div className="space-y-6 max-w-2xl">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Profile</h1>
+                <p className="text-slate-500">Your business information</p>
+            </div>
 
-                <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Phone Number</label>
-                        <input 
-                            type="tel" 
-                            className="w-full p-3 border border-slate-200 rounded-xl"
-                            value={formData.phone}
-                            onChange={e => setFormData({...formData, phone: e.target.value})}
-                        />
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Name</label>
+                        <input type="text" value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
                     </div>
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Email (Read Only)</label>
-                        <input 
-                            type="email" 
-                            disabled
-                            className="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-slate-500"
-                            value={formData.email}
-                        />
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Name</label>
+                        <input type="text" value={formData.displayName} onChange={(e) => setFormData({...formData, displayName: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
+                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                        <input type="tel" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Business Address</label>
+                        <input type="text" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">License Number</label>
+                        <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Specialty</label>
+                        <input type="text" value={formData.specialty} onChange={(e) => setFormData({...formData, specialty: e.target.value})} placeholder="e.g., HVAC, Plumbing" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
                     </div>
                 </div>
-
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-1.5">License Number</label>
-                    <div className="relative">
-                        <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-                        <input 
-                            type="text" 
-                            className="w-full pl-10 pr-3 py-3 border border-slate-200 rounded-xl"
-                            value={formData.license}
-                            onChange={e => setFormData({...formData, license: e.target.value})}
-                            placeholder="State License #"
-                        />
-                    </div>
-                </div>
-
-                <div className="pt-4">
-                    <button 
-                        type="submit" 
-                        disabled={saving}
-                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 disabled:opacity-50 flex justify-center gap-2 items-center"
-                    >
-                        {saving ? 'Saving...' : <><Save size={18}/> Save Changes</>}
-                    </button>
-                </div>
-            </form>
+                <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50">
+                    {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
+                    Save Changes
+                </button>
+            </div>
         </div>
     );
 };
 
-// --- SETTINGS ---
+// --- SETTINGS VIEW ---
 const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
-    const [settings, setSettings] = useState(profile?.settings || {
-        emailNotifications: true,
-        smsNotifications: false,
-        weeklyDigest: true
+    const [settings, setSettings] = useState({
+        emailNotifications: profile?.settings?.emailNotifications ?? true,
+        smsNotifications: profile?.settings?.smsNotifications ?? false,
+        weeklyDigest: profile?.settings?.weeklyDigest ?? true
     });
-    
+    const [saving, setSaving] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const handleToggle = async (key) => {
-        const newSettings = { ...settings, [key]: !settings[key] };
-        setSettings(newSettings);
+    const handleSaveSettings = async () => {
+        setSaving(true);
         try {
-            await onUpdateSettings(profile.uid, newSettings);
-            toast.success('Settings saved');
-        } catch (e) {
+            await onUpdateSettings(profile.id, { settings });
+            toast.success('Settings saved!');
+        } catch (err) {
             toast.error('Failed to save settings');
+        } finally {
+            setSaving(false);
         }
     };
-    
+
     const handleDeleteAccount = async () => {
         setIsDeleting(true);
         try {
-            await deleteContractorAccount(profile.uid);
-            const user = auth.currentUser;
-            if (user) await deleteUser(user);
+            await deleteContractorAccount(profile.id);
+            await deleteUser(auth.currentUser);
             toast.success('Account deleted');
-        } catch (error) {
-            console.error(error);
-            if (error.code === 'auth/requires-recent-login') {
-                toast.error('Please sign out and sign in again to delete your account.');
-            } else {
-                toast.error('Failed to delete account');
-            }
+            onSignOut();
+        } catch (err) {
+            toast.error('Failed to delete account: ' + err.message);
         } finally {
             setIsDeleting(false);
             setShowDeleteModal(false);
@@ -560,71 +517,44 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
     };
 
     return (
-        <div className="max-w-2xl mx-auto space-y-6">
-            <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-            
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50">
-                    <h3 className="font-bold text-slate-800">Notifications</h3>
-                </div>
-                <div className="p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-slate-800">Email Alerts</p>
-                            <p className="text-xs text-slate-500">Get notified when invitations are claimed</p>
-                        </div>
-                        <button 
-                            onClick={() => handleToggle('emailNotifications')}
-                            className={`w-12 h-7 rounded-full transition-colors relative ${settings.emailNotifications ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                        >
-                            <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.emailNotifications ? 'translate-x-5' : ''}`} />
-                        </button>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="font-medium text-slate-800">Weekly Digest</p>
-                            <p className="text-xs text-slate-500">Summary of activity and new customers</p>
-                        </div>
-                        <button 
-                            onClick={() => handleToggle('weeklyDigest')}
-                            className={`w-12 h-7 rounded-full transition-colors relative ${settings.weeklyDigest ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                        >
-                            <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform ${settings.weeklyDigest ? 'translate-x-5' : ''}`} />
-                        </button>
-                    </div>
-                </div>
+        <div className="space-y-6 max-w-2xl">
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+                <p className="text-slate-500">Manage your preferences</p>
             </div>
 
-            <h2 className="text-xl font-bold text-slate-800 pt-4">Account Actions</h2>
-            
-            <button
-                onClick={onSignOut}
-                className="w-full py-3 bg-white text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-            >
-                <LogOut size={18}/> Sign Out
-            </button>
-            
-            <div className="pt-8 border-t border-slate-200">
-                <h3 className="text-sm font-bold text-red-600 uppercase mb-2">Danger Zone</h3>
-                <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-                    <p className="text-sm text-red-800 mb-4">
-                        Deleting your account is permanent. All your customer links and invitations will stop working.
-                    </p>
-                    <button 
-                        onClick={() => setShowDeleteModal(true)}
-                        className="text-sm font-bold text-red-600 hover:text-red-700 underline"
-                    >
-                        Delete My Account
-                    </button>
-                </div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Notifications</h3>
+                {[
+                    { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive updates via email' },
+                    { key: 'smsNotifications', label: 'SMS Notifications', desc: 'Receive text message alerts' },
+                    { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Get a summary of your activity' },
+                ].map(item => (
+                    <label key={item.key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer">
+                        <div>
+                            <p className="font-medium text-slate-800">{item.label}</p>
+                            <p className="text-sm text-slate-500">{item.desc}</p>
+                        </div>
+                        <input type="checkbox" checked={settings[item.key]} onChange={(e) => setSettings({...settings, [item.key]: e.target.checked})} className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500" />
+                    </label>
+                ))}
+                <button onClick={handleSaveSettings} disabled={saving} className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50">
+                    {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
+                    Save Settings
+                </button>
+            </div>
+
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-6">
+                <h3 className="font-bold text-red-800 mb-2">Danger Zone</h3>
+                <p className="text-sm text-red-600 mb-4">Permanently delete your account and all data.</p>
+                <button onClick={() => setShowDeleteModal(true)} className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700">Delete Account</button>
             </div>
 
             <DeleteConfirmModal
                 isOpen={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
                 onConfirm={handleDeleteAccount}
-                title="Delete Contractor Account?"
+                title="Delete Account?"
                 message="This will permanently delete your profile, settings, and disconnect you from all homeowners. This action cannot be undone."
                 isDeleting={isDeleting}
             />
@@ -637,6 +567,7 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
 // ============================================
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
+    const [selectedQuote, setSelectedQuote] = useState(null); // ADDED: Selected quote state
     
     const {
         user,
@@ -657,11 +588,35 @@ export const ContractorProApp = () => {
     const { customers, loading: customersLoading, byLastContact: customersByLastContact } = useCustomers(user?.uid);
     const { stats, loading: statsLoading } = useDashboardStats(user?.uid);
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
-    
-    // NEW: Load Invoices
     const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
     
+    // ADDED: Quote Hooks
+    const contractorId = profile?.id || user?.uid;
+    const { 
+        quotes, 
+        pendingQuotes, 
+        acceptedQuotes,
+        loading: quotesLoading 
+    } = useQuotes(contractorId);
+    
+    const { templates: quoteTemplates } = useQuoteTemplates(contractorId);
+    
+    const { 
+        create: createQuoteFn, 
+        update: updateQuoteFn, 
+        remove: deleteQuoteFn, 
+        send: sendQuoteFn,
+        getShareLink,
+        isCreating: isCreatingQuote,
+        isUpdating: isUpdatingQuote,
+        isSending: isSendingQuote
+    } = useQuoteOperations(contractorId);
+    
     const handleNavigate = useCallback((view) => {
+        // Reset selected quote when navigating away from quote views
+        if (!['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(view)) {
+            setSelectedQuote(null);
+        }
         setActiveView(view);
     }, []);
     
@@ -671,10 +626,88 @@ export const ContractorProApp = () => {
         window.location.href = url.toString();
     }, []);
     
+    // ADDED: Quote Handlers
+    const handleCreateQuote = useCallback(() => {
+        setSelectedQuote(null);
+        setActiveView('create-quote');
+    }, []);
+    
+    const handleSelectQuote = useCallback((quote) => {
+        setSelectedQuote(quote);
+        setActiveView('quote-detail');
+    }, []);
+    
+    const handleEditQuote = useCallback(() => {
+        setActiveView('edit-quote');
+    }, []);
+    
+    const handleSaveQuote = useCallback(async (quoteData) => {
+        try {
+            if (selectedQuote) {
+                await updateQuoteFn(selectedQuote.id, quoteData);
+                setSelectedQuote(prev => ({ ...prev, ...quoteData }));
+                toast.success('Quote updated');
+            } else {
+                const result = await createQuoteFn(quoteData);
+                toast.success('Quote saved');
+                setActiveView('quotes');
+            }
+        } catch (error) {
+            toast.error('Failed to save quote: ' + error.message);
+            throw error;
+        }
+    }, [selectedQuote, updateQuoteFn, createQuoteFn]);
+    
+    const handleSendQuote = useCallback(async (quoteData) => {
+        try {
+            let quoteId;
+            
+            if (selectedQuote) {
+                await updateQuoteFn(selectedQuote.id, quoteData);
+                quoteId = selectedQuote.id;
+            } else {
+                const result = await createQuoteFn({ ...quoteData, status: 'draft' });
+                quoteId = result.quoteId;
+            }
+            
+            await sendQuoteFn(quoteId);
+            toast.success('Quote sent to customer!');
+            setSelectedQuote(null);
+            setActiveView('quotes');
+        } catch (error) {
+            toast.error('Failed to send quote: ' + error.message);
+            throw error;
+        }
+    }, [selectedQuote, updateQuoteFn, createQuoteFn, sendQuoteFn]);
+    
+    const handleDeleteQuote = useCallback(async (quoteId) => {
+        try {
+            await deleteQuoteFn(quoteId);
+            setSelectedQuote(null);
+            setActiveView('quotes');
+        } catch (error) {
+            toast.error('Failed to delete quote: ' + error.message);
+            throw error;
+        }
+    }, [deleteQuoteFn]);
+    
+    const handleQuoteBack = useCallback(() => {
+        if (activeView === 'edit-quote') {
+            setActiveView('quote-detail');
+        } else {
+            setSelectedQuote(null);
+            setActiveView('quotes');
+        }
+    }, [activeView]);
+    
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
             case 'jobs': return 'My Jobs'; 
+            case 'quotes': return 'Quotes'; // ADDED
+            case 'create-quote': return 'New Quote'; // ADDED
+            case 'quote-detail': return 'Quote Details'; // ADDED
+            case 'edit-quote': return 'Edit Quote'; // ADDED
             case 'invoices': return 'Invoices';
             case 'create-invoice': return 'New Invoice';
             case 'invitations': return 'Invitations';
@@ -692,16 +725,84 @@ export const ContractorProApp = () => {
     return (
         <div className="min-h-screen bg-slate-50 flex">
             <Toaster position="top-center" />
-            <SidebarNav profile={profile} activeView={activeView} onNavigate={handleNavigate} onSignOut={signOut} pendingCount={pendingInvitations.length} />
+            <SidebarNav 
+                profile={profile} 
+                activeView={activeView} 
+                onNavigate={handleNavigate} 
+                onSignOut={signOut} 
+                pendingCount={pendingInvitations.length}
+                pendingQuotesCount={pendingQuotes?.length || 0} // ADDED
+            />
             
             <div className="flex-1 flex flex-col min-h-screen">
                 <MobileHeader title={getViewTitle()} onCreateInvitation={handleCreateInvitation} />
                 
                 <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8">
-                    {activeView === 'dashboard' && <DashboardOverview profile={profile} stats={stats} invitations={invitations} customers={customersByLastContact} loading={statsLoading} onCreateInvitation={handleCreateInvitation} onViewAllInvitations={() => handleNavigate('invitations')} onViewAllCustomers={() => handleNavigate('customers')} />}
+                    {activeView === 'dashboard' && (
+                        <DashboardOverview 
+                            profile={profile} 
+                            stats={stats} 
+                            invitations={invitations} 
+                            customers={customersByLastContact} 
+                            loading={statsLoading} 
+                            onCreateInvitation={handleCreateInvitation} 
+                            onViewAllInvitations={() => handleNavigate('invitations')} 
+                            onViewAllCustomers={() => handleNavigate('customers')} 
+                        />
+                    )}
+                    
                     {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} />}
                     
-                    {/* NEW: Invoice Views */}
+                    {/* ADDED: Quote Views */}
+                    {activeView === 'quotes' && (
+                        <QuotesListView 
+                            quotes={quotes}
+                            loading={quotesLoading}
+                            onCreateQuote={handleCreateQuote}
+                            onSelectQuote={handleSelectQuote}
+                        />
+                    )}
+                    
+                    {activeView === 'create-quote' && (
+                        <QuoteBuilder
+                            quote={null}
+                            customers={customers}
+                            templates={quoteTemplates}
+                            contractorProfile={profile}
+                            onBack={handleQuoteBack}
+                            onSave={handleSaveQuote}
+                            onSend={handleSendQuote}
+                            isSaving={isCreatingQuote || isUpdatingQuote}
+                            isSending={isSendingQuote}
+                        />
+                    )}
+                    
+                    {activeView === 'quote-detail' && selectedQuote && (
+                        <QuoteDetailView
+                            quote={selectedQuote}
+                            contractorProfile={profile?.profile}
+                            onBack={handleQuoteBack}
+                            onEdit={handleEditQuote}
+                            onDelete={handleDeleteQuote}
+                            getShareLink={getShareLink}
+                        />
+                    )}
+                    
+                    {activeView === 'edit-quote' && selectedQuote && (
+                        <QuoteBuilder
+                            quote={selectedQuote}
+                            customers={customers}
+                            templates={quoteTemplates}
+                            contractorProfile={profile}
+                            onBack={handleQuoteBack}
+                            onSave={handleSaveQuote}
+                            onSend={handleSendQuote}
+                            isSaving={isUpdatingQuote}
+                            isSending={isSendingQuote}
+                        />
+                    )}
+                    
+                    {/* Invoice Views */}
                     {activeView === 'invoices' && <InvoicesView onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
                     
@@ -710,7 +811,13 @@ export const ContractorProApp = () => {
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
                     {activeView === 'settings' && <SettingsView profile={profile} onUpdateSettings={updateContractorSettings} onSignOut={signOut} />}
                 </main>
-                <MobileNav activeView={activeView} onNavigate={handleNavigate} pendingCount={pendingInvitations.length} />
+                
+                <MobileNav 
+                    activeView={activeView} 
+                    onNavigate={handleNavigate} 
+                    pendingCount={pendingInvitations.length}
+                    pendingQuotesCount={pendingQuotes?.length || 0} // ADDED
+                />
             </div>
         </div>
     );
