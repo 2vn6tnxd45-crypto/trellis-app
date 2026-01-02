@@ -672,6 +672,25 @@ export const claimQuote = async (contractorId, quoteId, userId) => {
     }
 };
 
+/**
+ * Remove a quote from a user's profile (Unclaim)
+ */
+export const unclaimQuote = async (contractorId, quoteId) => {
+    try {
+        const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+        
+        await updateDoc(quoteRef, {
+            customerId: null,
+            updatedAt: serverTimestamp()
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error unclaiming quote:', error);
+        throw error;
+    }
+};
+
 export default {
     generateQuoteNumber,
     createQuote,
@@ -694,5 +713,6 @@ export default {
     getQuoteStats,
     getQuoteByShareToken,
     generateQuoteShareLink,
-    claimQuote
+    claimQuote,
+    unclaimQuote
 };
