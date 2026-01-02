@@ -72,78 +72,138 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // EFFECTS - With retry logic for new user permission issues
     // =========================================================================
-    useEffect(() => {
-        let unsubRecords = null;
-        let unsubRequests = null;
-        const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-            try {
-                setUser(currentUser);
-                if (currentUser) {
-                    // FIX: Force token refresh to ensure Firestore has latest auth context
+    // ============================================================================
+// DIAGNOSTIC PATCH FOR useAppLogic.jsx
+// ============================================================================
+// Add these console.log statements to trace exactly where the hang occurs.
+// Replace your existing auth useEffect with this version.
+// ============================================================================
+
+useEffect(() => {
+    console.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
+    
+    let unsubRecords = null;
+    let unsubRequests = null;
+    
+    const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
+        console.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
+            hasUser: !!currentUser, 
+            email: currentUser?.email 
+        });
+        
+        try {
+            setUser(currentUser);
+            console.log('[useAppLogic] ✅ setUser complete');
+            
+            if (currentUser) {
+                console.log('[useAppLogic] 👤 User exists, starting token refresh...');
+                
+                // Token refresh
+                try {
+                    console.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
+                    const startTime = Date.now();
+                    await currentUser.getIdToken(true);
+                    console.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
+                    
+                    console.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
+                    await new Promise(r => setTimeout(r, 300));
+                    console.log('[useAppLogic] ✅ Token propagation wait complete');
+                } catch (tokenErr) {
+                    console.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
+                }
+                
+                if (!appId) {
+                    console.error('[useAppLogic] ❌ appId is missing!');
+                    throw new Error("appId is missing");
+                }
+                console.log('[useAppLogic] ✅ appId check passed:', appId);
+                
+                // Profile read
+                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
+                console.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
+                
+                let profileSnap = null;
+                for (let attempt = 1; attempt <= 3; attempt++) {
                     try {
-                        await currentUser.getIdToken(true);
-                        // Small delay for token propagation
-                        await new Promise(r => setTimeout(r, 300));
-                    } catch (tokenErr) {
-                        console.warn('Token refresh failed:', tokenErr);
-                    }
-                    
-                    if (!appId) throw new Error("appId is missing");
-                    
-                    // FIX: Retry logic for initial profile read (new users may get permission-denied)
-                    let profileSnap = null;
-                    const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
-                    
-                    for (let attempt = 1; attempt <= 3; attempt++) {
-                        try {
-                            profileSnap = await getDoc(profileRef);
-                            break; // Success, exit retry loop
-                        } catch (readError) {
-                            const isPermissionError = readError.code === 'permission-denied' || 
-                                                      readError.message?.includes('permission');
-                            if (isPermissionError && attempt < 3) {
-                                console.log(`[useAppLogic] Profile read attempt ${attempt} failed, retrying...`);
-                                await currentUser.getIdToken(true);
-                                await new Promise(r => setTimeout(r, 500 * attempt));
-                            } else if (!isPermissionError) {
-                                throw readError; // Non-permission error, throw immediately
-                            }
-                            // On last attempt with permission error, profileSnap stays null (new user)
+                        console.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
+                        const startTime = Date.now();
+                        profileSnap = await getDoc(profileRef);
+                        console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
+                        break;
+                    } catch (readError) {
+                        console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
+                        const isPermissionError = readError.code === 'permission-denied' || 
+                                                  readError.message?.includes('permission');
+                        if (isPermissionError && attempt < 3) {
+                            console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
+                            await currentUser.getIdToken(true);
+                            await new Promise(r => setTimeout(r, 500 * attempt));
+                        } else if (!isPermissionError) {
+                            throw readError;
                         }
                     }
-                    
-                    if (profileSnap?.exists()) {
-                        const data = profileSnap.data();
-                        setProfile(data);
-                        if (data.hasSeenWelcome) setHasSeenWelcome(true);
-                        setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
-                    } else setProfile(null);
-                    
-                    if (unsubRecords) unsubRecords();
-                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
-                    unsubRecords = onSnapshot(q, (snap) => setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-
-                    if (unsubRequests) unsubRequests();
-                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
-                    unsubRequests = onSnapshot(qReq, (snap) => setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted')), (e) => console.error(e));
-                } else {
-                    setProfile(null); setRecords([]); setNewSubmissions([]);
                 }
-            } catch (error) { 
-    console.error('Auth state change error:', error);
+                
+                if (profileSnap?.exists()) {
+                    const data = profileSnap.data();
+                    console.log('[useAppLogic] ✅ Profile loaded:', { 
+                        hasProperties: !!data.properties,
+                        propertyCount: data.properties?.length 
+                    });
+                    setProfile(data);
+                    if (data.hasSeenWelcome) setHasSeenWelcome(true);
+                    setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
+                } else {
+                    console.log('[useAppLogic] ℹ️ No profile found (new user)');
+                    setProfile(null);
+                }
+                
+                // Set up listeners
+                console.log('[useAppLogic] 📡 Setting up realtime listeners...');
+                if (unsubRecords) unsubRecords();
+                const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
+                unsubRecords = onSnapshot(q, (snap) => {
+                    console.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
+                    setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                }, (e) => console.error('[useAppLogic] ❌ Records error:', e));
+
+                if (unsubRequests) unsubRequests();
+                const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
+                unsubRequests = onSnapshot(qReq, (snap) => {
+                    console.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
+                    setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
+                }, (e) => console.error('[useAppLogic] ❌ Requests error:', e));
+                
+                console.log('[useAppLogic] ✅ All listeners set up');
+            } else {
+                console.log('[useAppLogic] 👻 No user, clearing state');
+                setProfile(null); 
+                setRecords([]); 
+                setNewSubmissions([]);
+            }
+        } catch (error) { 
+            console.error('[useAppLogic] ❌ Auth state change error:', error);
+            const isPermissionError = error.code === 'permission-denied' || 
+                                      error.message?.includes('permission') ||
+                                      error.message?.includes('Missing or insufficient');
+            if (!isPermissionError) {
+                toast.error("Error: " + error.message);
+            }
+        } finally { 
+            console.log('[useAppLogic] 🏁 Setting loading = false');
+            setLoading(false); 
+        }
+    });
     
-    // Only show toast for non-permission errors
-    const isPermissionError = error.code === 'permission-denied' || 
-                              error.message?.includes('permission') ||
-                              error.message?.includes('Missing or insufficient');
+    console.log('[useAppLogic] ✅ Auth listener registered');
     
-    if (!isPermissionError) {
-        toast.error("Error: " + error.message);
-    }
-} finally { setLoading(false); }
-        });
-        return () => { unsubAuth(); if (unsubRecords) unsubRecords(); if (unsubRequests) unsubRequests(); };
-    }, []);
+    return () => { 
+        console.log('[useAppLogic] 🧹 Cleanup running');
+        unsubAuth(); 
+        if (unsubRecords) unsubRecords(); 
+        if (unsubRequests) unsubRequests(); 
+    };
+}, []);
 
     useEffect(() => {
         if (!activeProperty || records.length === 0) { setDueTasks([]); return; }
