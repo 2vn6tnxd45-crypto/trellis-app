@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
-    FileText, Clock, UserPlus, Save
+    FileText, Clock, UserPlus, Save, ArrowLeft // <--- ADDED ArrowLeft
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -159,6 +159,9 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 // ============================================
 // MAIN QUOTE VIEW
 // ============================================
+// ============================================
+// MAIN QUOTE VIEW
+// ============================================
 const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
@@ -219,6 +222,17 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
             />
             
             <div className="max-w-3xl mx-auto">
+                {/* --- NEW: BACK BUTTON (Only visible to logged-in users) --- */}
+                {user && (
+                    <button 
+                        onClick={() => window.location.href = '/app'} 
+                        className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold mb-6 transition-colors"
+                    >
+                        <ArrowLeft size={20} />
+                        Back to Dashboard
+                    </button>
+                )}
+
                 {/* NEW: Onboarding Call-to-Action (Only if not already claimed/owned by this user) */}
                 {(!quote.customerId || (user && quote.customerId !== user.uid)) && (
                     <div className="bg-emerald-900 rounded-2xl p-6 mb-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
