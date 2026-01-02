@@ -434,27 +434,30 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         let isMounted = true;
         const loadQuote = async () => {
             try {
+                console.log("Loading quote for token:", shareToken);
                 const result = await getQuoteByShareToken(shareToken);
                 
                 if (!isMounted) return;
 
                 if (!result) {
+                    console.error("Quote not found in DB");
                     setError('This quote could not be found. It may have been deleted.');
                     return;
                 }
                 
                 setData(result);
+                setLoading(false); // STOP LOADING HERE (Don't wait for view count)
                 
-                // Mark as viewed (if sent status)
+                // Fire-and-forget view count update
                 if (result.quote.status === 'sent') {
-                    await markQuoteViewed(result.contractorId, result.quote.id);
+                    markQuoteViewed(result.contractorId, result.quote.id)
+                        .catch(e => console.warn("Background view update failed:", e));
                 }
             } catch (err) {
                 if (!isMounted) return;
                 console.error('Error loading quote:', err);
                 setError('Unable to load this quote. Please try again later.');
-            } finally {
-                if (isMounted) setLoading(false);
+                setLoading(false);
             }
         };
         
@@ -489,9 +492,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             toast.success('Quote saved to your account!');
             
             // REDIRECT TO DASHBOARD
-            // We use window.location to force a full navigation out of the "Quote View" mode (which is triggered by URL param)
+            // We use window.location to force a full navigation out of the "Quote View" mode
             setTimeout(() => {
-                // Clear the query string to return to the dashboard view
                 window.location.href = window.location.origin + '/app';
             }, 1000);
             
