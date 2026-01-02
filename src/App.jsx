@@ -409,8 +409,8 @@ const AppContent = () => {
                         <ProgressiveDashboard 
                             records={app.activePropertyRecords} 
                             contractors={contractorsList} 
-                            // FIX: Inject userId so the dashboard can find my quotes
-                            activeProperty={app.activeProperty ? { ...app.activeProperty, userId: app.user.uid } : null} 
+                            activeProperty={app.activeProperty}
+                            userId={app.user.uid} // <--- PASS USER ID HERE
                             onScanReceipt={() => app.setShowScanner(true)} 
                             onAddRecord={() => openAddModal()} 
                             onNavigateToItems={() => app.setActiveTab('Items')} 
@@ -422,7 +422,6 @@ const AppContent = () => {
                             onMarkTaskDone={app.handleMarkTaskDone}
                             onDeleteHistoryItem={app.handleDeleteHistoryItem} 
                             onRestoreHistoryItem={app.handleRestoreHistoryItem}
-                            // NEW: Task action props
                             onDeleteTask={app.handleDeleteMaintenanceTask}
                             onScheduleTask={app.handleScheduleTask}
                             onSnoozeTask={app.handleSnoozeTask}
