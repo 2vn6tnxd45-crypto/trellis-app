@@ -223,7 +223,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
             
             <div className="max-w-3xl mx-auto">
                 {/* --- NEW: BACK BUTTON (Only visible to logged-in users) --- */}
-                {user && (
+                {(user || quote.status === 'accepted' || quote.customerId) && (
                     <button 
                        onClick={() => window.location.href = '/app?from=quote'}
                         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold mb-6 transition-colors"
