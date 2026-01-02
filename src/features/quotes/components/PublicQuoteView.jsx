@@ -86,26 +86,52 @@ const ExpiredState = ({ quote, contractor }) => (
 // ============================================
 // SUCCESS STATE (After accepting)
 // ============================================
-const SuccessState = ({ quote, contractor }) => (
-    <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-            <div className="bg-emerald-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                <CheckCircle className="h-10 w-10 text-emerald-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-800 mb-2">Quote Accepted!</h1>
-            <p className="text-slate-600 mb-6">
-                {contractor?.companyName || 'The contractor'} has been notified and will be in touch 
-                to schedule your service.
-            </p>
-            <div className="bg-slate-50 rounded-xl p-4 text-left">
-                <p className="text-sm text-slate-500 mb-2">Quote Total</p>
-                <p className="text-3xl font-bold text-emerald-600">
-                    ${(quote.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+// ============================================
+// SUCCESS STATE (After accepting)
+// ============================================
+// Replace the existing SuccessState in PublicQuoteView.jsx with this:
+
+const SuccessState = ({ quote, contractor }) => {
+    const handleGoToDashboard = () => {
+        // Remove the quote param and redirect to the app
+        window.location.href = window.location.origin + '/app';
+    };
+
+    return (
+        <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+                <div className="bg-emerald-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                    <CheckCircle className="h-10 w-10 text-emerald-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-slate-800 mb-2">Quote Accepted!</h1>
+                <p className="text-slate-600 mb-6">
+                    {contractor?.companyName || 'The contractor'} has been notified and will be in touch 
+                    to schedule your service.
+                </p>
+                <div className="bg-slate-50 rounded-xl p-4 text-left mb-6">
+                    <p className="text-sm text-slate-500 mb-2">Quote Total</p>
+                    <p className="text-3xl font-bold text-emerald-600">
+                        ${(quote.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </p>
+                </div>
+                
+                {/* Navigation Button */}
+                <button
+                    onClick={handleGoToDashboard}
+                    className="w-full px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                >
+                    <ArrowLeft size={18} />
+                    Go to Dashboard
+                </button>
+                
+                {/* Footer */}
+                <p className="text-xs text-slate-400 mt-6">
+                    Powered by <a href="/" className="text-emerald-600 hover:underline">Krib</a>
                 </p>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ============================================
 // DECLINE MODAL
