@@ -102,6 +102,16 @@ export const createQuote = async (contractorId, quoteData) => {
         const taxAmount = subtotal * ((quoteData.taxRate || 0) / 100);
         const total = subtotal + taxAmount;
         
+        // Calculate Deposit (New)
+        let depositAmount = 0;
+        if (quoteData.depositRequired) {
+            if (quoteData.depositType === 'percentage') {
+                depositAmount = total * ((quoteData.depositValue || 0) / 100);
+            } else {
+                depositAmount = quoteData.depositValue || 0;
+            }
+        }
+
         const quoteRef = doc(collection(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION));
         
         const quote = {
@@ -129,8 +139,15 @@ export const createQuote = async (contractorId, quoteData) => {
             taxAmount,
             total,
             
+            // Financials (New)
+            depositRequired: quoteData.depositRequired || false,
+            depositType: quoteData.depositType || 'percentage', // 'percentage' or 'fixed'
+            depositValue: quoteData.depositValue || 0,
+            depositAmount: depositAmount,
+
             // Content
             notes: quoteData.notes || '',
+            exclusions: quoteData.exclusions || '', // New Exclusions Field
             terms: quoteData.terms || 'Quote valid for 14 days. 50% deposit required to schedule work.',
             
             // Timestamps
@@ -196,6 +213,15 @@ export const updateQuote = async (contractorId, quoteId, quoteData) => {
                 taxAmount,
                 total
             };
+
+            // Recalculate deposit if total changed
+            if (updates.depositRequired) {
+                 if (updates.depositType === 'percentage') {
+                    updates.depositAmount = total * ((updates.depositValue || 0) / 100);
+                } else {
+                    updates.depositAmount = updates.depositValue || 0;
+                }
+            }
         }
         
         await updateDoc(quoteRef, updates);
