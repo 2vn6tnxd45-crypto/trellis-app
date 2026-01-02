@@ -8,12 +8,30 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, Loader2, Calendar, 
-    Link as LinkIcon, Sparkles, Copy, Printer, MapPin
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // NEW: Import the Google Maps hook
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
+
+// ============================================
+// UTILS
+// ============================================
+const formatPhoneNumber = (value) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
+
+const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
 
 // ============================================
 // LINE ITEM TYPES
@@ -51,9 +69,10 @@ const createDefaultFormState = (existingQuote = null) => ({
             ? existingQuote.expiresAt.toDate().toISOString().split('T')[0]
             : new Date(existingQuote.expiresAt).toISOString().split('T')[0])
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
+    // UPDATED: Default to one Material AND one Labor item for new quotes
     lineItems: existingQuote?.lineItems?.length > 0 
         ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random() }))
-        : [createDefaultLineItem('labor')],
+        : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
     taxRate: existingQuote?.taxRate ?? 8.75,
     notes: existingQuote?.notes || '',
     terms: existingQuote?.terms || 'Quote valid for 14 days. 50% deposit required to schedule work. Final payment due upon completion.'
@@ -96,27 +115,24 @@ const TemplatePicker = ({ templates = [], onSelect, onClose }) => {
 // ============================================
 // CUSTOMER SELECTOR (Enhanced with Maps)
 // ============================================
-// ============================================
-// CUSTOMER SELECTOR (Enhanced with Maps)
-// ============================================
 const CustomerSection = ({ 
     customer, 
     customers = [], 
     customerId,
     onChange, 
-    onSelectExisting 
+    onSelectExisting,
+    errors = {} 
 }) => {
     const [showDropdown, setShowDropdown] = useState(false);
     
-    // -- GOOGLE MAPS INTEGRATION START --
+    // -- GOOGLE MAPS INTEGRATION --
     const isMapsLoaded = useGoogleMaps();
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
     
-    // 1. Create a Ref to track the LATEST customer state
+    // Create a Ref to track the LATEST customer state
     const customerRef = useRef(customer);
 
-    // 2. Keep the Ref updated whenever props change
     useEffect(() => {
         customerRef.current = customer;
     }, [customer]);
@@ -135,10 +151,7 @@ const CustomerSection = ({
                 autocompleteRef.current.addListener('place_changed', () => {
                     const place = autocompleteRef.current.getPlace();
                     if (place.formatted_address) {
-                        // 3. Use customerRef.current inside the listener to get the latest data
                         const currentCustomer = customerRef.current;
-                        
-                        // Merge the new address with the EXISTING name/phone/email
                         onChange({ 
                             ...currentCustomer, 
                             address: place.formatted_address 
@@ -149,12 +162,16 @@ const CustomerSection = ({
                 console.error("Autocomplete init failed", err);
             }
         }
-    }, [isMapsLoaded, onChange]); // Removed 'customer' from dependency array to prevent re-binding
-    // -- GOOGLE MAPS INTEGRATION END --
+    }, [isMapsLoaded, onChange]);
     
     const handleCustomerSelect = (selectedCustomer) => {
         onSelectExisting(selectedCustomer);
         setShowDropdown(false);
+    };
+
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhoneNumber(e.target.value);
+        onChange({ ...customer, phone: formatted });
     };
     
     return (
@@ -222,7 +239,7 @@ const CustomerSection = ({
                         value={customer.name}
                         onChange={(e) => onChange({ ...customer, name: e.target.value })}
                         placeholder="John Smith"
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                     />
                 </div>
                 <div>
@@ -234,8 +251,9 @@ const CustomerSection = ({
                         value={customer.email}
                         onChange={(e) => onChange({ ...customer, email: e.target.value })}
                         placeholder="john@email.com"
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                     />
+                    {errors.customerEmail && <p className="text-xs text-red-500 mt-1">{errors.customerEmail}</p>}
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -244,7 +262,7 @@ const CustomerSection = ({
                     <input
                         type="tel"
                         value={customer.phone}
-                        onChange={(e) => onChange({ ...customer, phone: e.target.value })}
+                        onChange={handlePhoneChange}
                         placeholder="(555) 123-4567"
                         className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
@@ -279,7 +297,8 @@ const LineItemsSection = ({
     onAdd, 
     onRemove,
     taxRate,
-    onTaxRateChange
+    onTaxRateChange,
+    errors = {}
 }) => {
     const updateItem = (id, field, value) => {
         onUpdate(lineItems.map(item => 
@@ -343,8 +362,11 @@ const LineItemsSection = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {lineItems.map((item) => {
+                        {lineItems.map((item, index) => {
                             const itemType = LINE_ITEM_TYPES.find(t => t.value === item.type) || LINE_ITEM_TYPES[0];
+                            // Check if this specific item has errors
+                            const itemError = errors[`lineItems[${index}]`]; 
+                            
                             return (
                                 <tr key={item.id} className="group">
                                     <td className="px-4 py-3">
@@ -358,7 +380,7 @@ const LineItemsSection = ({
                                             value={item.description}
                                             onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                                             placeholder={item.type === 'labor' ? 'e.g., Installation labor' : 'e.g., 50-gallon water heater'}
-                                            className="w-full px-2 py-1 border-0 focus:ring-0 bg-transparent"
+                                            className={`w-full px-2 py-1 border rounded focus:ring-0 bg-transparent ${itemError ? 'border-red-500 bg-red-50' : 'border-transparent hover:border-slate-200'}`}
                                         />
                                     </td>
                                     <td className="px-4 py-3">
@@ -378,7 +400,7 @@ const LineItemsSection = ({
                                                 type="number"
                                                 value={item.unitPrice}
                                                 onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                className="w-full pl-6 pr-2 py-1 border border-slate-200 rounded text-right"
+                                                className={`w-full pl-6 pr-2 py-1 border rounded text-right ${itemError && item.unitPrice <= 0 ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                                 min="0"
                                                 step="0.01"
                                             />
@@ -560,6 +582,9 @@ export const QuoteBuilder = ({
     // Handlers
     const handleCustomerChange = (customer) => {
         setFormData(prev => ({ ...prev, customer }));
+        // Clear errors when typing
+        if (errors.customerName) setErrors(prev => ({ ...prev, customerName: null }));
+        if (errors.customerEmail) setErrors(prev => ({ ...prev, customerEmail: null }));
     };
 
     const handleSelectExistingCustomer = (selectedCustomer) => {
@@ -625,21 +650,33 @@ export const QuoteBuilder = ({
         if (!formData.customer.name?.trim()) {
             newErrors.customerName = 'Customer name is required';
         }
+        
         if (!formData.customer.email?.trim()) {
             newErrors.customerEmail = 'Customer email is required';
+        } else if (!isValidEmail(formData.customer.email)) {
+            newErrors.customerEmail = 'Please enter a valid email address';
         }
+        
         if (!formData.title?.trim()) {
             newErrors.title = 'Quote title is required';
         }
+        
         if (formData.lineItems.length === 0) {
             newErrors.lineItems = 'At least one line item is required';
         }
+        
+        // Detailed Line Item Validation
+        formData.lineItems.forEach((item, index) => {
+            if (!item.description?.trim() || item.unitPrice <= 0) {
+                newErrors[`lineItems[${index}]`] = true;
+            }
+        });
         
         const hasValidItems = formData.lineItems.some(
             item => item.description?.trim() && item.unitPrice > 0
         );
         if (!hasValidItems) {
-            newErrors.lineItems = 'At least one complete line item is required';
+            newErrors.lineItemsGeneric = 'Please complete line item details (Description & Price)';
         }
         
         setErrors(newErrors);
@@ -649,7 +686,7 @@ export const QuoteBuilder = ({
     // Save handlers
     const handleSaveDraft = async () => {
         if (!validate()) {
-            toast.error('Please fill in required fields');
+            toast.error('Please fix errors highlighted in red');
             return;
         }
         
@@ -663,7 +700,7 @@ export const QuoteBuilder = ({
 
     const handleSendQuote = async () => {
         if (!validate()) {
-            toast.error('Please fill in required fields');
+            toast.error('Please fix errors highlighted in red');
             return;
         }
         
@@ -754,6 +791,7 @@ export const QuoteBuilder = ({
                         customerId={formData.customerId}
                         onChange={handleCustomerChange}
                         onSelectExisting={handleSelectExistingCustomer}
+                        errors={errors}
                     />
                     
                     {/* Quote Details */}
@@ -773,7 +811,7 @@ export const QuoteBuilder = ({
                                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                                     placeholder="e.g., Water Heater Replacement, HVAC Repair"
                                     className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                        errors.title ? 'border-red-300' : 'border-slate-200'
+                                        errors.title ? 'border-red-500 bg-red-50' : 'border-slate-200'
                                     }`}
                                 />
                                 {errors.title && (
@@ -803,9 +841,13 @@ export const QuoteBuilder = ({
                         onRemove={handleRemoveLineItem}
                         taxRate={formData.taxRate}
                         onTaxRateChange={(rate) => setFormData(prev => ({ ...prev, taxRate: rate }))}
+                        errors={errors}
                     />
-                    {errors.lineItems && (
-                        <p className="text-red-500 text-sm -mt-4">{errors.lineItems}</p>
+                    {(errors.lineItemsGeneric) && (
+                        <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 flex items-center gap-2">
+                            <AlertCircle size={16} />
+                            {errors.lineItemsGeneric}
+                        </div>
                     )}
                     
                     {/* Notes & Terms */}
