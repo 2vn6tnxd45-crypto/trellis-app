@@ -174,6 +174,7 @@ export const ModernDashboard = ({
     records = [], 
     contractors = [], 
     activeProperty, 
+    userId,
     onScanReceipt, 
     onAddRecord,
     onNavigateToItems, 
@@ -292,7 +293,7 @@ export const ModernDashboard = ({
             </div>
 
             {/* 0. NEW: MY QUOTES SECTION (High Priority) */}
-            <MyQuotesSection userId={activeProperty?.userId} />
+            <MyQuotesSection userId={userId} />
 
             {/* 1. PROPERTY INTELLIGENCE SECTION */}
             <DashboardSection 
