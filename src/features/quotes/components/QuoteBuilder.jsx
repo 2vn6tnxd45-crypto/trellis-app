@@ -4,13 +4,16 @@
 // ============================================
 // Create and edit quotes with line items
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
-    Package, Wrench, Trash2, Plus, Eye, Copy, Printer,
-    Sparkles, ChevronDown, Loader2, Calendar, Link as LinkIcon
+    Package, Wrench, Trash2, ChevronDown, Loader2, Calendar, 
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// NEW: Import the Google Maps hook
+import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 
 // ============================================
 // LINE ITEM TYPES
@@ -91,7 +94,7 @@ const TemplatePicker = ({ templates = [], onSelect, onClose }) => {
 };
 
 // ============================================
-// CUSTOMER SELECTOR
+// CUSTOMER SELECTOR (Enhanced with Maps)
 // ============================================
 const CustomerSection = ({ 
     customer, 
@@ -101,6 +104,36 @@ const CustomerSection = ({
     onSelectExisting 
 }) => {
     const [showDropdown, setShowDropdown] = useState(false);
+    
+    // -- GOOGLE MAPS INTEGRATION START --
+    const isMapsLoaded = useGoogleMaps();
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
+
+    useEffect(() => {
+        if (isMapsLoaded && addressInputRef.current && !autocompleteRef.current) {
+            try {
+                autocompleteRef.current = new window.google.maps.places.Autocomplete(
+                    addressInputRef.current, 
+                    {
+                        types: ['address'],
+                        componentRestrictions: { country: 'us' },
+                    }
+                );
+
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current.getPlace();
+                    if (place.formatted_address) {
+                        // We use the full formatted address to ensure standardization
+                        onChange({ ...customer, address: place.formatted_address });
+                    }
+                });
+            } catch (err) {
+                console.error("Autocomplete init failed", err);
+            }
+        }
+    }, [isMapsLoaded, customer, onChange]);
+    // -- GOOGLE MAPS INTEGRATION END --
     
     const handleCustomerSelect = (selectedCustomer) => {
         onSelectExisting(selectedCustomer);
@@ -201,15 +234,19 @@ const CustomerSection = ({
                 </div>
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Service Address
+                        Service Address (Google Linked)
                     </label>
-                    <input
-                        type="text"
-                        value={customer.address}
-                        onChange={(e) => onChange({ ...customer, address: e.target.value })}
-                        placeholder="123 Main St, City, CA"
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                    />
+                    <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                            ref={addressInputRef}
+                            type="text"
+                            value={customer.address}
+                            onChange={(e) => onChange({ ...customer, address: e.target.value })}
+                            placeholder="Start typing to search..."
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                    </div>
                 </div>
             </div>
         </div>
