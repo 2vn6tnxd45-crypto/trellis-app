@@ -1,0 +1,472 @@
+// src/features/quotes/components/PublicQuoteView.jsx
+// ============================================
+// PUBLIC QUOTE VIEW
+// ============================================
+// Customer-facing quote view accessed via share link
+// URL format: /quote/{contractorId}_{quoteId}
+
+import React, { useState, useEffect } from 'react';
+import { 
+    Building2, Calendar, CheckCircle, XCircle, 
+    Loader2, AlertTriangle, Mail, Phone, MapPin,
+    FileText, Clock
+} from 'lucide-react';
+import toast, { Toaster } from 'react-hot-toast';
+import { 
+    getQuoteByShareToken, 
+    markQuoteViewed, 
+    acceptQuote, 
+    declineQuote 
+} from '../lib/quoteService';
+
+// ============================================
+// LOADING STATE
+// ============================================
+const LoadingState = () => (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="text-center">
+            <Loader2 className="h-12 w-12 text-emerald-600 animate-spin mx-auto mb-4" />
+            <p className="text-slate-600">Loading quote...</p>
+        </div>
+    </div>
+);
+
+// ============================================
+// ERROR STATE
+// ============================================
+const ErrorState = ({ message }) => (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+            <div className="bg-red-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <AlertTriangle className="h-10 w-10 text-red-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">Quote Not Found</h1>
+            <p className="text-slate-600 mb-6">{message}</p>
+            <a 
+                href="/"
+                className="inline-block px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+            >
+                Go to Homepage
+            </a>
+        </div>
+    </div>
+);
+
+// ============================================
+// EXPIRED STATE
+// ============================================
+const ExpiredState = ({ quote, contractor }) => (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+            <div className="bg-amber-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <Clock className="h-10 w-10 text-amber-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">Quote Expired</h1>
+            <p className="text-slate-600 mb-6">
+                This quote has expired. Please contact {contractor?.companyName || 'the contractor'} 
+                for an updated quote.
+            </p>
+            {contractor?.phone && (
+                <a 
+                    href={`tel:${contractor.phone}`}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors"
+                >
+                    <Phone size={18} />
+                    Call {contractor.companyName}
+                </a>
+            )}
+        </div>
+    </div>
+);
+
+// ============================================
+// SUCCESS STATE (After accepting)
+// ============================================
+const SuccessState = ({ quote, contractor }) => (
+    <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
+            <div className="bg-emerald-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+                <CheckCircle className="h-10 w-10 text-emerald-600" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-800 mb-2">Quote Accepted!</h1>
+            <p className="text-slate-600 mb-6">
+                {contractor?.companyName || 'The contractor'} has been notified and will be in touch 
+                to schedule your service.
+            </p>
+            <div className="bg-slate-50 rounded-xl p-4 text-left">
+                <p className="text-sm text-slate-500 mb-2">Quote Total</p>
+                <p className="text-3xl font-bold text-emerald-600">
+                    ${(quote.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </p>
+            </div>
+        </div>
+    </div>
+);
+
+// ============================================
+// DECLINE MODAL
+// ============================================
+const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
+    const [reason, setReason] = useState('');
+    
+    if (!isOpen) return null;
+    
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                <h2 className="text-xl font-bold text-slate-800 mb-4">Decline Quote</h2>
+                <p className="text-slate-600 mb-4">
+                    Are you sure you want to decline this quote? 
+                    You can optionally provide a reason.
+                </p>
+                <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Reason for declining (optional)"
+                    rows={3}
+                    className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none mb-4"
+                />
+                <div className="flex gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onConfirm(reason)}
+                        disabled={isSubmitting}
+                        className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                        {isSubmitting ? (
+                            <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                            <XCircle size={18} />
+                        )}
+                        Decline Quote
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// MAIN QUOTE VIEW
+// ============================================
+const QuoteContent = ({ quote, contractor, contractorId, onAccept, onDecline }) => {
+    const [showDeclineModal, setShowDeclineModal] = useState(false);
+    const [isAccepting, setIsAccepting] = useState(false);
+    const [isDeclining, setIsDeclining] = useState(false);
+    
+    const formatDate = (timestamp) => {
+        if (!timestamp) return '—';
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleDateString();
+    };
+    
+    const isExpiringSoon = () => {
+        if (!quote.expiresAt) return false;
+        const expiresDate = quote.expiresAt.toDate ? quote.expiresAt.toDate() : new Date(quote.expiresAt);
+        const daysUntil = Math.ceil((expiresDate - new Date()) / (1000 * 60 * 60 * 24));
+        return daysUntil <= 3 && daysUntil > 0;
+    };
+    
+    const handleAccept = async () => {
+        setIsAccepting(true);
+        try {
+            await onAccept();
+        } finally {
+            setIsAccepting(false);
+        }
+    };
+    
+    const handleDecline = async (reason) => {
+        setIsDeclining(true);
+        try {
+            await onDecline(reason);
+            setShowDeclineModal(false);
+        } finally {
+            setIsDeclining(false);
+        }
+    };
+    
+    const canRespond = ['sent', 'viewed'].includes(quote.status);
+
+    return (
+        <div className="min-h-screen bg-slate-50 py-8 px-4">
+            <Toaster position="top-center" />
+            <DeclineModal 
+                isOpen={showDeclineModal}
+                onClose={() => setShowDeclineModal(false)}
+                onConfirm={handleDecline}
+                isSubmitting={isDeclining}
+            />
+            
+            <div className="max-w-3xl mx-auto">
+                {/* Header */}
+                <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
+                    <div className="bg-emerald-600 text-white p-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                                <Building2 size={28} />
+                            </div>
+                            <div>
+                                <h1 className="text-xl font-bold">
+                                    {contractor?.companyName || 'Service Quote'}
+                                </h1>
+                                {contractor?.phone && (
+                                    <p className="text-emerald-100 text-sm flex items-center gap-2 mt-1">
+                                        <Phone size={14} />
+                                        {contractor.phone}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Quote Info Bar */}
+                    <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 text-sm">
+                            <span className="text-slate-500">Quote #{quote.quoteNumber}</span>
+                            <span className="text-slate-300">•</span>
+                            <span className="text-slate-500">Created {formatDate(quote.createdAt)}</span>
+                        </div>
+                        {isExpiringSoon() && (
+                            <span className="flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-3 py-1 rounded-full font-medium">
+                                <AlertTriangle size={12} />
+                                Expires {formatDate(quote.expiresAt)}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Quote Content */}
+                <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 mb-6">
+                    {/* Title */}
+                    <div className="mb-6">
+                        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Service Description</p>
+                        <h2 className="text-xl font-bold text-slate-800">{quote.title}</h2>
+                    </div>
+                    
+                    {/* Line Items */}
+                    <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
+                        <table className="w-full">
+                            <thead className="bg-slate-50">
+                                <tr>
+                                    <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3">Item</th>
+                                    <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-20">Qty</th>
+                                    <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-24">Price</th>
+                                    <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-24">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {(quote.lineItems || []).map((item, idx) => (
+                                    <tr key={item.id || idx}>
+                                        <td className="px-4 py-3">
+                                            <p className="text-slate-800">{item.description}</p>
+                                            <p className="text-xs text-slate-400 capitalize">{item.type}</p>
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">
+                                            ${(item.unitPrice || 0).toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-800">
+                                            ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {/* Totals */}
+                    <div className="flex justify-end mb-6">
+                        <div className="w-64 space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Subtotal</span>
+                                <span className="font-medium">${(quote.subtotal || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                                <span className="text-slate-500">Tax ({quote.taxRate || 0}%)</span>
+                                <span className="font-medium">${(quote.taxAmount || 0).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-xl pt-3 border-t border-slate-200">
+                                <span className="font-bold text-slate-800">Total</span>
+                                <span className="font-bold text-emerald-600">
+                                    ${(quote.total || 0).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Notes */}
+                    {quote.notes && (
+                        <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Notes</p>
+                            <p className="text-sm text-slate-600">{quote.notes}</p>
+                        </div>
+                    )}
+                    
+                    {/* Terms */}
+                    {quote.terms && (
+                        <div className="border-t border-slate-100 pt-4">
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Terms & Conditions</p>
+                            <p className="text-xs text-slate-500">{quote.terms}</p>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Action Buttons */}
+                {canRespond && (
+                    <div className="bg-white rounded-2xl shadow-lg p-6">
+                        <p className="text-center text-slate-600 mb-4">
+                            Ready to proceed? Accept this quote to schedule your service.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                                onClick={() => setShowDeclineModal(true)}
+                                disabled={isDeclining}
+                                className="flex-1 py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <XCircle size={18} />
+                                Decline
+                            </button>
+                            <button
+                                onClick={handleAccept}
+                                disabled={isAccepting}
+                                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                            >
+                                {isAccepting ? (
+                                    <Loader2 size={18} className="animate-spin" />
+                                ) : (
+                                    <CheckCircle size={18} />
+                                )}
+                                Accept Quote
+                            </button>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Already Responded States */}
+                {quote.status === 'accepted' && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center">
+                        <CheckCircle className="h-12 w-12 text-emerald-600 mx-auto mb-3" />
+                        <p className="font-bold text-emerald-800">You've accepted this quote</p>
+                        <p className="text-sm text-emerald-700 mt-1">
+                            {contractor?.companyName || 'The contractor'} will be in touch soon.
+                        </p>
+                    </div>
+                )}
+                
+                {quote.status === 'declined' && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-center">
+                        <XCircle className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                        <p className="font-bold text-slate-600">Quote Declined</p>
+                        <p className="text-sm text-slate-500 mt-1">
+                            You declined this quote on {formatDate(quote.declinedAt)}.
+                        </p>
+                    </div>
+                )}
+                
+                {/* Footer */}
+                <div className="text-center mt-8">
+                    <p className="text-xs text-slate-400">
+                        Powered by <a href="/" className="text-emerald-600 hover:underline">Krib</a> — 
+                        The smart way to manage your home
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+export const PublicQuoteView = ({ shareToken }) => {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [data, setData] = useState(null);
+    const [accepted, setAccepted] = useState(false);
+    
+    useEffect(() => {
+        const loadQuote = async () => {
+            try {
+                const result = await getQuoteByShareToken(shareToken);
+                
+                if (!result) {
+                    setError('This quote could not be found. It may have been deleted.');
+                    return;
+                }
+                
+                setData(result);
+                
+                // Mark as viewed (if sent status)
+                if (result.quote.status === 'sent') {
+                    await markQuoteViewed(result.contractorId, result.quote.id);
+                }
+            } catch (err) {
+                console.error('Error loading quote:', err);
+                setError('Unable to load this quote. Please try again later.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        loadQuote();
+    }, [shareToken]);
+    
+    const handleAccept = async () => {
+        try {
+            await acceptQuote(data.contractorId, data.quote.id);
+            setAccepted(true);
+            toast.success('Quote accepted!');
+        } catch (err) {
+            console.error('Error accepting quote:', err);
+            toast.error('Failed to accept quote. Please try again.');
+            throw err;
+        }
+    };
+    
+    const handleDecline = async (reason) => {
+        try {
+            await declineQuote(data.contractorId, data.quote.id, reason);
+            // Reload the quote to show declined state
+            const result = await getQuoteByShareToken(shareToken);
+            setData(result);
+            toast.success('Quote declined');
+        } catch (err) {
+            console.error('Error declining quote:', err);
+            toast.error('Failed to decline quote. Please try again.');
+            throw err;
+        }
+    };
+    
+    if (loading) return <LoadingState />;
+    if (error) return <ErrorState message={error} />;
+    if (!data) return <ErrorState message="Quote not found" />;
+    
+    // Check if expired
+    if (data.quote.status === 'expired') {
+        return <ExpiredState quote={data.quote} contractor={data.contractor} />;
+    }
+    
+    // Show success state after accepting
+    if (accepted) {
+        return <SuccessState quote={data.quote} contractor={data.contractor} />;
+    }
+    
+    return (
+        <QuoteContent
+            quote={data.quote}
+            contractor={data.contractor}
+            contractorId={data.contractorId}
+            onAccept={handleAccept}
+            onDecline={handleDecline}
+        />
+    );
+};
+
+export default PublicQuoteView;
