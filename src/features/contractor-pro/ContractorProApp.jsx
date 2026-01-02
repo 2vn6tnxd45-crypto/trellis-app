@@ -12,7 +12,9 @@ import {
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
     Briefcase,
     Scroll as ScrollIcon,
-    Receipt // ADDED: Icon for Quotes
+    Receipt,
+    // ADDED: Icons for enhanced views
+    Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -83,7 +85,8 @@ const SidebarNav = ({
     onNavigate, 
     onSignOut,
     pendingCount,
-    pendingQuotesCount // ADDED: Quote badge count
+    pendingQuotesCount,
+    activeJobsCount // ADDED: Jobs badge count
 }) => {
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
     const email = profile?.profile?.email || '';
@@ -122,6 +125,7 @@ const SidebarNav = ({
                     label="My Jobs"
                     active={activeView === 'jobs'}
                     onClick={() => onNavigate('jobs')}
+                    badge={activeJobsCount}
                 />
                 {/* ADDED: Quotes Tab */}
                 <NavItem 
@@ -181,13 +185,13 @@ const SidebarNav = ({
 // ============================================
 // MOBILE NAV
 // ============================================
-const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount }) => (
+const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount }) => (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
-                { id: 'jobs', icon: Briefcase, label: 'Jobs' },
-                { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount }, // ADDED
+                { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: activeJobsCount },
+                { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount },
                 { id: 'invoices', icon: ScrollIcon, label: 'Invoice' },
                 { id: 'profile', icon: User, label: 'Profile' },
             ].map(item => (
@@ -238,51 +242,252 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 // FEATURE VIEWS
 // ============================================
 
-// --- JOBS VIEW ---
-const JobsView = ({ jobs, loading }) => {
-    const activeJobs = jobs?.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
+// ============================================
+// JOB STATUS CONFIG
+// ============================================
+const JOB_STATUS_CONFIG = {
+    pending_schedule: {
+        label: 'Needs Scheduling',
+        color: 'bg-amber-100 text-amber-700',
+        icon: Clock
+    },
+    scheduled: {
+        label: 'Scheduled',
+        color: 'bg-blue-100 text-blue-700',
+        icon: Calendar
+    },
+    in_progress: {
+        label: 'In Progress',
+        color: 'bg-purple-100 text-purple-700',
+        icon: Briefcase
+    },
+    completed: {
+        label: 'Completed',
+        color: 'bg-emerald-100 text-emerald-700',
+        icon: CheckCircle
+    },
+    cancelled: {
+        label: 'Cancelled',
+        color: 'bg-slate-100 text-slate-500',
+        icon: AlertCircle
+    },
+    scheduling: {
+        label: 'Scheduling',
+        color: 'bg-purple-100 text-purple-700',
+        icon: Calendar
+    },
+    pending: {
+        label: 'Pending',
+        color: 'bg-amber-100 text-amber-700',
+        icon: Clock
+    }
+};
+
+// ============================================
+// HELPER: Format Date
+// ============================================
+const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric',
+        year: 'numeric'
+    });
+};
+
+// ============================================
+// HELPER: Format Currency
+// ============================================
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount || 0);
+};
+
+// --- ENHANCED JOBS VIEW ---
+const JobsView = ({ jobs, loading, onSelectJob }) => {
+    const [filter, setFilter] = useState('active');
     
-    const getStatusColor = (status) => {
-        switch(status) {
-            case 'scheduled': return 'bg-emerald-100 text-emerald-700';
-            case 'quoted': return 'bg-blue-100 text-blue-700';
-            case 'scheduling': return 'bg-purple-100 text-purple-700';
-            default: return 'bg-slate-100 text-slate-600';
-        }
+    const activeJobs = jobs?.filter(j => 
+        j.status !== 'completed' && j.status !== 'cancelled'
+    ) || [];
+    
+    const completedJobs = jobs?.filter(j => j.status === 'completed') || [];
+    
+    const displayedJobs = filter === 'active' 
+        ? activeJobs 
+        : filter === 'completed' 
+            ? completedJobs 
+            : jobs;
+
+    const getStatusConfig = (status) => {
+        return JOB_STATUS_CONFIG[status] || JOB_STATUS_CONFIG.pending;
     };
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
-                    <p className="text-slate-500">Active service requests and appointments</p>
+                    <p className="text-slate-500">
+                        {activeJobs.length} active job{activeJobs.length !== 1 ? 's' : ''}
+                        {completedJobs.length > 0 && ` · ${completedJobs.length} completed`}
+                    </p>
+                </div>
+                
+                {/* Filter Tabs */}
+                <div className="flex bg-slate-100 rounded-xl p-1">
+                    {[
+                        { key: 'active', label: 'Active', count: activeJobs.length },
+                        { key: 'completed', label: 'Completed', count: completedJobs.length },
+                        { key: 'all', label: 'All', count: jobs?.length || 0 }
+                    ].map(tab => (
+                        <button
+                            key={tab.key}
+                            onClick={() => setFilter(tab.key)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                filter === tab.key
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            {tab.label}
+                            {tab.count > 0 && (
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                                    filter === tab.key ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                    {tab.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
                 </div>
             </div>
 
+            {/* Jobs List */}
             {loading ? (
-                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
-            ) : activeJobs?.length === 0 ? (
+                <div className="text-center py-10">
+                    <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/>
+                </div>
+            ) : displayedJobs?.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                     <Briefcase className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Active Jobs</h3>
-                    <p className="text-slate-500">New service requests from homeowners will appear here.</p>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">
+                        {filter === 'active' ? 'No Active Jobs' : filter === 'completed' ? 'No Completed Jobs' : 'No Jobs Yet'}
+                    </h3>
+                    <p className="text-slate-500">
+                        {filter === 'active' 
+                            ? 'When customers accept your quotes, jobs will appear here.'
+                            : 'Completed jobs will appear here.'}
+                    </p>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
-                    {activeJobs.map(job => (
-                        <div key={job.id} className="p-4 hover:bg-slate-50 transition-colors">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <p className="font-bold text-slate-800">{job.description || 'Service Request'}</p>
-                                    <p className="text-sm text-slate-500">{job.propertyName}</p>
+                <div className="space-y-3">
+                    {displayedJobs.map(job => {
+                        const statusConfig = getStatusConfig(job.status);
+                        const StatusIcon = statusConfig.icon;
+                        
+                        return (
+                            <div 
+                                key={job.id} 
+                                onClick={() => onSelectJob?.(job)}
+                                className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
+                            >
+                                <div className="flex items-start justify-between gap-4">
+                                    {/* Left: Job Info */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <h3 className="font-bold text-slate-800 text-lg truncate">
+                                                {job.title || job.description || 'Service Request'}
+                                            </h3>
+                                            {job.sourceType === 'quote' && (
+                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full flex items-center gap-1 shrink-0">
+                                                    <FileText size={10} />
+                                                    {job.sourceQuoteNumber || 'Quote'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        {/* Customer Info */}
+                                        <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
+                                            {job.customer?.name && (
+                                                <span className="flex items-center gap-1">
+                                                    <User size={14} />
+                                                    {job.customer.name}
+                                                </span>
+                                            )}
+                                            {job.customer?.address && (
+                                                <span className="flex items-center gap-1 truncate">
+                                                    <MapPin size={14} />
+                                                    {job.customer.address}
+                                                </span>
+                                            )}
+                                        </div>
+                                        
+                                        {/* Meta Row */}
+                                        <div className="flex items-center gap-4 text-sm">
+                                            {job.total > 0 && (
+                                                <span className="font-bold text-emerald-600">
+                                                    {formatCurrency(job.total)}
+                                                </span>
+                                            )}
+                                            {job.scheduledDate && (
+                                                <span className="text-slate-500 flex items-center gap-1">
+                                                    <Calendar size={14} />
+                                                    {formatDate(job.scheduledDate)}
+                                                </span>
+                                            )}
+                                            {!job.scheduledDate && job.createdAt && (
+                                                <span className="text-slate-400 text-xs">
+                                                    Created {formatDate(job.createdAt)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Right: Status & Arrow */}
+                                    <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.color}`}>
+                                            <StatusIcon size={12} />
+                                            {statusConfig.label}
+                                        </span>
+                                        <ChevronRight size={20} className="text-slate-300" />
+                                    </div>
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(job.status)}`}>
-                                    {job.status}
-                                </span>
+                                
+                                {/* Quick Contact Actions */}
+                                {(job.customer?.phone || job.customer?.email) && (
+                                    <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
+                                        {job.customer?.phone && (
+                                            <a 
+                                                href={`tel:${job.customer.phone}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
+                                            >
+                                                <Phone size={12} />
+                                                Call
+                                            </a>
+                                        )}
+                                        {job.customer?.email && (
+                                            <a 
+                                                href={`mailto:${job.customer.email}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
+                                            >
+                                                <Mail size={12} />
+                                                Email
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -367,45 +572,161 @@ const InvitationsView = ({ invitations, loading, onCreate }) => {
     );
 };
 
-// --- CUSTOMERS VIEW ---
-const CustomersView = ({ customers, loading }) => (
-    <div className="space-y-6">
-        <div>
-            <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
-            <p className="text-slate-500">Homeowners who have claimed your invitations</p>
-        </div>
+// --- ENHANCED CUSTOMERS VIEW ---
+const CustomersView = ({ customers, loading, onSelectCustomer }) => {
+    const [sortBy, setSortBy] = useState('lastContact');
+    
+    const sortedCustomers = [...(customers || [])].sort((a, b) => {
+        if (sortBy === 'totalSpend') {
+            return (b.totalSpend || 0) - (a.totalSpend || 0);
+        }
+        if (sortBy === 'totalJobs') {
+            return (b.totalJobs || 0) - (a.totalJobs || 0);
+        }
+        const aDate = a.lastContact?.toDate?.() || new Date(0);
+        const bDate = b.lastContact?.toDate?.() || new Date(0);
+        return bDate - aDate;
+    });
 
-        {loading ? (
-            <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
-        ) : customers.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-                <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                <h3 className="font-bold text-slate-800 text-lg mb-2">No Customers Yet</h3>
-                <p className="text-slate-500">When homeowners claim your invitations, they'll appear here.</p>
+    const totalRevenue = customers?.reduce((sum, c) => sum + (c.totalSpend || 0), 0) || 0;
+    const totalJobsCount = customers?.reduce((sum, c) => sum + (c.totalJobs || 0), 0) || 0;
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
+                    <p className="text-slate-500">
+                        {customers?.length || 0} customer{customers?.length !== 1 ? 's' : ''} · {formatCurrency(totalRevenue)} total revenue
+                    </p>
+                </div>
+                
+                {/* Sort Dropdown */}
+                <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 bg-white"
+                >
+                    <option value="lastContact">Recent Activity</option>
+                    <option value="totalSpend">Highest Spend</option>
+                    <option value="totalJobs">Most Jobs</option>
+                </select>
             </div>
-        ) : (
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
-                {customers.map(customer => (
-                    <div key={customer.id} className="p-4 hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                                <User className="h-6 w-6 text-emerald-600" />
-                            </div>
-                            <div>
-                                <p className="font-bold text-slate-800">{customer.customerName || 'Homeowner'}</p>
-                                <p className="text-sm text-slate-500">{customer.propertyName}</p>
-                            </div>
-                            <div className="ml-auto text-right">
-                                <p className="text-sm font-bold text-slate-800">{customer.totalJobs || 0} jobs</p>
-                                <p className="text-xs text-slate-500">${customer.totalSpend?.toLocaleString() || 0} total</p>
+
+            {/* Stats Cards */}
+            {customers?.length > 0 && (
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500 mb-1">Total Customers</p>
+                        <p className="text-2xl font-bold text-slate-800">{customers.length}</p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500 mb-1">Total Jobs</p>
+                        <p className="text-2xl font-bold text-slate-800">{totalJobsCount}</p>
+                    </div>
+                    <div className="bg-white rounded-xl border border-slate-200 p-4">
+                        <p className="text-sm text-slate-500 mb-1">Total Revenue</p>
+                        <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalRevenue)}</p>
+                    </div>
+                </div>
+            )}
+
+            {/* Customers List */}
+            {loading ? (
+                <div className="text-center py-10">
+                    <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/>
+                </div>
+            ) : customers?.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                    <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Customers Yet</h3>
+                    <p className="text-slate-500">When customers accept your quotes or claim invitations, they'll appear here.</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {sortedCustomers.map(customer => (
+                        <div 
+                            key={customer.id}
+                            onClick={() => onSelectCustomer?.(customer)}
+                            className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
+                        >
+                            <div className="flex items-start gap-4">
+                                {/* Avatar */}
+                                <div className="h-14 w-14 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0">
+                                    {(customer.customerName || customer.email || 'C').charAt(0).toUpperCase()}
+                                </div>
+                                
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <h3 className="font-bold text-slate-800 text-lg truncate">
+                                            {customer.customerName || 'Customer'}
+                                        </h3>
+                                        {customer.source === 'quote' && (
+                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
+                                                Via Quote
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Contact Info */}
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 mb-3">
+                                        {customer.email && (
+                                            <a 
+                                                href={`mailto:${customer.email}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                                            >
+                                                <Mail size={14} />
+                                                {customer.email}
+                                            </a>
+                                        )}
+                                        {customer.phone && (
+                                            <a 
+                                                href={`tel:${customer.phone}`}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex items-center gap-1 hover:text-emerald-600 transition-colors"
+                                            >
+                                                <Phone size={14} />
+                                                {customer.phone}
+                                            </a>
+                                        )}
+                                        {customer.address && (
+                                            <span className="flex items-center gap-1">
+                                                <MapPin size={14} />
+                                                {customer.address}
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Stats Row */}
+                                    <div className="flex items-center gap-4 text-sm">
+                                        <span className="flex items-center gap-1 text-slate-600">
+                                            <Briefcase size={14} className="text-slate-400" />
+                                            <span className="font-medium">{customer.totalJobs || 0}</span> job{customer.totalJobs !== 1 ? 's' : ''}
+                                        </span>
+                                        <span className="font-bold text-emerald-600">
+                                            {formatCurrency(customer.totalSpend)}
+                                        </span>
+                                        {customer.lastContact && (
+                                            <span className="text-slate-400 text-xs">
+                                                Last contact: {formatDate(customer.lastContact)}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* Arrow */}
+                                <ChevronRight size={20} className="text-slate-300 shrink-0" />
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
-        )}
-    </div>
-);
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
 
 // --- PROFILE VIEW ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
@@ -614,6 +935,11 @@ export const ContractorProApp = () => {
         isSending: isSendingQuote
     } = useQuoteOperations(contractorId);
     
+    // ADDED: Calculate active jobs count for badge
+    const activeJobsCount = jobs?.filter(j => 
+        j.status !== 'completed' && j.status !== 'cancelled'
+    ).length || 0;
+    
     // NEW: Handler for initial profile setup
     const handleInitialSetup = async (formData) => {
         setIsSavingProfile(true);
@@ -762,7 +1088,8 @@ export const ContractorProApp = () => {
                 onNavigate={handleNavigate} 
                 onSignOut={signOut} 
                 pendingCount={pendingInvitations.length}
-                pendingQuotesCount={pendingQuotes?.length || 0} // ADDED
+                pendingQuotesCount={pendingQuotes?.length || 0}
+                activeJobsCount={activeJobsCount}
             />
             
             <div className="flex-1 flex flex-col min-h-screen">
@@ -847,7 +1174,8 @@ export const ContractorProApp = () => {
                     activeView={activeView} 
                     onNavigate={handleNavigate} 
                     pendingCount={pendingInvitations.length}
-                    pendingQuotesCount={pendingQuotes?.length || 0} // ADDED
+                    pendingQuotesCount={pendingQuotes?.length || 0}
+                    activeJobsCount={activeJobsCount}
                 />
             </div>
         </div>
