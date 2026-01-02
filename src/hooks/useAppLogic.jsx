@@ -7,6 +7,7 @@ import { auth, db } from '../config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
 import { calculateNextDate } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
+import { db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
 
 const withTimeout = (promise, ms, operation = 'Operation') => {
     let timeoutId;
@@ -152,17 +153,28 @@ useEffect(() => {
     const isTimeout = readError.message?.includes('timed out');
     
     if (isTimeout) {
-        console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
-        if (attempt < 3) {
-            // Wait a bit and retry
-            await new Promise(r => setTimeout(r, 1000));
-            continue;
-        }
-        // After 3 timeouts, treat as new user (no profile) instead of crashing
-        console.warn('[useAppLogic] ⚠️ All attempts timed out, continuing without profile');
-        profileSnap = null;
-        break;
+    console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
+    
+    // Record failure and check if we need recovery
+    const failureCount = reportFirestoreHang();
+    console.warn(`[useAppLogic] Recorded failure #${failureCount}`);
+    
+    if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
     }
+    
+    // After 3 timeouts, check if auto-recovery is needed
+    if (failureCount >= 2) {
+        console.error('[useAppLogic] 🔄 Triggering automatic recovery...');
+        toast.error('Connection issue detected. Refreshing...', { duration: 2000 });
+        setTimeout(() => recoverFromStorageIssues(), 1500);
+        return;
+    }
+    
+    profileSnap = null;
+    break;
+}
     
     if (isPermissionError && attempt < 3) {
         console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
@@ -171,9 +183,19 @@ useEffect(() => {
         continue;
     }
     
-    if (!isPermissionError && !isTimeout) {
-        throw readError;  // Unknown error, throw
+   if (!isPermissionError && !isTimeout) {
+    // Check for IndexedDB errors
+    const isIndexedDBError = readError.message?.includes('IndexedDB') ||
+                             readError.code === 'unavailable';
+    if (isIndexedDBError) {
+        console.error('[useAppLogic] 🚨 IndexedDB error detected!');
+        reportFirestoreHang();
+        toast.error('Storage issue detected. Refreshing...', { duration: 2000 });
+        setTimeout(() => recoverFromStorageIssues(), 1500);
+        return;
     }
+    throw readError;
+}
     
     // If we're here on attempt 3 with permission error, continue without profile
     if (attempt === 3) {
