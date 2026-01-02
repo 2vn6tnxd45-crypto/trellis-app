@@ -116,7 +116,7 @@ const MyQuotesSection = ({ userId }) => {
 // ============================================
 // EMPTY STATE (0 items)
 // ============================================
-const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt, onCreateContractorLink }) => (
+const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink }) => (
     <div className="flex flex-col items-center justify-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
             <Home size={40} className="text-emerald-700" />
@@ -140,7 +140,7 @@ const EmptyHomeState = ({ propertyName, activeProperty, onAddItem, onScanReceipt
 
         {/* SHOW QUOTES EVEN ON EMPTY STATE */}
         <div className="w-full max-w-lg text-left mb-8">
-            <MyQuotesSection userId={activeProperty?.userId} />
+            <MyQuotesSection userId={userId} />
         </div>
         
         <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
@@ -312,6 +312,7 @@ const GettingStartedDashboard = ({
     records, 
     propertyName,
     activeProperty,
+    userId,
     onAddItem, 
     onScanReceipt, 
     onNavigateToItems,
@@ -378,7 +379,7 @@ const GettingStartedDashboard = ({
             </div>
 
             {/* MY QUOTES SECTION (Getting Started) */}
-            <MyQuotesSection userId={activeProperty?.userId} />
+            <MyQuotesSection userId={userId} />
 
             {/* Property Intelligence Teaser - NEW! */}
             {activeProperty?.address && (
@@ -465,6 +466,7 @@ export const ProgressiveDashboard = ({
     records = [],
     contractors = [],
     activeProperty,
+    userId,
     onScanReceipt,
     onAddRecord,
     onNavigateToItems,
@@ -492,6 +494,7 @@ export const ProgressiveDashboard = ({
             <EmptyHomeState 
                 propertyName={activeProperty?.name} 
                 activeProperty={activeProperty}
+                userId={userId}
                 onAddItem={onAddRecord} 
                 onScanReceipt={onScanReceipt}
                 onCreateContractorLink={onCreateContractorLink}
@@ -504,6 +507,7 @@ export const ProgressiveDashboard = ({
                 records={records} 
                 propertyName={activeProperty?.name}
                 activeProperty={activeProperty}
+                userId={userId}
                 onAddItem={onAddRecord} 
                 onScanReceipt={onScanReceipt} 
                 onNavigateToItems={onNavigateToItems}  
@@ -529,6 +533,7 @@ export const ProgressiveDashboard = ({
                 records={records}
                 contractors={contractors}
                 activeProperty={activeProperty}
+                userId={userId}
                 onScanReceipt={onScanReceipt}
                 onAddRecord={onAddRecord}
                 onNavigateToItems={onNavigateToItems}
