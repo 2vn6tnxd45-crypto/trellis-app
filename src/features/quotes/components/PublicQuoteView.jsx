@@ -20,6 +20,8 @@ import {
     claimQuote
 } from '../lib/quoteService';
 import { AuthScreen } from '../../auth/AuthScreen';
+import { waitForPendingWrites } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
 
 // ============================================
 // LOADING STATE
@@ -495,41 +497,51 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     // NEW: Handle Save/Claim
     // NEW: Handle Save/Claim
     const handleSaveQuote = async () => {
-        if (!user) {
-            setPendingSave(true);
-            setShowAuth(true);
-            return;
-        }
+    // If not logged in, show auth modal and set pending flag
+    if (!user) {
+        setPendingSave(true);
+        setShowAuth(true);
+        return;
+    }
 
-        // Prevent double-claiming
-        if (alreadyClaimed) {
-            toast.info('This quote is already in your account');
-            window.location.href = window.location.origin + '/app';
-            return;
-        }
+    // Prevent double-claiming
+    if (alreadyClaimed) {
+        toast.info('This quote is already in your account');
+        window.location.href = window.location.origin + '/app';
+        return;
+    }
 
-        // Prevent multiple clicks
-        if (isClaiming) return;
+    // Prevent multiple clicks
+    if (isClaiming) return;
 
-        setIsClaiming(true);
+    setIsClaiming(true);
 
+    try {
+        await claimQuote(data.contractorId, data.quote.id, user.uid);
+        toast.success('Quote saved to your account!');
+        
+        // FIX: Properly wait for Firestore to sync all pending writes
+        // This prevents IndexedDB corruption from page unload during sync
         try {
-            await claimQuote(data.contractorId, data.quote.id, user.uid);
-            toast.success('Quote saved to your account!');
-            
-            // FIX: Wait for Firestore to fully sync to IndexedDB before redirecting
-            // This prevents IndexedDB corruption from page unload during sync
-            await new Promise(r => setTimeout(r, 1500));
-            
-            // REDIRECT TO DASHBOARD
-            window.location.href = window.location.origin + '/app';
-            
-        } catch (err) {
-            console.error('Error saving quote:', err);
-            toast.error('Failed to save quote.');
-            setIsClaiming(false); // Only reset on error, not on success (page will redirect)
+            await waitForPendingWrites(db);
+        } catch (syncErr) {
+            // If waitForPendingWrites fails, it's likely already using memory cache
+            // which doesn't need sync - safe to proceed
+            console.warn('waitForPendingWrites skipped:', syncErr.message);
         }
-    };
+        
+        // Small additional buffer for IndexedDB transaction completion
+        await new Promise(r => setTimeout(r, 300));
+        
+        // REDIRECT TO DASHBOARD
+        window.location.href = window.location.origin + '/app';
+        
+    } catch (err) {
+        console.error('Error saving quote:', err);
+        toast.error('Failed to save quote.');
+        setIsClaiming(false); // Only reset on error, not on success (page will redirect)
+    }
+};
 
     // NEW: Effect to trigger save AFTER login
     useEffect(() => {
