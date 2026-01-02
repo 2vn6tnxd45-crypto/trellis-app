@@ -7,8 +7,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
-    Package, Wrench, Trash2, ChevronDown, Loader2, Calendar, 
-    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle
+    Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -49,7 +49,13 @@ const createDefaultLineItem = (type = 'material') => ({
     type,
     description: '',
     quantity: 1,
-    unitPrice: 0
+    unitPrice: 0,
+    // NEW FIELDS
+    brand: '',
+    model: '',
+    serial: '',
+    warranty: '',
+    isExpanded: false // UI state
 });
 
 // ============================================
@@ -69,13 +75,21 @@ const createDefaultFormState = (existingQuote = null) => ({
             ? existingQuote.expiresAt.toDate().toISOString().split('T')[0]
             : new Date(existingQuote.expiresAt).toISOString().split('T')[0])
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
-    // UPDATED: Default to one Material AND one Labor item for new quotes
+    
+    // UPDATED: Default to one Material AND one Labor item
     lineItems: existingQuote?.lineItems?.length > 0 
-        ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random() }))
+        ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: false }))
         : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
+    
     taxRate: existingQuote?.taxRate ?? 8.75,
     notes: existingQuote?.notes || '',
-    terms: existingQuote?.terms || 'Quote valid for 14 days. 50% deposit required to schedule work. Final payment due upon completion.'
+    exclusions: existingQuote?.exclusions || '', // NEW FIELD
+    terms: existingQuote?.terms || 'Quote valid for 14 days. Final payment due upon completion.',
+    
+    // NEW: Financials
+    depositRequired: existingQuote?.depositRequired || false,
+    depositType: existingQuote?.depositType || 'percentage', // 'percentage' | 'fixed'
+    depositValue: existingQuote?.depositValue || 50
 });
 
 // ============================================
@@ -130,7 +144,6 @@ const CustomerSection = ({
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
     
-    // Create a Ref to track the LATEST customer state
     const customerRef = useRef(customer);
 
     useEffect(() => {
@@ -298,14 +311,26 @@ const LineItemsSection = ({
     onRemove,
     taxRate,
     onTaxRateChange,
-    errors = {}
+    errors = {},
+    // Deposit props
+    depositRequired,
+    depositType,
+    depositValue,
+    onDepositChange
 }) => {
     const updateItem = (id, field, value) => {
         onUpdate(lineItems.map(item => 
             item.id === id ? { ...item, [field]: value } : item
         ));
     };
+
+    const toggleExpand = (id) => {
+        onUpdate(lineItems.map(item => 
+            item.id === id ? { ...item, isExpanded: !item.isExpanded } : item
+        ));
+    };
     
+    // CALCS
     const subtotal = lineItems.reduce(
         (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 
         0
@@ -313,13 +338,15 @@ const LineItemsSection = ({
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
     
-    const laborTotal = lineItems
-        .filter(i => i.type === 'labor')
-        .reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
-    
-    const materialsTotal = lineItems
-        .filter(i => i.type === 'material')
-        .reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
+    // Deposit Calc
+    let depositAmount = 0;
+    if (depositRequired) {
+        if (depositType === 'percentage') {
+            depositAmount = total * (depositValue / 100);
+        } else {
+            depositAmount = depositValue;
+        }
+    }
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -349,120 +376,245 @@ const LineItemsSection = ({
             </div>
             
             {/* Line Items Table */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
-                <table className="w-full min-w-[600px]">
+            <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto mb-6">
+                <table className="w-full min-w-[700px]">
                     <thead className="bg-slate-50">
                         <tr>
-                            <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3 w-20">Type</th>
+                            <th className="w-12"></th>
+                            <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3 w-24">Type</th>
                             <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3">Description</th>
                             <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-20">Qty</th>
-                            <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-28">Unit Price</th>
-                            <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-28">Total</th>
+                            <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-32">Unit Price</th>
+                            <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-32">Total</th>
                             <th className="w-10"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {lineItems.map((item, index) => {
                             const itemType = LINE_ITEM_TYPES.find(t => t.value === item.type) || LINE_ITEM_TYPES[0];
-                            // Check if this specific item has errors
                             const itemError = errors[`lineItems[${index}]`]; 
                             
                             return (
-                                <tr key={item.id} className="group">
-                                    <td className="px-4 py-3">
-                                        <span className={`text-xs font-medium px-2 py-1 rounded ${itemType.color}`}>
-                                            {itemType.label}
-                                        </span>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <input
-                                            type="text"
-                                            value={item.description}
-                                            onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                                            placeholder={item.type === 'labor' ? 'e.g., Installation labor' : 'e.g., 50-gallon water heater'}
-                                            className={`w-full px-2 py-1 border rounded focus:ring-0 bg-transparent ${itemError ? 'border-red-500 bg-red-50' : 'border-transparent hover:border-slate-200'}`}
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <input
-                                            type="number"
-                                            value={item.quantity}
-                                            onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                            className="w-full px-2 py-1 border border-slate-200 rounded text-right"
-                                            min="0"
-                                            step="0.5"
-                                        />
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="relative">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                            <input
-                                                type="number"
-                                                value={item.unitPrice}
-                                                onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                className={`w-full pl-6 pr-2 py-1 border rounded text-right ${itemError && item.unitPrice <= 0 ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
-                                                min="0"
-                                                step="0.01"
-                                            />
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right font-medium text-slate-800">
-                                        ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
-                                    </td>
-                                    <td className="px-2 py-3">
-                                        {lineItems.length > 1 && (
+                                <React.Fragment key={item.id}>
+                                    <tr className={`group ${item.isExpanded ? 'bg-slate-50/50' : 'bg-white'}`}>
+                                        <td className="px-2 py-3 text-center">
                                             <button 
                                                 type="button"
-                                                onClick={() => onRemove(item.id)}
-                                                className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                onClick={() => toggleExpand(item.id)}
+                                                className="p-1 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors"
+                                                title={item.isExpanded ? "Collapse Details" : "Add Brand/Model/Warranty"}
                                             >
-                                                <Trash2 size={16} />
+                                                {item.isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                                             </button>
-                                        )}
-                                    </td>
-                                </tr>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <span className={`text-xs font-medium px-2 py-1 rounded ${itemType.color}`}>
+                                                {itemType.label}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="text"
+                                                value={item.description}
+                                                onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                                                placeholder={item.type === 'labor' ? 'e.g., Installation labor' : 'e.g., 50-gallon water heater'}
+                                                className={`w-full px-2 py-1 border rounded focus:ring-0 bg-transparent ${itemError ? 'border-red-500 bg-red-50' : 'border-transparent hover:border-slate-200'}`}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <input
+                                                type="number"
+                                                value={item.quantity}
+                                                onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                                                className="w-full px-2 py-1 border border-slate-200 rounded text-right"
+                                                min="0"
+                                                step="0.5"
+                                            />
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="relative">
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.unitPrice}
+                                                    onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                    className={`w-full pl-6 pr-2 py-1 border rounded text-right ${itemError && item.unitPrice <= 0 ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
+                                                    min="0"
+                                                    step="0.01"
+                                                />
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-800">
+                                            ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                        </td>
+                                        <td className="px-2 py-3">
+                                            {lineItems.length > 1 && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => onRemove(item.id)}
+                                                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                    
+                                    {/* EXPANDED DETAILS ROW */}
+                                    {item.isExpanded && (
+                                        <tr className="bg-slate-50 border-b border-slate-100">
+                                            <td colSpan="7" className="px-4 py-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-2">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand / Mfr</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="e.g. Rheem"
+                                                            value={item.brand || ''}
+                                                            onChange={(e) => updateItem(item.id, 'brand', e.target.value)}
+                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Model #</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="e.g. XG50T12"
+                                                            value={item.model || ''}
+                                                            onChange={(e) => updateItem(item.id, 'model', e.target.value)}
+                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Serial # (Optional)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="e.g. 123456789"
+                                                            value={item.serial || ''}
+                                                            onChange={(e) => updateItem(item.id, 'serial', e.target.value)}
+                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Warranty</label>
+                                                        <div className="relative">
+                                                            <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                            <input 
+                                                                type="text" 
+                                                                placeholder="e.g. 6 Year Parts"
+                                                                value={item.warranty || ''}
+                                                                onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
+                                                                className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
                             );
                         })}
                     </tbody>
                 </table>
             </div>
             
-            {/* Totals */}
-            <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className="flex justify-end">
-                    <div className="w-72 space-y-2">
-                        <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Materials</span>
-                            <span className="font-medium">${materialsTotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                            <span className="text-slate-500">Labor</span>
-                            <span className="font-medium">${laborTotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-slate-100">
-                            <span className="text-slate-500">Subtotal</span>
-                            <span className="font-medium">${subtotal.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm items-center">
-                            <div className="flex items-center gap-2">
-                                <span className="text-slate-500">Tax</span>
-                                <input
-                                    type="number"
-                                    value={taxRate}
-                                    onChange={(e) => onTaxRateChange(parseFloat(e.target.value) || 0)}
-                                    className="w-16 px-2 py-0.5 border border-slate-200 rounded text-sm text-center"
-                                    min="0"
-                                    max="100"
-                                    step="0.25"
-                                />
-                                <span className="text-slate-400">%</span>
+            {/* Totals Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-t border-slate-100 pt-6">
+                
+                {/* Deposit Configuration */}
+                <div className="w-full md:w-1/2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex items-center justify-between mb-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="checkbox"
+                                checked={depositRequired}
+                                onChange={(e) => onDepositChange('depositRequired', e.target.checked)}
+                                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                            />
+                            <span className="font-bold text-slate-700">Require Deposit / Retainer</span>
+                        </label>
+                    </div>
+                    
+                    {depositRequired && (
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-sm">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input 
+                                        type="radio" 
+                                        name="depositType" 
+                                        value="percentage"
+                                        checked={depositType === 'percentage'}
+                                        onChange={() => onDepositChange('depositType', 'percentage')}
+                                        className="text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span>Percentage (%)</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer ml-4">
+                                    <input 
+                                        type="radio" 
+                                        name="depositType" 
+                                        value="fixed"
+                                        checked={depositType === 'fixed'}
+                                        onChange={() => onDepositChange('depositType', 'fixed')}
+                                        className="text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span>Fixed Amount ($)</span>
+                                </label>
                             </div>
-                            <span className="font-medium">${tax.toFixed(2)}</span>
+                            
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-slate-500 w-24">
+                                    {depositType === 'percentage' ? 'Percent:' : 'Amount:'}
+                                </span>
+                                <input 
+                                    type="number"
+                                    value={depositValue}
+                                    onChange={(e) => onDepositChange('depositValue', parseFloat(e.target.value) || 0)}
+                                    className="w-32 px-3 py-1.5 border border-slate-200 rounded-lg"
+                                />
+                                {depositType === 'percentage' && <span className="text-slate-500">%</span>}
+                            </div>
+                            
+                            <div className="pt-2 border-t border-slate-200 text-sm flex justify-between">
+                                <span className="font-medium text-slate-600">Deposit Amount:</span>
+                                <span className="font-bold text-emerald-600">${depositAmount.toFixed(2)}</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between text-lg pt-2 border-t border-slate-200">
-                            <span className="font-bold text-slate-800">Total</span>
-                            <span className="font-bold text-emerald-600">${total.toFixed(2)}</span>
+                    )}
+                    
+                    {!depositRequired && (
+                        <p className="text-xs text-slate-400 italic">
+                            Check this box to request a partial payment upfront.
+                        </p>
+                    )}
+                </div>
+
+                {/* Main Totals */}
+                <div className="w-full md:w-72 space-y-2">
+                    <div className="flex justify-between text-sm pt-2">
+                        <span className="text-slate-500">Subtotal</span>
+                        <span className="font-medium">${subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm items-center">
+                        <div className="flex items-center gap-2">
+                            <span className="text-slate-500">Tax</span>
+                            <input
+                                type="number"
+                                value={taxRate}
+                                onChange={(e) => onTaxRateChange(parseFloat(e.target.value) || 0)}
+                                className="w-16 px-2 py-0.5 border border-slate-200 rounded text-sm text-center"
+                                min="0"
+                                max="100"
+                                step="0.25"
+                            />
+                            <span className="text-slate-400">%</span>
                         </div>
+                        <span className="font-medium">${tax.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg pt-2 border-t border-slate-200">
+                        <span className="font-bold text-slate-800">Total</span>
+                        <span className="font-bold text-emerald-600">${total.toFixed(2)}</span>
                     </div>
                 </div>
             </div>
@@ -475,10 +627,12 @@ const LineItemsSection = ({
 // ============================================
 const QuoteSummary = ({ 
     lineItems, 
-    taxRate, 
+    taxRate,
+    depositRequired,
+    depositType,
+    depositValue,
     onSaveDraft, 
     onSend, 
-    onPreview,
     isSaving,
     isSending
 }) => {
@@ -489,13 +643,16 @@ const QuoteSummary = ({
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
     
-    const laborTotal = lineItems
-        .filter(i => i.type === 'labor')
-        .reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
-    
-    const materialsTotal = lineItems
-        .filter(i => i.type === 'material')
-        .reduce((sum, i) => sum + ((i.quantity || 0) * (i.unitPrice || 0)), 0);
+    // Deposit Calc
+    let depositAmount = 0;
+    if (depositRequired) {
+        if (depositType === 'percentage') {
+            depositAmount = total * (depositValue / 100);
+        } else {
+            depositAmount = depositValue;
+        }
+    }
+    const balanceDue = total - depositAmount;
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sticky top-4">
@@ -506,21 +663,19 @@ const QuoteSummary = ({
                     <p className="text-sm text-slate-500">Quote Total</p>
                     <p className="text-3xl font-bold text-slate-800">${total.toFixed(2)}</p>
                 </div>
-                
-                <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                        <span className="text-slate-500">Materials</span>
-                        <span className="font-medium">${materialsTotal.toFixed(2)}</span>
+
+                {depositRequired && (
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                        <div className="p-2 bg-emerald-50 rounded-lg border border-emerald-100">
+                            <p className="text-[10px] uppercase font-bold text-emerald-600">Due Now</p>
+                            <p className="font-bold text-emerald-800">${depositAmount.toFixed(2)}</p>
+                        </div>
+                        <div className="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                            <p className="text-[10px] uppercase font-bold text-slate-500">Due Later</p>
+                            <p className="font-bold text-slate-600">${balanceDue.toFixed(2)}</p>
+                        </div>
                     </div>
-                    <div className="flex justify-between">
-                        <span className="text-slate-500">Labor</span>
-                        <span className="font-medium">${laborTotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span className="text-slate-500">Tax ({taxRate}%)</span>
-                        <span className="font-medium">${tax.toFixed(2)}</span>
-                    </div>
-                </div>
+                )}
                 
                 <div className="pt-4 border-t border-slate-200 space-y-2">
                     <button 
@@ -626,6 +781,10 @@ export const QuoteBuilder = ({
             lineItems: prev.lineItems.filter(item => item.id !== id)
         }));
     };
+    
+    const handleDepositChange = (field, value) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
 
     const handleSelectTemplate = (template) => {
         setFormData(prev => ({
@@ -634,7 +793,8 @@ export const QuoteBuilder = ({
             lineItems: template.lineItems?.map(item => ({
                 ...item,
                 id: Date.now() + Math.random(),
-                unitPrice: item.defaultPrice || item.unitPrice || 0
+                unitPrice: item.defaultPrice || item.unitPrice || 0,
+                isExpanded: false
             })) || prev.lineItems,
             notes: template.defaultNotes || prev.notes,
             terms: template.defaultTerms || prev.terms
@@ -842,6 +1002,11 @@ export const QuoteBuilder = ({
                         taxRate={formData.taxRate}
                         onTaxRateChange={(rate) => setFormData(prev => ({ ...prev, taxRate: rate }))}
                         errors={errors}
+                        // Deposit Props
+                        depositRequired={formData.depositRequired}
+                        depositType={formData.depositType}
+                        depositValue={formData.depositValue}
+                        onDepositChange={handleDepositChange}
                     />
                     {(errors.lineItemsGeneric) && (
                         <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 flex items-center gap-2">
@@ -850,22 +1015,37 @@ export const QuoteBuilder = ({
                         </div>
                     )}
                     
-                    {/* Notes & Terms */}
+                    {/* Notes, Exclusions & Terms */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6">
                         <h3 className="font-bold text-slate-800 mb-4">Notes & Terms</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                    Additional Notes
+                                    Scope Notes
                                 </label>
                                 <textarea
                                     value={formData.notes}
                                     onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                                    placeholder="Any special conditions, scope details, or customer requests..."
-                                    rows={3}
+                                    placeholder="Details about the work..."
+                                    rows={2}
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
                                 />
                             </div>
+
+                             {/* NEW EXCLUSIONS FIELD */}
+                             <div>
+                                <label className="block text-xs font-bold text-red-500 uppercase tracking-wide mb-1.5">
+                                    Exclusions (What is NOT included)
+                                </label>
+                                <textarea
+                                    value={formData.exclusions}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, exclusions: e.target.value }))}
+                                    placeholder="e.g. Paint, Drywall patch, Removal of old debris..."
+                                    rows={2}
+                                    className="w-full px-4 py-2.5 border border-red-100 bg-red-50/30 rounded-xl focus:ring-2 focus:ring-red-500 outline-none resize-none"
+                                />
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                     Terms & Conditions
@@ -886,6 +1066,9 @@ export const QuoteBuilder = ({
                     <QuoteSummary
                         lineItems={formData.lineItems}
                         taxRate={formData.taxRate}
+                        depositRequired={formData.depositRequired}
+                        depositType={formData.depositType}
+                        depositValue={formData.depositValue}
                         onSaveDraft={handleSaveDraft}
                         onSend={handleSendQuote}
                         isSaving={isSaving}
