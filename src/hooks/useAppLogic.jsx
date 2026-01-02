@@ -8,6 +8,16 @@ import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../con
 import { calculateNextDate } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
 
+const withTimeout = (promise, ms, operation = 'Operation') => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(`${operation} timed out after ${ms}ms`));
+        }, ms);
+    });
+    return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
+};
+
 export const useAppLogic = (celebrations) => {
     // =========================================================================
     // STATE - All existing state preserved exactly
@@ -127,7 +137,11 @@ useEffect(() => {
                     try {
                         console.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
                         const startTime = Date.now();
-                        profileSnap = await getDoc(profileRef);
+                        profileSnap = await withTimeout(
+    getDoc(profileRef),
+    5000,  // 5 second timeout
+    `getDoc attempt ${attempt}`
+);
                         console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
                         break;
                     } catch (readError) {
