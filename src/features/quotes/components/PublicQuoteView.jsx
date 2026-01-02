@@ -567,16 +567,19 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     }, [user, pendingSave, data, isClaiming]);
     
     const handleAccept = async () => {
-        try {
-            await acceptQuote(data.contractorId, data.quote.id);
-            setAccepted(true);
-            toast.success('Quote accepted!');
-        } catch (err) {
-            console.error('Error accepting quote:', err);
-            toast.error('Failed to accept quote. Please try again.');
-            throw err;
-        }
-    };
+    try {
+        const result = await acceptQuote(data.contractorId, data.quote.id);
+        setAccepted(true);
+        toast.success('Quote accepted! The contractor will be in touch to schedule.');
+        
+        // Optional: log for debugging
+        console.log('Job created:', result.jobId);
+    } catch (err) {
+        console.error('Error accepting quote:', err);
+        toast.error('Failed to accept quote. Please try again.');
+        throw err;
+    }
+};
     
     const handleDecline = async (reason) => {
         try {
