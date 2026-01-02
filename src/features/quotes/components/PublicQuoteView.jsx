@@ -225,7 +225,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                 {/* --- NEW: BACK BUTTON (Only visible to logged-in users) --- */}
                 {user && (
                     <button 
-                        onClick={() => window.location.href = '/app'} 
+                       onClick={() => window.location.href = '/app?from=quote'}
                         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold mb-6 transition-colors"
                     >
                         <ArrowLeft size={20} />
@@ -521,7 +521,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     // Prevent double-claiming
     if (alreadyClaimed) {
         toast.info('This quote is already in your account');
-        window.location.href = window.location.origin + '/app';
+        window.location.href = window.location.origin + '/app?from=quote';
         return;
     }
 
@@ -548,7 +548,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         await new Promise(r => setTimeout(r, 300));
         
         // REDIRECT TO DASHBOARD
-        window.location.href = window.location.origin + '/app';
+        window.location.href = window.location.origin + '/app?from=quote';
         
     } catch (err) {
         console.error('Error saving quote:', err);
