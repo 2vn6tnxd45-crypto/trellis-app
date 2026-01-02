@@ -6,8 +6,9 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer, MapPin, Home 
+    X, ExternalLink, Hammer, MapPin, Home, Trash2 
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
 import { CountyData } from './CountyData';
 import { PropertyIntelligence } from './PropertyIntelligence';
@@ -16,8 +17,9 @@ import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
 
-// NEW: Import Quotes Hook
+// NEW: Import Quotes Hook and Service
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
+import { unclaimQuote } from '../quotes/lib/quoteService';
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
@@ -91,6 +93,21 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
 const MyQuotesSection = ({ userId }) => {
     const { quotes, loading, error } = useCustomerQuotes(userId);
 
+    const handleDelete = async (e, quote) => {
+        e.preventDefault(); // Prevent navigation
+        e.stopPropagation();
+        
+        if (!window.confirm('Remove this quote from your profile?')) return;
+
+        try {
+            await unclaimQuote(quote.contractorId, quote.id);
+            toast.success('Quote removed');
+        } catch (err) {
+            console.error(err);
+            toast.error('Could not remove quote');
+        }
+    };
+
     // Don't render anything if loading or empty (unless error is missing index)
     if (loading || (!quotes.length && error !== 'missing-index')) return null;
 
@@ -116,8 +133,17 @@ const MyQuotesSection = ({ userId }) => {
                         <a 
                             key={quote.id}
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}
-                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group"
+                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
                         >
+                            {/* DELETE BUTTON */}
+                            <button 
+                                onClick={(e) => handleDelete(e, quote)}
+                                className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                title="Remove from profile"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate pr-2">
                                     {quote.title}
