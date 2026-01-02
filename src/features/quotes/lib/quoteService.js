@@ -648,7 +648,7 @@ export const getQuoteByShareToken = async (shareToken) => {
  */
 export const generateQuoteShareLink = (contractorId, quoteId) => {
     const shareToken = `${contractorId}_${quoteId}`;
-    return `${window.location.origin}/quote/${shareToken}`;
+    return `${window.location.origin}?quote=${shareToken}`;
 };
 
 export default {
