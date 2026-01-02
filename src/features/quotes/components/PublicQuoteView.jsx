@@ -9,15 +9,17 @@ import React, { useState, useEffect } from 'react';
 import { 
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
-    FileText, Clock
+    FileText, Clock, UserPlus, Save
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
     getQuoteByShareToken, 
     markQuoteViewed, 
     acceptQuote, 
-    declineQuote 
+    declineQuote,
+    claimQuote
 } from '../lib/quoteService';
+import { AuthScreen } from '../../auth/AuthScreen';
 
 // ============================================
 // LOADING STATE
@@ -155,10 +157,11 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 // ============================================
 // MAIN QUOTE VIEW
 // ============================================
-const QuoteContent = ({ quote, contractor, contractorId, onAccept, onDecline }) => {
+const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     
     const formatDate = (timestamp) => {
         if (!timestamp) return '—';
@@ -191,6 +194,15 @@ const QuoteContent = ({ quote, contractor, contractorId, onAccept, onDecline }) 
             setIsDeclining(false);
         }
     };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            await onSave();
+        } finally {
+            setIsSaving(false);
+        }
+    };
     
     const canRespond = ['sent', 'viewed'].includes(quote.status);
 
@@ -205,6 +217,29 @@ const QuoteContent = ({ quote, contractor, contractorId, onAccept, onDecline }) 
             />
             
             <div className="max-w-3xl mx-auto">
+                {/* NEW: Onboarding Call-to-Action (Only if not already claimed/owned by this user) */}
+                {(!quote.customerId || (user && quote.customerId !== user.uid)) && (
+                    <div className="bg-emerald-900 rounded-2xl p-6 mb-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <h3 className="font-bold text-lg flex items-center gap-2">
+                                <UserPlus size={20} className="text-emerald-400" />
+                                Save this Quote to Krib
+                            </h3>
+                            <p className="text-emerald-100 text-sm mt-1">
+                                Create a free account to track this project, manage receipts, and organize your home.
+                            </p>
+                        </div>
+                        <button 
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="whitespace-nowrap px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                            {user ? 'Save to My Account' : 'Create Free Account'}
+                        </button>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
                     <div className="bg-emerald-600 text-white p-6">
@@ -385,12 +420,16 @@ const QuoteContent = ({ quote, contractor, contractorId, onAccept, onDecline }) 
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export const PublicQuoteView = ({ shareToken }) => {
+export const PublicQuoteView = ({ shareToken, user }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
     const [accepted, setAccepted] = useState(false);
     
+    // NEW: Auth Modal State
+    const [showAuth, setShowAuth] = useState(false);
+    const [pendingSave, setPendingSave] = useState(false);
+
     useEffect(() => {
         const loadQuote = async () => {
             try {
@@ -417,6 +456,35 @@ export const PublicQuoteView = ({ shareToken }) => {
         
         loadQuote();
     }, [shareToken]);
+
+    // NEW: Handle Save/Claim
+    const handleSaveQuote = async () => {
+        if (!user) {
+            setPendingSave(true);
+            setShowAuth(true);
+            return;
+        }
+
+        try {
+            await claimQuote(data.contractorId, data.quote.id, user.uid);
+            toast.success('Quote saved to your account!');
+            // Refresh data to update UI
+            const result = await getQuoteByShareToken(shareToken);
+            setData(result);
+        } catch (err) {
+            console.error('Error saving quote:', err);
+            toast.error('Failed to save quote.');
+        }
+    };
+
+    // NEW: Effect to trigger save AFTER login
+    useEffect(() => {
+        if (user && pendingSave && data) {
+            handleSaveQuote();
+            setPendingSave(false);
+            setShowAuth(false);
+        }
+    }, [user, pendingSave, data]);
     
     const handleAccept = async () => {
         try {
@@ -459,13 +527,30 @@ export const PublicQuoteView = ({ shareToken }) => {
     }
     
     return (
-        <QuoteContent
-            quote={data.quote}
-            contractor={data.contractor}
-            contractorId={data.contractorId}
-            onAccept={handleAccept}
-            onDecline={handleDecline}
-        />
+        <>
+            {/* Login Modal Overlay */}
+            {showAuth && (
+                <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
+                    <div className="absolute top-4 right-4 z-50">
+                        <button onClick={() => setShowAuth(false)} className="p-2 bg-white rounded-full shadow-sm">
+                            <XCircle size={24} className="text-slate-400" />
+                        </button>
+                    </div>
+                    {/* Reuse existing AuthScreen in modal mode */}
+                    <AuthScreen isModal={true} /> 
+                </div>
+            )}
+
+            <QuoteContent
+                quote={data.quote}
+                contractor={data.contractor}
+                contractorId={data.contractorId}
+                user={user}
+                onAccept={handleAccept}
+                onDecline={handleDecline}
+                onSave={handleSaveQuote}
+            />
+        </>
     );
 };
 
