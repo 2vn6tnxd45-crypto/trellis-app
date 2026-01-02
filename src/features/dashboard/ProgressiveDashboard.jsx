@@ -35,8 +35,12 @@ const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
 // ============================================
 // QUOTES SECTION COMPONENT (Reusable)
 // ============================================
+// ============================================
+// QUOTES SECTION COMPONENT (Reusable)
+// ============================================
 const MyQuotesSection = ({ userId }) => {
-    const { quotes, loading, error } = useCustomerQuotes(userId);
+    // UPDATED: Destructure 'refresh' from hook
+    const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
     const handleDelete = async (e, quote) => {
         e.preventDefault(); 
@@ -47,6 +51,8 @@ const MyQuotesSection = ({ userId }) => {
         try {
             await unclaimQuote(quote.contractorId, quote.id);
             toast.success('Quote removed');
+            // UPDATED: Refresh immediately after delete
+            refresh();
         } catch (err) {
             console.error(err);
             toast.error('Could not remove quote');
