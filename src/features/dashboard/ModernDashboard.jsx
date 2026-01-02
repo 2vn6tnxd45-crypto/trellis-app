@@ -16,6 +16,9 @@ import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
 
+// NEW: Import Quotes Hook
+import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
+
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -83,6 +86,62 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
         <div><p className="font-bold text-sm text-left">{label}</p>{sublabel && <p className="text-xs opacity-70 font-medium text-left">{sublabel}</p>}</div>
     </button>
 );
+
+// --- NEW: QUOTES SECTION COMPONENT ---
+const MyQuotesSection = ({ userId }) => {
+    const { quotes, loading, error } = useCustomerQuotes(userId);
+
+    // Don't render anything if loading or empty (unless error is missing index)
+    if (loading || (!quotes.length && error !== 'missing-index')) return null;
+
+    return (
+        <DashboardSection 
+            title="My Quotes & Estimates" 
+            icon={FileText} 
+            defaultOpen={true}
+            summary={<span className="text-xs text-emerald-600 font-bold">{quotes.length} Active</span>}
+        >
+            {error === 'missing-index' ? (
+                <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
+                    <AlertTriangle className="shrink-0" />
+                    <div>
+                        <p className="font-bold">Setup Required (Developer Only)</p>
+                        <p>A "Collection Group Index" is required to view these quotes.</p>
+                        <p className="mt-1">Check the browser console for the creation link.</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                    {quotes.map(quote => (
+                        <a 
+                            key={quote.id}
+                            href={`/app/?quote=${quote.contractorId}_${quote.id}`}
+                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group"
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate pr-2">
+                                    {quote.title}
+                                </h3>
+                                <span className={`px-2 py-1 rounded text-xs font-bold capitalize shrink-0
+                                    ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
+                                      quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}
+                                `}>
+                                    {quote.status}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-slate-500">
+                                <span className="font-medium text-slate-700">${(quote.total || 0).toLocaleString()}</span>
+                                <span className="flex items-center gap-1 text-xs">
+                                    View Details <ExternalLink size={12} />
+                                </span>
+                            </div>
+                        </a>
+                    ))}
+                </div>
+            )}
+        </DashboardSection>
+    );
+};
 
 // --- MAIN COMPONENT (UPDATED with new props) ---
 export const ModernDashboard = ({
@@ -206,7 +265,10 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* 0. PROPERTY INTELLIGENCE SECTION (NEW!) */}
+            {/* 0. NEW: MY QUOTES SECTION (High Priority) */}
+            <MyQuotesSection userId={activeProperty?.userId} />
+
+            {/* 1. PROPERTY INTELLIGENCE SECTION */}
             <DashboardSection 
                 title="Property Intelligence" 
                 icon={Home} 
@@ -216,7 +278,7 @@ export const ModernDashboard = ({
                 <PropertyIntelligence propertyProfile={activeProperty} />
             </DashboardSection>
             
-            {/* 1. QUICK ACTIONS SECTION */}
+            {/* 2. QUICK ACTIONS SECTION */}
             <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
                 <div className="grid grid-cols-2 gap-3">
                     <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
@@ -226,7 +288,7 @@ export const ModernDashboard = ({
                 </div>
             </DashboardSection>
 
-            {/* 2. MAINTENANCE SCHEDULE SECTION (UPDATED with new props) */}
+            {/* 3. MAINTENANCE SCHEDULE SECTION (UPDATED with new props) */}
             <DashboardSection 
                 title="Maintenance Schedule" 
                 icon={Calendar} 
@@ -248,7 +310,7 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* 3. LOCAL INSIGHTS SECTION */}
+            {/* 4. LOCAL INSIGHTS SECTION */}
             <DashboardSection 
                 title="Local Insights" 
                 icon={Info} 
