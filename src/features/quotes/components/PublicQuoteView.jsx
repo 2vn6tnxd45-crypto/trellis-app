@@ -493,6 +493,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     }, [shareToken]);
 
     // NEW: Handle Save/Claim
+    // NEW: Handle Save/Claim
     const handleSaveQuote = async () => {
         if (!user) {
             setPendingSave(true);
@@ -516,17 +517,17 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             await claimQuote(data.contractorId, data.quote.id, user.uid);
             toast.success('Quote saved to your account!');
             
+            // FIX: Wait for Firestore to fully sync to IndexedDB before redirecting
+            // This prevents IndexedDB corruption from page unload during sync
+            await new Promise(r => setTimeout(r, 1500));
+            
             // REDIRECT TO DASHBOARD
-            // We use window.location to force a full navigation out of the "Quote View" mode
-            setTimeout(() => {
-                window.location.href = window.location.origin + '/app';
-            }, 1000);
+            window.location.href = window.location.origin + '/app';
             
         } catch (err) {
             console.error('Error saving quote:', err);
             toast.error('Failed to save quote.');
-        } finally {
-            setIsClaiming(false);
+            setIsClaiming(false); // Only reset on error, not on success (page will redirect)
         }
     };
 
