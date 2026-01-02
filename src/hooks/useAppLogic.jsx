@@ -145,17 +145,43 @@ useEffect(() => {
                         console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
                         break;
                     } catch (readError) {
-                        console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
-                        const isPermissionError = readError.code === 'permission-denied' || 
-                                                  readError.message?.includes('permission');
-                        if (isPermissionError && attempt < 3) {
-                            console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
-                            await currentUser.getIdToken(true);
-                            await new Promise(r => setTimeout(r, 500 * attempt));
-                        } else if (!isPermissionError) {
-                            throw readError;
-                        }
-                    }
+    console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
+    
+    const isPermissionError = readError.code === 'permission-denied' || 
+                              readError.message?.includes('permission');
+    const isTimeout = readError.message?.includes('timed out');
+    
+    if (isTimeout) {
+        console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
+        if (attempt < 3) {
+            // Wait a bit and retry
+            await new Promise(r => setTimeout(r, 1000));
+            continue;
+        }
+        // After 3 timeouts, treat as new user (no profile) instead of crashing
+        console.warn('[useAppLogic] ⚠️ All attempts timed out, continuing without profile');
+        profileSnap = null;
+        break;
+    }
+    
+    if (isPermissionError && attempt < 3) {
+        console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
+        await currentUser.getIdToken(true);
+        await new Promise(r => setTimeout(r, 500 * attempt));
+        continue;
+    }
+    
+    if (!isPermissionError && !isTimeout) {
+        throw readError;  // Unknown error, throw
+    }
+    
+    // If we're here on attempt 3 with permission error, continue without profile
+    if (attempt === 3) {
+        console.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
+        profileSnap = null;
+        break;
+    }
+}
                 }
                 
                 if (profileSnap?.exists()) {
