@@ -274,7 +274,7 @@ const AppContent = () => {
     
     // CHANGE 3: Quote View - Check this BEFORE auth to allow public access
     if (quoteToken) {
-        return <PublicQuoteView shareToken={quoteToken} />;
+        return <PublicQuoteView shareToken={quoteToken} user={app.user} />;
     }
 
     // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
