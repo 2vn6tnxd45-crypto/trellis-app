@@ -90,8 +90,10 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
 );
 
 // --- NEW: QUOTES SECTION COMPONENT ---
+// --- NEW: QUOTES SECTION COMPONENT ---
 const MyQuotesSection = ({ userId }) => {
-    const { quotes, loading, error } = useCustomerQuotes(userId);
+    // UPDATED: Destructure 'refresh' from the hook
+    const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
     const handleDelete = async (e, quote) => {
         e.preventDefault(); // Prevent navigation
@@ -102,6 +104,8 @@ const MyQuotesSection = ({ userId }) => {
         try {
             await unclaimQuote(quote.contractorId, quote.id);
             toast.success('Quote removed');
+            // UPDATED: Refresh the list immediately after deletion
+            refresh();
         } catch (err) {
             console.error(err);
             toast.error('Could not remove quote');
