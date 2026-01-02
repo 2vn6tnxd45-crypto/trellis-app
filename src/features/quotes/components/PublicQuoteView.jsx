@@ -429,9 +429,20 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     // NEW: Auth Modal State
     const [showAuth, setShowAuth] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
+    const [isClaiming, setIsClaiming] = useState(false);
+    const [alreadyClaimed, setAlreadyClaimed] = useState(false);
+
+    // Check if already claimed on mount
+    useEffect(() => {
+        if (user && data?.quote?.customerId === user.uid) {
+            setAlreadyClaimed(true);
+        }
+    }, [user, data]);
 
     useEffect(() => {
         let isMounted = true;
+        let hasSetLoading = false; // Track if we've finished loading
+
         const loadQuote = async () => {
             try {
                 console.log("Loading quote for token:", shareToken);
@@ -439,14 +450,17 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 
                 if (!isMounted) return;
 
-                if (!result) {
+                if (!result || !result.quote) {
                     console.error("Quote not found in DB");
                     setError('This quote could not be found. It may have been deleted.');
+                    setLoading(false);
+                    hasSetLoading = true;
                     return;
                 }
                 
                 setData(result);
                 setLoading(false); // STOP LOADING HERE (Don't wait for view count)
+                hasSetLoading = true;
                 
                 // Fire-and-forget view count update
                 if (result.quote.status === 'sent') {
@@ -458,6 +472,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 console.error('Error loading quote:', err);
                 setError('Unable to load this quote. Please try again later.');
                 setLoading(false);
+                hasSetLoading = true;
             }
         };
         
@@ -465,11 +480,9 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         // Safety Timeout: Force stop loading if it hangs for 10s
         const timeout = setTimeout(() => {
-            if (isMounted && loading) {
+            if (isMounted && !hasSetLoading) {
                 setLoading(false);
-                if (!data && !error) {
-                    setError('Request timed out. Please refresh the page.');
-                }
+                setError('Request timed out. Please refresh the page.');
             }
         }, 10000);
 
@@ -487,6 +500,18 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             return;
         }
 
+        // Prevent double-claiming
+        if (alreadyClaimed) {
+            toast.info('This quote is already in your account');
+            window.location.href = window.location.origin + '/app';
+            return;
+        }
+
+        // Prevent multiple clicks
+        if (isClaiming) return;
+
+        setIsClaiming(true);
+
         try {
             await claimQuote(data.contractorId, data.quote.id, user.uid);
             toast.success('Quote saved to your account!');
@@ -500,17 +525,19 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         } catch (err) {
             console.error('Error saving quote:', err);
             toast.error('Failed to save quote.');
+        } finally {
+            setIsClaiming(false);
         }
     };
 
     // NEW: Effect to trigger save AFTER login
     useEffect(() => {
-        if (user && pendingSave && data) {
-            handleSaveQuote();
+        if (user && pendingSave && data && !isClaiming) {
             setPendingSave(false);
             setShowAuth(false);
+            handleSaveQuote();
         }
-    }, [user, pendingSave, data]);
+    }, [user, pendingSave, data, isClaiming]);
     
     const handleAccept = async () => {
         try {
