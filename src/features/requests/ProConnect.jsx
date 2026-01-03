@@ -1,10 +1,11 @@
 // src/features/requests/ProConnect.jsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, 
     Send, Phone, Mail, User, Wrench, Star, Plus, Search,
     Clock, DollarSign, ChevronRight, Calendar, CheckCircle2,
-    Copy, ExternalLink, Building2, Filter, SlidersHorizontal, X
+    Copy, ExternalLink, Building2, Filter, SlidersHorizontal, X,
+    MessageSquare, Send as SendIcon // NEW IMPORTS
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -13,8 +14,94 @@ import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
 
-// Pro Card Component
-const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
+// ============================================
+// NEW: CHAT DRAWER COMPONENT (Placeholder)
+// ============================================
+const ChatDrawer = ({ pro, onClose }) => {
+    const [message, setMessage] = useState('');
+    const [messages, setMessages] = useState([
+        { id: 1, text: "Hi! I received your request. When are you available?", sender: 'them', time: '10:30 AM' },
+        { id: 2, text: "I'm free this Tuesday after 2pm.", sender: 'me', time: '10:35 AM' }
+    ]);
+    const scrollRef = useRef(null);
+
+    const handleSend = (e) => {
+        e.preventDefault();
+        if (!message.trim()) return;
+        setMessages([...messages, { id: Date.now(), text: message, sender: 'me', time: 'Just now' }]);
+        setMessage('');
+        // Scroll to bottom
+        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[90] flex justify-end">
+            <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+                {/* Chat Header */}
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white z-10">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-bold">
+                            {pro.name.charAt(0)}
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800">{pro.name}</h3>
+                            <p className="text-xs text-slate-500">Typically replies in 1 hr</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                    {messages.map((msg) => (
+                        <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
+                                msg.sender === 'me' 
+                                    ? 'bg-emerald-600 text-white rounded-br-none' 
+                                    : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
+                            }`}>
+                                <p>{msg.text}</p>
+                                <p className={`text-[10px] mt-1 ${msg.sender === 'me' ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                    {msg.time}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={scrollRef} />
+                </div>
+
+                {/* Input Area */}
+                <form onSubmit={handleSend} className="p-4 border-t border-slate-100 bg-white">
+                    <div className="flex gap-2">
+                        <input 
+                            type="text" 
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            placeholder="Type a message..."
+                            className="flex-1 px-4 py-2.5 bg-slate-100 border-transparent focus:bg-white focus:border-emerald-500 border rounded-xl outline-none transition-all"
+                            autoFocus
+                        />
+                        <button 
+                            type="submit"
+                            disabled={!message.trim()}
+                            className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600 transition-colors"
+                        >
+                            <SendIcon size={20} />
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// PRO CARD COMPONENT (Updated with Message Button)
+// ============================================
+const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
     const totalSpent = pro.jobs.reduce((sum, job) => sum + (parseFloat(job.cost) || 0), 0);
@@ -59,8 +146,15 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
                                 </div>
                             </div>
                             
-                            {/* Quick Actions */}
+                            {/* Quick Actions (Collapsed View) */}
                             <div className="flex gap-1">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); onMessage(pro); }}
+                                    className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                                    title="Message"
+                                >
+                                    <MessageSquare size={18} />
+                                </button>
                                 {pro.phone && (
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); onCall(pro.phone); }}
@@ -68,15 +162,6 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
                                         title="Call"
                                     >
                                         <Phone size={18} />
-                                    </button>
-                                )}
-                                {pro.email && (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onEmail(pro.email); }}
-                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                        title="Email"
-                                    >
-                                        <Mail size={18} />
                                     </button>
                                 )}
                             </div>
@@ -147,14 +232,23 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail }) => {
                         </div>
                     </div>
                     
-                    {/* Request Service Button */}
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onRequestService(pro); }}
-                        className="w-full mt-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Send size={16} />
-                        Request Service
-                    </button>
+                    {/* ACTION BUTTONS */}
+                    <div className="flex gap-3 mt-4">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onMessage(pro); }}
+                            className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                            <MessageSquare size={18} />
+                            Message
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onRequestService(pro); }}
+                            className="flex-1 py-3 bg-white border-2 border-slate-200 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Send size={18} />
+                            Request
+                        </button>
+                    </div>
                 </div>
             )}
         </div>
@@ -189,7 +283,7 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
                 </div>
             </div>
 
-            {/* NEW: Action Area for Managing Requests */}
+            {/* Action Area for Managing Requests */}
             {request.status !== 'submitted' && (
                 <div className="mt-3 pt-3 border-t border-slate-50 flex gap-2">
                     <button 
@@ -209,7 +303,10 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
     const [activeTab, setActiveTab] = useState('pros');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('all');
-    const [selectedJob, setSelectedJob] = useState(null); // State for the management modal
+    const [selectedJob, setSelectedJob] = useState(null); 
+    
+    // NEW: Chat State
+    const [selectedChatPro, setSelectedChatPro] = useState(null);
     
     useEffect(() => {
         if (!userId) return;
@@ -229,7 +326,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                 // Aggregate contact info (last one wins or first non-null)
                 if (r.contractorPhone) prosMap[name].phone = r.contractorPhone;
                 if (r.contractorEmail) prosMap[name].email = r.contractorEmail;
-                if (r.contractorAddress) prosMap[name].address = r.contractorAddress; // Capture Address
+                if (r.contractorAddress) prosMap[name].address = r.contractorAddress; 
                 prosMap[name].jobs.push(r);
             }
         });
@@ -252,7 +349,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
     };
     
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 relative"> 
             <div className="flex items-center justify-between">
                 <div><h1 className="text-2xl font-extrabold text-slate-800">Pro Connect</h1><p className="text-sm text-slate-500">Manage contractors & service requests</p></div>
                 <button onClick={() => onOpenQuickRequest && onOpenQuickRequest(null)} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center gap-2"><Plus size={18}/> New Request</button>
@@ -271,7 +368,16 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                         </div>
                     )}
                     {filteredContractors.length === 0 ? <EmptyState icon={Wrench} title="No Contractors" description="Scan receipts to automatically add pros."/> : 
-                        filteredContractors.map((pro, idx) => <ProCard key={idx} pro={pro} onRequestService={(p) => onOpenQuickRequest({item: 'Service', contractor: p.name})} onCall={(p) => window.open(`tel:${p}`)} onEmail={(e) => window.open(`mailto:${e}`)}/>)
+                        filteredContractors.map((pro, idx) => (
+                            <ProCard 
+                                key={idx} 
+                                pro={pro} 
+                                onRequestService={(p) => onOpenQuickRequest({item: 'Service', contractor: p.name})} 
+                                onCall={(p) => window.open(`tel:${p}`)} 
+                                onEmail={(e) => window.open(`mailto:${e}`)}
+                                onMessage={(p) => setSelectedChatPro(p)} // OPEN CHAT
+                            />
+                        ))
                     }
                 </div>
             )}
@@ -306,14 +412,19 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                             <JobScheduler 
                                 job={selectedJob} 
                                 userType="homeowner" 
-                                onUpdate={() => {
-                                    // Optionally refresh if needed, but snapshot listener handles it.
-                                    // We keep the modal open or close it? Let's keep it open to see result.
-                                }} 
+                                onUpdate={() => {}} 
                             />
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* NEW: Chat Drawer Overlay */}
+            {selectedChatPro && (
+                <ChatDrawer 
+                    pro={selectedChatPro} 
+                    onClose={() => setSelectedChatPro(null)} 
+                />
             )}
         </div>
     );
