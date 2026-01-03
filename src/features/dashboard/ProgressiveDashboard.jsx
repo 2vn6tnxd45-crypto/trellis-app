@@ -51,23 +51,64 @@ const ActiveProjectsSection = ({ userId }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!userId) return;
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
         
-        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // FIX: Query by BOTH createdBy AND customerId
+        const q1 = query(
+            collection(db, REQUESTS_COLLECTION_PATH), 
+            where("createdBy", "==", userId)
+        );
+        
+        const q2 = query(
+            collection(db, REQUESTS_COLLECTION_PATH), 
+            where("customerId", "==", userId)
+        );
+        
+        let results1 = [];
+        let results2 = [];
+        let loaded1 = false;
+        let loaded2 = false;
+        
+        const mergeAndUpdate = () => {
+            if (!loaded1 || !loaded2) return;
+            
+            // Dedupe by id using Map
+            const merged = new Map();
+            [...results1, ...results2].forEach(job => {
+                merged.set(job.id, job);
+            });
+            
+            const allJobs = Array.from(merged.values());
             
             // Filter for active/negotiating jobs
-            const active = data.filter(r => 
+            const active = allJobs.filter(r => 
                 ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
                 (r.status === 'quoted' && r.estimate?.status === 'approved')
             );
             
             setProjects(active);
             setLoading(false);
+        };
+        
+        const unsub1 = onSnapshot(q1, (snapshot) => {
+            results1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded1 = true;
+            mergeAndUpdate();
         });
         
-        return () => unsubscribe();
+        const unsub2 = onSnapshot(q2, (snapshot) => {
+            results2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded2 = true;
+            mergeAndUpdate();
+        });
+        
+        return () => {
+            unsub1();
+            unsub2();
+        };
     }, [userId]);
 
     if (loading || projects.length === 0) return null;
