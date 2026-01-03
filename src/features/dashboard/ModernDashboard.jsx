@@ -107,36 +107,63 @@ const ActiveProjectsSection = ({ userId }) => {
 
     useEffect(() => {
         if (!userId) {
-            console.warn("⚠️ ActiveProjectsSection: No userId provided! Effect skipping.");
+            setLoading(false);
             return;
         }
         
-        console.log("✅ Starting Firestore Listener for:", userId);
+        // FIX: Query by BOTH createdBy AND customerId
+        const q1 = query(
+            collection(db, REQUESTS_COLLECTION_PATH), 
+            where("createdBy", "==", userId)
+        );
         
-        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
+        const q2 = query(
+            collection(db, REQUESTS_COLLECTION_PATH), 
+            where("customerId", "==", userId)
+        );
         
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            console.log("📦 Snapshot received! Docs count:", snapshot.docs.length);
+        let results1 = [];
+        let results2 = [];
+        let loaded1 = false;
+        let loaded2 = false;
+        
+        const mergeAndUpdate = () => {
+            if (!loaded1 || !loaded2) return;
             
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Dedupe by id using Map
+            const merged = new Map();
+            [...results1, ...results2].forEach(job => {
+                merged.set(job.id, job);
+            });
             
-            // Log ALL data to see if we're filtering too aggressively
-            console.log("📄 All Requests:", data);
-
-            const active = data.filter(r => 
+            const allJobs = Array.from(merged.values());
+            
+            // Filter for active jobs
+            const active = allJobs.filter(r => 
                 ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
                 (r.status === 'quoted' && r.estimate?.status === 'approved')
             );
             
-            console.log("🔥 Filtered Active Projects:", active);
-            
             setProjects(active);
             setLoading(false);
-        }, (error) => {
-            console.error("❌ Firestore Error:", error);
+        };
+        
+        const unsub1 = onSnapshot(q1, (snapshot) => {
+            results1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded1 = true;
+            mergeAndUpdate();
         });
         
-        return () => unsubscribe();
+        const unsub2 = onSnapshot(q2, (snapshot) => {
+            results2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded2 = true;
+            mergeAndUpdate();
+        });
+        
+        return () => {
+            unsub1();
+            unsub2();
+        };
     }, [userId]);
 
     if (loading) return <div className="p-4 text-xs text-slate-400">Loading projects...</div>;
