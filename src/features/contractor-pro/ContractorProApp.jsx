@@ -3,7 +3,7 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Added Quote System integration
+// UPDATED: Added Job Scheduling Integration
 
 import React, { useState, useCallback } from 'react';
 import { 
@@ -20,7 +20,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Components
 import { ContractorAuthScreen } from './components/ContractorAuthScreen';
-import { SetupBusinessProfile } from './components/SetupBusinessProfile'; // <--- NEW IMPORT
+import { SetupBusinessProfile } from './components/SetupBusinessProfile'; 
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
@@ -32,6 +32,9 @@ import {
     QuoteBuilder, 
     QuoteDetailView 
 } from '../quotes';
+
+// ADDED: Job Scheduler Component
+import { JobScheduler } from '../jobs/JobScheduler';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
@@ -86,7 +89,7 @@ const SidebarNav = ({
     onSignOut,
     pendingCount,
     pendingQuotesCount,
-    activeJobsCount // ADDED: Jobs badge count
+    activeJobsCount 
 }) => {
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
     const email = profile?.profile?.email || '';
@@ -127,7 +130,6 @@ const SidebarNav = ({
                     onClick={() => onNavigate('jobs')}
                     badge={activeJobsCount}
                 />
-                {/* ADDED: Quotes Tab */}
                 <NavItem 
                     icon={Receipt}
                     label="Quotes"
@@ -239,10 +241,6 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 );
 
 // ============================================
-// FEATURE VIEWS
-// ============================================
-
-// ============================================
 // JOB STATUS CONFIG
 // ============================================
 const JOB_STATUS_CONFIG = {
@@ -280,6 +278,11 @@ const JOB_STATUS_CONFIG = {
         label: 'Pending',
         color: 'bg-amber-100 text-amber-700',
         icon: Clock
+    },
+    quoted: {
+        label: 'Quote Accepted',
+        color: 'bg-emerald-100 text-emerald-700',
+        icon: CheckCircle
     }
 };
 
@@ -890,6 +893,7 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
     const [selectedQuote, setSelectedQuote] = useState(null); // ADDED: Selected quote state
+    const [selectedJob, setSelectedJob] = useState(null); // ADDED: Selected job state for modal
     const [isSavingProfile, setIsSavingProfile] = useState(false); // NEW: State for setup screen
 
     const {
@@ -1041,6 +1045,17 @@ export const ContractorProApp = () => {
             setActiveView('quotes');
         }
     }, [activeView]);
+
+    // ADDED: Job Click Handler for Scheduler
+    const handleJobClick = useCallback((job) => {
+        // Open scheduler for relevant statuses
+        if (['quoted', 'scheduling', 'scheduled', 'pending_schedule'].includes(job.status)) {
+            setSelectedJob(job);
+        } else {
+            // For other states (like just created 'pending'), functionality might differ
+            toast("View details feature coming soon for this status");
+        }
+    }, []);
     
     const getViewTitle = () => {
         switch (activeView) {
@@ -1109,7 +1124,8 @@ export const ContractorProApp = () => {
                         />
                     )}
                     
-                    {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} />}
+                    {/* UPDATED: Pass handleJobClick to JobsView */}
+                    {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} onSelectJob={handleJobClick} />}
                     
                     {/* ADDED: Quote Views */}
                     {activeView === 'quotes' && (
@@ -1178,6 +1194,35 @@ export const ContractorProApp = () => {
                     activeJobsCount={activeJobsCount}
                 />
             </div>
+
+            {/* ADDED: Job Scheduler Modal */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="font-bold text-slate-800">Manage Job</h3>
+                                <p className="text-xs text-slate-500">{selectedJob.customerName || 'Customer'}</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-hidden bg-slate-50">
+                            <JobScheduler 
+                                job={selectedJob} 
+                                userType="contractor" 
+                                contractorId={profile?.id || user?.uid} 
+                                onUpdate={() => {
+                                    // Optional: Refresh list or close modal
+                                    // Typically Firestore realtime listeners will auto-update the list underneath
+                                }} 
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
