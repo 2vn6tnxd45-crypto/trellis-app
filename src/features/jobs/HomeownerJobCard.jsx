@@ -121,7 +121,7 @@ export const HomeownerJobCard = ({
     const offeredSlots = getOfferedSlots();
     const hasNewTimeRequest = job.scheduling?.requestedNewTimes;
 
-    // Format date for display
+    // Format date for display (Consistently handle ISO strings)
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         const date = new Date(dateStr);
