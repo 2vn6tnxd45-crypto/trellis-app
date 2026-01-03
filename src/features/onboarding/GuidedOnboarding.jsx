@@ -6,6 +6,7 @@
 // in under 2 minutes. This is critical for retention.
 
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom'; // ADDED: Import useLocation
 import { 
     Thermometer, Droplets, Home, Zap, Refrigerator, 
     ChevronRight, ChevronLeft, Check, Sparkles, Camera,
@@ -183,7 +184,12 @@ const CompletionScreen = ({ itemsAdded, onFinish, onScanReceipt }) => (
 );
 
 export const GuidedOnboarding = ({ propertyName, onComplete, onAddItem, onScanReceipt, onDismiss }) => {
-    const [currentStep, setCurrentStep] = useState(0);
+    const location = useLocation(); // ADDED: Get location
+    const shouldSkipWelcome = location.state?.skipWelcome; // ADDED: Check flag
+    
+    // UPDATED: Initialize step based on flag (assuming 0 is normal start, you can adjust to 1 if needed)
+    const [currentStep, setCurrentStep] = useState(shouldSkipWelcome ? 0 : 0); 
+    
     const [itemsAdded, setItemsAdded] = useState([]);
     const [showCompletion, setShowCompletion] = useState(false);
     
