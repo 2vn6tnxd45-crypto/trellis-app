@@ -6,12 +6,13 @@
 // - AI-powered suggestions
 // - Visual calendar date picker
 // - Quick presets
+// - Conflict checking
 
 import React, { useState, useMemo } from 'react';
 import { 
     X, Calendar, Clock, Plus, Trash2, Send, 
     Sparkles, MapPin, User, DollarSign, AlertCircle,
-    Sun, Coffee, Moon, ChevronDown, ChevronUp, Zap
+    Sun, Coffee, Moon, ChevronDown, ChevronUp, Zap, CheckCircle
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -19,6 +20,8 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { AISuggestionPanel } from './AISuggestionPanel';
 import { CalendarPicker } from '../../../components/common/CalendarPicker';
+// Ensure this import path is correct based on your file structure
+import { checkForConflicts } from '../lib/schedulingAI';
 
 // Quick time presets
 const TIME_PRESETS = [
@@ -48,6 +51,60 @@ const getScheduledDates = (jobs) => {
     return jobs
         .filter(job => job.scheduledTime || job.scheduledDate)
         .map(job => new Date(job.scheduledTime || job.scheduledDate));
+};
+
+// --- AI Prerequisite Check Component ---
+const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
+    const checks = [
+        {
+            label: 'Working Hours Set',
+            passed: Object.values(preferences?.workingHours || {}).some(d => d?.enabled),
+            fix: 'Go to Settings → Working Hours'
+        },
+        {
+            label: 'Home Base Location',
+            passed: !!preferences?.homeBase?.address,
+            fix: 'Go to Settings → Home Base Location'
+        },
+        {
+            label: 'Buffer Time Configured',
+            passed: preferences?.bufferMinutes !== undefined,
+            fix: 'Go to Settings → Scheduling Preferences'
+        }
+    ];
+    
+    const failedChecks = checks.filter(c => !c.passed);
+    
+    if (failedChecks.length === 0) return null;
+    
+    return (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="font-bold text-amber-800 mb-2">
+                AI needs more info to make suggestions:
+            </p>
+            <ul className="space-y-1">
+                {failedChecks.map((check, i) => (
+                    <li key={i} className="text-sm text-amber-700 flex items-center gap-2">
+                        <AlertCircle size={14} />
+                        {check.fix}
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+// --- Slot Validation Indicator ---
+const SlotValidationIndicator = ({ validation }) => {
+    if (validation.valid) {
+        return <CheckCircle size={16} className="text-emerald-500" />;
+    }
+    return (
+        <div className="flex items-center gap-1 text-amber-600">
+            <AlertCircle size={16} />
+            <span className="text-xs">{validation.error}</span>
+        </div>
+    );
 };
 
 export const OfferTimeSlotsModal = ({ 
@@ -187,19 +244,61 @@ export const OfferTimeSlotsModal = ({
         toast.success(`Added ${suggestion.dateFormatted}`);
     };
 
-    // Validate slots
-    const validateSlots = () => {
+    // Validate a single slot (used for UI feedback)
+    const validateSlot = (slot) => {
+        if (!slot.date) return { valid: false, error: 'Select a date' };
+        
+        const startDateTime = new Date(`${slot.date}T${slot.startTime}`);
+        const endDateTime = new Date(`${slot.date}T${slot.endTime}`);
+        
+        // Basic check
+        if (endDateTime <= startDateTime) {
+            return { valid: false, error: 'End time must be after start' };
+        }
+        
+        // Check for conflicts with existing scheduled jobs (Item #11)
+        if (checkForConflicts) {
+             const conflicts = checkForConflicts(
+                startDateTime.toISOString(),
+                endDateTime.toISOString(),
+                allJobs,
+                schedulingPreferences
+            );
+            
+            if (conflicts && conflicts.length > 0) {
+                return { 
+                    valid: false, 
+                    error: `Conflicts with: ${conflicts.map(c => c.message).join(', ')}`,
+                    conflicts 
+                };
+            }
+        }
+        
+        return { valid: true };
+    };
+
+    // Validate all slots before submit
+    const validateAllSlots = () => {
         const filledSlots = slots.filter(s => s.date);
         if (filledSlots.length === 0) {
             toast.error('Please select at least one date');
             return false;
         }
+        
+        for (const slot of filledSlots) {
+            const validation = validateSlot(slot);
+            if (!validation.valid && validation.error !== 'Select a date') {
+                toast.error(`Slot on ${slot.date}: ${validation.error}`);
+                return false;
+            }
+        }
+
         return true;
     };
 
     // Submit slots
     const handleSubmit = async () => {
-        if (!validateSlots()) return;
+        if (!validateAllSlots()) return;
 
         setIsSubmitting(true);
         try {
@@ -326,6 +425,9 @@ export const OfferTimeSlotsModal = ({
                             </div>
                         </div>
                     )}
+                    
+                    {/* ADDED: AI Prerequisite Check */}
+                    <AIPrerequisiteCheck preferences={schedulingPreferences} allJobs={allJobs} />
 
                     {/* AI Suggestions Section */}
                     <div className="mb-5">
@@ -392,13 +494,23 @@ export const OfferTimeSlotsModal = ({
                                     const startLabel = TIME_OPTIONS.find(t => t.value === slot.startTime)?.label || slot.startTime;
                                     const endLabel = TIME_OPTIONS.find(t => t.value === slot.endTime)?.label || slot.endTime;
                                     
+                                    // ADDED: Validation Check for List
+                                    const validation = validateSlot(slot);
+                                    
                                     return (
                                         <div 
                                             key={slot.id}
                                             className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl"
                                         >
                                             <div>
-                                                <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
+                                                    {!validation.valid && (
+                                                         <span className="text-xs text-red-500 font-bold bg-red-50 px-1 rounded border border-red-200">
+                                                            Conflict
+                                                         </span>
+                                                    )}
+                                                </div>
                                                 <p className="text-xs text-emerald-600">{startLabel} - {endLabel}</p>
                                             </div>
                                             <button
@@ -437,9 +549,13 @@ export const OfferTimeSlotsModal = ({
                                         className="bg-white border border-slate-200 rounded-xl p-4"
                                     >
                                         <div className="flex items-center justify-between mb-3">
-                                            <span className="text-xs font-bold text-slate-500">
-                                                Option {idx + 1}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-500">
+                                                    Option {idx + 1}
+                                                </span>
+                                                {/* ADDED: Validation Indicator */}
+                                                {slot.date && <SlotValidationIndicator validation={validateSlot(slot)} />}
+                                            </div>
                                             {(slots.length > 1 || slot.date) && (
                                                 <button
                                                     onClick={() => removeSlot(slot.id)}
