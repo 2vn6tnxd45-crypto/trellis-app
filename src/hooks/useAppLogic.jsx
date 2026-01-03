@@ -7,6 +7,8 @@ import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../conf
 import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
 import { calculateNextDate } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
+// NEW: Import Chat Service Logic for Badge Counts
+import { subscribeToGlobalUnreadCount } from '../lib/chatService';
 
 const withTimeout = (promise, ms, operation = 'Operation') => {
     let timeoutId;
@@ -57,6 +59,9 @@ export const useAppLogic = (celebrations) => {
     const [dismissedNotifications, setDismissedNotifications] = useState(new Set());
     const [highlightedTaskId, setHighlightedTaskId] = useState(null);
     
+    // NEW: Unread Chat Message Count
+    const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+    
     // =========================================================================
     // REF - Track if we just completed property setup (for navigation fix)
     // =========================================================================
@@ -82,189 +87,183 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // EFFECTS - With retry logic for new user permission issues
     // =========================================================================
-    // ============================================================================
-// DIAGNOSTIC PATCH FOR useAppLogic.jsx
-// ============================================================================
-// Add these console.log statements to trace exactly where the hang occurs.
-// Replace your existing auth useEffect with this version.
-// ============================================================================
+    
+    useEffect(() => {
+        console.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
+        
+        let unsubRecords = null;
+        let unsubRequests = null;
+        
+        const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
+            console.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
+                hasUser: !!currentUser, 
+                email: currentUser?.email 
+            });
+            
+            try {
+                setUser(currentUser);
+                console.log('[useAppLogic] ✅ setUser complete');
+                
+                if (currentUser) {
+                    console.log('[useAppLogic] 👤 User exists, starting token refresh...');
+                    
+                    // Token refresh
+                    try {
+                        console.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
+                        const startTime = Date.now();
+                        await currentUser.getIdToken(true);
+                        console.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
+                        
+                        console.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
+                        await new Promise(r => setTimeout(r, 300));
+                        console.log('[useAppLogic] ✅ Token propagation wait complete');
+                    } catch (tokenErr) {
+                        console.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
+                    }
+                    
+                    if (!appId) {
+                        console.error('[useAppLogic] ❌ appId is missing!');
+                        throw new Error("appId is missing");
+                    }
+                    console.log('[useAppLogic] ✅ appId check passed:', appId);
+                    
+                    // Profile read
+                    const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
+                    console.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
+                    
+                    let profileSnap = null;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        try {
+                            console.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
+                            const startTime = Date.now();
+                            profileSnap = await withTimeout(
+                                getDoc(profileRef),
+                                5000,  // 5 second timeout
+                                `getDoc attempt ${attempt}`
+                            );
+                            console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
+                            break;
+                        } catch (readError) {
+                            console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
+                            
+                            const isPermissionError = readError.code === 'permission-denied' || 
+                                                      readError.message?.includes('permission');
+                            const isTimeout = readError.message?.includes('timed out');
+                            
+                            if (isTimeout) {
+                                console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
+                                
+                                // Record failure and check if we need recovery
+                                const failureCount = reportFirestoreHang();
+                                console.warn(`[useAppLogic] Recorded failure #${failureCount}`);
+                                
+                                if (attempt < 3) {
+                                    await new Promise(r => setTimeout(r, 1000));
+                                    continue;
+                                }
+                                
+                                // After 3 timeouts, check if auto-recovery is needed
+                                if (failureCount >= 2) {
+                                    console.error('[useAppLogic] 🔄 Triggering automatic recovery...');
+                                    toast.error('Connection issue detected. Refreshing...', { duration: 2000 });
+                                    setTimeout(() => recoverFromStorageIssues(), 1500);
+                                    return;
+                                }
+                                
+                                profileSnap = null;
+                                break;
+                            }
+                            
+                            if (isPermissionError && attempt < 3) {
+                                console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
+                                await currentUser.getIdToken(true);
+                                await new Promise(r => setTimeout(r, 500 * attempt));
+                                continue;
+                            }
+                            
+                           if (!isPermissionError && !isTimeout) {
+                                // Check for IndexedDB errors
+                                const isIndexedDBError = readError.message?.includes('IndexedDB') ||
+                                                         readError.code === 'unavailable';
+                                if (isIndexedDBError) {
+                                    console.error('[useAppLogic] 🚨 IndexedDB error detected!');
+                                    reportFirestoreHang();
+                                    toast.error('Storage issue detected. Refreshing...', { duration: 2000 });
+                                    setTimeout(() => recoverFromStorageIssues(), 1500);
+                                    return;
+                                }
+                                throw readError;
+                            }
+                            
+                            // If we're here on attempt 3 with permission error, continue without profile
+                            if (attempt === 3) {
+                                console.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
+                                profileSnap = null;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (profileSnap?.exists()) {
+                        const data = profileSnap.data();
+                        console.log('[useAppLogic] ✅ Profile loaded:', { 
+                            hasProperties: !!data.properties,
+                            propertyCount: data.properties?.length 
+                        });
+                        setProfile(data);
+                        if (data.hasSeenWelcome) setHasSeenWelcome(true);
+                        setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
+                    } else {
+                        console.log('[useAppLogic] ℹ️ No profile found (new user)');
+                        setProfile(null);
+                    }
+                    
+                    // Set up listeners
+                    console.log('[useAppLogic] 📡 Setting up realtime listeners...');
+                    if (unsubRecords) unsubRecords();
+                    const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
+                    unsubRecords = onSnapshot(q, (snap) => {
+                        console.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
+                        setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    }, (e) => console.error('[useAppLogic] ❌ Records error:', e));
 
-useEffect(() => {
-    console.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
-    
-    let unsubRecords = null;
-    let unsubRequests = null;
-    
-    const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-        console.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
-            hasUser: !!currentUser, 
-            email: currentUser?.email 
+                    if (unsubRequests) unsubRequests();
+                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
+                    unsubRequests = onSnapshot(qReq, (snap) => {
+                        console.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
+                        setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
+                    }, (e) => console.error('[useAppLogic] ❌ Requests error:', e));
+                    
+                    console.log('[useAppLogic] ✅ All listeners set up');
+                } else {
+                    console.log('[useAppLogic] 👻 No user, clearing state');
+                    setProfile(null); 
+                    setRecords([]); 
+                    setNewSubmissions([]);
+                }
+            } catch (error) { 
+                console.error('[useAppLogic] ❌ Auth state change error:', error);
+                const isPermissionError = error.code === 'permission-denied' || 
+                                          error.message?.includes('permission') ||
+                                          error.message?.includes('Missing or insufficient');
+                if (!isPermissionError) {
+                    toast.error("Error: " + error.message);
+                }
+            } finally { 
+                console.log('[useAppLogic] 🏁 Setting loading = false');
+                setLoading(false); 
+            }
         });
         
-        try {
-            setUser(currentUser);
-            console.log('[useAppLogic] ✅ setUser complete');
-            
-            if (currentUser) {
-                console.log('[useAppLogic] 👤 User exists, starting token refresh...');
-                
-                // Token refresh
-                try {
-                    console.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
-                    const startTime = Date.now();
-                    await currentUser.getIdToken(true);
-                    console.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
-                    
-                    console.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
-                    await new Promise(r => setTimeout(r, 300));
-                    console.log('[useAppLogic] ✅ Token propagation wait complete');
-                } catch (tokenErr) {
-                    console.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
-                }
-                
-                if (!appId) {
-                    console.error('[useAppLogic] ❌ appId is missing!');
-                    throw new Error("appId is missing");
-                }
-                console.log('[useAppLogic] ✅ appId check passed:', appId);
-                
-                // Profile read
-                const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
-                console.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
-                
-                let profileSnap = null;
-                for (let attempt = 1; attempt <= 3; attempt++) {
-                    try {
-                        console.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
-                        const startTime = Date.now();
-                        profileSnap = await withTimeout(
-    getDoc(profileRef),
-    5000,  // 5 second timeout
-    `getDoc attempt ${attempt}`
-);
-                        console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
-                        break;
-                    } catch (readError) {
-    console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
-    
-    const isPermissionError = readError.code === 'permission-denied' || 
-                              readError.message?.includes('permission');
-    const isTimeout = readError.message?.includes('timed out');
-    
-    if (isTimeout) {
-    console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
-    
-    // Record failure and check if we need recovery
-    const failureCount = reportFirestoreHang();
-    console.warn(`[useAppLogic] Recorded failure #${failureCount}`);
-    
-    if (attempt < 3) {
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
-    }
-    
-    // After 3 timeouts, check if auto-recovery is needed
-    if (failureCount >= 2) {
-        console.error('[useAppLogic] 🔄 Triggering automatic recovery...');
-        toast.error('Connection issue detected. Refreshing...', { duration: 2000 });
-        setTimeout(() => recoverFromStorageIssues(), 1500);
-        return;
-    }
-    
-    profileSnap = null;
-    break;
-}
-    
-    if (isPermissionError && attempt < 3) {
-        console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
-        await currentUser.getIdToken(true);
-        await new Promise(r => setTimeout(r, 500 * attempt));
-        continue;
-    }
-    
-   if (!isPermissionError && !isTimeout) {
-    // Check for IndexedDB errors
-    const isIndexedDBError = readError.message?.includes('IndexedDB') ||
-                             readError.code === 'unavailable';
-    if (isIndexedDBError) {
-        console.error('[useAppLogic] 🚨 IndexedDB error detected!');
-        reportFirestoreHang();
-        toast.error('Storage issue detected. Refreshing...', { duration: 2000 });
-        setTimeout(() => recoverFromStorageIssues(), 1500);
-        return;
-    }
-    throw readError;
-}
-    
-    // If we're here on attempt 3 with permission error, continue without profile
-    if (attempt === 3) {
-        console.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
-        profileSnap = null;
-        break;
-    }
-}
-                }
-                
-                if (profileSnap?.exists()) {
-                    const data = profileSnap.data();
-                    console.log('[useAppLogic] ✅ Profile loaded:', { 
-                        hasProperties: !!data.properties,
-                        propertyCount: data.properties?.length 
-                    });
-                    setProfile(data);
-                    if (data.hasSeenWelcome) setHasSeenWelcome(true);
-                    setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
-                } else {
-                    console.log('[useAppLogic] ℹ️ No profile found (new user)');
-                    setProfile(null);
-                }
-                
-                // Set up listeners
-                console.log('[useAppLogic] 📡 Setting up realtime listeners...');
-                if (unsubRecords) unsubRecords();
-                const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
-                unsubRecords = onSnapshot(q, (snap) => {
-                    console.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
-                    setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                }, (e) => console.error('[useAppLogic] ❌ Records error:', e));
-
-                if (unsubRequests) unsubRequests();
-                const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
-                unsubRequests = onSnapshot(qReq, (snap) => {
-                    console.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
-                    setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
-                }, (e) => console.error('[useAppLogic] ❌ Requests error:', e));
-                
-                console.log('[useAppLogic] ✅ All listeners set up');
-            } else {
-                console.log('[useAppLogic] 👻 No user, clearing state');
-                setProfile(null); 
-                setRecords([]); 
-                setNewSubmissions([]);
-            }
-        } catch (error) { 
-            console.error('[useAppLogic] ❌ Auth state change error:', error);
-            const isPermissionError = error.code === 'permission-denied' || 
-                                      error.message?.includes('permission') ||
-                                      error.message?.includes('Missing or insufficient');
-            if (!isPermissionError) {
-                toast.error("Error: " + error.message);
-            }
-        } finally { 
-            console.log('[useAppLogic] 🏁 Setting loading = false');
-            setLoading(false); 
-        }
-    });
-    
-    console.log('[useAppLogic] ✅ Auth listener registered');
-    
-    return () => { 
-        console.log('[useAppLogic] 🧹 Cleanup running');
-        unsubAuth(); 
-        if (unsubRecords) unsubRecords(); 
-        if (unsubRequests) unsubRequests(); 
-    };
-}, []);
+        console.log('[useAppLogic] ✅ Auth listener registered');
+        
+        return () => { 
+            console.log('[useAppLogic] 🧹 Cleanup running');
+            unsubAuth(); 
+            if (unsubRecords) unsubRecords(); 
+            if (unsubRequests) unsubRequests(); 
+        };
+    }, []);
 
     useEffect(() => {
         if (!activeProperty || records.length === 0) { setDueTasks([]); return; }
@@ -288,6 +287,23 @@ useEffect(() => {
             justCompletedSetup.current = false;
         }
     }, [profile, activeTab]);
+
+    // =========================================================================
+    // NEW: Listen for global unread chat messages
+    // =========================================================================
+    useEffect(() => {
+        if (!user) { 
+            setUnreadMessageCount(0); 
+            return; 
+        }
+        
+        // This listener updates the badge number whenever a message comes in
+        const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
+            setUnreadMessageCount(count);
+        });
+        
+        return () => unsubscribe();
+    }, [user]);
 
     // =========================================================================
     // EXISTING HANDLERS - All preserved exactly as they were
@@ -848,5 +864,6 @@ useEffect(() => {
         handleDismissNotification,
         handleClearAllNotifications,
         resetDismissedNotifications,
+        unreadMessageCount, // <--- NEW EXPORT
     };
 };
