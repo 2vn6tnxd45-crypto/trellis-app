@@ -5,7 +5,7 @@ import {
     Send, Phone, Mail, User, Wrench, Star, Plus, Search,
     Clock, DollarSign, ChevronRight, Calendar, CheckCircle2,
     Copy, ExternalLink, Building2, Filter, SlidersHorizontal, X,
-    MessageSquare, Send as SendIcon // NEW IMPORTS
+    MessageSquare, Send as SendIcon 
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -13,25 +13,49 @@ import { REQUESTS_COLLECTION_PATH, CATEGORIES } from '../../config/constants';
 import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
+// NEW: Import Chat Service Logic
+import { getChannelId, subscribeToChat, sendMessage } from '../../lib/chatService';
 
 // ============================================
-// NEW: CHAT DRAWER COMPONENT (Placeholder)
+// REAL CHAT DRAWER
 // ============================================
-const ChatDrawer = ({ pro, onClose }) => {
+const ChatDrawer = ({ pro, userId, onClose }) => {
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState([
-        { id: 1, text: "Hi! I received your request. When are you available?", sender: 'them', time: '10:30 AM' },
-        { id: 2, text: "I'm free this Tuesday after 2pm.", sender: 'me', time: '10:35 AM' }
-    ]);
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
     const scrollRef = useRef(null);
 
-    const handleSend = (e) => {
+    // 1. Determine the Channel ID based on User + Pro Name
+    const channelId = useMemo(() => getChannelId(userId, pro.name), [userId, pro.name]);
+
+    // 2. Subscribe to real-time updates
+    useEffect(() => {
+        setLoading(true);
+        const unsubscribe = subscribeToChat(channelId, (newMessages) => {
+            setMessages(newMessages);
+            setLoading(false);
+            // Scroll to bottom on new message
+            setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        });
+
+        return () => unsubscribe(); // Cleanup listener on close
+    }, [channelId]);
+
+    const handleSend = async (e) => {
         e.preventDefault();
         if (!message.trim()) return;
-        setMessages([...messages, { id: Date.now(), text: message, sender: 'me', time: 'Just now' }]);
-        setMessage('');
-        // Scroll to bottom
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+        const textToSend = message;
+        setMessage(''); // Clear input immediately for better UX
+
+        try {
+            // "me" is just a placeholder name for the homeowner
+            await sendMessage(channelId, textToSend, userId, 'Homeowner'); 
+        } catch (error) {
+            console.error("Failed to send", error);
+            toast.error("Message failed to send");
+            setMessage(textToSend); // Restore text if failed
+        }
     };
 
     return (
@@ -46,7 +70,9 @@ const ChatDrawer = ({ pro, onClose }) => {
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800">{pro.name}</h3>
-                            <p className="text-xs text-slate-500">Typically replies in 1 hr</p>
+                            <p className="text-xs text-slate-500">
+                                {loading ? 'Connecting...' : 'Secure Chat'}
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400">
@@ -56,20 +82,35 @@ const ChatDrawer = ({ pro, onClose }) => {
 
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-                    {messages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
-                                msg.sender === 'me' 
-                                    ? 'bg-emerald-600 text-white rounded-br-none' 
-                                    : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
-                            }`}>
-                                <p>{msg.text}</p>
-                                <p className={`text-[10px] mt-1 ${msg.sender === 'me' ? 'text-emerald-100' : 'text-slate-400'}`}>
-                                    {msg.time}
-                                </p>
-                            </div>
+                    {messages.length === 0 && !loading && (
+                        <div className="text-center py-10 opacity-50">
+                            <p className="text-sm text-slate-500">No messages yet.</p>
+                            <p className="text-xs text-slate-400">Start the conversation below!</p>
                         </div>
-                    ))}
+                    )}
+                    
+                    {messages.map((msg) => {
+                        const isMe = msg.senderId === userId;
+                        // Format time if it exists (Firestore timestamps are objects)
+                        const timeStr = msg.createdAt?.toDate 
+                            ? msg.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                            : 'Just now';
+
+                        return (
+                            <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
+                                    isMe
+                                        ? 'bg-emerald-600 text-white rounded-br-none' 
+                                        : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
+                                }`}>
+                                    <p>{msg.text}</p>
+                                    <p className={`text-[10px] mt-1 ${isMe ? 'text-emerald-100' : 'text-slate-400'}`}>
+                                        {timeStr}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
                     <div ref={scrollRef} />
                 </div>
 
@@ -99,7 +140,7 @@ const ChatDrawer = ({ pro, onClose }) => {
 };
 
 // ============================================
-// PRO CARD COMPONENT (Updated with Message Button)
+// PRO CARD COMPONENT
 // ============================================
 const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
     const [isExpanded, setIsExpanded] = useState(false);
@@ -423,6 +464,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
             {selectedChatPro && (
                 <ChatDrawer 
                     pro={selectedChatPro} 
+                    userId={userId} // PASSED USER ID HERE
                     onClose={() => setSelectedChatPro(null)} 
                 />
             )}
