@@ -94,6 +94,11 @@ const ActiveProjectsSection = ({ userId }) => {
                     const badge = getStatusBadge(job.status === 'quoted' && job.estimate?.status === 'approved' ? 'scheduling' : job.status);
                     const BadgeIcon = badge.icon;
                     
+                    // Get the latest proposal if one exists
+                    const latestProposal = job.proposedTimes && job.proposedTimes.length > 0 
+                        ? job.proposedTimes[job.proposedTimes.length - 1] 
+                        : null;
+                    
                     return (
                         <div 
                             key={job.id}
@@ -114,9 +119,17 @@ const ActiveProjectsSection = ({ userId }) => {
                                     {job.contractorName || job.contractorCompany || 'Contractor'}
                                 </span>
                                 {job.scheduledTime ? (
-                                    <span className="font-medium text-emerald-600">
-                                        {new Date(job.scheduledTime).toLocaleDateString()}
+                                    <span className="font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
+                                        {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
                                     </span>
+                                ) : latestProposal ? (
+                                    <div className="text-right">
+                                        <span className="text-xs text-slate-400 block">Proposed:</span>
+                                        <span className="text-amber-600 font-bold text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                            {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
+                                            <ChevronRight size={12} />
+                                        </span>
+                                    </div>
                                 ) : (
                                     <span className="text-amber-600 font-bold text-xs flex items-center gap-1">
                                         View & Schedule <ChevronRight size={12} />
@@ -144,7 +157,7 @@ const ActiveProjectsSection = ({ userId }) => {
                         </div>
                         <div className="flex-grow overflow-hidden bg-slate-50">
                             <JobScheduler 
-                                job={selectedJob} 
+                                job={projects.find(p => p.id === selectedJob.id) || selectedJob} 
                                 userType="homeowner" 
                                 onUpdate={() => {
                                     // Optional: Refresh done by listener
