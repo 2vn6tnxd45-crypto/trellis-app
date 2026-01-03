@@ -30,6 +30,7 @@ import { unclaimQuote } from '../quotes/lib/quoteService';
 // NEW: Job management components
 import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
+import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 // Optional: import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
 // --- CONFIG & HELPERS ---
