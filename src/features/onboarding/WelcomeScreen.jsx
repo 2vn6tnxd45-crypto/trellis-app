@@ -6,15 +6,72 @@
 // Primary action: Scan a document
 // Secondary action: Have contractor add it
 // Tertiary: Guided label finding
-//
-// NOTE: This view only appears when the user has 0 items.
-// Most users will onboard via contractor invite and skip this entirely.
 
 import React from 'react';
-import { Camera, Sparkles, Wrench, Send, ChevronRight, HelpCircle } from 'lucide-react';
+import { Camera, Sparkles, Wrench, Send, ChevronRight, HelpCircle, Lock, FileText } from 'lucide-react';
+
+// New Component: PedigreeReportTeaser
+const PedigreeReportTeaser = ({ itemCount = 0 }) => {
+    const requiredItems = 5;
+    const progress = Math.min(itemCount / requiredItems * 100, 100);
+    const isUnlocked = itemCount >= requiredItems;
+    
+    return (
+        <div className={`relative rounded-2xl p-6 border-2 ${
+            isUnlocked 
+                ? 'bg-emerald-50 border-emerald-200' 
+                : 'bg-slate-50 border-slate-200'
+        }`}>
+            {/* Blur overlay if locked */}
+            {!isUnlocked && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] rounded-2xl 
+                                flex items-center justify-center z-10">
+                    <div className="text-center">
+                        <Lock size={32} className="mx-auto mb-2 text-slate-400" />
+                        <p className="font-bold text-slate-600">
+                            Add {requiredItems - itemCount} more items to unlock
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">
+                            Upload receipts or scan appliance labels
+                        </p>
+                    </div>
+                </div>
+            )}
+            
+            <div className="flex items-center gap-4">
+                <div className="bg-white p-3 rounded-xl shadow-sm">
+                    <FileText size={24} className="text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                    <h3 className="font-bold text-slate-800">Property Pedigree Report</h3>
+                    <p className="text-sm text-slate-500">
+                        A professional PDF of everything about your home.
+                    </p>
+                </div>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="mt-4">
+                <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-500">{itemCount} of {requiredItems} items</span>
+                    <span className={isUnlocked ? 'text-emerald-600 font-bold' : 'text-slate-400'}>
+                        {Math.round(progress)}%
+                    </span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-emerald-500 rounded-full transition-all"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const WelcomeScreen = ({ 
     propertyName, 
+    itemCount = 0,           // ADDED: Prop for teaser progress
     onScanReceipt,           // Opens SmartScanner directly
     onStartGuidedScan,       // Opens ScanFirstOnboarding (for "where to find label" guides)
     onCreateContractorLink,  // Opens contractor invite flow
@@ -48,6 +105,9 @@ export const WelcomeScreen = ({
                     </p>
                 </div>
             </div>
+
+            {/* Pedigree Report Teaser - ADDED */}
+            <PedigreeReportTeaser itemCount={itemCount} />
 
             {/* Primary Action - Scan Receipt */}
             <button
