@@ -62,7 +62,7 @@ const createDefaultLineItem = (type = 'material') => ({
 // ============================================
 // DEFAULT FORM STATE
 // ============================================
-const createDefaultFormState = (existingQuote = null) => ({
+const createDefaultFormState = (existingQuote = null, contractorSettings = {}) => ({
     customer: existingQuote?.customer || {
         name: '',
         email: '',
@@ -82,16 +82,17 @@ const createDefaultFormState = (existingQuote = null) => ({
         ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: true }))
         : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
     
-    taxRate: existingQuote?.taxRate ?? 8.75,
+    // APPLIED DEFAULTS FROM SETTINGS
+    taxRate: existingQuote?.taxRate ?? contractorSettings?.defaultTaxRate ?? 8.75,
     notes: existingQuote?.notes || '',
-    exclusions: existingQuote?.exclusions || '', // New Exclusions
-    clientWarranty: existingQuote?.clientWarranty || '', // New Global Warranty
+    exclusions: existingQuote?.exclusions || '', 
+    clientWarranty: existingQuote?.clientWarranty || contractorSettings?.defaultLaborWarranty || '', 
     terms: existingQuote?.terms || 'Quote valid for 14 days. Final payment due upon completion.',
     
-    // Financials
-    depositRequired: existingQuote?.depositRequired || false,
-    depositType: existingQuote?.depositType || 'percentage', // 'percentage' | 'fixed'
-    depositValue: existingQuote?.depositValue || 50
+    // Financials - APPLIED DEFAULTS FROM SETTINGS
+    depositRequired: existingQuote?.depositRequired ?? (contractorSettings?.defaultDepositValue > 0),
+    depositType: existingQuote?.depositType || contractorSettings?.defaultDepositType || 'percentage',
+    depositValue: existingQuote?.depositValue ?? contractorSettings?.defaultDepositValue ?? 50
 });
 
 // ============================================
@@ -504,7 +505,7 @@ const LineItemsSection = ({
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Part Warranty</label>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Manufacturer Warranty</label>
                                                                 <div className="relative">
                                                                     <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                                                                     <input 
@@ -766,15 +767,18 @@ export const QuoteBuilder = ({
     isSaving = false,
     isSending = false
 }) => {
+    // Extract settings
+    const contractorSettings = contractorProfile?.scheduling || {};
+
     const isEditing = !!quote;
-    const [formData, setFormData] = useState(() => createDefaultFormState(quote));
+    const [formData, setFormData] = useState(() => createDefaultFormState(quote, contractorSettings));
     const [showTemplates, setShowTemplates] = useState(false);
     const [errors, setErrors] = useState({});
 
     // Reset form when quote changes
     useEffect(() => {
-        setFormData(createDefaultFormState(quote));
-    }, [quote?.id]);
+        setFormData(createDefaultFormState(quote, contractorSettings));
+    }, [quote?.id, contractorProfile]);
 
     // Handlers
     const handleCustomerChange = (customer) => {
@@ -1089,11 +1093,14 @@ export const QuoteBuilder = ({
                                 />
                             </div>
 
-                            {/* NEW: Global Warranty Field */}
+                            {/* Global Warranty Field - UPDATED LABEL */}
                             <div>
                                 <label className="block text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                                    <Shield size={12} /> Workmanship Warranty
+                                    <Shield size={12} /> Labor/Workmanship Warranty
                                 </label>
+                                <p className="text-[10px] text-slate-400 mb-1">
+                                    Your guarantee on the installation work
+                                </p>
                                 <input 
                                     type="text"
                                     value={formData.clientWarranty}
