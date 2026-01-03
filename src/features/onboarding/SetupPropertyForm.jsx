@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Home, MapPin, Loader2, LogOut } from 'lucide-react';
 import { googleMapsApiKey } from '../../config/constants';
 import { Logo } from '../../components/common/Logo';
+import ReportTeaser from '../dashboard/ReportTeaser'; // ADDED: Import the teaser
 
 export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [name, setName] = useState('');
@@ -121,6 +122,11 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="bg-white rounded-[2rem] shadow-xl p-8 border border-emerald-100 space-y-6">
+                    {/* ADDED: Report Teaser at the top of the form */}
+                    <div className="mb-2">
+                        <ReportTeaser />
+                    </div>
+
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">Property Nickname</label>
                         <div className="relative">
