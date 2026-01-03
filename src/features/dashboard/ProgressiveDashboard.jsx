@@ -7,11 +7,13 @@
 // - 1-4 items: Getting started view with property intel teaser + progress
 // - 5+ items: Full dashboard with all features
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
     Camera, Plus, Package, Sparkles, MapPin, Wrench, Send,
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
-    TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2
+    TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
+    // NEW IMPORTS for Active Projects
+    Hammer, Calendar, Clock, ChevronRight, X, Info
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -26,6 +28,14 @@ import usePropertyData from '../../hooks/usePropertyData';
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 import { unclaimQuote } from '../quotes/lib/quoteService';
 
+// NEW: Firebase imports for Active Projects
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
+
+// NEW: Job Scheduler for Homeowner
+import { JobScheduler } from '../jobs/JobScheduler';
+
 // ============================================
 // HELPERS
 // ============================================
@@ -33,13 +43,125 @@ const formatNumber = (num) => num ? num.toLocaleString() : '--';
 const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
 
 // ============================================
-// QUOTES SECTION COMPONENT (Reusable)
+// ACTIVE PROJECTS SECTION (Progressive Style)
 // ============================================
+const ActiveProjectsSection = ({ userId }) => {
+    const [projects, setProjects] = useState([]);
+    const [selectedJob, setSelectedJob] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!userId) return;
+        
+        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Filter for active/negotiating jobs
+            const active = data.filter(r => 
+                ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
+                (r.status === 'quoted' && r.estimate?.status === 'approved')
+            );
+            
+            setProjects(active);
+            setLoading(false);
+        });
+        
+        return () => unsubscribe();
+    }, [userId]);
+
+    if (loading || projects.length === 0) return null;
+
+    const getStatusBadge = (status) => {
+        switch(status) {
+            case 'scheduled': return { label: 'Scheduled', bg: 'bg-emerald-100', text: 'text-emerald-700', icon: Calendar };
+            case 'scheduling': return { label: 'Needs Scheduling', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock };
+            case 'quoted': return { label: 'Action Required', bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle };
+            case 'in_progress': return { label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700', icon: Wrench };
+            default: return { label: status, bg: 'bg-slate-100', text: 'text-slate-600', icon: Info };
+        }
+    };
+
+    return (
+        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Hammer className="text-emerald-600" />
+                Active Projects
+            </h2>
+
+            <div className="space-y-3">
+                {projects.map(job => {
+                    const badge = getStatusBadge(job.status === 'quoted' && job.estimate?.status === 'approved' ? 'scheduling' : job.status);
+                    const BadgeIcon = badge.icon;
+                    
+                    return (
+                        <div 
+                            key={job.id}
+                            onClick={() => setSelectedJob(job)}
+                            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group"
+                        >
+                            <div className="flex justify-between items-start mb-2">
+                                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
+                                    {job.description || job.title || 'Service Request'}
+                                </h3>
+                                <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${badge.bg} ${badge.text}`}>
+                                    <BadgeIcon size={10} />
+                                    {badge.label}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm text-slate-500">
+                                <span className="flex items-center gap-1">
+                                    {job.contractorName || job.contractorCompany || 'Contractor'}
+                                </span>
+                                {job.scheduledTime ? (
+                                    <span className="font-medium text-emerald-600">
+                                        {new Date(job.scheduledTime).toLocaleDateString()}
+                                    </span>
+                                ) : (
+                                    <span className="text-amber-600 font-bold text-xs flex items-center gap-1">
+                                        View & Schedule <ChevronRight size={12} />
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* SCHEDULER MODAL */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="font-bold text-slate-800">Manage Project</h3>
+                                <p className="text-xs text-slate-500">{selectedJob.contractorName || 'Contractor Service'}</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-hidden bg-slate-50">
+                            <JobScheduler 
+                                job={selectedJob} 
+                                userType="homeowner" 
+                                onUpdate={() => {
+                                    // Optional: Refresh done by listener
+                                }} 
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ============================================
 // QUOTES SECTION COMPONENT (Reusable)
 // ============================================
 const MyQuotesSection = ({ userId }) => {
-    // UPDATED: Destructure 'refresh' from hook
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
     const handleDelete = async (e, quote) => {
@@ -51,7 +173,6 @@ const MyQuotesSection = ({ userId }) => {
         try {
             await unclaimQuote(quote.contractorId, quote.id);
             toast.success('Quote removed');
-            // UPDATED: Refresh immediately after delete
             refresh();
         } catch (err) {
             console.error(err);
@@ -144,8 +265,9 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
             </div>
         )}
 
-        {/* SHOW QUOTES EVEN ON EMPTY STATE */}
+        {/* ACTIVE PROJECTS & QUOTES */}
         <div className="w-full max-w-lg text-left mb-8">
+            <ActiveProjectsSection userId={userId} />
             <MyQuotesSection userId={userId} />
         </div>
         
@@ -202,7 +324,6 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 
     const isUnlocked = recordCount >= unlockThreshold;
     const itemsRemaining = unlockThreshold - recordCount;
 
-    // Loading state
     if (loading) {
         return (
             <div className="bg-white rounded-2xl border border-slate-100 p-6 animate-pulse">
@@ -216,10 +337,7 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 
         );
     }
 
-    // No property data
-    if (!propertyData) {
-        return null;
-    }
+    if (!propertyData) return null;
 
     const isPositive = appreciation?.dollarChange > 0;
 
@@ -237,7 +355,7 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 
             </div>
 
             <div className="p-5 space-y-4">
-                {/* Always visible: Basic property stats */}
+                {/* Basic property stats */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-50 rounded-xl p-4 text-center">
                         <CalendarClock size={18} className="mx-auto mb-2 text-emerald-500" />
@@ -263,7 +381,6 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 
 
                 {/* Locked/Unlocked: Home Value Insights */}
                 <div className="relative">
-                    {/* The actual content (blurred when locked) */}
                     <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-60 blur-[2px]' : ''}`}>
                         <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
                             Home Value Insights
@@ -293,7 +410,6 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 
                         </div>
                     </div>
 
-                    {/* Lock overlay */}
                     {!isUnlocked && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-xl border-2 border-dashed border-slate-300">
                             <div className="bg-slate-100 p-3 rounded-full mb-3">
@@ -333,13 +449,11 @@ const GettingStartedDashboard = ({
     const unlockThreshold = 5;
     const progress = Math.min(100, (records.length / unlockThreshold) * 100);
     const remaining = unlockThreshold - records.length;
-    const isUnlocked = records.length >= unlockThreshold;
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Hero Progress Card */}
             <div className="bg-gradient-to-br from-emerald-800 to-teal-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
-                {/* Decorative background */}
                 <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                     <Sparkles size={120} />
                 </div>
@@ -384,10 +498,11 @@ const GettingStartedDashboard = ({
                 </div>
             </div>
 
-            {/* MY QUOTES SECTION (Getting Started) */}
+            {/* ACTIVE PROJECTS & QUOTES */}
+            <ActiveProjectsSection userId={userId} />
             <MyQuotesSection userId={userId} />
 
-            {/* Property Intelligence Teaser - NEW! */}
+            {/* Property Intelligence Teaser */}
             {activeProperty?.address && (
                 <PropertyIntelTeaser 
                     activeProperty={activeProperty} 
@@ -424,7 +539,7 @@ const GettingStartedDashboard = ({
                 </button>
             </div>
 
-            {/* Maintenance Schedule - Based on tracked items only */}
+            {/* Maintenance Schedule */}
             <MaintenanceDashboard 
                 title="Maintenance Schedule"
                 records={records}
@@ -529,11 +644,7 @@ export const ProgressiveDashboard = ({
     
     case 'established':
     default:
-        // INJECT QUOTES HERE for established dashboard
-        // Note: ModernDashboard also has its own quotes section now, so we can likely remove this injection
-        // to avoid duplication, BUT based on your previous request I will leave it
-        // OR better yet, let ModernDashboard handle it internally as per the last step.
-        // Since ModernDashboard NOW has quotes internally, we just return it directly.
+        // Established view uses ModernDashboard which handles everything
         return (
             <ModernDashboard 
                 records={records}
