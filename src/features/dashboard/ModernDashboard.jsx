@@ -95,6 +95,7 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
 );
 
 // --- ACTIVE PROJECTS SECTION (NEW) ---
+
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
@@ -108,15 +109,14 @@ const ActiveProjectsSection = ({ userId }) => {
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
-            // Filter for jobs that are in active negotiation or scheduled
-            // 'scheduling' = waiting for time confirmation
-            // 'scheduled' = confirmed time
-            // 'in_progress' = active
-            // 'quoted' && estimate.status === 'approved' = Just accepted, needs scheduling
+            // Filter active jobs
             const active = data.filter(r => 
                 ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
                 (r.status === 'quoted' && r.estimate?.status === 'approved')
             );
+            
+            // DEBUG: Log what we found to help you trace it
+            console.log("🔥 Active Projects Found:", active);
             
             setProjects(active);
             setLoading(false);
@@ -150,6 +150,11 @@ const ActiveProjectsSection = ({ userId }) => {
                         const badge = getStatusBadge(job.status === 'quoted' && job.estimate?.status === 'approved' ? 'scheduling' : job.status);
                         const BadgeIcon = badge.icon;
                         
+                        // NEW: Get the latest proposal if one exists
+                        const latestProposal = job.proposedTimes && job.proposedTimes.length > 0 
+                            ? job.proposedTimes[job.proposedTimes.length - 1] 
+                            : null;
+                        
                         return (
                             <div 
                                 key={job.id}
@@ -169,10 +174,20 @@ const ActiveProjectsSection = ({ userId }) => {
                                     <span className="flex items-center gap-1">
                                         {job.contractorName || job.contractorCompany || 'Contractor'}
                                     </span>
+
+                                    {/* --- INTELLIGENT STATUS DISPLAY --- */}
                                     {job.scheduledTime ? (
-                                        <span className="font-medium text-emerald-600">
-                                            {new Date(job.scheduledTime).toLocaleDateString()}
+                                        <span className="font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
+                                            {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
                                         </span>
+                                    ) : latestProposal ? (
+                                        <div className="text-right">
+                                            <span className="text-xs text-slate-400 block">Proposed:</span>
+                                            <span className="text-amber-600 font-bold text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                                 {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
+                                                 <ChevronRight size={12} />
+                                            </span>
+                                        </div>
                                     ) : (
                                         <span className="text-amber-600 font-bold text-xs flex items-center gap-1">
                                             View & Schedule <ChevronRight size={12} />
@@ -185,7 +200,7 @@ const ActiveProjectsSection = ({ userId }) => {
                 </div>
             </DashboardSection>
 
-            {/* SCHEDULER MODAL */}
+            {/* SCHEDULER MODAL (Unchanged) */}
             {selectedJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
