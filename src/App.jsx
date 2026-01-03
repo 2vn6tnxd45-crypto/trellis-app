@@ -560,7 +560,12 @@ const AppContent = () => {
 )}
             </main>
 
-            <BottomNav activeTab={app.activeTab} onTabChange={handleTabChange} onAddClick={() => openAddModal()} notificationCount={app.newSubmissions.length} />
+            <BottomNav 
+                activeTab={app.activeTab} 
+                onTabChange={handleTabChange} 
+                onAddClick={() => openAddModal()} 
+                notificationCount={app.newSubmissions.length + (app.unreadMessageCount || 0)} 
+            />
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
             {/* NEW: Notification Panel - renders when bell icon is clicked */}
