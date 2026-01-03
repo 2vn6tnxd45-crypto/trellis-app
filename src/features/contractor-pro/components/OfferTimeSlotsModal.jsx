@@ -1,19 +1,21 @@
 // src/features/contractor-pro/components/OfferTimeSlotsModal.jsx
 // ============================================
-// OFFER TIME SLOTS MODAL
+// OFFER TIME SLOTS MODAL - WITH AI SUGGESTIONS
 // ============================================
 // Allows contractors to offer multiple time windows to customers
+// Now with AI-powered suggestions!
 
 import React, { useState, useMemo } from 'react';
 import { 
     X, Calendar, Clock, Plus, Trash2, Send, 
     Sparkles, MapPin, User, DollarSign, AlertCircle,
-    Sun, Coffee, Moon
+    Sun, Coffee, Moon, ChevronDown, ChevronUp, Zap
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+import { AISuggestionPanel, QuickSuggestions } from './AISuggestionPanel';
 
 // Quick time presets
 const TIME_PRESETS = [
@@ -39,14 +41,13 @@ const generateTimeOptions = () => {
 const TIME_OPTIONS = generateTimeOptions();
 
 // Get next N business days
-const getNextBusinessDays = (count = 7) => {
+const getNextBusinessDays = (count = 14) => {
     const days = [];
     const date = new Date();
     date.setDate(date.getDate() + 1); // Start tomorrow
     
     while (days.length < count) {
-        // Skip Sundays (day 0) - you could customize this
-        if (date.getDay() !== 0) {
+        if (date.getDay() !== 0) { // Skip Sundays
             days.push(new Date(date));
         }
         date.setDate(date.getDate() + 1);
@@ -56,6 +57,7 @@ const getNextBusinessDays = (count = 7) => {
 
 export const OfferTimeSlotsModal = ({ 
     job, 
+    allJobs = [],
     schedulingPreferences,
     onClose, 
     onSuccess 
@@ -65,8 +67,16 @@ export const OfferTimeSlotsModal = ({
     ]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState('');
+    const [showAISuggestions, setShowAISuggestions] = useState(true);
+    const [showManualEntry, setShowManualEntry] = useState(false);
 
     const nextDays = useMemo(() => getNextBusinessDays(14), []);
+    
+    // Get customer preferences from last scheduling request
+    const customerPrefs = useMemo(() => {
+        const requests = job.schedulingRequests || [];
+        return requests.length > 0 ? requests[requests.length - 1] : null;
+    }, [job]);
 
     // Add a new slot
     const addSlot = () => {
@@ -107,8 +117,52 @@ export const OfferTimeSlotsModal = ({
         ));
     };
 
-    // Quick fill: Add common slots
-    const quickFill = () => {
+    // Apply AI suggestion
+    const applyAISuggestion = (suggestion) => {
+        const dateStr = suggestion.date.toISOString().split('T')[0];
+        
+        // Check if we already have this slot
+        const existingSlot = slots.find(s => 
+            s.date === dateStr && s.startTime === suggestion.startTime
+        );
+        
+        if (existingSlot) {
+            toast('This time is already added');
+            return;
+        }
+        
+        // If first slot is empty, update it
+        if (slots.length === 1 && !slots[0].date) {
+            setSlots([{
+                id: 'slot_1',
+                date: dateStr,
+                startTime: suggestion.startTime,
+                endTime: suggestion.endTime
+            }]);
+        } else if (slots.length < 5) {
+            // Add as new slot
+            setSlots(prev => [...prev, {
+                id: `slot_${Date.now()}`,
+                date: dateStr,
+                startTime: suggestion.startTime,
+                endTime: suggestion.endTime
+            }]);
+        } else {
+            toast.error('Maximum 5 slots - remove one first');
+        }
+        
+        toast.success(`Added ${suggestion.dateFormatted}`);
+    };
+
+    // Quick fill with AI recommendations
+    const quickFillAI = () => {
+        // This will be handled by selecting from AI suggestions
+        setShowAISuggestions(true);
+        setShowManualEntry(false);
+    };
+
+    // Legacy quick fill
+    const quickFillManual = () => {
         const nextThreeDays = nextDays.slice(0, 3);
         const newSlots = nextThreeDays.map((date, idx) => ({
             id: `slot_${idx}`,
@@ -158,14 +212,15 @@ export const OfferTimeSlotsModal = ({
                 'scheduling.offeredSlots': offeredSlots,
                 'scheduling.offeredAt': serverTimestamp(),
                 'scheduling.offeredMessage': message || null,
-                'scheduling.requestedNewTimes': false, // Clear the request flag
+                'scheduling.requestedNewTimes': false,
                 
                 // Update status
                 status: 'slots_offered',
+                schedulingStatus: 'slots_offered',
                 
-                // Also add to legacy proposedTimes for backward compatibility
+                // Legacy support
                 proposedTimes: arrayUnion({
-                    date: offeredSlots[0].start, // First slot as primary
+                    date: offeredSlots[0].start,
                     proposedBy: 'contractor',
                     createdAt: new Date().toISOString(),
                     type: 'multi_slot',
@@ -175,7 +230,7 @@ export const OfferTimeSlotsModal = ({
                 lastActivity: serverTimestamp()
             });
 
-            toast.success(`Sent ${offeredSlots.length} time options to customer`);
+            toast.success(`Sent ${offeredSlots.length} time option${offeredSlots.length > 1 ? 's' : ''} to customer`);
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
@@ -186,8 +241,7 @@ export const OfferTimeSlotsModal = ({
         }
     };
 
-    // Customer preferences display
-    const customerPrefs = job.schedulingRequests?.[job.schedulingRequests.length - 1];
+    const filledSlotsCount = slots.filter(s => s.date).length;
 
     return (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
@@ -202,7 +256,7 @@ export const OfferTimeSlotsModal = ({
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-800">Offer Time Slots</h3>
-                            <p className="text-xs text-slate-500">Send availability options to customer</p>
+                            <p className="text-xs text-slate-500">Send availability to customer</p>
                         </div>
                     </div>
                     <button 
@@ -272,130 +326,222 @@ export const OfferTimeSlotsModal = ({
                         </div>
                     )}
 
-                    {/* Quick Actions */}
-                    <div className="flex items-center justify-between mb-4">
-                        <p className="text-sm font-bold text-slate-700">Time Slots</p>
+                    {/* AI Suggestions Section */}
+                    <div className="mb-5">
                         <button
-                            onClick={quickFill}
-                            className="text-xs text-emerald-600 font-medium hover:text-emerald-700 flex items-center gap-1"
+                            onClick={() => setShowAISuggestions(!showAISuggestions)}
+                            className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-xl hover:from-violet-100 hover:to-purple-100 transition-colors"
                         >
-                            <Sparkles size={12} />
-                            Quick fill (3 days)
-                        </button>
-                    </div>
-
-                    {/* Time Slots */}
-                    <div className="space-y-3 mb-5">
-                        {slots.map((slot, idx) => (
-                            <div 
-                                key={slot.id}
-                                className="bg-white border border-slate-200 rounded-xl p-3"
-                            >
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-bold text-slate-400">
-                                        Option {idx + 1}
-                                    </span>
-                                    {slots.length > 1 && (
-                                        <button
-                                            onClick={() => removeSlot(slot.id)}
-                                            className="p-1 text-slate-400 hover:text-red-500"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    )}
+                            <div className="flex items-center gap-2">
+                                <div className="bg-gradient-to-r from-violet-500 to-purple-600 p-1.5 rounded-lg">
+                                    <Sparkles size={14} className="text-white" />
                                 </div>
-                                
-                                {/* Date picker */}
-                                <div className="mb-2">
-                                    <select
-                                        value={slot.date}
-                                        onChange={(e) => updateSlot(slot.id, 'date', e.target.value)}
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    >
-                                        <option value="">Select date...</option>
-                                        {nextDays.map(date => (
-                                            <option 
-                                                key={date.toISOString()} 
-                                                value={date.toISOString().split('T')[0]}
-                                            >
-                                                {date.toLocaleDateString('en-US', { 
-                                                    weekday: 'short', 
-                                                    month: 'short', 
-                                                    day: 'numeric' 
-                                                })}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Time presets */}
-                                <div className="flex gap-2 mb-2">
-                                    {TIME_PRESETS.map(preset => {
-                                        const Icon = preset.icon;
-                                        const isActive = slot.startTime === preset.start && slot.endTime === preset.end;
-                                        return (
-                                            <button
-                                                key={preset.id}
-                                                onClick={() => applyPreset(slot.id, preset)}
-                                                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${
-                                                    isActive
-                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                                        : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-                                                }`}
-                                            >
-                                                <Icon size={12} />
-                                                {preset.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Custom time range */}
-                                <div className="flex items-center gap-2">
-                                    <select
-                                        value={slot.startTime}
-                                        onChange={(e) => updateSlot(slot.id, 'startTime', e.target.value)}
-                                        className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    >
-                                        {TIME_OPTIONS.map(t => (
-                                            <option key={t.value} value={t.value}>{t.label}</option>
-                                        ))}
-                                    </select>
-                                    <span className="text-slate-400 text-xs">to</span>
-                                    <select
-                                        value={slot.endTime}
-                                        onChange={(e) => updateSlot(slot.id, 'endTime', e.target.value)}
-                                        className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    >
-                                        {TIME_OPTIONS.map(t => (
-                                            <option key={t.value} value={t.value}>{t.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <span className="font-bold text-violet-800">AI Suggestions</span>
                             </div>
-                        ))}
-
-                        {/* Add Slot Button */}
-                        {slots.length < 5 && (
-                            <button
-                                onClick={addSlot}
-                                className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600 transition-colors flex items-center justify-center gap-1"
-                            >
-                                <Plus size={16} />
-                                Add Another Option
-                            </button>
+                            {showAISuggestions ? <ChevronUp size={18} className="text-violet-500" /> : <ChevronDown size={18} className="text-violet-500" />}
+                        </button>
+                        
+                        {showAISuggestions && (
+                            <div className="mt-3 p-3 bg-slate-50 rounded-xl">
+                                <AISuggestionPanel
+                                    job={job}
+                                    allJobs={allJobs}
+                                    preferences={schedulingPreferences}
+                                    customerPreferences={customerPrefs}
+                                    onSelectSuggestion={applyAISuggestion}
+                                    selectedSuggestion={null}
+                                    compact={true}
+                                />
+                            </div>
                         )}
                     </div>
+
+                    {/* Selected Slots */}
+                    <div className="mb-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                Selected Times
+                                {filledSlotsCount > 0 && (
+                                    <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">
+                                        {filledSlotsCount}
+                                    </span>
+                                )}
+                            </p>
+                            <button
+                                onClick={() => setShowManualEntry(!showManualEntry)}
+                                className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1"
+                            >
+                                {showManualEntry ? 'Hide' : 'Add manually'}
+                                {showManualEntry ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                        </div>
+
+                        {/* Display selected slots */}
+                        {filledSlotsCount > 0 && (
+                            <div className="space-y-2 mb-3">
+                                {slots.filter(s => s.date).map((slot, idx) => {
+                                    const date = new Date(slot.date + 'T00:00:00');
+                                    const dateLabel = date.toLocaleDateString('en-US', { 
+                                        weekday: 'short', 
+                                        month: 'short', 
+                                        day: 'numeric' 
+                                    });
+                                    const startLabel = TIME_OPTIONS.find(t => t.value === slot.startTime)?.label || slot.startTime;
+                                    const endLabel = TIME_OPTIONS.find(t => t.value === slot.endTime)?.label || slot.endTime;
+                                    
+                                    return (
+                                        <div 
+                                            key={slot.id}
+                                            className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl"
+                                        >
+                                            <div>
+                                                <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
+                                                <p className="text-xs text-emerald-600">{startLabel} - {endLabel}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    if (slots.length === 1) {
+                                                        setSlots([{ id: 'slot_1', date: '', startTime: '09:00', endTime: '12:00' }]);
+                                                    } else {
+                                                        removeSlot(slot.id);
+                                                    }
+                                                }}
+                                                className="p-1.5 text-emerald-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {filledSlotsCount === 0 && (
+                            <div className="text-center py-6 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+                                <Calendar size={24} className="mx-auto mb-2 text-slate-300" />
+                                <p className="text-sm text-slate-500">No times selected</p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    Click an AI suggestion above or add manually
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Manual Entry Section */}
+                    {showManualEntry && (
+                        <div className="mb-5 p-4 bg-slate-50 rounded-xl">
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-3">Add Manually</p>
+                            
+                            <div className="space-y-3">
+                                {slots.map((slot, idx) => (
+                                    <div 
+                                        key={slot.id}
+                                        className="bg-white border border-slate-200 rounded-xl p-3"
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-bold text-slate-400">
+                                                Option {idx + 1}
+                                            </span>
+                                            {slots.length > 1 && (
+                                                <button
+                                                    onClick={() => removeSlot(slot.id)}
+                                                    className="p-1 text-slate-400 hover:text-red-500"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        
+                                        {/* Date picker */}
+                                        <select
+                                            value={slot.date}
+                                            onChange={(e) => updateSlot(slot.id, 'date', e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none mb-2"
+                                        >
+                                            <option value="">Select date...</option>
+                                            {nextDays.map(date => (
+                                                <option 
+                                                    key={date.toISOString()} 
+                                                    value={date.toISOString().split('T')[0]}
+                                                >
+                                                    {date.toLocaleDateString('en-US', { 
+                                                        weekday: 'short', 
+                                                        month: 'short', 
+                                                        day: 'numeric' 
+                                                    })}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {/* Time presets */}
+                                        <div className="flex gap-2 mb-2">
+                                            {TIME_PRESETS.map(preset => {
+                                                const Icon = preset.icon;
+                                                const isActive = slot.startTime === preset.start && slot.endTime === preset.end;
+                                                return (
+                                                    <button
+                                                        key={preset.id}
+                                                        onClick={() => applyPreset(slot.id, preset)}
+                                                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${
+                                                            isActive
+                                                                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                                                                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        <Icon size={12} />
+                                                        {preset.label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Custom time */}
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                value={slot.startTime}
+                                                onChange={(e) => updateSlot(slot.id, 'startTime', e.target.value)}
+                                                className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs"
+                                            >
+                                                {TIME_OPTIONS.map(t => (
+                                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                                ))}
+                                            </select>
+                                            <span className="text-slate-400 text-xs">to</span>
+                                            <select
+                                                value={slot.endTime}
+                                                onChange={(e) => updateSlot(slot.id, 'endTime', e.target.value)}
+                                                className="flex-1 px-2 py-1.5 border border-slate-200 rounded-lg text-xs"
+                                            >
+                                                {TIME_OPTIONS.map(t => (
+                                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                {slots.length < 5 && (
+                                    <button
+                                        onClick={addSlot}
+                                        className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-sm text-slate-500 hover:border-emerald-300 hover:text-emerald-600 transition-colors flex items-center justify-center gap-1"
+                                    >
+                                        <Plus size={16} />
+                                        Add Another
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Optional Message */}
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
-                            Message to Customer <span className="font-normal text-slate-400">(optional)</span>
+                            Message <span className="font-normal text-slate-400">(optional)</span>
                         </label>
                         <textarea
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
-                            placeholder="e.g., Let me know which time works best for you!"
+                            placeholder="e.g., Let me know which time works best!"
                             className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm resize-none focus:ring-2 focus:ring-emerald-500 outline-none"
                             rows={2}
                         />
@@ -412,7 +558,7 @@ export const OfferTimeSlotsModal = ({
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={isSubmitting || !slots.some(s => s.date)}
+                        disabled={isSubmitting || filledSlotsCount === 0}
                         className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                         {isSubmitting ? (
@@ -423,7 +569,7 @@ export const OfferTimeSlotsModal = ({
                         ) : (
                             <>
                                 <Send size={16} />
-                                Send {slots.filter(s => s.date).length} Option{slots.filter(s => s.date).length !== 1 ? 's' : ''}
+                                Send {filledSlotsCount} Option{filledSlotsCount !== 1 ? 's' : ''}
                             </>
                         )}
                     </button>
