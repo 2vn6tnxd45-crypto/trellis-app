@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { REQUESTS_COLLECTION_PATH, CATEGORIES } from '../../config/constants';
+import { REQUESTS_COLLECTION_PATH, CATEGORIES, appId } from '../../config/constants'; // ADDED appId
 import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
@@ -150,6 +150,9 @@ const ChatDrawer = ({ pro, userId, onClose }) => {
 const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
+    // Check if chat is available (Pro is on platform) - Workstream 6.2
+    const canChat = pro.isOnPlatform && pro.contractorId;
+    
     const totalSpent = pro.jobs.reduce((sum, job) => sum + (parseFloat(job.cost) || 0), 0);
     const categories = [...new Set(pro.jobs.map(j => j.category).filter(Boolean))];
     
@@ -162,9 +165,17 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
             >
                 <div className="flex items-start gap-4">
                     {/* Avatar */}
-                    <div className="h-14 w-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">
-                        {pro.name.charAt(0).toUpperCase()}
-                    </div>
+                    {pro.logoUrl ? (
+                        <img 
+                            src={pro.logoUrl} 
+                            alt={pro.name} 
+                            className="h-14 w-14 rounded-xl object-contain bg-slate-50 border border-slate-100" 
+                        />
+                    ) : (
+                        <div className="h-14 w-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">
+                            {pro.name.charAt(0).toUpperCase()}
+                        </div>
+                    )}
                     
                     {/* Info */}
                     <div className="flex-grow min-w-0">
@@ -195,9 +206,14 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
                             {/* Quick Actions (Collapsed View) */}
                             <div className="flex gap-1">
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); onMessage(pro); }}
-                                    className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                                    title="Message"
+                                    onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
+                                    disabled={!canChat}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                        canChat 
+                                            ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
+                                            : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                                    }`}
+                                    title={canChat ? "Message" : "This pro is not on Krib yet"}
                                 >
                                     <MessageSquare size={18} />
                                 </button>
@@ -281,11 +297,16 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
                     {/* ACTION BUTTONS */}
                     <div className="flex gap-3 mt-4">
                         <button
-                            onClick={(e) => { e.stopPropagation(); onMessage(pro); }}
-                            className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                            onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
+                            disabled={!canChat}
+                            className={`flex-1 py-3 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                                canChat 
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            }`}
                         >
                             <MessageSquare size={18} />
-                            Message
+                            {canChat ? 'Message' : 'Chat Unavailable'}
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); onRequestService(pro); }}
@@ -309,37 +330,114 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
         toast.success('Link copied!');
     };
 
-    // Check if there is activity (proposals or estimates)
-    const hasActivity = request.proposedTimes?.length > 0 || request.estimate;
-    const statusLabel = request.status === 'scheduled' ? 'Scheduled' : request.status;
+    // Helper for formatting time (ISO string)
+    const formatScheduledTime = (isoString) => {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return date.toLocaleString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    };
+
+    // Helper for status display (Workstream 5.2)
+    const getStatusDisplay = () => {
+        switch (request.status) {
+            case 'scheduled':
+                return {
+                    badge: 'SCHEDULED',
+                    badgeColor: 'bg-emerald-100 text-emerald-700',
+                    action: 'View Details',
+                    actionColor: 'bg-emerald-600 text-white'
+                };
+            case 'slots_offered':
+                return {
+                    badge: 'TIMES AVAILABLE',
+                    badgeColor: 'bg-amber-100 text-amber-700',
+                    action: 'Pick a Time',
+                    actionColor: 'bg-amber-600 text-white'
+                };
+            case 'quoted':
+                return {
+                    badge: 'QUOTE RECEIVED',
+                    badgeColor: 'bg-blue-100 text-blue-700',
+                    action: 'View Quote',
+                    actionColor: 'bg-blue-600 text-white'
+                };
+            case 'submitted':
+                return {
+                    badge: 'SUBMITTED',
+                    badgeColor: 'bg-slate-100 text-slate-600',
+                    action: 'Import',
+                    actionColor: 'bg-slate-600 text-white'
+                };
+            default:
+                return {
+                    badge: request.status?.toUpperCase() || 'PENDING',
+                    badgeColor: 'bg-slate-100 text-slate-600',
+                    action: 'View Details',
+                    actionColor: 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                };
+        }
+    };
+
+    const status = getStatusDisplay();
 
     return (
         <div className={`p-4 rounded-xl border ${request.status === 'submitted' ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
-            <div className="flex items-center justify-between gap-3 mb-2">
-                <div>
-                    <h4 className="font-bold text-slate-800">{request.description}</h4>
-                    <span className={`text-xs uppercase font-bold px-2 py-0.5 rounded-full ${request.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' : 'text-slate-500'}`}>
-                        {statusLabel}
-                    </span>
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+                {request.contractorLogoUrl ? (
+                    <img 
+                        src={request.contractorLogoUrl} 
+                        alt="" 
+                        className="w-12 h-12 rounded-xl object-contain bg-slate-50 border border-slate-100"
+                    />
+                ) : (
+                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
+                        <Building2 className="text-slate-400" />
+                    </div>
+                )}
+                <div className="flex-1">
+                    <p className="font-bold text-slate-800">
+                        {request.contractorName || 'Service Request'}
+                    </p>
+                    <p className="text-sm text-slate-500 truncate">{request.description}</p>
                 </div>
-                <div className="flex gap-2">
-                    {request.status === 'submitted' && <button onClick={() => onImport(request)} className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg">Import</button>}
-                    <button onClick={handleCopy} className="p-2 bg-slate-100 rounded-lg text-slate-500"><Copy size={16}/></button>
-                    <button onClick={() => onDelete(request.id)} className="p-2 bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button>
-                </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${status.badgeColor}`}>
+                    {status.badge}
+                </span>
             </div>
 
-            {/* Action Area for Managing Requests */}
-            {request.status !== 'submitted' && (
-                <div className="mt-3 pt-3 border-t border-slate-50 flex gap-2">
-                    <button 
-                        onClick={() => onManage(request)}
-                        className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 ${hasActivity ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                        {hasActivity ? 'View Proposal' : 'Manage Request'}
-                    </button>
+            {/* Scheduled Time Display */}
+            {request.status === 'scheduled' && request.scheduledTime && (
+                <div className="bg-emerald-50 rounded-xl p-3 mb-4 flex items-center gap-2 text-emerald-700">
+                    <Calendar size={16} />
+                    <span className="font-bold text-sm">
+                        {formatScheduledTime(request.scheduledTime)}
+                    </span>
                 </div>
             )}
+
+            {/* Action Area */}
+            <div className="flex gap-2">
+                <button 
+                    onClick={request.status === 'submitted' ? () => onImport(request) : () => onManage(request)}
+                    className={`flex-1 py-3 rounded-xl font-bold text-sm ${status.actionColor}`}
+                >
+                    {status.action}
+                </button>
+                
+                <button onClick={handleCopy} className="p-3 bg-slate-100 rounded-xl text-slate-500 hover:bg-slate-200 transition-colors">
+                    <Copy size={20}/>
+                </button>
+                <button onClick={() => onDelete(request.id)} className="p-3 bg-red-50 rounded-xl text-red-500 hover:bg-red-100 transition-colors">
+                    <Trash2 size={20}/>
+                </button>
+            </div>
         </div>
     );
 };
@@ -354,6 +452,10 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
     // NEW: Chat State
     const [selectedChatPro, setSelectedChatPro] = useState(null);
     
+    // NEW: Platform Pros State
+    const [platformPros, setPlatformPros] = useState([]);
+
+    // Fetch Requests
     useEffect(() => {
         if (!userId) return;
         const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
@@ -362,22 +464,58 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
         });
         return () => unsubscribe();
     }, [userId]);
+
+    // NEW: Fetch Platform Pros (Workstream 5.1/6.3)
+    useEffect(() => {
+        if (!userId) return;
+        // Watch the user's 'pros' subcollection
+        const q = collection(db, 'artifacts', appId, 'users', userId, 'pros');
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            setPlatformPros(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        });
+        return () => unsubscribe();
+    }, [userId]);
     
+    // MERGE Contractors: Platform Pros + Record Pros
     const contractors = useMemo(() => {
         const prosMap = {};
+        
+        // 1. Add Platform Pros (Definitive source for chat/connection)
+        platformPros.forEach(p => {
+            prosMap[p.name] = { 
+                ...p, 
+                jobs: [], 
+                isOnPlatform: true // Explicit flag
+            };
+        });
+
+        // 2. Add/Merge Record Pros
         records.forEach(r => {
             const name = r.contractor;
             if (name && name.length > 2) {
-                if (!prosMap[name]) prosMap[name] = { name, phone: null, email: null, address: null, jobs: [] };
-                // Aggregate contact info (last one wins or first non-null)
-                if (r.contractorPhone) prosMap[name].phone = r.contractorPhone;
-                if (r.contractorEmail) prosMap[name].email = r.contractorEmail;
-                if (r.contractorAddress) prosMap[name].address = r.contractorAddress; 
-                prosMap[name].jobs.push(r);
+                if (!prosMap[name]) {
+                    prosMap[name] = { 
+                        name, 
+                        phone: null, 
+                        email: null, 
+                        address: null, 
+                        isOnPlatform: false, // Default for scanned receipt pros
+                        jobs: [] 
+                    };
+                }
+                
+                const pro = prosMap[name];
+                // Aggregate contact info if missing
+                if (!pro.phone && r.contractorPhone) pro.phone = r.contractorPhone;
+                if (!pro.email && r.contractorEmail) pro.email = r.contractorEmail;
+                if (!pro.address && r.contractorAddress) pro.address = r.contractorAddress; 
+                
+                pro.jobs.push(r);
             }
         });
+        
         return Object.values(prosMap).sort((a, b) => b.jobs.length - a.jobs.length);
-    }, [records]);
+    }, [records, platformPros]);
     
     const filteredContractors = useMemo(() => {
         return contractors.filter(pro => {
@@ -387,7 +525,9 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
         });
     }, [contractors, searchTerm, filterCategory]);
     
-    const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'scheduling' || r.status === 'quoted' || r.status === 'scheduled');
+    const pendingRequests = requests.filter(r => 
+        ['pending', 'scheduling', 'quoted', 'scheduled', 'slots_offered', 'submitted'].includes(r.status)
+    );
     
     const handleDeleteRequest = async (id) => {
         if (!confirm('Delete this request?')) return;
