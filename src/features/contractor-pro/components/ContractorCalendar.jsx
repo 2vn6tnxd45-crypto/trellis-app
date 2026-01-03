@@ -3,6 +3,7 @@
 // CONTRACTOR CALENDAR - Week & Month View
 // ============================================
 // Visual schedule management for contractors
+// UPDATED: Shows pending slots in amber
 
 import React, { useState, useMemo } from 'react';
 import { 
@@ -55,13 +56,21 @@ const getWeekDates = (date) => {
     return dates;
 };
 
+// UPDATED: Include jobs with offered slots (pending)
 const getJobsForDate = (jobs, date) => {
     return jobs.filter(job => {
+        // Confirmed jobs
         if (job.scheduledTime) {
             return isSameDay(job.scheduledTime, date);
         }
         if (job.scheduledDate) {
             return isSameDay(job.scheduledDate, date);
+        }
+        // NEW: Pending slots logic
+        if (job.scheduling?.offeredSlots?.length > 0) {
+            return job.scheduling.offeredSlots.some(slot => 
+                slot.status === 'offered' && isSameDay(slot.start, date)
+            );
         }
         return false;
     });
@@ -70,6 +79,7 @@ const getJobsForDate = (jobs, date) => {
 const getJobStatus = (job) => {
     if (job.status === 'scheduled' || job.scheduledTime) return 'confirmed';
     if (job.status === 'in_progress') return 'in_progress';
+    if (job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending'; // NEW CHECK
     if (job.proposedTimes?.length > 0) return 'pending';
     return 'unscheduled';
 };
@@ -90,6 +100,7 @@ const STATUS_STYLES = {
         bg: 'bg-amber-500',
         bgLight: 'bg-amber-50',
         border: 'border-amber-200',
+        borderDashed: 'border-dashed border-2', // Added for visual distinction
         text: 'text-amber-700',
         label: 'Awaiting Response'
     },
@@ -157,7 +168,7 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                             {dayJobs.length > 0 && (
                                 <div className="flex justify-center gap-1 mt-2">
                                     {hasConfirmed && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-                                    {hasPending && <div className="w-2 h-2 rounded-full bg-amber-500" />}
+                                    {hasPending && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />} {/* Pulse pending */}
                                     {!hasConfirmed && !hasPending && dayJobs.length > 0 && (
                                         <div className="w-2 h-2 rounded-full bg-blue-500" />
                                     )}
@@ -189,27 +200,43 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                         ) : (
                             getJobsForDate(jobs, selectedDate)
                                 .sort((a, b) => {
-                                    const timeA = a.scheduledTime || a.scheduledDate;
-                                    const timeB = b.scheduledTime || b.scheduledDate;
+                                    const timeA = a.scheduledTime || a.scheduledDate || 
+                                        (a.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
+                                    const timeB = b.scheduledTime || b.scheduledDate || 
+                                        (b.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
                                     return new Date(timeA) - new Date(timeB);
                                 })
                                 .map(job => {
                                     const status = getJobStatus(job);
                                     const styles = STATUS_STYLES[status];
                                     
+                                    // Get display time (confirmed OR first offered for this day)
+                                    let displayTime = job.scheduledTime;
+                                    if (status === 'pending') {
+                                        const slot = job.scheduling?.offeredSlots?.find(s => 
+                                            s.status === 'offered' && isSameDay(s.start, selectedDate)
+                                        );
+                                        displayTime = slot?.start;
+                                    }
+
                                     return (
                                         <button
                                             key={job.id}
                                             onClick={() => onSelectJob(job)}
-                                            className={`w-full p-3 rounded-xl border ${styles.border} ${styles.bgLight} text-left hover:shadow-md transition-all`}
+                                            className={`w-full p-3 rounded-xl border ${styles.border} ${status === 'pending' ? styles.borderDashed : ''} ${styles.bgLight} text-left hover:shadow-md transition-all`}
                                         >
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2">
                                                         <div className={`w-2 h-2 rounded-full ${styles.bg}`} />
                                                         <span className="text-xs font-medium text-slate-500">
-                                                            {job.scheduledTime ? formatTime(job.scheduledTime) : 'TBD'}
+                                                            {displayTime ? formatTime(displayTime) : 'TBD'}
                                                         </span>
+                                                        {status === 'pending' && (
+                                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
+                                                                OFFERED
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <h4 className="font-bold text-slate-800 mt-1 truncate">
                                                         {job.title || job.description || 'Service'}
@@ -279,15 +306,25 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
                 
                 {/* Job pills */}
                 <div className="mt-1 space-y-0.5 overflow-hidden">
-                    {dayJobs.slice(0, 2).map(job => {
+                    {dayJobs.slice(0, 2).map((job, idx) => {
                         const status = getJobStatus(job);
                         const styles = STATUS_STYLES[status];
+                        
+                        // Get display time
+                        let displayTime = job.scheduledTime;
+                        if (status === 'pending') {
+                            const slot = job.scheduling?.offeredSlots?.find(s => 
+                                s.status === 'offered' && isSameDay(s.start, date)
+                            );
+                            displayTime = slot?.start;
+                        }
+
                         return (
                             <div
-                                key={job.id}
-                                className={`text-[10px] px-1.5 py-0.5 rounded truncate ${styles.bg} text-white`}
+                                key={`${job.id}-${idx}`}
+                                className={`text-[10px] px-1.5 py-0.5 rounded truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-80' : ''}`}
                             >
-                                {formatTime(job.scheduledTime)} {job.customer?.name?.split(' ')[0] || 'Job'}
+                                {formatTime(displayTime)} {job.customer?.name?.split(' ')[0] || 'Job'}
                             </div>
                         );
                     })}
@@ -325,28 +362,28 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
 // ============================================
 
 const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
+    // Only show jobs that have NO confirmed time AND NO pending offers
+    // If pending, they show on calendar now (in amber)
     const unscheduledJobs = jobs.filter(job => 
         !job.scheduledTime && 
         !job.scheduledDate &&
+        (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) && 
         !['completed', 'cancelled'].includes(job.status)
     );
 
-    // Jobs where customer requested new times
-    const needsNewTimes = unscheduledJobs.filter(job => 
+    // Jobs where customer requested new times (Urgent)
+    const needsNewTimes = jobs.filter(job => 
         job.scheduling?.requestedNewTimes || job.schedulingStatus === 'needs_new_times'
     );
 
-    // Jobs awaiting customer response
-    const awaitingResponse = unscheduledJobs.filter(job =>
-        job.proposedTimes?.length > 0 && !job.scheduling?.requestedNewTimes
+    // Jobs awaiting customer response (but maybe not showing on calendar if data malformed, keeping safe)
+    const awaitingResponse = jobs.filter(job =>
+        (job.proposedTimes?.length > 0 || job.scheduling?.offeredSlots?.length > 0) && 
+        !job.scheduledTime && 
+        !job.scheduling?.requestedNewTimes
     );
 
-    // New jobs needing initial scheduling
-    const newJobs = unscheduledJobs.filter(job =>
-        !job.proposedTimes?.length && !job.scheduling?.requestedNewTimes
-    );
-
-    if (unscheduledJobs.length === 0) {
+    if (unscheduledJobs.length === 0 && needsNewTimes.length === 0) {
         return (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
                 <CheckCircle size={32} className="mx-auto mb-2 text-emerald-500" />
@@ -429,30 +466,15 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
                 </div>
             )}
 
-            {/* Awaiting Response */}
-            {awaitingResponse.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
-                        <Clock size={18} className="text-amber-500" />
-                        Awaiting Response ({awaitingResponse.length})
-                    </h3>
-                    <div className="space-y-3">
-                        {awaitingResponse.map(job => (
-                            <JobCard key={job.id} job={job} />
-                        ))}
-                    </div>
-                </div>
-            )}
-
             {/* New Jobs */}
-            {newJobs.length > 0 && (
+            {unscheduledJobs.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-4">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
                         <Plus size={18} className="text-emerald-500" />
-                        Ready to Schedule ({newJobs.length})
+                        Ready to Schedule ({unscheduledJobs.length})
                     </h3>
                     <div className="space-y-3">
-                        {newJobs.map(job => (
+                        {unscheduledJobs.map(job => (
                             <JobCard key={job.id} job={job} />
                         ))}
                     </div>
@@ -519,10 +541,11 @@ export const ContractorCalendar = ({
         return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     };
 
-    // Count unscheduled
+    // Count pure unscheduled (not pending)
     const unscheduledCount = jobs.filter(job => 
         !job.scheduledTime && 
         !job.scheduledDate &&
+        (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) &&
         !['completed', 'cancelled'].includes(job.status)
     ).length;
 
