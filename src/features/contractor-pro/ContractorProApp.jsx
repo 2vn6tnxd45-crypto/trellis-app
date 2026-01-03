@@ -29,6 +29,11 @@ import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
 import { BusinessSettings } from './components/BusinessSettings';
 
+// ADDED: Phase 4 Components
+import { DragDropCalendar } from './components/DragDropCalendar';
+import { RouteVisualization } from './components/RouteVisualization';
+import { TechAssignmentPanel } from './components/TechAssignmentPanel';
+
 // ADDED: Quote Components
 import { 
     QuotesListView, 
@@ -59,6 +64,18 @@ import {
 import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService';
 import { deleteUser } from 'firebase/auth';
 import { auth } from '../../config/firebase';
+
+// ============================================
+// HELPER: Date Comparison
+// ============================================
+const isSameDay = (d1, d2) => {
+    if (!d1 || !d2) return false;
+    const date1 = new Date(d1);
+    const date2 = new Date(d2);
+    return date1.getDate() === date2.getDate() &&
+           date1.getMonth() === date2.getMonth() &&
+           date1.getFullYear() === date2.getFullYear();
+};
 
 // ============================================
 // NAV ITEM
@@ -921,6 +938,8 @@ export const ContractorProApp = () => {
     const [selectedJob, setSelectedJob] = useState(null); // ADDED: Selected job state for modal
     const [isSavingProfile, setIsSavingProfile] = useState(false); // NEW: State for setup screen
     const [offeringTimesJob, setOfferingTimesJob] = useState(null); // ADDED: For Calendar integration
+    const [scheduleView, setScheduleView] = useState('calendar'); // 'calendar' | 'drag' | 'route' | 'team'
+    const [selectedDate, setSelectedDate] = useState(new Date()); // Shared date state for route viz
 
     const {
         user,
@@ -978,6 +997,9 @@ export const ContractorProApp = () => {
             !['completed', 'cancelled'].includes(job.status)
         ).length || 0;
     }, [jobs]);
+
+    // Check if team features are enabled
+    const hasTeam = profile?.scheduling?.teamType === 'team';
     
     // NEW: Handler for initial profile setup
     const handleInitialSetup = async (formData) => {
@@ -1164,14 +1186,81 @@ export const ContractorProApp = () => {
                     {/* UPDATED: Pass handleJobClick to JobsView */}
                     {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} onSelectJob={handleJobClick} />}
                     
-                    {/* ADDED: Schedule View */}
+                    {/* ADDED: Schedule View with Tabs */}
                     {activeView === 'schedule' && (
-                        <ContractorCalendar 
-                            jobs={jobs}
-                            onSelectJob={handleJobClick}
-                            onOfferTimes={(job) => setOfferingTimesJob(job)}
-                            onCreateJob={() => setActiveView('create-quote')}
-                        />
+                        <div className="space-y-4">
+                            {/* View selector */}
+                            <div className="flex bg-slate-100 rounded-xl p-1">
+                                <button
+                                    onClick={() => setScheduleView('calendar')}
+                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        scheduleView === 'calendar' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Calendar
+                                </button>
+                                <button
+                                    onClick={() => setScheduleView('drag')}
+                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        scheduleView === 'drag' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Drag & Drop
+                                </button>
+                                <button
+                                    onClick={() => setScheduleView('route')}
+                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                        scheduleView === 'route' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    Route
+                                </button>
+                                {hasTeam && (
+                                    <button
+                                        onClick={() => setScheduleView('team')}
+                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
+                                            scheduleView === 'team' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                    >
+                                        Team
+                                    </button>
+                                )}
+                            </div>
+                            
+                            {/* View content */}
+                            {scheduleView === 'calendar' && (
+                                <ContractorCalendar 
+                                    jobs={jobs}
+                                    onSelectJob={handleJobClick}
+                                    onOfferTimes={(job) => setOfferingTimesJob(job)}
+                                    onCreateJob={() => setActiveView('create-quote')}
+                                />
+                            )}
+                            {scheduleView === 'drag' && (
+                                <DragDropCalendar 
+                                    jobs={jobs}
+                                    preferences={profile?.scheduling}
+                                    onJobUpdate={() => {}} // Hooks handle updates
+                                    onJobClick={handleJobClick}
+                                />
+                            )}
+                            {scheduleView === 'route' && (
+                                <RouteVisualization 
+                                    jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
+                                    date={selectedDate}
+                                    preferences={profile?.scheduling}
+                                    onJobClick={handleJobClick}
+                                    onReorder={() => {}} // Hook implementation pending
+                                />
+                            )}
+                            {scheduleView === 'team' && (
+                                <TechAssignmentPanel 
+                                    jobs={jobs}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    onJobUpdate={() => {}} // Hooks handle updates
+                                />
+                            )}
+                        </div>
                     )}
 
                     {/* ADDED: Quote Views */}
