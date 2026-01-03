@@ -3,6 +3,7 @@
 // SLOT PICKER - Homeowner selects from offered times
 // ============================================
 // Displays offered time slots and lets homeowner pick one
+// UPDATED: Use ISO time storage
 
 import React, { useState } from 'react';
 import { 
@@ -39,6 +40,21 @@ const formatTimeRange = (start, end) => {
     return `${startTime} - ${endTime}`;
 };
 
+// NEW: Helper for displaying confirmed times consistently
+const formatScheduledTime = (isoString) => {
+    if (!isoString) return 'Not set';
+    const date = new Date(isoString);
+    return date.toLocaleString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
 export const SlotPicker = ({ 
     job, 
     onClose, 
@@ -69,20 +85,24 @@ export const SlotPicker = ({
                 status: slot.id === selectedSlotId ? 'selected' : 'expired'
             }));
 
+            // Use consistent ISO strings
+            const startISO = new Date(selectedSlot.start).toISOString();
+            const endISO = new Date(selectedSlot.end).toISOString();
+
             await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
-                // Update scheduling
+                // Update scheduling object
                 'scheduling.offeredSlots': updatedSlots,
                 'scheduling.selectedSlotId': selectedSlotId,
                 'scheduling.selectedAt': serverTimestamp(),
                 'scheduling.confirmedSlot': {
-                    start: selectedSlot.start,
-                    end: selectedSlot.end
+                    start: startISO,
+                    end: endISO
                 },
                 'scheduling.confirmedAt': serverTimestamp(),
                 
-                // Set the confirmed time
-                scheduledTime: selectedSlot.start,
-                scheduledDate: selectedSlot.start,
+                // Set the top-level scheduled fields for easier queries
+                scheduledTime: startISO,
+                scheduledDate: startISO,
                 
                 // Update status
                 status: 'scheduled',
