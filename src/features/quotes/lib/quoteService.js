@@ -464,6 +464,10 @@ export const acceptQuote = async (contractorId, quoteId, customerMessage = '') =
                 address: quote.customer?.address || ''
             },
             customerId: quote.customerId || null,
+
+            // FIX: Add createdBy to match direct service requests
+            // This ensures the job appears on homeowner dashboards
+            createdBy: quote.customerId || null,
             
             // Job details (from quote)
             title: quote.title,
