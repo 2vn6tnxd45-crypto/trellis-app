@@ -9,7 +9,7 @@ import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
 
-// ADD: contractorId prop
+// ADD: contractorId prop to link the schedule to the specific pro
 export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     // userType: 'homeowner' | 'contractor'
     const [isProposing, setIsProposing] = useState(false);
@@ -36,7 +36,7 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
                 lastActivity: serverTimestamp()
             };
 
-            // CRITICAL CHANGE: Link the contractor to this job if they are the one proposing
+            // Link the contractor to this job if they are the one proposing
             if (userType === 'contractor' && contractorId) {
                 updateData.contractorId = contractorId;
             }
@@ -95,7 +95,8 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
         try {
             await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
                 'estimate.status': 'approved',
-                status: 'scheduled' // or 'approved' depending on workflow preference
+                // Don't mark scheduled yet, move to scheduling phase
+                status: 'scheduling' 
             });
             toast.success("Estimate approved!");
             if (onUpdate) onUpdate();
@@ -107,19 +108,25 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     // -- RENDER HELPERS --
 
     const renderTimeline = () => {
-        // Simple timeline construction
-        const events = [...(job.proposedTimes || [])];
-        
         return (
             <div className="space-y-4 mb-6">
                 {/* Initial Request Bubble */}
                 <div className="flex gap-3 text-sm text-slate-600">
                     <div className="mt-1"><MessageSquare size={16} /></div>
-                    <div className="bg-slate-50 p-3 rounded-lg rounded-tl-none border border-slate-100">
+                    <div className="bg-slate-50 p-3 rounded-lg rounded-tl-none border border-slate-100 w-full">
                         <p className="font-medium text-slate-900">Request Created</p>
                         <p>{job.description}</p>
                     </div>
                 </div>
+                
+                {/* Quote Accepted Bubble */}
+                {job.estimate?.status === 'approved' && (
+                     <div className="flex justify-center my-4">
+                        <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full border border-emerald-200">
+                            Quote Accepted (${job.estimate.amount})
+                        </span>
+                     </div>
+                )}
 
                 {/* Proposals Bubbles */}
                 {job.proposedTimes?.map((p, i) => (
@@ -127,7 +134,7 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
                         <div className="mt-1"><Calendar size={16} className="text-slate-400" /></div>
                         <div className={`p-3 rounded-lg shadow-sm ${p.proposedBy === userType ? 'bg-emerald-50 text-emerald-900 rounded-tr-none border border-emerald-100' : 'bg-white border border-slate-200 rounded-tl-none'}`}>
                             <p className="font-bold text-xs uppercase mb-1 opacity-70">
-                                {p.proposedBy === 'contractor' ? 'Pro' : 'Homeowner'} proposed:
+                                {p.proposedBy === 'contractor' ? 'You' : 'Homeowner'} proposed:
                             </p>
                             <p className="text-lg font-medium">
                                 {new Date(p.date).toLocaleDateString()} @ {new Date(p.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -150,9 +157,9 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm h-full flex flex-col">
             {/* Header / Status Bar */}
-            <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="bg-slate-50 p-4 border-b border-slate-100 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
                     <Calendar className="text-emerald-600" size={20} />
                     <span className="font-bold text-slate-800">
@@ -168,12 +175,12 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
             </div>
 
             {/* Timeline Area */}
-            <div className="p-4 bg-slate-50/50 min-h-[150px] max-h-[400px] overflow-y-auto">
+            <div className="p-4 bg-slate-50/50 flex-grow overflow-y-auto min-h-[300px]">
                 {renderTimeline()}
             </div>
 
             {/* Actions Area */}
-            <div className="p-4 border-t border-slate-100 bg-white">
+            <div className="p-4 border-t border-slate-100 bg-white shrink-0">
                 {job.scheduledTime ? (
                     <div className="flex items-center gap-2 text-emerald-800 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                         <CheckCircle size={24} className="text-emerald-600 shrink-0" />
