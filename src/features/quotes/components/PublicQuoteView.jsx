@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
-    FileText, Clock, UserPlus, Save, ArrowLeft, Shield
+    FileText, Clock, UserPlus, Save, ArrowLeft, Shield, Users
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -178,7 +178,7 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 };
 
 // ============================================
-// MAIN QUOTE VIEW
+// MAIN QUOTE CONTENT VIEW
 // ============================================
 const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
@@ -264,7 +264,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                 Save this Quote to Krib
                             </h3>
                             <p className="text-emerald-100 text-sm mt-1">
-                                Create a free account or add to existing account to track this project.
+                                Create a free account to track this project, manage receipts, and organize your home.
                             </p>
                         </div>
                         <button 
@@ -273,7 +273,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             className="whitespace-nowrap px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center gap-2"
                         >
                             {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            {user ? 'Save to My Account' : 'Create Free Account or Add to Existing'}
+                            {user ? 'Save to My Account' : 'Create Free Account'}
                         </button>
                     </div>
                 )}
@@ -340,31 +340,35 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {(quote.lineItems || []).map((item, idx) => (
-                                    <React.Fragment key={item.id || idx}>
-                                        <tr>
-                                            <td className="px-4 py-3">
-                                                <p className="font-medium text-slate-800">{item.description}</p>
-                                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                                     <p className="text-xs text-slate-400 capitalize inline-block">{item.type}</p>
-                                                     {/* Specs */}
-                                                     {item.brand && <span className="text-xs text-slate-500">Brand: {item.brand}</span>}
-                                                     {item.model && <span className="text-xs text-slate-500">Model: {item.model}</span>}
-                                                     {item.warranty && (
-                                                        <span className="text-xs text-emerald-600 flex items-center gap-1">
-                                                            <Shield size={10} /> {item.warranty}
-                                                        </span>
-                                                     )}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
-                                            <td className="px-4 py-3 text-right text-slate-600">
-                                                ${(item.unitPrice || 0).toFixed(2)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-medium text-slate-800">
-                                                ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
-                                            </td>
-                                        </tr>
-                                    </React.Fragment>
+                                    <tr key={item.id || idx}>
+                                        <td className="px-4 py-3">
+                                            <p className="font-medium text-slate-800">{item.description}</p>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                                 <p className="text-xs text-slate-400 capitalize inline-block">{item.type}</p>
+                                                 {/* Conditional Fields based on Item Type */}
+                                                 {item.type === 'material' && (
+                                                     <>
+                                                        {item.brand && <span className="text-xs text-slate-500">Brand: {item.brand}</span>}
+                                                        {item.model && <span className="text-xs text-slate-500">Model: {item.model}</span>}
+                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> {item.warranty}</span>}
+                                                     </>
+                                                 )}
+                                                 {item.type === 'labor' && (
+                                                     <>
+                                                        {item.crewSize && <span className="text-xs text-slate-500 flex items-center gap-1"><Users size={10} /> {item.crewSize} Techs</span>}
+                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> {item.warranty}</span>}
+                                                     </>
+                                                 )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right text-slate-600">{item.quantity}</td>
+                                        <td className="px-4 py-3 text-right text-slate-600">
+                                            ${(item.unitPrice || 0).toFixed(2)}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-medium text-slate-800">
+                                            ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                        </td>
+                                    </tr>
                                 ))}
                             </tbody>
                         </table>
@@ -416,6 +420,15 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             <div className="bg-red-50 rounded-xl p-4 border border-red-100">
                                 <p className="text-xs font-bold text-red-500 uppercase mb-2">Exclusions</p>
                                 <p className="text-sm text-slate-600">{quote.exclusions}</p>
+                            </div>
+                        )}
+                        {/* Global Warranty Display */}
+                        {quote.clientWarranty && (
+                            <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 col-span-1 md:col-span-2">
+                                <p className="text-xs font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1">
+                                    <Shield size={14} /> Warranty
+                                </p>
+                                <p className="text-sm text-slate-700 font-medium">{quote.clientWarranty}</p>
                             </div>
                         )}
                     </div>
