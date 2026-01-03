@@ -8,6 +8,7 @@ import { updateDoc, doc, arrayUnion, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
+import { SlotPicker } from './SlotPicker';
 
 // ADD: contractorId prop to link the schedule to the specific pro
 export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
@@ -16,6 +17,26 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
     const [estimateAmount, setEstimateAmount] = useState('');
     const [showEstimateInput, setShowEstimateInput] = useState(false);
+
+    // Check for offered slots for homeowner
+    const hasOfferedSlots = job.scheduling?.offeredSlots?.some(s => s.status === 'offered');
+
+    // If homeowner and has offered slots, show picker:
+    if (userType === 'homeowner' && hasOfferedSlots) {
+        return (
+            <SlotPicker 
+                job={job}
+                onClose={() => {
+                    // Just triggering update or doing nothing depending on flow
+                }}
+                onSuccess={onUpdate}
+                onRequestNewTimes={() => {
+                    // Open request times logic, or handle it via a modal here
+                    toast('Please message the contractor to request new times');
+                }}
+            />
+        );
+    }
 
     const handleProposeTime = async () => {
         if (!proposal.date || !proposal.time) return toast.error("Please pick a date and time");
