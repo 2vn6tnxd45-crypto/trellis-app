@@ -395,6 +395,11 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                         const statusConfig = getStatusConfig(job.status);
                         const StatusIcon = statusConfig.icon;
                         
+                        // Get the latest proposal if one exists
+                        const latestProposal = job.proposedTimes && job.proposedTimes.length > 0 
+                            ? job.proposedTimes[job.proposedTimes.length - 1] 
+                            : null;
+
                         return (
                             <div 
                                 key={job.id} 
@@ -439,13 +444,22 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                                     {formatCurrency(job.total)}
                                                 </span>
                                             )}
-                                            {job.scheduledDate && (
-                                                <span className="text-slate-500 flex items-center gap-1">
+                                            {/* Show confirmed scheduled time */}
+                                            {job.scheduledTime && (
+                                                <span className="text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
                                                     <Calendar size={14} />
-                                                    {formatDate(job.scheduledDate)}
+                                                    {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
                                                 </span>
                                             )}
-                                            {!job.scheduledDate && job.createdAt && (
+                                            {/* Show latest proposed time if not yet confirmed */}
+                                            {!job.scheduledTime && latestProposal && (
+                                                <span className="text-amber-600 font-medium flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                                    <Clock size={14} />
+                                                    Proposed: {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
+                                                </span>
+                                            )}
+                                            {/* Show created date if no scheduling activity */}
+                                            {!job.scheduledTime && !latestProposal && job.createdAt && (
                                                 <span className="text-slate-400 text-xs">
                                                     Created {formatDate(job.createdAt)}
                                                 </span>
@@ -1211,7 +1225,7 @@ export const ContractorProApp = () => {
                         </div>
                         <div className="flex-grow overflow-hidden bg-slate-50">
                             <JobScheduler 
-                                job={selectedJob} 
+                                job={jobs.find(j => j.id === selectedJob.id) || selectedJob} 
                                 userType="contractor" 
                                 contractorId={profile?.id || user?.uid} 
                                 onUpdate={() => {
