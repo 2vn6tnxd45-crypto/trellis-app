@@ -9,7 +9,8 @@ import React, { useState, useEffect } from 'react';
 import { 
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
-    FileText, Clock, UserPlus, Save, ArrowLeft, Shield, Users
+    FileText, Clock, UserPlus, Save, ArrowLeft, Shield, Users,
+    Sparkles, Home, Plus // NEW IMPORTS
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -20,10 +21,9 @@ import {
     claimQuote
 } from '../lib/quoteService';
 import { AuthScreen } from '../../auth/AuthScreen';
-// UPDATED IMPORTS: Added doc and updateDoc
-import { waitForPendingWrites, doc, updateDoc } from 'firebase/firestore';
+// UPDATED IMPORTS: Added collection, getDocs
+import { waitForPendingWrites, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-// NEW IMPORT: Needed for the profile update path
 import { appId } from '../../../config/constants';
 
 // ============================================
@@ -132,6 +132,108 @@ const SuccessState = ({ quote, contractor }) => {
 };
 
 // ============================================
+// PROPERTY SELECTION MODAL (NEW)
+// ============================================
+const PropertySelectionModal = ({ 
+    isOpen, 
+    onClose, 
+    properties, 
+    quoteAddress,
+    onSelect,
+    onCreateNew 
+}) => {
+    const [selectedId, setSelectedId] = useState(null);
+    const [showCreateNew, setShowCreateNew] = useState(false);
+    
+    // Try to auto-match property by address
+    useEffect(() => {
+        if (quoteAddress && properties.length > 0) {
+            const match = properties.find(p => 
+                p.address?.street?.toLowerCase().includes(quoteAddress.toLowerCase()) ||
+                quoteAddress.toLowerCase().includes(p.address?.street?.toLowerCase())
+            );
+            if (match) {
+                setSelectedId(match.id);
+            }
+        }
+    }, [quoteAddress, properties]);
+    
+    if (!isOpen) return null;
+    
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="p-6 border-b border-slate-100">
+                    <h3 className="text-xl font-bold text-slate-800">
+                        Which property is this quote for?
+                    </h3>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Quote address: {quoteAddress || 'Not specified'}
+                    </p>
+                </div>
+                
+                <div className="p-4 max-h-64 overflow-y-auto space-y-2">
+                    {properties.map(prop => (
+                        <button
+                            key={prop.id}
+                            onClick={() => setSelectedId(prop.id)}
+                            className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
+                                selectedId === prop.id
+                                    ? 'border-emerald-500 bg-emerald-50'
+                                    : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <Home className={selectedId === prop.id ? 'text-emerald-600' : 'text-slate-400'} />
+                                <div>
+                                    <p className="font-bold text-slate-800">{prop.name}</p>
+                                    <p className="text-sm text-slate-500">
+                                        {prop.address?.street}, {prop.address?.city}
+                                    </p>
+                                </div>
+                                {selectedId === prop.id && (
+                                    <CheckCircle className="ml-auto text-emerald-600" />
+                                )}
+                            </div>
+                        </button>
+                    ))}
+                    
+                    {/* Create New Property Option */}
+                    <button
+                        onClick={() => onCreateNew()}
+                        className="w-full p-4 rounded-xl border-2 border-dashed border-slate-300 
+                                   text-left hover:border-emerald-500 hover:bg-emerald-50 transition-all"
+                    >
+                        <div className="flex items-center gap-3 text-slate-600">
+                            <Plus />
+                            <span className="font-medium">Add this as a new property</span>
+                        </div>
+                    </button>
+                </div>
+                
+                <div className="p-4 border-t border-slate-100 flex gap-3">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 py-3 border border-slate-300 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={() => onSelect(selectedId)}
+                        disabled={!selectedId}
+                        className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold 
+                                   disabled:opacity-50 hover:bg-emerald-700 transition-colors"
+                    >
+                        Add Quote
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // DECLINE MODAL
 // ============================================
 const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
@@ -183,11 +285,10 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 // ============================================
 // MAIN QUOTE CONTENT VIEW
 // ============================================
-const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave }) => {
+const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave, isSaving, alreadyClaimed }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
     
     const formatDate = (timestamp) => {
         if (!timestamp) return '—';
@@ -220,15 +321,6 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
             setIsDeclining(false);
         }
     };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await onSave();
-        } finally {
-            setIsSaving(false);
-        }
-    };
     
     const canRespond = ['sent', 'viewed'].includes(quote.status);
 
@@ -258,25 +350,32 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                     </button>
                 )}
 
-                {/* NEW: Onboarding Call-to-Action (Only if not already claimed/owned by this user) */}
-                {(!quote.customerId || (user && quote.customerId !== user.uid)) && (
-                    <div className="bg-emerald-900 rounded-2xl p-6 mb-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                {/* --- UPDATED: Account Call-to-Action (Sticky) --- */}
+                {!alreadyClaimed && (
+                    <div className="sticky top-0 z-20 bg-gradient-to-br from-emerald-800 to-emerald-900 
+                                    text-white p-4 rounded-xl mb-6 flex flex-col sm:flex-row justify-between items-center shadow-lg gap-4">
                         <div>
-                            <h3 className="font-bold text-lg flex items-center gap-2">
-                                <UserPlus size={20} className="text-emerald-400" />
-                                Save this Quote to Krib
-                            </h3>
-                            <p className="text-emerald-100 text-sm mt-1">
-                                Create a free account to track this project, manage receipts, and organize your home.
+                            <div className="flex items-center gap-2">
+                                <Sparkles size={16} className="text-emerald-300" />
+                                <p className="font-bold">
+                                    {user ? 'Add to Your Account' : 'Save this Quote to Krib'}
+                                </p>
+                            </div>
+                            <p className="text-emerald-200 text-sm mt-1">
+                                {user 
+                                    ? 'Track this project alongside your other home records'
+                                    : 'Create a free account to track this project, manage receipts, and organize your home.'
+                                }
                             </p>
                         </div>
                         <button 
-                            onClick={handleSave}
+                            onClick={onSave}
                             disabled={isSaving}
-                            className="whitespace-nowrap px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                            className="bg-white text-emerald-900 px-4 py-2 rounded-xl font-bold 
+                                       hover:bg-emerald-50 transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm"
                         >
                             {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            {user ? 'Save to My Account' : 'Create Free Account'}
+                            {user ? 'Add to Account' : 'Create Free Account'}
                         </button>
                     </div>
                 )}
@@ -518,11 +617,15 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [data, setData] = useState(null);
     const [accepted, setAccepted] = useState(false);
     
-    // NEW: Auth Modal State
+    // NEW: Auth Modal & Property Selection State
     const [showAuth, setShowAuth] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
     const [isClaiming, setIsClaiming] = useState(false);
     const [alreadyClaimed, setAlreadyClaimed] = useState(false);
+    
+    // Multi-property state
+    const [showPropertySelection, setShowPropertySelection] = useState(false);
+    const [userProperties, setUserProperties] = useState([]);
 
     // Check if already claimed on mount
     useEffect(() => {
@@ -533,17 +636,15 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
     useEffect(() => {
         let isMounted = true;
-        let hasSetLoading = false; // Track if we've finished loading
+        let hasSetLoading = false;
 
         const loadQuote = async () => {
             try {
-                console.log("Loading quote for token:", shareToken);
                 const result = await getQuoteByShareToken(shareToken);
                 
                 if (!isMounted) return;
 
                 if (!result || !result.quote) {
-                    console.error("Quote not found in DB");
                     setError('This quote could not be found. It may have been deleted.');
                     setLoading(false);
                     hasSetLoading = true;
@@ -551,10 +652,9 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 }
                 
                 setData(result);
-                setLoading(false); // STOP LOADING HERE (Don't wait for view count)
+                setLoading(false);
                 hasSetLoading = true;
                 
-                // Fire-and-forget view count update
                 if (result.quote.status === 'sent') {
                     markQuoteViewed(result.contractorId, result.quote.id)
                         .catch(e => console.warn("Background view update failed:", e));
@@ -570,7 +670,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         
         loadQuote();
 
-        // Safety Timeout: Force stop loading if it hangs for 10s
         const timeout = setTimeout(() => {
             if (isMounted && !hasSetLoading) {
                 setLoading(false);
@@ -584,68 +683,34 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         };
     }, [shareToken]);
 
-    // Handle Save/Claim
-    const handleSaveQuote = async () => {
-        // If not logged in, show auth modal and set pending flag
-        if (!user) {
-            setPendingSave(true);
-            setShowAuth(true);
-            
-            // NEW: Store quote address for potential new user onboarding
-            if (data?.quote?.customer?.address) {
-                try {
-                    localStorage.setItem('pendingQuoteAddress', data.quote.customer.address);
-                } catch (e) {
-                    console.warn('Failed to save pending quote address', e);
-                }
-            }
-            return;
-        }
-
-        // Prevent double-claiming
-        if (alreadyClaimed) {
-            toast.info('This quote is already in your account');
-            window.location.href = window.location.origin + '/app?from=quote';
-            return;
-        }
-
-        // Prevent multiple clicks
-        if (isClaiming) return;
-
+    // Perform the actual claim operation
+    const executeClaim = async (propertyId = null) => {
         setIsClaiming(true);
-
         try {
-            await claimQuote(data.contractorId, data.quote.id, user.uid);
+            // If propertyId is provided, we might need to pass it to claimQuote
+            // Assuming claimQuote now accepts propertyId as 4th arg based on plan
+            await claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
             
-            // --- NEW LOGIC START ---
-            // Mark the welcome screen as "seen" so the user skips directly to the Dashboard
-            // This is only relevant for new users who just signed up to view this quote
+            // Mark welcome seen
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { 
                     hasSeenWelcome: true 
                 });
             } catch (e) {
-                // Not critical if this fails, they just see the welcome screen once
                 console.warn("Could not mark welcome as seen", e);
             }
-            // --- NEW LOGIC END ---
 
             toast.success('Quote saved to your account!');
-            
-            // Clear pending address now that we claimed
             localStorage.removeItem('pendingQuoteAddress');
+            setShowPropertySelection(false);
             
-            // FIX: Properly wait for Firestore to sync all pending writes
             try {
                 await waitForPendingWrites(db);
             } catch (syncErr) {
                 console.warn('waitForPendingWrites skipped:', syncErr.message);
             }
             
-            // Small additional buffer for IndexedDB transaction completion
             await new Promise(r => setTimeout(r, 300));
-            
-            // REDIRECT TO DASHBOARD
             window.location.href = window.location.origin + '/app?from=quote';
             
         } catch (err) {
@@ -655,7 +720,51 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     };
 
-    // Effect to trigger save AFTER login
+    const handleSaveQuote = async () => {
+        // 1. Auth check
+        if (!user) {
+            setPendingSave(true);
+            setShowAuth(true);
+            if (data?.quote?.customer?.address) {
+                try {
+                    localStorage.setItem('pendingQuoteAddress', data.quote.customer.address);
+                } catch (e) {}
+            }
+            return;
+        }
+
+        if (alreadyClaimed) {
+            toast.info('This quote is already in your account');
+            window.location.href = window.location.origin + '/app?from=quote';
+            return;
+        }
+
+        if (isClaiming) return;
+
+        // 2. Fetch User Properties to check count
+        try {
+            const propertiesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'properties');
+            const snapshot = await getDocs(propertiesRef);
+            const properties = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            setUserProperties(properties);
+
+            if (properties.length > 1) {
+                // Show modal for selection
+                setShowPropertySelection(true);
+            } else {
+                // 0 or 1 property - Default behavior
+                // Pass the single property ID if available, otherwise null
+                const propertyId = properties[0]?.id || null;
+                await executeClaim(propertyId);
+            }
+        } catch (err) {
+            console.error('Error checking properties:', err);
+            // Fallback to direct claim if property check fails
+            await executeClaim(null);
+        }
+    };
+
+    // Trigger save after login if pending
     useEffect(() => {
         if (user && pendingSave && data && !isClaiming) {
             setPendingSave(false);
@@ -665,31 +774,25 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     }, [user, pendingSave, data, isClaiming]);
     
     const handleAccept = async () => {
-    try {
-        const result = await acceptQuote(data.contractorId, data.quote.id);
-        setAccepted(true);
-        toast.success('Quote accepted! The contractor will be in touch to schedule.');
-        
-        // Optional: log for debugging
-        console.log('Job created:', result.jobId);
-    } catch (err) {
-        console.error('Error accepting quote:', err);
-        toast.error('Failed to accept quote. Please try again.');
-        throw err;
-    }
-};
+        try {
+            const result = await acceptQuote(data.contractorId, data.quote.id);
+            setAccepted(true);
+            toast.success('Quote accepted! The contractor will be in touch to schedule.');
+        } catch (err) {
+            console.error('Error accepting quote:', err);
+            toast.error('Failed to accept quote. Please try again.');
+        }
+    };
     
     const handleDecline = async (reason) => {
         try {
             await declineQuote(data.contractorId, data.quote.id, reason);
-            // Reload the quote to show declined state
             const result = await getQuoteByShareToken(shareToken);
             setData(result);
             toast.success('Quote declined');
         } catch (err) {
             console.error('Error declining quote:', err);
             toast.error('Failed to decline quote. Please try again.');
-            throw err;
         }
     };
     
@@ -697,12 +800,10 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     if (error) return <ErrorState message={error} />;
     if (!data) return <ErrorState message="Quote not found" />;
     
-    // Check if expired
     if (data.quote.status === 'expired') {
         return <ExpiredState quote={data.quote} contractor={data.contractor} />;
     }
     
-    // Show success state after accepting
     if (accepted) {
         return <SuccessState quote={data.quote} contractor={data.contractor} />;
     }
@@ -717,10 +818,19 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                             <XCircle size={24} className="text-slate-400" />
                         </button>
                     </div>
-                    {/* Reuse existing AuthScreen in modal mode */}
                     <AuthScreen isModal={true} /> 
                 </div>
             )}
+
+            {/* Property Selection Modal */}
+            <PropertySelectionModal
+                isOpen={showPropertySelection}
+                onClose={() => setShowPropertySelection(false)}
+                properties={userProperties}
+                quoteAddress={data.quote.customer?.address}
+                onSelect={(propId) => executeClaim(propId)}
+                onCreateNew={() => executeClaim(null)} // Pass null to trigger new property flow in claimQuote (if supported) or just claim without assigning
+            />
 
             <QuoteContent
                 quote={data.quote}
@@ -730,6 +840,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 onAccept={handleAccept}
                 onDecline={handleDecline}
                 onSave={handleSaveQuote}
+                isSaving={isClaiming}
+                alreadyClaimed={alreadyClaimed}
             />
         </>
     );
