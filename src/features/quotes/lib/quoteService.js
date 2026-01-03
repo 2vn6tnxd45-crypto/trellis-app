@@ -440,70 +440,87 @@ export const acceptQuote = async (contractorId, quoteId, customerMessage = '') =
         // ============================================
         // STEP 2: Create the Job
         // ============================================
-        const jobNumber = await generateJobNumber(contractorId);
-        const jobRef = doc(collection(db, REQUESTS_COLLECTION_PATH));
-        
-        const jobData = {
-            // Identity
-            id: jobRef.id,
-            jobNumber,
-            
-            // Link to source
-            sourceType: 'quote',
-            sourceQuoteId: quoteId,
-            sourceQuoteNumber: quote.quoteNumber,
-            
-            // Contractor ownership
-            contractorId,
-            
-            // Customer info (copied from quote)
-            customer: {
-                name: quote.customer?.name || '',
-                email: quote.customer?.email || '',
-                phone: quote.customer?.phone || '',
-                address: quote.customer?.address || ''
-            },
-            customerId: quote.customerId || null,
+        // STEP 2: Get Contractor Profile for name
+const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+const contractorSnap = await getDoc(contractorRef);
+const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : null;
 
-            // FIX: Add createdBy to match direct service requests
-            // This ensures the job appears on homeowner dashboards
-            createdBy: quote.customerId || null,
-            
-            // Job details (from quote)
-            title: quote.title,
-            description: quote.notes || '',
-            lineItems: quote.lineItems || [],
-            
-            // Financials
-            subtotal: quote.subtotal || 0,
-            taxRate: quote.taxRate || 0,
-            taxAmount: quote.taxAmount || 0,
-            total: quote.total || 0,
-            
-            // Status
-            status: JOB_STATUSES.PENDING_SCHEDULE,
-            
-            // Scheduling (to be filled later)
-            scheduledDate: null,
-            scheduledTime: null,
-            estimatedDuration: null,
-            
-            // Work tracking
-            workNotes: [],
-            attachments: [],
-            
-            // Timestamps
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastActivity: serverTimestamp(),
-            acceptedAt: serverTimestamp(),
-            scheduledAt: null,
-            startedAt: null,
-            completedAt: null,
-            
-            // Customer message on acceptance
-            customerAcceptanceMessage: customerMessage || null
-        };
+// STEP 3: Create the Job
+const jobNumber = await generateJobNumber(contractorId);
+const jobRef = doc(collection(db, REQUESTS_COLLECTION_PATH));
+
+const jobData = {
+    // Identity
+    id: jobRef.id,
+    jobNumber,
+    
+    // Link to source
+    sourceType: 'quote',
+    sourceQuoteId: quoteId,
+    sourceQuoteNumber: quote.quoteNumber,
+    
+    // Contractor ownership
+    contractorId,
+    
+    // NEW: Contractor display info
+    contractorName: contractorProfile?.companyName || contractorProfile?.displayName || 'Contractor',
+    contractorPhone: contractorProfile?.phone || null,
+    contractorEmail: contractorProfile?.email || null,
+    
+    // Customer info (copied from quote)
+    customer: {
+        name: quote.customer?.name || '',
+        email: quote.customer?.email || '',
+        phone: quote.customer?.phone || '',
+        address: quote.customer?.address || ''
+    },
+    customerId: quote.customerId || null,
+    
+    // FIX: Add createdBy to match direct service requests
+    createdBy: quote.customerId || null,
+    
+    // Service address (for routing/display)
+    serviceAddress: quote.customer?.address ? {
+        formatted: quote.customer.address,
+        street: quote.customer.address,
+        // Note: For full geo support, you'd parse/geocode the address
+    } : null,
+    
+    // Job details (from quote)
+    title: quote.title,
+    description: quote.notes || '',
+    lineItems: quote.lineItems || [],
+    
+    // Financials
+    subtotal: quote.subtotal || 0,
+    taxRate: quote.taxRate || 0,
+    taxAmount: quote.taxAmount || 0,
+    total: quote.total || 0,
+    
+    // Status
+    status: JOB_STATUSES.PENDING_SCHEDULE,
+    
+    // Scheduling (to be filled later)
+    scheduledDate: null,
+    scheduledTime: null,
+    estimatedDuration: null,
+    
+    // Work tracking
+    workNotes: [],
+    attachments: [],
+    
+    // Timestamps
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    lastActivity: serverTimestamp(),
+    acceptedAt: serverTimestamp(),
+    scheduledAt: null,
+    startedAt: null,
+    completedAt: null,
+    
+    // Customer message on acceptance
+    customerAcceptanceMessage: customerMessage || null
+};
         
         batch.set(jobRef, jobData);
         
