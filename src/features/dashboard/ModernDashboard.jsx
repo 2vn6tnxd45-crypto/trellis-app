@@ -94,38 +94,53 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
-// --- ACTIVE PROJECTS SECTION (NEW) ---
+// --- ACTIVE PROJECTS SECTION (DEBUGGING VERSION) ---
 
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // DEBUG: Log immediately on every render
+    console.log("🔍 ActiveProjectsSection MOUNTED. userId =", userId);
+    console.log("🔍 Collection Path:", REQUESTS_COLLECTION_PATH);
+
     useEffect(() => {
-        if (!userId) return;
+        if (!userId) {
+            console.warn("⚠️ ActiveProjectsSection: No userId provided! Effect skipping.");
+            return;
+        }
         
-        // Listen for requests that are active
+        console.log("✅ Starting Firestore Listener for:", userId);
+        
         const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
+        
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            console.log("📦 Snapshot received! Docs count:", snapshot.docs.length);
+            
             const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
-            // Filter active jobs
+            // Log ALL data to see if we're filtering too aggressively
+            console.log("📄 All Requests:", data);
+
             const active = data.filter(r => 
                 ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
                 (r.status === 'quoted' && r.estimate?.status === 'approved')
             );
             
-            // DEBUG: Log what we found to help you trace it
-            console.log("🔥 Active Projects Found:", active);
+            console.log("🔥 Filtered Active Projects:", active);
             
             setProjects(active);
             setLoading(false);
+        }, (error) => {
+            console.error("❌ Firestore Error:", error);
         });
         
         return () => unsubscribe();
     }, [userId]);
 
-    if (loading || projects.length === 0) return null;
+    if (loading) return <div className="p-4 text-xs text-slate-400">Loading projects...</div>;
+    if (projects.length === 0) return null;
 
     const getStatusBadge = (status) => {
         switch(status) {
