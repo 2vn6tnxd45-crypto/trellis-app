@@ -5,8 +5,8 @@
 // Step-by-step wizard that gets users to add their first 3 items
 // in under 2 minutes. This is critical for retention.
 
-import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom'; // ADDED: Import useLocation
+import React, { useState, useEffect } from 'react';
+// REMOVED: import { useLocation } from 'react-router-dom'; 
 import { 
     Thermometer, Droplets, Home, Zap, Refrigerator, 
     ChevronRight, ChevronLeft, Check, Sparkles, Camera,
@@ -184,11 +184,18 @@ const CompletionScreen = ({ itemsAdded, onFinish, onScanReceipt }) => (
 );
 
 export const GuidedOnboarding = ({ propertyName, onComplete, onAddItem, onScanReceipt, onDismiss }) => {
-    const location = useLocation(); // ADDED: Get location
-    const shouldSkipWelcome = location.state?.skipWelcome; // ADDED: Check flag
+    // UPDATED: Use sessionStorage instead of react-router location
+    const [shouldSkipWelcome, setShouldSkipWelcome] = useState(false);
+
+    useEffect(() => {
+        const skip = sessionStorage.getItem('skipWelcome') === 'true';
+        setShouldSkipWelcome(skip);
+        // Optional: clear it so it doesn't persist forever
+        // if (skip) sessionStorage.removeItem('skipWelcome');
+    }, []);
     
-    // UPDATED: Initialize step based on flag (assuming 0 is normal start, you can adjust to 1 if needed)
-    const [currentStep, setCurrentStep] = useState(shouldSkipWelcome ? 0 : 0); 
+    // UPDATED: Initialize step based on flag (currently both 0, adjust if you want to skip a step)
+    const [currentStep, setCurrentStep] = useState(0); 
     
     const [itemsAdded, setItemsAdded] = useState([]);
     const [showCompletion, setShowCompletion] = useState(false);
