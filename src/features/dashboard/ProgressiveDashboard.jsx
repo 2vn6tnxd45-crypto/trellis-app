@@ -13,7 +13,7 @@ import {
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
     // NEW IMPORTS for Active Projects
-    Hammer, Calendar, Clock, ChevronRight, X, Info
+    Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -497,131 +497,192 @@ const MyQuotesSection = ({ userId }) => {
     if (loading || (!quotes.length && error !== 'missing-index')) return null;
 
     return (
-        <div className="mb-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <FileText className="text-emerald-600" />
-                My Quotes & Estimates
-            </h2>
-
+        <DashboardSection 
+            title="My Quotes & Estimates" 
+            icon={FileText} 
+            defaultOpen={true}
+            summary={<span className="text-xs text-emerald-600 font-bold">{quotes.length} Active</span>}
+        >
             {error === 'missing-index' ? (
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
                     <AlertTriangle className="shrink-0" />
                     <div>
                         <p className="font-bold">Setup Required (Developer Only)</p>
                         <p>A "Collection Group Index" is required to view these quotes.</p>
-                        <p className="mt-1">Check the browser console for the creation link.</p>
                     </div>
                 </div>
-            ) : quotes.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
+            ) : (
+                <div className="space-y-3">
                     {quotes.map(quote => (
                         <a 
                             key={quote.id}
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}
-                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
+                            className="block bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all group relative"
                         >
-                            {/* DELETE BUTTON */}
-                            <button 
-                                onClick={(e) => handleDelete(e, quote)}
-                                className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                title="Remove from profile"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-
-                            <div className="flex justify-between items-start mb-2">
-                                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate pr-2">
-                                    {quote.title}
-                                </h3>
-                                <span className={`px-2 py-1 rounded text-xs font-bold capitalize shrink-0
+                            {/* Header Row */}
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex-1 min-w-0 pr-8">
+                                    <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
+                                        {quote.title}
+                                    </h3>
+                                    <p className="text-sm text-slate-500 mt-0.5">
+                                        {quote.contractorName || quote.contractor?.companyName || 'Contractor'}
+                                    </p>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize shrink-0 flex items-center gap-1
                                     ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
-                                      quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}
+                                      quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 
+                                      quote.status === 'viewed' ? 'bg-purple-100 text-purple-700' :
+                                      'bg-slate-100 text-slate-600'}
                                 `}>
+                                    {quote.status === 'accepted' && <CheckCircle2 size={12} />}
                                     {quote.status}
                                 </span>
+                                
+                                {/* Delete button */}
+                                <button 
+                                    onClick={(e) => handleDelete(e, quote)}
+                                    className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                    title="Remove from profile"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
                             </div>
-                            <div className="flex justify-between items-center text-sm text-slate-500">
-                                <span>${(quote.total || 0).toLocaleString()}</span>
-                                <span className="flex items-center gap-1">
-                                    View <ExternalLink size={14} />
+                            
+                            {/* Details Row */}
+                            <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+                                <span className="text-sm text-slate-500">Total:</span>
+                                <span className="font-bold text-slate-800 text-lg">
+                                    ${(quote.total || 0).toLocaleString()}
                                 </span>
                             </div>
+                            
+                            {/* Action hint */}
+                            {quote.status !== 'accepted' && (
+                                <div className="mt-3 pt-3 border-t border-slate-100">
+                                    <span className="text-emerald-600 font-medium text-sm flex items-center gap-1">
+                                        Review Quote <ChevronRight size={14} />
+                                    </span>
+                                </div>
+                            )}
                         </a>
                     ))}
                 </div>
-            ) : null}
-        </div>
+            )}
+        </DashboardSection>
     );
 };
 
 // ============================================
 // EMPTY STATE (0 items)
 // ============================================
-const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink }) => (
-    <div className="flex flex-col items-center justify-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
-            <Home size={40} className="text-emerald-700" />
-        </div>
-        
-        <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
-            Welcome to {propertyName || 'Your Home'}
-        </h1>
-        
-        {activeProperty?.address && (
-            <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full mb-4">
-                <MapPin size={12} className="text-emerald-600 mr-1.5" />
-                <p className="text-slate-600 text-xs font-medium">
-                    {typeof activeProperty.address === 'string' 
-                        ? activeProperty.address 
-                        : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
-                    }
-                </p>
-            </div>
-        )}
+const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink }) => {
+    // Get property data even in empty state
+    const { address, coordinates } = activeProperty || {};
+    const {
+        propertyData,
+        loading: propertyLoading,
+    } = usePropertyData(address, coordinates);
 
-        {/* ACTIVE PROJECTS & QUOTES */}
-        <div className="w-full max-w-lg text-left mb-8">
-            <ActiveProjectsSection userId={userId} />
-            <MyQuotesSection userId={userId} />
-        </div>
-        
-        <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
-            Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
-        </p>
-        
-        <div className="w-full max-w-sm space-y-4">
-            <button 
-                onClick={onScanReceipt}
-                className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
-            >
-                <Camera size={24} />
-                Scan a Receipt
-                <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
-                    <Sparkles size={10} />
-                    AI
-                </span>
-            </button>
+    return (
+        <div className="flex flex-col items-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
+                <Home size={40} className="text-emerald-700" />
+            </div>
             
-            {onCreateContractorLink && (
-                <button 
-                    onClick={onCreateContractorLink}
-                    className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
-                >
-                    <Wrench size={20} />
-                    Have Contractor Add It
-                    <Send size={16} className="text-amber-600" />
-                </button>
+            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
+                Welcome to {propertyName || 'Your Home'}
+            </h1>
+            
+            {activeProperty?.address && (
+                <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full mb-6">
+                    <MapPin size={12} className="text-emerald-600 mr-1.5" />
+                    <p className="text-slate-600 text-xs font-medium">
+                        {typeof activeProperty.address === 'string' 
+                            ? activeProperty.address 
+                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                        }
+                    </p>
+                </div>
             )}
+
+            {/* Property Quick Stats - Show even in empty state */}
+            {propertyData && !propertyLoading && (
+                <div className="w-full max-w-lg mb-6">
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Home size={16} className="text-emerald-600" />
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Property Details</span>
+                            <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">County Records</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2">
+                            <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-slate-800">{propertyData.yearBuilt || '--'}</p>
+                                <p className="text-[10px] text-slate-500 font-medium uppercase">Built</p>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-slate-800">{propertyData.squareFootage ? propertyData.squareFootage.toLocaleString() : '--'}</p>
+                                <p className="text-[10px] text-slate-500 font-medium uppercase">Sq Ft</p>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-slate-800">{propertyData.bedrooms || '--'}</p>
+                                <p className="text-[10px] text-slate-500 font-medium uppercase">Beds</p>
+                            </div>
+                            <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-slate-800">{propertyData.bathrooms || '--'}</p>
+                                <p className="text-[10px] text-slate-500 font-medium uppercase">Baths</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ACTIVE PROJECTS & QUOTES - Full width with consistent styling */}
+            <div className="w-full max-w-lg text-left mb-6">
+                <ActiveProjectsSection userId={userId} />
+                <div className="mt-4">
+                    <MyQuotesSection userId={userId} />
+                </div>
+            </div>
             
-            <button 
-                onClick={onAddItem}
-                className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
-            >
-                or add details manually
-            </button>
+            <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
+                Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
+            </p>
+            
+            <div className="w-full max-w-sm space-y-4">
+                <button 
+                    onClick={onScanReceipt}
+                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
+                >
+                    <Camera size={24} />
+                    Scan a Receipt
+                    <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
+                        <Sparkles size={10} />
+                        AI
+                    </span>
+                </button>
+                
+                {onCreateContractorLink && (
+                    <button 
+                        onClick={onCreateContractorLink}
+                        className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                    >
+                        <Wrench size={20} />
+                        Have Contractor Add It
+                        <Send size={16} className="text-amber-600" />
+                    </button>
+                )}
+                
+                <button 
+                    onClick={onAddItem}
+                    className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
+                >
+                    or add details manually
+                </button>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ============================================
 // PROPERTY INTEL TEASER (for getting started)
