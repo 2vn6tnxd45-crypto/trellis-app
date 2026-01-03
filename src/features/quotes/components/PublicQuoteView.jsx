@@ -20,8 +20,11 @@ import {
     claimQuote
 } from '../lib/quoteService';
 import { AuthScreen } from '../../auth/AuthScreen';
-import { waitForPendingWrites } from 'firebase/firestore';
+// UPDATED IMPORTS: Added doc and updateDoc
+import { waitForPendingWrites, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+// NEW IMPORT: Needed for the profile update path
+import { appId } from '../../../config/constants';
 
 // ============================================
 // LOADING STATE
@@ -613,6 +616,20 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         try {
             await claimQuote(data.contractorId, data.quote.id, user.uid);
+            
+            // --- NEW LOGIC START ---
+            // Mark the welcome screen as "seen" so the user skips directly to the Dashboard
+            // This is only relevant for new users who just signed up to view this quote
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile'), { 
+                    hasSeenWelcome: true 
+                });
+            } catch (e) {
+                // Not critical if this fails, they just see the welcome screen once
+                console.warn("Could not mark welcome as seen", e);
+            }
+            // --- NEW LOGIC END ---
+
             toast.success('Quote saved to your account!');
             
             // Clear pending address now that we claimed
