@@ -5,7 +5,7 @@
 // Main application wrapper for contractor dashboard with routing
 // UPDATED: Added Job Scheduling Integration
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
@@ -25,6 +25,9 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
 import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
+import { ContractorCalendar } from './components/ContractorCalendar';
+import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
+import { BusinessSettings } from './components/BusinessSettings';
 
 // ADDED: Quote Components
 import { 
@@ -89,7 +92,8 @@ const SidebarNav = ({
     onSignOut,
     pendingCount,
     pendingQuotesCount,
-    activeJobsCount 
+    activeJobsCount,
+    unscheduledJobsCount
 }) => {
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
     const email = profile?.profile?.email || '';
@@ -129,6 +133,13 @@ const SidebarNav = ({
                     active={activeView === 'jobs'}
                     onClick={() => onNavigate('jobs')}
                     badge={activeJobsCount}
+                />
+                <NavItem 
+                    icon={Calendar} 
+                    label="Schedule" 
+                    active={activeView === 'schedule'}
+                    onClick={() => onNavigate('schedule')}
+                    badge={unscheduledJobsCount}
                 />
                 <NavItem 
                     icon={Receipt}
@@ -187,14 +198,14 @@ const SidebarNav = ({
 // ============================================
 // MOBILE NAV
 // ============================================
-const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount }) => (
+const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount }) => (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
                 { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: activeJobsCount },
+                { id: 'schedule', icon: Calendar, label: 'Schedule', badge: unscheduledJobsCount },
                 { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount },
-                { id: 'invoices', icon: ScrollIcon, label: 'Invoice' },
                 { id: 'profile', icon: User, label: 'Profile' },
             ].map(item => (
                 <button
@@ -909,6 +920,7 @@ export const ContractorProApp = () => {
     const [selectedQuote, setSelectedQuote] = useState(null); // ADDED: Selected quote state
     const [selectedJob, setSelectedJob] = useState(null); // ADDED: Selected job state for modal
     const [isSavingProfile, setIsSavingProfile] = useState(false); // NEW: State for setup screen
+    const [offeringTimesJob, setOfferingTimesJob] = useState(null); // ADDED: For Calendar integration
 
     const {
         user,
@@ -957,6 +969,15 @@ export const ContractorProApp = () => {
     const activeJobsCount = jobs?.filter(j => 
         j.status !== 'completed' && j.status !== 'cancelled'
     ).length || 0;
+
+    // ADDED: Count unscheduled jobs
+    const unscheduledJobsCount = useMemo(() => {
+        return jobs?.filter(job => 
+            !job.scheduledTime && 
+            !job.scheduledDate &&
+            !['completed', 'cancelled'].includes(job.status)
+        ).length || 0;
+    }, [jobs]);
     
     // NEW: Handler for initial profile setup
     const handleInitialSetup = async (formData) => {
@@ -1063,7 +1084,7 @@ export const ContractorProApp = () => {
     // ADDED: Job Click Handler for Scheduler
     const handleJobClick = useCallback((job) => {
         // Open scheduler for relevant statuses
-        if (['quoted', 'scheduling', 'scheduled', 'pending_schedule'].includes(job.status)) {
+        if (['quoted', 'scheduling', 'scheduled', 'pending_schedule', 'slots_offered'].includes(job.status)) {
             setSelectedJob(job);
         } else {
             // For other states (like just created 'pending'), functionality might differ
@@ -1075,6 +1096,7 @@ export const ContractorProApp = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
             case 'jobs': return 'My Jobs'; 
+            case 'schedule': return 'Schedule'; // ADDED
             case 'quotes': return 'Quotes'; // ADDED
             case 'create-quote': return 'New Quote'; // ADDED
             case 'quote-detail': return 'Quote Details'; // ADDED
@@ -1119,6 +1141,7 @@ export const ContractorProApp = () => {
                 pendingCount={pendingInvitations.length}
                 pendingQuotesCount={pendingQuotes?.length || 0}
                 activeJobsCount={activeJobsCount}
+                unscheduledJobsCount={unscheduledJobsCount}
             />
             
             <div className="flex-1 flex flex-col min-h-screen">
@@ -1141,6 +1164,16 @@ export const ContractorProApp = () => {
                     {/* UPDATED: Pass handleJobClick to JobsView */}
                     {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} onSelectJob={handleJobClick} />}
                     
+                    {/* ADDED: Schedule View */}
+                    {activeView === 'schedule' && (
+                        <ContractorCalendar 
+                            jobs={jobs}
+                            onSelectJob={handleJobClick}
+                            onOfferTimes={(job) => setOfferingTimesJob(job)}
+                            onCreateJob={() => setActiveView('create-quote')}
+                        />
+                    )}
+
                     {/* ADDED: Quote Views */}
                     {activeView === 'quotes' && (
                         <QuotesListView 
@@ -1197,7 +1230,22 @@ export const ContractorProApp = () => {
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
-                    {activeView === 'settings' && <SettingsView profile={profile} onUpdateSettings={updateContractorSettings} onSignOut={signOut} />}
+                    
+                    {activeView === 'settings' && (
+                        <div className="space-y-8">
+                            <BusinessSettings 
+                                contractorId={contractorId}
+                                profile={profile}
+                                onUpdate={(settings) => {
+                                    // Optionally refresh profile
+                                    console.log('Settings updated:', settings);
+                                }}
+                            />
+                            <div className="pt-8 border-t border-slate-200">
+                                <SettingsView profile={profile} onUpdateSettings={updateContractorSettings} onSignOut={signOut} />
+                            </div>
+                        </div>
+                    )}
                 </main>
                 
                 <MobileNav 
@@ -1206,6 +1254,7 @@ export const ContractorProApp = () => {
                     pendingCount={pendingInvitations.length}
                     pendingQuotesCount={pendingQuotes?.length || 0}
                     activeJobsCount={activeJobsCount}
+                    unscheduledJobsCount={unscheduledJobsCount}
                 />
             </div>
 
@@ -1236,6 +1285,16 @@ export const ContractorProApp = () => {
                         </div>
                     </div>
                 </div>
+            )}
+            
+            {/* Offer Time Slots Modal */}
+            {offeringTimesJob && (
+                <OfferTimeSlotsModal
+                    job={offeringTimesJob}
+                    schedulingPreferences={profile?.scheduling}
+                    onClose={() => setOfferingTimesJob(null)}
+                    onSuccess={() => setOfferingTimesJob(null)}
+                />
             )}
         </div>
     );
