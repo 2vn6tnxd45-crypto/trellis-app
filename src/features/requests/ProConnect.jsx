@@ -14,7 +14,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
 // NEW: Import Chat Service Logic
-import { getChannelId, subscribeToChat, sendMessage } from '../../lib/chatService';
+import { getChannelId, subscribeToChat, sendMessage, markChannelAsRead } from '../../lib/chatService';
 
 // ============================================
 // REAL CHAT DRAWER
@@ -36,10 +36,15 @@ const ChatDrawer = ({ pro, userId, onClose }) => {
             setLoading(false);
             // Scroll to bottom on new message
             setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            
+            // NEW: Mark as read whenever new messages arrive while drawer is open
+            if (userId) {
+                markChannelAsRead(channelId, userId);
+            }
         });
 
         return () => unsubscribe(); // Cleanup listener on close
-    }, [channelId]);
+    }, [channelId, userId]);
 
     const handleSend = async (e) => {
         e.preventDefault();
