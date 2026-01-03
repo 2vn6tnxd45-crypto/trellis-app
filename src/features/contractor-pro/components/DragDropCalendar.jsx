@@ -3,6 +3,7 @@
 // DRAG & DROP CALENDAR
 // ============================================
 // Visual calendar where contractors can drag unscheduled jobs onto time slots
+// UPDATED: Displays pending/offered slots
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
@@ -122,6 +123,7 @@ const TimeSlot = ({
     date, 
     hour, 
     jobs, 
+    pendingSlots, // NEW: Receive pending slots
     isDropTarget, 
     onDrop, 
     onDragOver, 
@@ -129,9 +131,16 @@ const TimeSlot = ({
     onJobClick,
     preferences
 }) => {
+    // Filter jobs for this hour
     const slotJobs = jobs.filter(job => {
         const jobDate = new Date(job.scheduledTime || job.scheduledDate);
         return jobDate.getHours() === hour;
+    });
+
+    // NEW: Filter pending slots for this hour
+    const slotPending = pendingSlots.filter(slot => {
+        const slotDate = new Date(slot.slotStart);
+        return isSameDay(slotDate, date) && slotDate.getHours() === hour;
     });
 
     // Check if this hour is within working hours
@@ -150,7 +159,7 @@ const TimeSlot = ({
             onDrop={(e) => onDrop(e, date, hour)}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
-            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors ${
+            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors flex flex-col gap-1 ${
                 isDropTarget 
                     ? 'bg-emerald-100 border-emerald-300' 
                     : isWithinWorkingHours
@@ -158,15 +167,31 @@ const TimeSlot = ({
                         : 'bg-slate-50'
             }`}
         >
+            {/* Confirmed Jobs */}
             {slotJobs.map(job => (
                 <button
                     key={job.id}
                     onClick={() => onJobClick?.(job)}
-                    className="w-full mb-1 p-2 bg-emerald-500 text-white rounded-lg text-xs text-left hover:bg-emerald-600 transition-colors"
+                    className="w-full mb-1 p-2 bg-emerald-500 text-white rounded-lg text-xs text-left hover:bg-emerald-600 transition-colors shadow-sm"
                 >
                     <p className="font-bold truncate">{job.title || job.description || 'Job'}</p>
                     <p className="truncate opacity-80">{job.customer?.name}</p>
                 </button>
+            ))}
+
+            {/* NEW: Pending/Offered Slots */}
+            {slotPending.map((slot, idx) => (
+                <div 
+                    key={`${slot.id}-${slot.slotId}-${idx}`}
+                    className="w-full mb-1 p-2 bg-amber-50 border border-amber-300 border-dashed rounded-lg text-xs text-left opacity-90"
+                    title="Offered time slot (Pending confirmation)"
+                >
+                    <div className="flex items-center gap-1 mb-0.5">
+                        <Clock size={10} className="text-amber-600" />
+                        <span className="font-bold text-amber-700 truncate">{slot.title || 'Pending'}</span>
+                    </div>
+                    <p className="truncate text-amber-600">{slot.customerName}</p>
+                </div>
             ))}
         </div>
     );
@@ -328,22 +353,39 @@ export const DragDropCalendar = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Separate scheduled and unscheduled jobs
-    const { scheduledJobs, unscheduledJobs } = useMemo(() => {
+    // NEW: Separate scheduled, unscheduled, and pending (offered) slots
+    const { scheduledJobs, unscheduledJobs, pendingSlots } = useMemo(() => {
         const scheduled = [];
         const unscheduled = [];
+        const pending = [];
         
         jobs.forEach(job => {
             if (['completed', 'cancelled'].includes(job.status)) return;
             
             if (job.scheduledTime || job.scheduledDate) {
                 scheduled.push(job);
+            } else if (job.scheduling?.offeredSlots?.length > 0) {
+                // Extract offered slots as "pending" calendar items (Item #12)
+                job.scheduling.offeredSlots
+                    .filter(slot => slot.status === 'offered')
+                    .forEach(slot => {
+                        pending.push({
+                            ...job,
+                            id: job.id,
+                            isPendingSlot: true,
+                            slotStart: slot.start, // ISO string
+                            slotEnd: slot.end,
+                            slotId: slot.id,
+                            customerName: job.customer?.name || 'Customer'
+                        });
+                    });
+                unscheduled.push(job); // Still technically unscheduled until confirmed
             } else {
                 unscheduled.push(job);
             }
         });
         
-        return { scheduledJobs: scheduled, unscheduledJobs: unscheduled };
+        return { scheduledJobs: scheduled, unscheduledJobs: unscheduled, pendingSlots: pending };
     }, [jobs]);
 
     // Working hours range
@@ -555,6 +597,7 @@ export const DragDropCalendar = ({
                                         date={date}
                                         hour={hour}
                                         jobs={getJobsForDate(scheduledJobs, date)}
+                                        pendingSlots={pendingSlots} // NEW: Pass pending slots
                                         isDropTarget={isTarget}
                                         onDrop={handleDrop}
                                         onDragOver={(e) => {
