@@ -1,7 +1,8 @@
 // src/features/contractor-pro/components/SetupBusinessProfile.jsx
-import React, { useState } from 'react';
-import { Building2, MapPin, Phone, Save, Shield, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Building2, MapPin, Phone, Shield, CheckCircle } from 'lucide-react';
 import { Logo } from '../../../components/common/Logo';
+import { googleMapsApiKey } from '../../../config/constants';
 
 export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
     const [formData, setFormData] = useState({
@@ -10,6 +11,68 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
     });
+    
+    // Refs for Google Maps
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
+
+    // --- 1. Phone Number Standardization ---
+    const formatPhoneNumber = (value) => {
+        if (!value) return value;
+        const phoneNumber = value.replace(/[^\d]/g, '');
+        const phoneNumberLength = phoneNumber.length;
+        if (phoneNumberLength < 4) return phoneNumber;
+        if (phoneNumberLength < 7) {
+            return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+        }
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+    };
+
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhoneNumber(e.target.value);
+        setFormData(prev => ({ ...prev, phone: formatted }));
+    };
+
+    // --- 2. Google Maps Address Selector ---
+    useEffect(() => {
+        const loadGoogleMaps = () => {
+            if (window.google?.maps?.places) {
+                initAutocomplete();
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
+            script.async = true;
+            script.defer = true;
+            script.onload = initAutocomplete;
+            document.head.appendChild(script);
+        };
+
+        const initAutocomplete = () => {
+            if (!addressInputRef.current || autocompleteRef.current) return;
+            
+            try {
+                autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+                    types: ['establishment', 'geocode'], // Allow businesses or addresses
+                    componentRestrictions: { country: 'us' },
+                });
+
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current.getPlace();
+                    if (place.formatted_address) {
+                        setFormData(prev => ({ 
+                            ...prev, 
+                            address: place.formatted_address 
+                        }));
+                    }
+                });
+            } catch (err) {
+                console.error('Autocomplete init error:', err);
+            }
+        };
+
+        loadGoogleMaps();
+    }, []);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -72,14 +135,15 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                                     type="tel"
                                     required
                                     value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    onChange={handlePhoneChange}
                                     placeholder="(555) 123-4567"
+                                    maxLength={14}
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 />
                             </div>
                         </div>
 
-                        {/* Address */}
+                        {/* Address with Google Maps Autocomplete */}
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1.5">
                                 Business Address *
@@ -87,11 +151,12 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                             <div className="relative">
                                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
+                                    ref={addressInputRef}
                                     type="text"
                                     required
                                     value={formData.address}
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    placeholder="e.g. 123 Main St, City, State"
+                                    placeholder="Start typing to search..."
                                     className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 />
                             </div>
