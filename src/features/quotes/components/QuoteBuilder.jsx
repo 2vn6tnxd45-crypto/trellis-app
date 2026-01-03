@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
-    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -50,12 +50,13 @@ const createDefaultLineItem = (type = 'material') => ({
     description: '',
     quantity: 1,
     unitPrice: 0,
-    // NEW FIELDS
+    // NEW FIELDS (Incorporating Specs)
     brand: '',
     model: '',
     serial: '',
     warranty: '',
-    isExpanded: false // UI state
+    crewSize: '', // Specific to Labor
+    isExpanded: true // Default to expanded per user request
 });
 
 // ============================================
@@ -76,17 +77,18 @@ const createDefaultFormState = (existingQuote = null) => ({
             : new Date(existingQuote.expiresAt).toISOString().split('T')[0])
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
     
-    // UPDATED: Default to one Material AND one Labor item
+    // Default to one Material AND one Labor item (both expanded)
     lineItems: existingQuote?.lineItems?.length > 0 
-        ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: false }))
+        ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: true }))
         : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
     
     taxRate: existingQuote?.taxRate ?? 8.75,
     notes: existingQuote?.notes || '',
-    exclusions: existingQuote?.exclusions || '', // NEW FIELD
+    exclusions: existingQuote?.exclusions || '', // New Exclusions
+    clientWarranty: existingQuote?.clientWarranty || '', // New Global Warranty
     terms: existingQuote?.terms || 'Quote valid for 14 days. Final payment due upon completion.',
     
-    // NEW: Financials
+    // Financials
     depositRequired: existingQuote?.depositRequired || false,
     depositType: existingQuote?.depositType || 'percentage', // 'percentage' | 'fixed'
     depositValue: existingQuote?.depositValue || 50
@@ -380,7 +382,7 @@ const LineItemsSection = ({
                 <table className="w-full min-w-[700px]">
                     <thead className="bg-slate-50">
                         <tr>
-                            <th className="w-12"></th>
+                            <th className="w-24"></th>
                             <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3 w-24">Type</th>
                             <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3">Description</th>
                             <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-20">Qty</th>
@@ -398,13 +400,15 @@ const LineItemsSection = ({
                                 <React.Fragment key={item.id}>
                                     <tr className={`group ${item.isExpanded ? 'bg-slate-50/50' : 'bg-white'}`}>
                                         <td className="px-2 py-3 text-center">
+                                            {/* VISIBLE TOGGLE BUTTON */}
                                             <button 
                                                 type="button"
                                                 onClick={() => toggleExpand(item.id)}
-                                                className="p-1 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors"
+                                                className="px-2 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors flex items-center gap-1 mx-auto"
                                                 title={item.isExpanded ? "Collapse Details" : "Add Brand/Model/Warranty"}
                                             >
-                                                {item.isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                {item.isExpanded ? 'Hide Details' : 'Show Details'}
+                                                {item.isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">
@@ -460,54 +464,92 @@ const LineItemsSection = ({
                                         </td>
                                     </tr>
                                     
-                                    {/* EXPANDED DETAILS ROW */}
+                                    {/* EXPANDED DETAILS ROW - CONDITIONAL FIELDS */}
                                     {item.isExpanded && (
                                         <tr className="bg-slate-50 border-b border-slate-100">
                                             <td colSpan="7" className="px-4 py-3">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-2">
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand / Mfr</label>
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="e.g. Rheem"
-                                                            value={item.brand || ''}
-                                                            onChange={(e) => updateItem(item.id, 'brand', e.target.value)}
-                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Model #</label>
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="e.g. XG50T12"
-                                                            value={item.model || ''}
-                                                            onChange={(e) => updateItem(item.id, 'model', e.target.value)}
-                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Serial # (Optional)</label>
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="e.g. 123456789"
-                                                            value={item.serial || ''}
-                                                            onChange={(e) => updateItem(item.id, 'serial', e.target.value)}
-                                                            className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Warranty</label>
-                                                        <div className="relative">
-                                                            <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                            <input 
-                                                                type="text" 
-                                                                placeholder="e.g. 6 Year Parts"
-                                                                value={item.warranty || ''}
-                                                                onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
-                                                                className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                            />
-                                                        </div>
-                                                    </div>
+                                                    
+                                                    {/* MATERIAL SPECIFIC FIELDS */}
+                                                    {item.type === 'material' && (
+                                                        <>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand / Mfr</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="e.g. Rheem"
+                                                                    value={item.brand || ''}
+                                                                    onChange={(e) => updateItem(item.id, 'brand', e.target.value)}
+                                                                    className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Model #</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="e.g. XG50T12"
+                                                                    value={item.model || ''}
+                                                                    onChange={(e) => updateItem(item.id, 'model', e.target.value)}
+                                                                    className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Serial #</label>
+                                                                <input 
+                                                                    type="text" 
+                                                                    placeholder="Optional"
+                                                                    value={item.serial || ''}
+                                                                    onChange={(e) => updateItem(item.id, 'serial', e.target.value)}
+                                                                    className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Part Warranty</label>
+                                                                <div className="relative">
+                                                                    <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="e.g. 6 Year"
+                                                                        value={item.warranty || ''}
+                                                                        onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
+                                                                        className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {/* LABOR SPECIFIC FIELDS */}
+                                                    {item.type === 'labor' && (
+                                                        <>
+                                                            <div>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Crew Size</label>
+                                                                <div className="relative">
+                                                                    <Users size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                    <input 
+                                                                        type="number" 
+                                                                        placeholder="Techs"
+                                                                        value={item.crewSize || ''}
+                                                                        onChange={(e) => updateItem(item.id, 'crewSize', e.target.value)}
+                                                                        className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-2">
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Labor Warranty (Specific to Item)</label>
+                                                                <div className="relative">
+                                                                    <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="e.g. 1 Year Guarantee"
+                                                                        value={item.warranty || ''}
+                                                                        onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
+                                                                        className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -794,10 +836,11 @@ export const QuoteBuilder = ({
                 ...item,
                 id: Date.now() + Math.random(),
                 unitPrice: item.defaultPrice || item.unitPrice || 0,
-                isExpanded: false
+                isExpanded: true // Ensure template items are expanded
             })) || prev.lineItems,
             notes: template.defaultNotes || prev.notes,
-            terms: template.defaultTerms || prev.terms
+            terms: template.defaultTerms || prev.terms,
+            clientWarranty: template.defaultWarranty || prev.clientWarranty
         }));
         setShowTemplates(false);
         toast.success(`Template "${template.name}" applied`);
@@ -1032,17 +1075,31 @@ export const QuoteBuilder = ({
                                 />
                             </div>
 
-                             {/* NEW EXCLUSIONS FIELD */}
+                             {/* NEW EXCLUSIONS FIELD - With Optional Tag */}
                              <div>
-                                <label className="block text-xs font-bold text-red-500 uppercase tracking-wide mb-1.5">
-                                    Exclusions (What is NOT included)
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    Exclusions <span className="text-slate-400 font-normal lowercase">(optional)</span>
                                 </label>
                                 <textarea
                                     value={formData.exclusions}
                                     onChange={(e) => setFormData(prev => ({ ...prev, exclusions: e.target.value }))}
                                     placeholder="e.g. Paint, Drywall patch, Removal of old debris..."
                                     rows={2}
-                                    className="w-full px-4 py-2.5 border border-red-100 bg-red-50/30 rounded-xl focus:ring-2 focus:ring-red-500 outline-none resize-none"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                                />
+                            </div>
+
+                            {/* NEW: Global Warranty Field */}
+                            <div>
+                                <label className="block text-xs font-bold text-emerald-600 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                                    <Shield size={12} /> Workmanship Warranty
+                                </label>
+                                <input 
+                                    type="text"
+                                    value={formData.clientWarranty}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, clientWarranty: e.target.value }))}
+                                    placeholder="e.g. 1 Year Labor Warranty on all work performed"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 />
                             </div>
 
