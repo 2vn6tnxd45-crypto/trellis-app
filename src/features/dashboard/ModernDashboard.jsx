@@ -1,5 +1,5 @@
 // src/features/dashboard/ModernDashboard.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
     Sparkles, ChevronRight, Plus, Camera,
     Clock, Package, FileText, ArrowRight,
@@ -14,8 +14,15 @@ import { CountyData } from './CountyData';
 import { PropertyIntelligence } from './PropertyIntelligence';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MaintenanceDashboard } from './MaintenanceDashboard'; 
-import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
+import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
+
+// NEW: Firebase imports for Active Projects
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+
+// NEW: Job Scheduler for Homeowner
+import { JobScheduler } from '../jobs/JobScheduler';
 
 // NEW: Import Quotes Hook and Service
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
@@ -29,7 +36,6 @@ const formatCurrency = (amount) => {
     } catch (e) { return '$0'; }
 };
 
-// UPDATED: Consistent emerald theme year-round for cohesive branding
 const getSeasonalTheme = () => {
     return { 
         name: 'Home', 
@@ -43,7 +49,6 @@ const getGreeting = () => {
     return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 };
 
-// --- LOGIC HELPERS ---
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
@@ -56,7 +61,7 @@ const getNextServiceDate = (record) => {
     return next;
 };
 
-// --- SUB-COMPONENTS (Unchanged) ---
+// --- SUB-COMPONENTS ---
 const HealthScoreCard = ({ breakdown, score, onClose }) => (
     <div className="absolute top-full mt-4 left-1/2 -translate-x-1/2 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 p-5 z-30 animate-in fade-in zoom-in-95 slide-in-from-top-2 text-slate-800">
         <div className="flex justify-between items-center mb-4 border-b border-slate-50 pb-2">
@@ -89,22 +94,138 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
-// --- NEW: QUOTES SECTION COMPONENT ---
-// --- NEW: QUOTES SECTION COMPONENT ---
+// --- ACTIVE PROJECTS SECTION (NEW) ---
+const ActiveProjectsSection = ({ userId }) => {
+    const [projects, setProjects] = useState([]);
+    const [selectedJob, setSelectedJob] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!userId) return;
+        
+        // Listen for requests that are active
+        const q = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Filter for jobs that are in active negotiation or scheduled
+            // 'scheduling' = waiting for time confirmation
+            // 'scheduled' = confirmed time
+            // 'in_progress' = active
+            // 'quoted' && estimate.status === 'approved' = Just accepted, needs scheduling
+            const active = data.filter(r => 
+                ['scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
+                (r.status === 'quoted' && r.estimate?.status === 'approved')
+            );
+            
+            setProjects(active);
+            setLoading(false);
+        });
+        
+        return () => unsubscribe();
+    }, [userId]);
+
+    if (loading || projects.length === 0) return null;
+
+    const getStatusBadge = (status) => {
+        switch(status) {
+            case 'scheduled': return { label: 'Scheduled', bg: 'bg-emerald-100', text: 'text-emerald-700', icon: Calendar };
+            case 'scheduling': return { label: 'Needs Scheduling', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock };
+            case 'quoted': return { label: 'Action Required', bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle };
+            case 'in_progress': return { label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700', icon: Wrench };
+            default: return { label: status, bg: 'bg-slate-100', text: 'text-slate-600', icon: Info };
+        }
+    };
+
+    return (
+        <>
+            <DashboardSection 
+                title="Active Projects" 
+                icon={Hammer} 
+                defaultOpen={true}
+                summary={<span className="text-xs text-amber-600 font-bold">{projects.length} Updates</span>}
+            >
+                <div className="space-y-3">
+                    {projects.map(job => {
+                        const badge = getStatusBadge(job.status === 'quoted' && job.estimate?.status === 'approved' ? 'scheduling' : job.status);
+                        const BadgeIcon = badge.icon;
+                        
+                        return (
+                            <div 
+                                key={job.id}
+                                onClick={() => setSelectedJob(job)}
+                                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer group"
+                            >
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">
+                                        {job.description || job.title || 'Service Request'}
+                                    </h3>
+                                    <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${badge.bg} ${badge.text}`}>
+                                        <BadgeIcon size={10} />
+                                        {badge.label}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm text-slate-500">
+                                    <span className="flex items-center gap-1">
+                                        {job.contractorName || job.contractorCompany || 'Contractor'}
+                                    </span>
+                                    {job.scheduledTime ? (
+                                        <span className="font-medium text-emerald-600">
+                                            {new Date(job.scheduledTime).toLocaleDateString()}
+                                        </span>
+                                    ) : (
+                                        <span className="text-amber-600 font-bold text-xs flex items-center gap-1">
+                                            View & Schedule <ChevronRight size={12} />
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </DashboardSection>
+
+            {/* SCHEDULER MODAL */}
+            {selectedJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+                            <div>
+                                <h3 className="font-bold text-slate-800">Manage Project</h3>
+                                <p className="text-xs text-slate-500">{selectedJob.contractorName || 'Contractor Service'}</p>
+                            </div>
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-hidden bg-slate-50">
+                            <JobScheduler 
+                                job={selectedJob} 
+                                userType="homeowner" 
+                                onUpdate={() => {
+                                    // Optional: Refresh done by listener
+                                }} 
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
+// --- QUOTES SECTION COMPONENT ---
 const MyQuotesSection = ({ userId }) => {
-    // UPDATED: Destructure 'refresh' from the hook
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
     const handleDelete = async (e, quote) => {
-        e.preventDefault(); // Prevent navigation
+        e.preventDefault();
         e.stopPropagation();
-        
         if (!window.confirm('Remove this quote from your profile?')) return;
-
         try {
             await unclaimQuote(quote.contractorId, quote.id);
             toast.success('Quote removed');
-            // UPDATED: Refresh the list immediately after deletion
             refresh();
         } catch (err) {
             console.error(err);
@@ -112,7 +233,6 @@ const MyQuotesSection = ({ userId }) => {
         }
     };
 
-    // Don't render anything if loading or empty (unless error is missing index)
     if (loading || (!quotes.length && error !== 'missing-index')) return null;
 
     return (
@@ -139,7 +259,6 @@ const MyQuotesSection = ({ userId }) => {
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}
                             className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
                         >
-                            {/* DELETE BUTTON */}
                             <button 
                                 onClick={(e) => handleDelete(e, quote)}
                                 className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
@@ -173,7 +292,7 @@ const MyQuotesSection = ({ userId }) => {
     );
 };
 
-// --- MAIN COMPONENT (UPDATED with new props) ---
+// --- MAIN COMPONENT ---
 export const ModernDashboard = ({
     records = [], 
     contractors = [], 
@@ -190,7 +309,6 @@ export const ModernDashboard = ({
     onMarkTaskDone,
     onDeleteHistoryItem, 
     onRestoreHistoryItem,
-    // NEW PROPS:
     onDeleteTask,
     onScheduleTask,
     onSnoozeTask
@@ -240,10 +358,9 @@ export const ModernDashboard = ({
 
     return (
         <div className="space-y-6 pb-8">
-            {/* HERO SECTION (Always Visible) */}
+            {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
-                {/* Decorative elements for depth */}
                 <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/4 blur-2xl pointer-events-none" />
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-teal-400/20 rounded-full translate-y-1/2 -translate-x-1/4 blur-xl pointer-events-none" />
                 
@@ -251,7 +368,6 @@ export const ModernDashboard = ({
                     <p className="text-white/60 text-sm font-bold mb-1 uppercase tracking-wider">{greeting}</p>
                     <h1 className="text-3xl font-extrabold tracking-tight mb-2">{activeProperty?.name || 'My Home'}</h1>
                     
-                    {/* UPDATED: Full address display */}
                     {activeProperty?.address && (
                         <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full border border-white/20 mb-6 animate-in fade-in zoom-in-95 duration-500">
                             <MapPin size={14} className="text-white" />
@@ -263,7 +379,6 @@ export const ModernDashboard = ({
                         </div>
                     )}
                     
-                    {/* Health Score Circle with Toggle */}
                     <div className="relative group mb-8">
                         <div 
                             className="relative h-24 w-24 cursor-pointer hover:scale-105 transition-transform"
@@ -296,10 +411,13 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* 0. NEW: MY QUOTES SECTION (High Priority) */}
+            {/* NEW: ACTIVE PROJECTS SECTION (Highest Priority) */}
+            <ActiveProjectsSection userId={userId} />
+
+            {/* MY QUOTES SECTION */}
             <MyQuotesSection userId={userId} />
 
-            {/* 1. PROPERTY INTELLIGENCE SECTION */}
+            {/* PROPERTY INTELLIGENCE SECTION */}
             <DashboardSection 
                 title="Property Intelligence" 
                 icon={Home} 
@@ -309,7 +427,7 @@ export const ModernDashboard = ({
                 <PropertyIntelligence propertyProfile={activeProperty} />
             </DashboardSection>
             
-            {/* 2. QUICK ACTIONS SECTION */}
+            {/* QUICK ACTIONS SECTION */}
             <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
                 <div className="grid grid-cols-2 gap-3">
                     <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
@@ -319,7 +437,7 @@ export const ModernDashboard = ({
                 </div>
             </DashboardSection>
 
-            {/* 3. MAINTENANCE SCHEDULE SECTION (UPDATED with new props) */}
+            {/* MAINTENANCE SCHEDULE SECTION */}
             <DashboardSection 
                 title="Maintenance Schedule" 
                 icon={Calendar} 
@@ -334,14 +452,13 @@ export const ModernDashboard = ({
                     onNavigateToRecords={onNavigateToItems}
                     onDeleteHistoryItem={onDeleteHistoryItem}
                     onRestoreHistoryItem={onRestoreHistoryItem}
-                    // NEW PROPS:
                     onDeleteTask={onDeleteTask}
                     onScheduleTask={onScheduleTask}
                     onSnoozeTask={onSnoozeTask}
                 />
             </DashboardSection>
 
-            {/* 4. LOCAL INSIGHTS SECTION */}
+            {/* LOCAL INSIGHTS SECTION */}
             <DashboardSection 
                 title="Local Insights" 
                 icon={Info} 
