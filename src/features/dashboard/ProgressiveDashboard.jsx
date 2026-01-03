@@ -38,6 +38,8 @@ import { JobScheduler } from '../jobs/JobScheduler';
 // NEW: Job management components
 import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
+import { DashboardSection } from '../../components/common/DashboardSection';
+import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 // Optional: import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
 // ============================================
