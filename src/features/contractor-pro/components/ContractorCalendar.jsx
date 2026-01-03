@@ -1,0 +1,665 @@
+// src/features/contractor-pro/components/ContractorCalendar.jsx
+// ============================================
+// CONTRACTOR CALENDAR - Week & Month View
+// ============================================
+// Visual schedule management for contractors
+
+import React, { useState, useMemo } from 'react';
+import { 
+    ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
+    Plus, Filter, List, Grid3X3, AlertCircle, CheckCircle,
+    User, DollarSign, ArrowRight, Sparkles, X
+} from 'lucide-react';
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+
+const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+const formatDate = (date) => {
+    return new Intl.DateTimeFormat('en-US', { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric' 
+    }).format(date);
+};
+
+const formatTime = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+};
+
+const isSameDay = (date1, date2) => {
+    if (!date1 || !date2) return false;
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+};
+
+const getWeekDates = (date) => {
+    const start = new Date(date);
+    start.setDate(start.getDate() - start.getDay()); // Start from Sunday
+    
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        dates.push(d);
+    }
+    return dates;
+};
+
+const getJobsForDate = (jobs, date) => {
+    return jobs.filter(job => {
+        if (job.scheduledTime) {
+            return isSameDay(job.scheduledTime, date);
+        }
+        if (job.scheduledDate) {
+            return isSameDay(job.scheduledDate, date);
+        }
+        return false;
+    });
+};
+
+const getJobStatus = (job) => {
+    if (job.status === 'scheduled' || job.scheduledTime) return 'confirmed';
+    if (job.status === 'in_progress') return 'in_progress';
+    if (job.proposedTimes?.length > 0) return 'pending';
+    return 'unscheduled';
+};
+
+// ============================================
+// STATUS CONFIG
+// ============================================
+
+const STATUS_STYLES = {
+    confirmed: {
+        bg: 'bg-emerald-500',
+        bgLight: 'bg-emerald-50',
+        border: 'border-emerald-200',
+        text: 'text-emerald-700',
+        label: 'Confirmed'
+    },
+    pending: {
+        bg: 'bg-amber-500',
+        bgLight: 'bg-amber-50',
+        border: 'border-amber-200',
+        text: 'text-amber-700',
+        label: 'Awaiting Response'
+    },
+    in_progress: {
+        bg: 'bg-blue-500',
+        bgLight: 'bg-blue-50',
+        border: 'border-blue-200',
+        text: 'text-blue-700',
+        label: 'In Progress'
+    },
+    unscheduled: {
+        bg: 'bg-slate-400',
+        bgLight: 'bg-slate-50',
+        border: 'border-slate-200',
+        text: 'text-slate-600',
+        label: 'Unscheduled'
+    }
+};
+
+// ============================================
+// WEEK VIEW COMPONENT
+// ============================================
+
+const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }) => {
+    const weekDates = getWeekDates(currentDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {/* Week Header */}
+            <div className="grid grid-cols-7 border-b border-slate-100">
+                {weekDates.map((date, idx) => {
+                    const isToday = isSameDay(date, today);
+                    const isSelected = isSameDay(date, selectedDate);
+                    const dayJobs = getJobsForDate(jobs, date);
+                    const hasConfirmed = dayJobs.some(j => getJobStatus(j) === 'confirmed');
+                    const hasPending = dayJobs.some(j => getJobStatus(j) === 'pending');
+                    
+                    return (
+                        <button
+                            key={idx}
+                            onClick={() => onSelectDate(date)}
+                            className={`p-3 text-center transition-colors relative ${
+                                isSelected 
+                                    ? 'bg-emerald-50' 
+                                    : 'hover:bg-slate-50'
+                            }`}
+                        >
+                            <p className={`text-xs font-medium ${
+                                isToday ? 'text-emerald-600' : 'text-slate-500'
+                            }`}>
+                                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
+                            </p>
+                            <p className={`text-lg font-bold mt-1 ${
+                                isToday 
+                                    ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto' 
+                                    : isSelected
+                                        ? 'text-emerald-600'
+                                        : 'text-slate-800'
+                            }`}>
+                                {date.getDate()}
+                            </p>
+                            {/* Job indicators */}
+                            {dayJobs.length > 0 && (
+                                <div className="flex justify-center gap-1 mt-2">
+                                    {hasConfirmed && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                                    {hasPending && <div className="w-2 h-2 rounded-full bg-amber-500" />}
+                                    {!hasConfirmed && !hasPending && dayJobs.length > 0 && (
+                                        <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                    )}
+                                </div>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Day Detail */}
+            {selectedDate && (
+                <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-bold text-slate-800">
+                            {formatDate(selectedDate)}
+                        </h3>
+                        <span className="text-xs text-slate-500">
+                            {getJobsForDate(jobs, selectedDate).length} jobs
+                        </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        {getJobsForDate(jobs, selectedDate).length === 0 ? (
+                            <div className="text-center py-8 text-slate-400">
+                                <Calendar size={24} className="mx-auto mb-2 opacity-50" />
+                                <p className="text-sm">No jobs scheduled</p>
+                            </div>
+                        ) : (
+                            getJobsForDate(jobs, selectedDate)
+                                .sort((a, b) => {
+                                    const timeA = a.scheduledTime || a.scheduledDate;
+                                    const timeB = b.scheduledTime || b.scheduledDate;
+                                    return new Date(timeA) - new Date(timeB);
+                                })
+                                .map(job => {
+                                    const status = getJobStatus(job);
+                                    const styles = STATUS_STYLES[status];
+                                    
+                                    return (
+                                        <button
+                                            key={job.id}
+                                            onClick={() => onSelectJob(job)}
+                                            className={`w-full p-3 rounded-xl border ${styles.border} ${styles.bgLight} text-left hover:shadow-md transition-all`}
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className={`w-2 h-2 rounded-full ${styles.bg}`} />
+                                                        <span className="text-xs font-medium text-slate-500">
+                                                            {job.scheduledTime ? formatTime(job.scheduledTime) : 'TBD'}
+                                                        </span>
+                                                    </div>
+                                                    <h4 className="font-bold text-slate-800 mt-1 truncate">
+                                                        {job.title || job.description || 'Service'}
+                                                    </h4>
+                                                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                                                        {job.customer?.name || 'Customer'}
+                                                    </p>
+                                                </div>
+                                                {job.total > 0 && (
+                                                    <span className="text-sm font-bold text-slate-700">
+                                                        ${job.total.toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// MONTH VIEW COMPONENT
+// ============================================
+
+const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const days = [];
+    
+    // Empty cells before first day
+    for (let i = 0; i < firstDay; i++) {
+        days.push(<div key={`empty-${i}`} className="p-2 h-24" />);
+    }
+    
+    // Days of month
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        const isToday = isSameDay(date, today);
+        const isSelected = isSameDay(date, selectedDate);
+        const dayJobs = getJobsForDate(jobs, date);
+        
+        days.push(
+            <button
+                key={day}
+                onClick={() => onSelectDate(date)}
+                className={`p-2 h-24 border-b border-r border-slate-100 text-left hover:bg-slate-50 transition-colors relative ${
+                    isSelected ? 'bg-emerald-50' : ''
+                }`}
+            >
+                <span className={`text-sm font-medium ${
+                    isToday 
+                        ? 'bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center' 
+                        : 'text-slate-700'
+                }`}>
+                    {day}
+                </span>
+                
+                {/* Job pills */}
+                <div className="mt-1 space-y-0.5 overflow-hidden">
+                    {dayJobs.slice(0, 2).map(job => {
+                        const status = getJobStatus(job);
+                        const styles = STATUS_STYLES[status];
+                        return (
+                            <div
+                                key={job.id}
+                                className={`text-[10px] px-1.5 py-0.5 rounded truncate ${styles.bg} text-white`}
+                            >
+                                {formatTime(job.scheduledTime)} {job.customer?.name?.split(' ')[0] || 'Job'}
+                            </div>
+                        );
+                    })}
+                    {dayJobs.length > 2 && (
+                        <p className="text-[10px] text-slate-400 font-medium">
+                            +{dayJobs.length - 2} more
+                        </p>
+                    )}
+                </div>
+            </button>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {/* Day headers */}
+            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="p-2 text-center text-xs font-bold text-slate-500">
+                        {day}
+                    </div>
+                ))}
+            </div>
+            
+            {/* Calendar grid */}
+            <div className="grid grid-cols-7">
+                {days}
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// UNSCHEDULED JOBS PANEL
+// ============================================
+
+const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
+    const unscheduledJobs = jobs.filter(job => 
+        !job.scheduledTime && 
+        !job.scheduledDate &&
+        !['completed', 'cancelled'].includes(job.status)
+    );
+
+    // Jobs where customer requested new times
+    const needsNewTimes = unscheduledJobs.filter(job => 
+        job.scheduling?.requestedNewTimes || job.schedulingStatus === 'needs_new_times'
+    );
+
+    // Jobs awaiting customer response
+    const awaitingResponse = unscheduledJobs.filter(job =>
+        job.proposedTimes?.length > 0 && !job.scheduling?.requestedNewTimes
+    );
+
+    // New jobs needing initial scheduling
+    const newJobs = unscheduledJobs.filter(job =>
+        !job.proposedTimes?.length && !job.scheduling?.requestedNewTimes
+    );
+
+    if (unscheduledJobs.length === 0) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
+                <CheckCircle size={32} className="mx-auto mb-2 text-emerald-500" />
+                <p className="font-bold text-slate-800">All caught up!</p>
+                <p className="text-sm text-slate-500">No jobs need scheduling</p>
+            </div>
+        );
+    }
+
+    const JobCard = ({ job, urgent }) => {
+        const customerName = job.customer?.name || 'Customer';
+        const address = job.serviceAddress?.formatted || job.customer?.address || '';
+        
+        return (
+            <div className={`p-4 rounded-xl border ${urgent ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+                <div className="flex justify-between items-start mb-2">
+                    <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-slate-800 truncate">
+                            {job.title || job.description || 'Service Request'}
+                        </h4>
+                        <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                            <User size={12} />
+                            <span className="truncate">{customerName}</span>
+                        </div>
+                    </div>
+                    {job.total > 0 && (
+                        <span className="text-sm font-bold text-emerald-600">
+                            ${job.total.toLocaleString()}
+                        </span>
+                    )}
+                </div>
+                
+                {address && (
+                    <div className="flex items-center gap-1 text-xs text-slate-400 mb-3">
+                        <MapPin size={12} />
+                        <span className="truncate">{address}</span>
+                    </div>
+                )}
+
+                {urgent && (
+                    <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-100 px-2 py-1 rounded-lg mb-3">
+                        <AlertCircle size={12} />
+                        <span className="font-medium">Customer requested new times</span>
+                    </div>
+                )}
+                
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => onOfferTimes(job)}
+                        className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
+                    >
+                        <Calendar size={14} />
+                        Offer Times
+                    </button>
+                    <button
+                        onClick={() => onSelectJob(job)}
+                        className="px-3 py-2 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                    >
+                        Details
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Urgent: Customer requested new times */}
+            {needsNewTimes.length > 0 && (
+                <div className="bg-amber-50 rounded-2xl border border-amber-200 p-4">
+                    <h3 className="font-bold text-amber-800 flex items-center gap-2 mb-3">
+                        <AlertCircle size={18} />
+                        Needs New Times ({needsNewTimes.length})
+                    </h3>
+                    <div className="space-y-3">
+                        {needsNewTimes.map(job => (
+                            <JobCard key={job.id} job={job} urgent />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Awaiting Response */}
+            {awaitingResponse.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                        <Clock size={18} className="text-amber-500" />
+                        Awaiting Response ({awaitingResponse.length})
+                    </h3>
+                    <div className="space-y-3">
+                        {awaitingResponse.map(job => (
+                            <JobCard key={job.id} job={job} />
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* New Jobs */}
+            {newJobs.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-3">
+                        <Plus size={18} className="text-emerald-500" />
+                        Ready to Schedule ({newJobs.length})
+                    </h3>
+                    <div className="space-y-3">
+                        {newJobs.map(job => (
+                            <JobCard key={job.id} job={job} />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// MAIN CALENDAR COMPONENT
+// ============================================
+
+export const ContractorCalendar = ({ 
+    jobs = [], 
+    onSelectJob, 
+    onOfferTimes,
+    onCreateJob 
+}) => {
+    const [viewMode, setViewMode] = useState('week'); // 'week' | 'month'
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(new Date());
+
+    // Navigation
+    const navigatePrev = () => {
+        const newDate = new Date(currentDate);
+        if (viewMode === 'week') {
+            newDate.setDate(newDate.getDate() - 7);
+        } else {
+            newDate.setMonth(newDate.getMonth() - 1);
+        }
+        setCurrentDate(newDate);
+    };
+
+    const navigateNext = () => {
+        const newDate = new Date(currentDate);
+        if (viewMode === 'week') {
+            newDate.setDate(newDate.getDate() + 7);
+        } else {
+            newDate.setMonth(newDate.getMonth() + 1);
+        }
+        setCurrentDate(newDate);
+    };
+
+    const goToToday = () => {
+        const today = new Date();
+        setCurrentDate(today);
+        setSelectedDate(today);
+    };
+
+    // Get month/year label
+    const getHeaderLabel = () => {
+        if (viewMode === 'week') {
+            const weekDates = getWeekDates(currentDate);
+            const startMonth = weekDates[0].toLocaleDateString('en-US', { month: 'short' });
+            const endMonth = weekDates[6].toLocaleDateString('en-US', { month: 'short' });
+            const year = weekDates[0].getFullYear();
+            
+            if (startMonth === endMonth) {
+                return `${startMonth} ${year}`;
+            }
+            return `${startMonth} - ${endMonth} ${year}`;
+        }
+        return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    };
+
+    // Count unscheduled
+    const unscheduledCount = jobs.filter(job => 
+        !job.scheduledTime && 
+        !job.scheduledDate &&
+        !['completed', 'cancelled'].includes(job.status)
+    ).length;
+
+    return (
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
+                    <p className="text-slate-500">Manage your jobs and availability</p>
+                </div>
+                {onCreateJob && (
+                    <button
+                        onClick={onCreateJob}
+                        className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                    >
+                        <Plus size={18} />
+                        New Job
+                    </button>
+                )}
+            </div>
+
+            {/* Calendar Controls */}
+            <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-4">
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={navigatePrev}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <ChevronLeft size={20} className="text-slate-600" />
+                    </button>
+                    <button
+                        onClick={navigateNext}
+                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <ChevronRight size={20} className="text-slate-600" />
+                    </button>
+                    <h2 className="text-lg font-bold text-slate-800 ml-2">
+                        {getHeaderLabel()}
+                    </h2>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={goToToday}
+                        className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        Today
+                    </button>
+                    
+                    {/* View Toggle */}
+                    <div className="flex bg-slate-100 rounded-lg p-1">
+                        <button
+                            onClick={() => setViewMode('week')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                viewMode === 'week'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Week
+                        </button>
+                        <button
+                            onClick={() => setViewMode('month')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                viewMode === 'month'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            Month
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span className="text-slate-600">Confirmed</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span className="text-slate-600">Awaiting Response</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    <span className="text-slate-600">In Progress</span>
+                </div>
+            </div>
+
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Calendar View */}
+                <div className="lg:col-span-2">
+                    {viewMode === 'week' ? (
+                        <WeekView
+                            currentDate={currentDate}
+                            jobs={jobs}
+                            onSelectDate={setSelectedDate}
+                            onSelectJob={onSelectJob}
+                            selectedDate={selectedDate}
+                        />
+                    ) : (
+                        <MonthView
+                            currentDate={currentDate}
+                            jobs={jobs}
+                            onSelectDate={setSelectedDate}
+                            selectedDate={selectedDate}
+                        />
+                    )}
+                </div>
+
+                {/* Unscheduled Jobs Sidebar */}
+                <div className="lg:col-span-1">
+                    <div className="sticky top-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                Needs Scheduling
+                                {unscheduledCount > 0 && (
+                                    <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                        {unscheduledCount}
+                                    </span>
+                                )}
+                            </h3>
+                        </div>
+                        <UnscheduledJobsPanel 
+                            jobs={jobs}
+                            onSelectJob={onSelectJob}
+                            onOfferTimes={onOfferTimes}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ContractorCalendar;
