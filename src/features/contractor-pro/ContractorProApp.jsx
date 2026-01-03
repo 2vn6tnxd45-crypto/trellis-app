@@ -3,7 +3,7 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Added Job Scheduling Integration
+// UPDATED: Added Secure Delete Account Flow
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
@@ -14,7 +14,9 @@ import {
     Scroll as ScrollIcon,
     Receipt,
     // ADDED: Icons for enhanced views
-    Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle
+    Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
+    // ADDED: Icons for Delete Flow
+    AlertTriangle, Loader2, Trash2
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -62,7 +64,14 @@ import {
 } from '../quotes/hooks/useQuotes';
 
 import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService';
-import { deleteUser } from 'firebase/auth';
+import { 
+    deleteUser, 
+    reauthenticateWithPopup, 
+    GoogleAuthProvider, 
+    EmailAuthProvider, 
+    reauthenticateWithCredential,
+    OAuthProvider 
+} from 'firebase/auth';
 import { auth } from '../../config/firebase';
 
 // ============================================
@@ -845,8 +854,230 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
     );
 };
 
+// ============================================
+// CONTRACTOR DELETE ACCOUNT MODAL
+// ============================================
+const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onDeleteSuccess }) => {
+    const [step, setStep] = useState(1);
+    const [password, setPassword] = useState('');
+    const [confirmText, setConfirmText] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [error, setError] = useState('');
+
+    // Check providers
+    const isGoogleUser = user?.providerData?.some(p => p.providerId === 'google.com');
+    const isEmailUser = user?.providerData?.some(p => p.providerId === 'password');
+
+    const handleReauthenticate = async () => {
+        setError('');
+        try {
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error('No user found');
+
+            const providers = currentUser.providerData.map(p => p.providerId);
+
+            if (providers.includes('google.com')) {
+                await reauthenticateWithPopup(currentUser, new GoogleAuthProvider());
+            } else if (providers.includes('apple.com')) {
+                const provider = new OAuthProvider('apple.com');
+                await reauthenticateWithPopup(currentUser, provider);
+            } else if (providers.includes('password')) {
+                const credential = EmailAuthProvider.credential(currentUser.email, password);
+                await reauthenticateWithCredential(currentUser, credential);
+            } else {
+                throw new Error('Please sign out and sign in again to delete your account.');
+            }
+            setStep(2);
+        } catch (err) {
+            console.error('Re-auth error:', err);
+            setError(err.message.replace('Firebase: ', ''));
+        }
+    };
+
+    const handleDelete = async () => {
+        if (confirmText !== 'DELETE') return;
+        
+        setIsDeleting(true);
+        setError('');
+        
+        try {
+            // 1. Delete contractor specific data
+            await deleteContractorAccount(contractorId);
+            
+            // 2. Delete Firebase Auth user
+            if (auth.currentUser) {
+                await deleteUser(auth.currentUser);
+            }
+            
+            toast.success('Account deleted successfully');
+            onDeleteSuccess();
+        } catch (err) {
+            console.error('Delete account error:', err);
+            if (err.code === 'auth/requires-recent-login') {
+                setError('Security timeout. Please refresh the page and try again immediately.');
+            } else {
+                setError(err.message.replace('Firebase: ', ''));
+            }
+            setIsDeleting(false);
+        }
+    };
+
+    const resetAndClose = () => {
+        setStep(1);
+        setPassword('');
+        setConfirmText('');
+        setError('');
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={resetAndClose} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header */}
+                <div className="p-6 bg-red-50 border-b border-red-100">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-red-100 rounded-full">
+                            <AlertTriangle className="h-6 w-6 text-red-600" />
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-red-900">Delete Account</h2>
+                            <p className="text-sm text-red-700">This action cannot be undone</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                    {error && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                            {error}
+                        </div>
+                    )}
+
+                    {step === 1 && (
+                        <>
+                            <p className="text-slate-600">
+                                To delete your account, please verify your identity first.
+                            </p>
+                            
+                            {isGoogleUser ? (
+                                <button
+                                    onClick={handleReauthenticate}
+                                    className="w-full p-3 border border-slate-300 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-50 transition-colors font-medium"
+                                >
+                                    <svg className="h-5 w-5" viewBox="0 0 24 24">
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                    </svg>
+                                    Verify with Google
+                                </button>
+                            ) : isEmailUser ? (
+                                <div className="space-y-3">
+                                    <label className="block">
+                                        <span className="text-sm font-medium text-slate-700">Enter your password</span>
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                                            placeholder="••••••••"
+                                        />
+                                    </label>
+                                    <button
+                                        onClick={handleReauthenticate}
+                                        disabled={!password}
+                                        className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Continue
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="text-center">
+                                    <p className="text-slate-600 mb-4">
+                                        Please re-authenticate to continue.
+                                    </p>
+                                    <button
+                                        onClick={handleReauthenticate}
+                                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
+                                    >
+                                        Verify Identity
+                                    </button>
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {step === 2 && (
+                        <>
+                            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                <p className="text-amber-800 text-sm font-medium mb-2">
+                                    You are about to permanently delete:
+                                </p>
+                                <ul className="text-amber-700 text-sm space-y-1">
+                                    <li>• Your business profile</li>
+                                    <li>• All job history & quotes</li>
+                                    <li>• Client connections</li>
+                                    <li>• Invoices and settings</li>
+                                </ul>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <label className="block">
+                                    <span className="text-sm font-medium text-slate-700">
+                                        Type <span className="font-mono bg-slate-100 px-1 rounded">DELETE</span> to confirm
+                                    </span>
+                                    <input
+                                        type="text"
+                                        value={confirmText}
+                                        onChange={(e) => setConfirmText(e.target.value.toUpperCase())}
+                                        className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono"
+                                        placeholder="DELETE"
+                                    />
+                                </label>
+                            </div>
+
+                            <button
+                                onClick={handleDelete}
+                                disabled={confirmText !== 'DELETE' || isDeleting}
+                                className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="h-5 w-5" />
+                                        Permanently Delete Account
+                                    </>
+                                )}
+                            </button>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 pb-6">
+                    <button
+                        onClick={resetAndClose}
+                        className="w-full py-3 border border-slate-300 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- SETTINGS VIEW ---
-const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
+const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
     const [settings, setSettings] = useState({
         emailNotifications: profile?.settings?.emailNotifications ?? true,
         smsNotifications: profile?.settings?.smsNotifications ?? false,
@@ -854,7 +1085,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
     });
     const [saving, setSaving] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
 
     const handleSaveSettings = async () => {
         setSaving(true);
@@ -865,21 +1095,6 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
             toast.error('Failed to save settings');
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleDeleteAccount = async () => {
-        setIsDeleting(true);
-        try {
-            await deleteContractorAccount(profile.id);
-            await deleteUser(auth.currentUser);
-            toast.success('Account deleted');
-            onSignOut();
-        } catch (err) {
-            toast.error('Failed to delete account: ' + err.message);
-        } finally {
-            setIsDeleting(false);
-            setShowDeleteModal(false);
         }
     };
 
@@ -917,13 +1132,12 @@ const SettingsView = ({ profile, onUpdateSettings, onSignOut }) => {
                 <button onClick={() => setShowDeleteModal(true)} className="px-4 py-2 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700">Delete Account</button>
             </div>
 
-            <DeleteConfirmModal
+            <ContractorDeleteAccountModal
                 isOpen={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
-                onConfirm={handleDeleteAccount}
-                title="Delete Account?"
-                message="This will permanently delete your profile, settings, and disconnect you from all homeowners. This action cannot be undone."
-                isDeleting={isDeleting}
+                user={user}
+                contractorId={profile?.id}
+                onDeleteSuccess={onSignOut}
             />
         </div>
     );
@@ -1320,6 +1534,7 @@ export const ContractorProApp = () => {
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
                     
+                    {/* UPDATED: Pass user to SettingsView */}
                     {activeView === 'settings' && (
                         <div className="space-y-8">
                             <BusinessSettings 
@@ -1331,7 +1546,12 @@ export const ContractorProApp = () => {
                                 }}
                             />
                             <div className="pt-8 border-t border-slate-200">
-                                <SettingsView profile={profile} onUpdateSettings={updateContractorSettings} onSignOut={signOut} />
+                                <SettingsView 
+                                    user={user}
+                                    profile={profile} 
+                                    onUpdateSettings={updateContractorSettings} 
+                                    onSignOut={signOut} 
+                                />
                             </div>
                         </div>
                     )}
