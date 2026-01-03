@@ -10,6 +10,7 @@ import {
     setDoc, 
     updateDoc,
     deleteDoc,
+    addDoc, // ADDED
     collection, 
     query, 
     where, 
@@ -22,7 +23,7 @@ import {
     writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH, appId } from '../../../config/constants'; // ADDED appId
 
 // Collection paths
 const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
@@ -894,17 +895,78 @@ export const generateQuoteShareLink = (contractorId, quoteId) => {
     return `${window.location.origin}/app/?quote=${shareToken}`;
 };
 
+// ============================================
+// QUOTE CLAIMING & PRO CONNECTIONS
+// ============================================
+
+/**
+ * Create or update a connection between a user and a pro
+ */
+const createProConnection = async (userId, proData) => {
+    try {
+        const prosRef = collection(db, 'artifacts', appId, 'users', userId, 'pros');
+        
+        // Check if pro already exists (by contractorId)
+        const existingQuery = query(prosRef, where('contractorId', '==', proData.contractorId));
+        const existing = await getDocs(existingQuery);
+        
+        if (!existing.empty) {
+            // Update existing connection
+            await updateDoc(existing.docs[0].ref, {
+                ...proData,
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            // Create new connection
+            await addDoc(prosRef, {
+                ...proData,
+                createdAt: serverTimestamp()
+            });
+        }
+    } catch (error) {
+        console.error('Error creating pro connection:', error);
+        // Fail silently so quote claim doesn't break
+    }
+};
+
 /**
  * Claim a quote for a specific user (homeowner)
+ * Also establishes a connection in the user's "My Pros" list
  */
-export const claimQuote = async (contractorId, quoteId, userId) => {
+export const claimQuote = async (contractorId, quoteId, userId, propertyId = null) => {
     try {
         const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
         
-        await updateDoc(quoteRef, {
+        // Get contractor info for the connection
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        const contractorSnap = await getDoc(contractorRef);
+        const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : {};
+
+        // Update quote
+        const updateData = {
             customerId: userId,
-            // Optional: You could also change status to 'viewed' or keep it as is
+            claimedAt: serverTimestamp(),
             updatedAt: serverTimestamp()
+        };
+        
+        // Optionally link property if provided (Workstream 2)
+        if (propertyId) {
+            updateData.propertyId = propertyId;
+        }
+        
+        await updateDoc(quoteRef, updateData);
+        
+        // Create/Update Pro connection (Workstream 5.1)
+        await createProConnection(userId, {
+            contractorId,
+            name: contractorProfile.companyName || 'Contractor',
+            phone: contractorProfile.phone || null,
+            email: contractorProfile.email || null,
+            address: contractorProfile.address || null,
+            logoUrl: contractorProfile.logoUrl || null,
+            isOnPlatform: true,
+            connectedVia: 'quote',
+            connectedAt: serverTimestamp()
         });
         
         return { success: true };
