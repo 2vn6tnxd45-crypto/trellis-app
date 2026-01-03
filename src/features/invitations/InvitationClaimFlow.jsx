@@ -8,7 +8,7 @@
 // UPDATED: Now detects contractor sessions and prompts sign-out
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom'; // ADDED: For navigation with state
+// REMOVED: import { useNavigate } from 'react-router-dom'; 
 import { 
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword, 
@@ -566,7 +566,7 @@ const loadProfileSafely = async (userId) => {
 // MAIN COMPONENT
 // ============================================
 export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
-    const navigate = useNavigate(); // ADDED: Hook for navigation
+    // REMOVED: navigate hook
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [invite, setInvite] = useState(null);
@@ -846,8 +846,9 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         if (onComplete) {
             onComplete();
         } else {
-            // UPDATED: Navigate to onboarding with skip flag
-            navigate('/onboarding', { state: { skipWelcome: true } });
+            // UPDATED: Store skip flag in session storage and reload
+            sessionStorage.setItem('skipWelcome', 'true');
+            window.location.reload();
         }
     };
     
@@ -859,8 +860,8 @@ export const InvitationClaimFlow = ({ token, onComplete, onCancel }) => {
         if (onCancel) {
             onCancel();
         } else {
-            // UPDATED: Navigate to home/dashboard
-            navigate('/');
+            // UPDATED: Reload to go home
+            window.location.reload();
         }
     };
     
