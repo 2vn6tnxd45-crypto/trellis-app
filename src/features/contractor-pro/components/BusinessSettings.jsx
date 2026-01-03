@@ -8,7 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     Users, Truck, Clock, MapPin, Calendar, Sparkles,
     ChevronDown, ChevronUp, Save, Info, Building2,
-    Plus, Trash2, Check
+    Plus, Trash2, Check, FileText
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -117,6 +117,12 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         defaultJobDuration: profile?.scheduling?.defaultJobDuration || 120,
         serviceRadiusMiles: profile?.scheduling?.serviceRadiusMiles || 25,
         maxJobsPerDay: profile?.scheduling?.maxJobsPerDay || 4,
+
+        // Quote Defaults (New)
+        defaultLaborWarranty: profile?.scheduling?.defaultLaborWarranty || '',
+        defaultTaxRate: profile?.scheduling?.defaultTaxRate !== undefined ? profile?.scheduling?.defaultTaxRate : 8.75,
+        defaultDepositType: profile?.scheduling?.defaultDepositType || 'percentage',
+        defaultDepositValue: profile?.scheduling?.defaultDepositValue !== undefined ? profile?.scheduling?.defaultDepositValue : 15,
         
         // Home base
         homeBase: profile?.scheduling?.homeBase || {
@@ -131,7 +137,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
     // Calculate profile completeness
     const calculateCompleteness = () => {
         let score = 0;
-        let total = 7;
+        let total = 8; // Increased total to account for quote defaults
         
         if (settings.teamType) score++;
         if (settings.teamSize > 0) score++;
@@ -140,6 +146,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         if (settings.serviceRadiusMiles > 0) score++;
         if (Object.values(settings.workingHours).some(d => d.enabled)) score++;
         if (settings.bufferMinutes >= 0) score++;
+        if (settings.defaultLaborWarranty || settings.defaultTaxRate) score++; // Bonus for quote defaults
         
         return Math.round((score / total) * 100);
     };
@@ -475,6 +482,77 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                                     <option key={n} value={n}>{n} jobs</option>
                                 ))}
                             </select>
+                        </div>
+                    </div>
+                </div>
+            </SettingsSection>
+
+            {/* Quote Defaults */}
+            <SettingsSection title="Quote Defaults" icon={FileText}>
+                <div className="space-y-4 pt-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Default Labor Warranty
+                        </label>
+                        <input
+                            type="text"
+                            value={settings.defaultLaborWarranty || ''}
+                            onChange={(e) => setSettings(s => ({ 
+                                ...s, 
+                                defaultLaborWarranty: e.target.value 
+                            }))}
+                            placeholder="e.g., 1 Year Labor Warranty on all work"
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                            Auto-filled on new quotes
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Default Tax Rate (%)
+                        </label>
+                        <input
+                            type="number"
+                            step="0.01"
+                            value={settings.defaultTaxRate}
+                            onChange={(e) => setSettings(s => ({ 
+                                ...s, 
+                                defaultTaxRate: parseFloat(e.target.value) 
+                            }))}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                            Default Deposit Requirement
+                        </label>
+                        <div className="flex items-center gap-3">
+                            <select
+                                value={settings.defaultDepositType || 'percentage'}
+                                onChange={(e) => setSettings(s => ({ 
+                                    ...s, 
+                                    defaultDepositType: e.target.value 
+                                }))}
+                                className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                            >
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed Amount</option>
+                            </select>
+                            <input
+                                type="number"
+                                value={settings.defaultDepositValue}
+                                onChange={(e) => setSettings(s => ({ 
+                                    ...s, 
+                                    defaultDepositValue: parseFloat(e.target.value) 
+                                }))}
+                                className="w-32 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                            />
+                            <span className="text-slate-500">
+                                {settings.defaultDepositType === 'percentage' ? '%' : '$'}
+                            </span>
                         </div>
                     </div>
                 </div>
