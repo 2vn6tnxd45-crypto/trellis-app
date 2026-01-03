@@ -1,0 +1,590 @@
+// src/features/contractor-pro/components/DragDropCalendar.jsx
+// ============================================
+// DRAG & DROP CALENDAR
+// ============================================
+// Visual calendar where contractors can drag unscheduled jobs onto time slots
+
+import React, { useState, useMemo, useCallback } from 'react';
+import { 
+    ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
+    User, GripVertical, Check, X, AlertCircle, Sparkles,
+    Navigation, Users as UsersIcon
+} from 'lucide-react';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
+import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import toast from 'react-hot-toast';
+
+// ============================================
+// HELPERS
+// ============================================
+
+const getWeekDates = (date) => {
+    const start = new Date(date);
+    start.setDate(start.getDate() - start.getDay());
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        dates.push(d);
+    }
+    return dates;
+};
+
+const isSameDay = (date1, date2) => {
+    if (!date1 || !date2) return false;
+    const d1 = new Date(date1);
+    const d2 = new Date(date2);
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+};
+
+const formatTime = (hour) => {
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const h = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    return `${h} ${ampm}`;
+};
+
+const getJobsForDate = (jobs, date) => {
+    return jobs.filter(job => {
+        const jobDate = job.scheduledTime || job.scheduledDate;
+        if (!jobDate) return false;
+        return isSameDay(new Date(jobDate), date);
+    });
+};
+
+// ============================================
+// DRAGGABLE JOB CARD (Sidebar)
+// ============================================
+
+const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDragStart = (e) => {
+        setIsDragging(true);
+        e.dataTransfer.setData('jobId', job.id);
+        e.dataTransfer.setData('jobData', JSON.stringify(job));
+        e.dataTransfer.effectAllowed = 'move';
+        onDragStart?.(job);
+    };
+
+    const handleDragEnd = () => {
+        setIsDragging(false);
+        onDragEnd?.();
+    };
+
+    return (
+        <div
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            className={`p-3 bg-white rounded-xl border border-slate-200 cursor-grab active:cursor-grabbing transition-all ${
+                isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'
+            }`}
+        >
+            <div className="flex items-start gap-2">
+                <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-slate-800 text-sm truncate">
+                        {job.title || job.description || 'Service'}
+                    </h4>
+                    <p className="text-xs text-slate-500 truncate">
+                        {job.customer?.name || 'Customer'}
+                    </p>
+                    {job.customer?.address && (
+                        <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1">
+                            <MapPin size={10} />
+                            {job.customer.address.split(',')[0]}
+                        </p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-slate-400">
+                            ~{job.estimatedDuration || 120} min
+                        </span>
+                        {job.total > 0 && (
+                            <span className="text-xs font-bold text-emerald-600">
+                                ${job.total.toLocaleString()}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// TIME SLOT (Drop Zone)
+// ============================================
+
+const TimeSlot = ({ 
+    date, 
+    hour, 
+    jobs, 
+    isDropTarget, 
+    onDrop, 
+    onDragOver, 
+    onDragLeave,
+    onJobClick,
+    preferences
+}) => {
+    const slotJobs = jobs.filter(job => {
+        const jobDate = new Date(job.scheduledTime || job.scheduledDate);
+        return jobDate.getHours() === hour;
+    });
+
+    // Check if this hour is within working hours
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayPrefs = preferences?.workingHours?.[dayName];
+    const isWorkingHour = dayPrefs?.enabled !== false;
+    
+    let startHour = 8, endHour = 17;
+    if (dayPrefs?.start) startHour = parseInt(dayPrefs.start.split(':')[0]);
+    if (dayPrefs?.end) endHour = parseInt(dayPrefs.end.split(':')[0]);
+    
+    const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingHour;
+
+    return (
+        <div
+            onDrop={(e) => onDrop(e, date, hour)}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors ${
+                isDropTarget 
+                    ? 'bg-emerald-100 border-emerald-300' 
+                    : isWithinWorkingHours
+                        ? 'bg-white hover:bg-slate-50'
+                        : 'bg-slate-50'
+            }`}
+        >
+            {slotJobs.map(job => (
+                <button
+                    key={job.id}
+                    onClick={() => onJobClick?.(job)}
+                    className="w-full mb-1 p-2 bg-emerald-500 text-white rounded-lg text-xs text-left hover:bg-emerald-600 transition-colors"
+                >
+                    <p className="font-bold truncate">{job.title || job.description || 'Job'}</p>
+                    <p className="truncate opacity-80">{job.customer?.name}</p>
+                </button>
+            ))}
+        </div>
+    );
+};
+
+// ============================================
+// DROP CONFIRMATION MODAL
+// ============================================
+
+const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers }) => {
+    const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
+    const [selectedTech, setSelectedTech] = useState('');
+    const [duration, setDuration] = useState(job.estimatedDuration || 120);
+
+    const timeOptions = [];
+    for (let h = 6; h <= 20; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            const label = `${h > 12 ? h - 12 : h}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+            timeOptions.push({ value: time, label });
+        }
+    }
+
+    const handleConfirm = () => {
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        const scheduledDateTime = new Date(date);
+        scheduledDateTime.setHours(hours, minutes, 0, 0);
+        
+        onConfirm({
+            scheduledTime: scheduledDateTime.toISOString(),
+            assignedTo: selectedTech || null,
+            estimatedDuration: duration
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+            
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
+                <h3 className="font-bold text-lg text-slate-800 mb-4">Schedule Job</h3>
+                
+                {/* Job Info */}
+                <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                    <h4 className="font-bold text-slate-800">
+                        {job.title || job.description || 'Service'}
+                    </h4>
+                    <p className="text-sm text-slate-500">{job.customer?.name}</p>
+                    {job.customer?.address && (
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                            <MapPin size={12} />
+                            {job.customer.address}
+                        </p>
+                    )}
+                </div>
+
+                {/* Date Display */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                    <div className="px-4 py-2.5 bg-slate-100 rounded-xl text-slate-800 font-medium">
+                        {date.toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'long', 
+                            day: 'numeric' 
+                        })}
+                    </div>
+                </div>
+
+                {/* Time Selection */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
+                    <select
+                        value={selectedTime}
+                        onChange={(e) => setSelectedTime(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                        {timeOptions.map(t => (
+                            <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Duration */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+                    <select
+                        value={duration}
+                        onChange={(e) => setDuration(parseInt(e.target.value))}
+                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                    >
+                        <option value={30}>30 minutes</option>
+                        <option value={60}>1 hour</option>
+                        <option value={90}>1.5 hours</option>
+                        <option value={120}>2 hours</option>
+                        <option value={180}>3 hours</option>
+                        <option value={240}>4 hours</option>
+                        <option value={480}>Full day</option>
+                    </select>
+                </div>
+
+                {/* Tech Assignment (if team) */}
+                {teamMembers && teamMembers.length > 0 && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Assign To
+                        </label>
+                        <select
+                            value={selectedTech}
+                            onChange={(e) => setSelectedTech(e.target.value)}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        >
+                            <option value="">Unassigned</option>
+                            {teamMembers.map(member => (
+                                <option key={member.id} value={member.id}>
+                                    {member.name} ({member.role})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 mt-6">
+                    <button
+                        onClick={onCancel}
+                        className="flex-1 px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleConfirm}
+                        className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2"
+                    >
+                        <Check size={18} />
+                        Schedule
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// MAIN DRAG & DROP CALENDAR
+// ============================================
+
+export const DragDropCalendar = ({ 
+    jobs = [], 
+    preferences = {},
+    onJobUpdate,
+    onJobClick 
+}) => {
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [draggedJob, setDraggedJob] = useState(null);
+    const [dropTarget, setDropTarget] = useState(null);
+    const [confirmDrop, setConfirmDrop] = useState(null);
+
+    const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate]);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Separate scheduled and unscheduled jobs
+    const { scheduledJobs, unscheduledJobs } = useMemo(() => {
+        const scheduled = [];
+        const unscheduled = [];
+        
+        jobs.forEach(job => {
+            if (['completed', 'cancelled'].includes(job.status)) return;
+            
+            if (job.scheduledTime || job.scheduledDate) {
+                scheduled.push(job);
+            } else {
+                unscheduled.push(job);
+            }
+        });
+        
+        return { scheduledJobs: scheduled, unscheduledJobs: unscheduled };
+    }, [jobs]);
+
+    // Working hours range
+    const workingHours = useMemo(() => {
+        let minHour = 8, maxHour = 18;
+        
+        if (preferences?.workingHours) {
+            Object.values(preferences.workingHours).forEach(day => {
+                if (day?.enabled && day?.start) {
+                    const start = parseInt(day.start.split(':')[0]);
+                    const end = parseInt(day.end.split(':')[0]);
+                    if (start < minHour) minHour = start;
+                    if (end > maxHour) maxHour = end;
+                }
+            });
+        }
+        
+        const hours = [];
+        for (let h = minHour; h <= maxHour; h++) {
+            hours.push(h);
+        }
+        return hours;
+    }, [preferences]);
+
+    // Navigation
+    const navigatePrev = () => {
+        const newDate = new Date(currentDate);
+        newDate.setDate(newDate.getDate() - 7);
+        setCurrentDate(newDate);
+    };
+
+    const navigateNext = () => {
+        const newDate = new Date(currentDate);
+        newDate.setDate(newDate.getDate() + 7);
+        setCurrentDate(newDate);
+    };
+
+    const goToToday = () => {
+        setCurrentDate(new Date());
+    };
+
+    // Drag handlers
+    const handleDragStart = useCallback((job) => {
+        setDraggedJob(job);
+    }, []);
+
+    const handleDragEnd = useCallback(() => {
+        setDraggedJob(null);
+        setDropTarget(null);
+    }, []);
+
+    const handleDragOver = useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }, []);
+
+    const handleDragEnter = useCallback((date, hour) => {
+        setDropTarget({ date, hour });
+    }, []);
+
+    const handleDragLeave = useCallback(() => {
+        // Small delay to prevent flicker
+        setTimeout(() => setDropTarget(null), 50);
+    }, []);
+
+    const handleDrop = useCallback((e, date, hour) => {
+        e.preventDefault();
+        
+        const jobId = e.dataTransfer.getData('jobId');
+        const jobData = JSON.parse(e.dataTransfer.getData('jobData') || '{}');
+        
+        if (jobId && jobData) {
+            setConfirmDrop({ job: jobData, date, hour });
+        }
+        
+        setDropTarget(null);
+        setDraggedJob(null);
+    }, []);
+
+    // Confirm scheduling
+    const handleConfirmSchedule = async (scheduleData) => {
+        if (!confirmDrop?.job) return;
+
+        try {
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
+                scheduledTime: scheduleData.scheduledTime,
+                scheduledDate: scheduleData.scheduledTime,
+                estimatedDuration: scheduleData.estimatedDuration,
+                assignedTo: scheduleData.assignedTo,
+                status: 'scheduled',
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Job scheduled!');
+            if (onJobUpdate) onJobUpdate();
+        } catch (error) {
+            console.error('Error scheduling job:', error);
+            toast.error('Failed to schedule job');
+        }
+
+        setConfirmDrop(null);
+    };
+
+    const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+    return (
+        <div className="flex h-full bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {/* Sidebar - Unscheduled Jobs */}
+            <div className="w-72 border-r border-slate-200 flex flex-col bg-slate-50">
+                <div className="p-4 border-b border-slate-200">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        Unscheduled
+                        {unscheduledJobs.length > 0 && (
+                            <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                                {unscheduledJobs.length}
+                            </span>
+                        )}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                        Drag jobs onto the calendar
+                    </p>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                    {unscheduledJobs.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400">
+                            <Check size={24} className="mx-auto mb-2" />
+                            <p className="text-sm">All jobs scheduled!</p>
+                        </div>
+                    ) : (
+                        unscheduledJobs.map(job => (
+                            <DraggableJobCard
+                                key={job.id}
+                                job={job}
+                                onDragStart={handleDragStart}
+                                onDragEnd={handleDragEnd}
+                            />
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="flex-1 flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={navigatePrev}
+                            className="p-2 hover:bg-slate-100 rounded-lg"
+                        >
+                            <ChevronLeft size={20} className="text-slate-600" />
+                        </button>
+                        <button
+                            onClick={navigateNext}
+                            className="p-2 hover:bg-slate-100 rounded-lg"
+                        >
+                            <ChevronRight size={20} className="text-slate-600" />
+                        </button>
+                        <h2 className="text-lg font-bold text-slate-800 ml-2">{monthLabel}</h2>
+                    </div>
+                    <button
+                        onClick={goToToday}
+                        className="px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                    >
+                        Today
+                    </button>
+                </div>
+
+                {/* Day Headers */}
+                <div className="grid grid-cols-8 border-b border-slate-200">
+                    <div className="w-16 shrink-0 bg-slate-50" /> {/* Time column header */}
+                    {weekDates.map((date, idx) => {
+                        const isToday = isSameDay(date, today);
+                        return (
+                            <div 
+                                key={idx}
+                                className={`p-2 text-center border-l border-slate-100 ${isToday ? 'bg-emerald-50' : ''}`}
+                            >
+                                <p className={`text-xs font-medium ${isToday ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                                </p>
+                                <p className={`text-lg font-bold ${isToday ? 'text-emerald-600' : 'text-slate-800'}`}>
+                                    {date.getDate()}
+                                </p>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* Time Grid */}
+                <div className="flex-1 overflow-y-auto">
+                    {workingHours.map(hour => (
+                        <div key={hour} className="grid grid-cols-8">
+                            {/* Time Label */}
+                            <div className="w-16 shrink-0 p-2 text-xs text-slate-400 text-right pr-3 bg-slate-50 border-b border-slate-100">
+                                {formatTime(hour)}
+                            </div>
+                            
+                            {/* Day Slots */}
+                            {weekDates.map((date, idx) => {
+                                const isTarget = dropTarget && 
+                                    isSameDay(dropTarget.date, date) && 
+                                    dropTarget.hour === hour;
+                                
+                                return (
+                                    <TimeSlot
+                                        key={idx}
+                                        date={date}
+                                        hour={hour}
+                                        jobs={getJobsForDate(scheduledJobs, date)}
+                                        isDropTarget={isTarget}
+                                        onDrop={handleDrop}
+                                        onDragOver={(e) => {
+                                            handleDragOver(e);
+                                            handleDragEnter(date, hour);
+                                        }}
+                                        onDragLeave={handleDragLeave}
+                                        onJobClick={onJobClick}
+                                        preferences={preferences}
+                                    />
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Drop Confirmation Modal */}
+            {confirmDrop && (
+                <DropConfirmModal
+                    job={confirmDrop.job}
+                    date={confirmDrop.date}
+                    hour={confirmDrop.hour}
+                    teamMembers={preferences?.teamMembers}
+                    onConfirm={handleConfirmSchedule}
+                    onCancel={() => setConfirmDrop(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+export default DragDropCalendar;
