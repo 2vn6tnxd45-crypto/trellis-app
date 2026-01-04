@@ -3,7 +3,7 @@
 // QUOTE HOOKS
 // ============================================
 // React hooks for managing quote state and operations
-// FIXED: Added defensive checks for undefined contractorId
+// FIXED: Bulletproof handling of undefined contractorId
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -34,6 +34,7 @@ export const useQuotes = (contractorId) => {
     useEffect(() => {
         if (!contractorId) {
             setLoading(false);
+            setQuotes([]);
             return;
         }
 
@@ -112,6 +113,7 @@ export const useQuoteTemplates = (contractorId) => {
     useEffect(() => {
         if (!contractorId) {
             setLoading(false);
+            setTemplates([]);
             return;
         }
 
@@ -163,7 +165,10 @@ export const useQuoteStats = (contractorId) => {
     const [loading, setLoading] = useState(true);
 
     const refresh = useCallback(async () => {
-        if (!contractorId) return;
+        if (!contractorId) {
+            setLoading(false);
+            return;
+        }
         
         setLoading(true);
         try {
@@ -189,7 +194,8 @@ export const useQuoteStats = (contractorId) => {
 
 /**
  * Hook for quote CRUD operations
- * FIX: Added better error handling and defensive checks
+ * CRITICAL FIX: Always returns callable functions, even if contractorId is undefined
+ * The functions will throw an error when called without a valid contractorId
  */
 export const useQuoteOperations = (contractorId) => {
     const [isCreating, setIsCreating] = useState(false);
@@ -197,15 +203,17 @@ export const useQuoteOperations = (contractorId) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
-    // FIX: Ensure createQuote is available
+    // CRITICAL: These functions must ALWAYS be defined
+    // They check for contractorId at call time, not at definition time
+    
     const create = useCallback(async (quoteData) => {
+        // Check at call time
         if (!contractorId) {
-            throw new Error('Contractor not authenticated');
+            console.error('useQuoteOperations.create: contractorId is undefined');
+            throw new Error('Contractor not authenticated. Please sign in again.');
         }
-        if (typeof createQuote !== 'function') {
-            console.error('createQuote is not a function:', createQuote);
-            throw new Error('Quote service not available');
-        }
+        
+        console.log('Creating quote for contractor:', contractorId);
         
         setIsCreating(true);
         try {
@@ -219,14 +227,10 @@ export const useQuoteOperations = (contractorId) => {
         }
     }, [contractorId]);
 
-    // FIX: Ensure updateQuote is available
     const update = useCallback(async (quoteId, quoteData) => {
         if (!contractorId) {
-            throw new Error('Contractor not authenticated');
-        }
-        if (typeof updateQuote !== 'function') {
-            console.error('updateQuote is not a function:', updateQuote);
-            throw new Error('Quote service not available');
+            console.error('useQuoteOperations.update: contractorId is undefined');
+            throw new Error('Contractor not authenticated. Please sign in again.');
         }
         
         setIsUpdating(true);
@@ -241,14 +245,10 @@ export const useQuoteOperations = (contractorId) => {
         }
     }, [contractorId]);
 
-    // FIX: Ensure deleteQuote is available
     const remove = useCallback(async (quoteId) => {
         if (!contractorId) {
-            throw new Error('Contractor not authenticated');
-        }
-        if (typeof deleteQuote !== 'function') {
-            console.error('deleteQuote is not a function:', deleteQuote);
-            throw new Error('Quote service not available');
+            console.error('useQuoteOperations.remove: contractorId is undefined');
+            throw new Error('Contractor not authenticated. Please sign in again.');
         }
         
         setIsDeleting(true);
@@ -263,14 +263,10 @@ export const useQuoteOperations = (contractorId) => {
         }
     }, [contractorId]);
 
-    // FIX: Ensure sendQuote is available
     const send = useCallback(async (quoteId) => {
         if (!contractorId) {
-            throw new Error('Contractor not authenticated');
-        }
-        if (typeof sendQuote !== 'function') {
-            console.error('sendQuote is not a function:', sendQuote);
-            throw new Error('Quote service not available');
+            console.error('useQuoteOperations.send: contractorId is undefined');
+            throw new Error('Contractor not authenticated. Please sign in again.');
         }
         
         setIsSending(true);
@@ -287,11 +283,13 @@ export const useQuoteOperations = (contractorId) => {
 
     const getShareLink = useCallback((quoteId) => {
         if (!contractorId) {
-            throw new Error('Contractor not authenticated');
+            console.error('useQuoteOperations.getShareLink: contractorId is undefined');
+            throw new Error('Contractor not authenticated. Please sign in again.');
         }
         return generateQuoteShareLink(contractorId, quoteId);
     }, [contractorId]);
 
+    // ALWAYS return an object with all functions defined
     return {
         create,
         update,
