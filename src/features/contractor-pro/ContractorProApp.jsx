@@ -1319,13 +1319,24 @@ export const ContractorProApp = () => {
         }
     }, [activeView]);
 
+    // ... (previous imports)
+
+// ...
+
     const handleJobClick = useCallback((job) => {
-        if (['quoted', 'scheduling', 'scheduled', 'pending_schedule', 'slots_offered'].includes(job.status)) {
+        // NEW: If job needs scheduling (or is in negotiation), open OfferTimeSlotsModal
+        if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
+            setOfferingTimesJob(job);
+        } else if (job.status === 'scheduled') {
+            // For already scheduled jobs, show the job details modal (existing behavior)
             setSelectedJob(job);
         } else {
-            toast("View details feature coming soon for this status");
+            // Fallback for other statuses
+            setSelectedJob(job);
         }
     }, []);
+
+// ...
     
     const getViewTitle = () => {
         switch (activeView) {
