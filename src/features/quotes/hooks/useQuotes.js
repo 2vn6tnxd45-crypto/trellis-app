@@ -5,6 +5,13 @@
 // React hooks for managing quote state and operations
 // FIXED: Bulletproof handling of undefined contractorId
 
+// src/features/quotes/hooks/useQuotes.js
+// ============================================
+// QUOTE HOOKS
+// ============================================
+// React hooks for managing quote state and operations
+// FIXED: Bulletproof handling of undefined contractorId
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     subscribeToQuotes,
@@ -19,10 +26,7 @@ import {
     generateQuoteShareLink
 } from '../lib/quoteService';
 
-// ============================================
-// QUOTES LIST HOOK
-// ============================================
-
+// Move console.log HERE (after imports)
 console.log('✅ useQuotes.js LOADED - NEW VERSION');
 
 /**
