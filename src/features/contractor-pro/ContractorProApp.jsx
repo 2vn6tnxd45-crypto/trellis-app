@@ -46,45 +46,7 @@ import {
 import { JobScheduler } from '../jobs/JobScheduler';
 
 // NEW: Job Completion Components
-// NOTE: Uncomment this import once the completion components are created:
-// import { JobCompletionForm } from '../jobs/components/completion';
-
-// Placeholder until component exists - remove this when importing the real component
-const JobCompletionForm = ({ job, contractorId, onSuccess, onClose }) => (
-    <div className="p-6">
-        <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-slate-800">Complete Job</h2>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
-                <X size={20} className="text-slate-400" />
-            </button>
-        </div>
-        <p className="text-slate-600 mb-4">
-            Submit completion details for: <strong>{job?.title || job?.description || 'This job'}</strong>
-        </p>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-            <p className="text-amber-800 text-sm">
-                <strong>Note:</strong> The JobCompletionForm component needs to be created at:
-                <code className="block mt-1 bg-amber-100 px-2 py-1 rounded text-xs">
-                    src/features/jobs/components/completion/JobCompletionForm.jsx
-                </code>
-            </p>
-        </div>
-        <div className="flex gap-2">
-            <button 
-                onClick={onClose}
-                className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
-            >
-                Cancel
-            </button>
-            <button 
-                onClick={() => { onSuccess?.(); }}
-                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
-            >
-                Submit Completion (Placeholder)
-            </button>
-        </div>
-    </div>
-);
+import { JobCompletionForm } from '../jobs/components/completion';
 
 // NEW: Rating Components
 // NOTE: Uncomment this import once the ratings components are created:
@@ -1772,21 +1734,14 @@ export const ContractorProApp = () => {
             )}
 
             {/* NEW: Job Completion Form Modal */}
+            {/* Job Completion Modal - Component handles its own modal styling */}
             {completingJob && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center">
-                    <div 
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
-                        onClick={() => setCompletingJob(null)} 
-                    />
-                    <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-2xl overflow-auto bg-white md:rounded-2xl md:m-4">
-                        <JobCompletionForm
-                            job={jobs.find(j => j.id === completingJob.id) || completingJob}
-                            contractorId={profile?.id || user?.uid}
-                            onSuccess={() => handleCompletionSuccess(completingJob)}
-                            onClose={() => setCompletingJob(null)}
-                        />
-                    </div>
-                </div>
+                <JobCompletionForm
+                    job={jobs.find(j => j.id === completingJob.id) || completingJob}
+                    contractorId={profile?.id || user?.uid}
+                    onSuccess={() => handleCompletionSuccess(completingJob)}
+                    onClose={() => setCompletingJob(null)}
+                />
             )}
 
             {/* NEW: Rate Homeowner Modal (optional, after completion) */}
