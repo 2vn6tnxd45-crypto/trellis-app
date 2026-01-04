@@ -1478,14 +1478,15 @@ export const ContractorProApp = () => {
                                 />
                             )}
                             {scheduleView === 'route' && (
-                                <RouteVisualization 
-                                    jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
-                                    date={selectedDate}
-                                    preferences={profile?.scheduling}
-                                    onJobClick={handleJobClick}
-                                    onReorder={() => {}}
-                                />
-                            )}
+    <RouteVisualization 
+        jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
+        date={selectedDate}
+        preferences={profile?.scheduling}
+        onJobClick={handleJobClick}
+        onReorder={() => {}}
+        onDateChange={(date) => setSelectedDate(date)} // <--- NEW: Enable navigation
+    />
+)}
                             {scheduleView === 'team' && (
                                 <TechAssignmentPanel 
                                     jobs={jobs}
