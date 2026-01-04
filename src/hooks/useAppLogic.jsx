@@ -70,12 +70,23 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // DERIVED STATE - All existing derived state preserved exactly
     // =========================================================================
-    const getPropertiesList = () => {
-        if (!profile) return [];
-        if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
-        if (profile.name) return [{ id: 'legacy', name: profile.name, address: profile.address, coordinates: profile.coordinates }];
-        return [];
-    };
+   const getPropertiesList = () => {
+    if (!profile) return [];
+    if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
+    // FIX: Use address for property name, fallback to "My Home" instead of user's personal name
+    if (profile.name || profile.address) {
+        const propertyName = profile.address 
+            ? (typeof profile.address === 'string' ? profile.address.split(',')[0] : profile.address.street || 'My Home')
+            : 'My Home';
+        return [{ 
+            id: 'legacy', 
+            name: propertyName, 
+            address: profile.address, 
+            coordinates: profile.coordinates 
+        }];
+    }
+    return [];
+};
     const properties = getPropertiesList();
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
     
