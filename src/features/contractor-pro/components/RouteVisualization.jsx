@@ -3,17 +3,18 @@
 // ROUTE VISUALIZATION
 // ============================================
 // Shows daily jobs on a map-like visualization with route optimization suggestions
-// UPDATED: Fixed ReferenceError (restored handleApplyOptimization)
+// UPDATED: Added Auto-Geocoding for missing coordinates to fix "0.0 miles"
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     Navigation, MapPin, Clock, ArrowRight, 
     Route, Sparkles, ChevronDown, ChevronUp,
     Car, Home, CheckCircle, AlertCircle, Zap,
     ChevronLeft, ChevronRight, Calendar, Map,
-    Users, MessageSquare, Phone
+    Users, MessageSquare, Phone, Loader2
 } from 'lucide-react';
 import { suggestRouteOrder } from '../lib/schedulingAI';
+import { googleMapsApiKey } from '../../../config/constants';
 
 // ============================================
 // HELPERS
@@ -27,7 +28,7 @@ const formatTime = (dateStr) => {
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-    const R = 3959;
+    const R = 3959; // Radius of Earth in miles
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -41,6 +42,23 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 const estimateTravelTime = (miles) => {
     if (!miles) return null;
     return Math.ceil(miles * 2); // ~30 mph average
+};
+
+// Geocode a single address string to {lat, lng}
+const geocodeAddress = async (address) => {
+    if (!address || !googleMapsApiKey) return null;
+    try {
+        const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${googleMapsApiKey}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
+            return data.results[0].geometry.location;
+        }
+    } catch (error) {
+        console.error("Geocoding failed for:", address, error);
+    }
+    return null;
 };
 
 // ============================================
@@ -164,7 +182,7 @@ const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) =
                         onClick={(e) => {
                             e.stopPropagation();
                             const addr = job.serviceAddress?.formatted || job.customer?.address;
-                            if(addr) window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`, '_blank');
+                            if(addr) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank');
                         }}
                         className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                         title="Navigate"
@@ -187,6 +205,7 @@ const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
         let totalTravelTime = 0;
         let totalJobTime = 0;
         
+        // Use coordinates if available, otherwise we can't calculate
         let prevCoords = homeBase?.coordinates;
         
         jobs.forEach(job => {
@@ -363,14 +382,73 @@ export const RouteVisualization = ({
     onDateChange
 }) => {
     const [isOptimized, setIsOptimized] = useState(false);
-    const [selectedTech, setSelectedTech] = useState('all'); // 'all' | 'unassigned' | memberId
+    const [selectedTech, setSelectedTech] = useState('all'); 
+    
+    // Local state for enriched data (with coordinates)
+    const [enrichedJobs, setEnrichedJobs] = useState([]);
+    const [enrichedHomeBase, setEnrichedHomeBase] = useState(null);
+    const [isEnriching, setIsEnriching] = useState(false);
 
-    // Filter jobs based on selected tech
+    // Filter jobs based on selected tech (using original jobs to filter, then map to enriched)
     const filteredJobs = useMemo(() => {
-        if (selectedTech === 'all') return jobs;
-        if (selectedTech === 'unassigned') return jobs.filter(j => !j.assignedTo);
-        return jobs.filter(j => j.assignedTo === selectedTech);
-    }, [jobs, selectedTech]);
+        let filtered = jobs;
+        if (selectedTech === 'unassigned') filtered = jobs.filter(j => !j.assignedTo);
+        else if (selectedTech !== 'all') filtered = jobs.filter(j => j.assignedTo === selectedTech);
+        
+        // Return the enriched versions of these jobs
+        return enrichedJobs.filter(ej => filtered.some(j => j.id === ej.id));
+    }, [jobs, selectedTech, enrichedJobs]);
+
+    // ENRICHMENT EFFECT: Geocode missing coordinates on load
+    useEffect(() => {
+        const enrichData = async () => {
+            setIsEnriching(true);
+            
+            // 1. Enrich Home Base
+            let home = preferences?.homeBase;
+            if (home?.address && !home.coordinates) {
+                console.log("Geocoding Home Base:", home.address);
+                const coords = await geocodeAddress(home.address);
+                if (coords) {
+                    home = { ...home, coordinates: coords };
+                }
+            }
+            setEnrichedHomeBase(home);
+
+            // 2. Enrich Jobs
+            const newEnrichedJobs = await Promise.all(jobs.map(async (job) => {
+                // If already has coords, keep it
+                if (job.serviceAddress?.coordinates) return job;
+                
+                // If has address but no coords, geocode
+                const address = job.serviceAddress?.formatted || job.customer?.address;
+                if (address) {
+                    console.log("Geocoding Job:", address);
+                    const coords = await geocodeAddress(address);
+                    if (coords) {
+                        return {
+                            ...job,
+                            serviceAddress: {
+                                ...(job.serviceAddress || {}),
+                                formatted: address,
+                                coordinates: coords
+                            }
+                        };
+                    }
+                }
+                return job; // Return original if failure
+            }));
+            
+            setEnrichedJobs(newEnrichedJobs);
+            setIsEnriching(false);
+        };
+
+        if (jobs.length > 0 || preferences?.homeBase?.address) {
+            enrichData();
+        } else {
+            setEnrichedJobs([]);
+        }
+    }, [jobs, preferences?.homeBase]); // Rerun if jobs change
 
     // Sort jobs by time
     const sortedJobs = useMemo(() => {
@@ -381,17 +459,17 @@ export const RouteVisualization = ({
         });
     }, [filteredJobs]);
 
-    // Get optimized order (only suggest if viewing specific tech or < 10 jobs)
+    // Get optimized order using Enriched Home Base
     const optimizedJobs = useMemo(() => {
-        return suggestRouteOrder(sortedJobs, preferences?.homeBase);
-    }, [sortedJobs, preferences]);
+        return suggestRouteOrder(sortedJobs, enrichedHomeBase);
+    }, [sortedJobs, enrichedHomeBase]);
 
     const displayJobs = isOptimized ? optimizedJobs : sortedJobs;
 
     // Calculate travel info
     const travelInfo = useMemo(() => {
         const info = [];
-        let prevCoords = preferences?.homeBase?.coordinates;
+        let prevCoords = enrichedHomeBase?.coordinates;
         
         displayJobs.forEach((job, idx) => {
             const jobCoords = job.serviceAddress?.coordinates;
@@ -411,9 +489,9 @@ export const RouteVisualization = ({
         });
         
         return info;
-    }, [displayJobs, preferences]);
+    }, [displayJobs, enrichedHomeBase]);
 
-    // Handle Date Nav
+    // Handlers
     const handlePrevDay = () => {
         const newDate = new Date(date);
         newDate.setDate(newDate.getDate() - 1);
@@ -426,7 +504,6 @@ export const RouteVisualization = ({
         if (onDateChange) onDateChange(newDate);
     };
 
-    // FIXED: Missing function added here
     const handleApplyOptimization = () => {
         setIsOptimized(true);
         if (onReorder) {
@@ -435,7 +512,7 @@ export const RouteVisualization = ({
     };
 
     const handleOpenRoute = () => {
-        openGoogleMapsRoute(displayJobs, preferences?.homeBase);
+        openGoogleMapsRoute(displayJobs, enrichedHomeBase);
     };
 
     return (
@@ -503,18 +580,25 @@ export const RouteVisualization = ({
             </div>
 
             {/* List */}
-            {displayJobs.length === 0 ? (
+            {isEnriching && (
+                <div className="text-center py-4">
+                    <Loader2 size={24} className="mx-auto text-emerald-600 animate-spin" />
+                    <p className="text-xs text-slate-400 mt-2">Calculating routes...</p>
+                </div>
+            )}
+
+            {!isEnriching && displayJobs.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                     <Navigation size={32} className="mx-auto mb-3 opacity-50" />
                     <p className="font-medium text-slate-600">No jobs scheduled</p>
                     <p className="text-sm">Try changing the date or technician filter</p>
                 </div>
-            ) : (
+            ) : !isEnriching && (
                 <>
                     {/* Route Summary (Restored & Enhanced) */}
                     <RouteSummary 
                         jobs={displayJobs} 
-                        homeBase={preferences?.homeBase}
+                        homeBase={enrichedHomeBase}
                         isOptimized={isOptimized}
                         onOpenMaps={handleOpenRoute}
                     />
@@ -529,12 +613,12 @@ export const RouteVisualization = ({
                     )}
 
                     {/* Start from home */}
-                    {preferences?.homeBase?.address && (
+                    {enrichedHomeBase?.address && (
                         <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl text-slate-600 mb-2">
                             <Home size={18} />
                             <div>
                                 <p className="text-xs font-medium text-slate-500">Starting from</p>
-                                <p className="text-sm">{preferences.homeBase.address}</p>
+                                <p className="text-sm">{enrichedHomeBase.address}</p>
                             </div>
                         </div>
                     )}
@@ -558,7 +642,7 @@ export const RouteVisualization = ({
                     </div>
 
                     {/* Return home */}
-                    {preferences?.homeBase?.address && (
+                    {enrichedHomeBase?.address && (
                         <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-500 mt-2">
                             <Car size={12} />
                             <span>Return home</span>
