@@ -55,7 +55,8 @@ const ChatDrawer = ({ pro, userId, onClose }) => {
 
         try {
             // "me" is just a placeholder name for the homeowner
-            await sendMessage(channelId, textToSend, userId, 'Homeowner'); 
+            const contractorId = pro.contractorId || null;
+await sendMessage(channelId, textToSend, userId, 'Homeowner', contractorId); 
         } catch (error) {
             console.error("Failed to send", error);
             toast.error("Message failed to send");
