@@ -3,6 +3,7 @@
 // CONTRACTOR AUTH HOOK
 // ============================================
 // Manages authentication state for contractor accounts
+// UPDATED: Now subscribes to profile changes in real-time
 
 import { useState, useEffect, useCallback } from 'react';
 import { 
@@ -14,13 +15,17 @@ import {
     signOut as firebaseSignOut,
     sendPasswordResetEmail
 } from 'firebase/auth';
-import { auth } from '../../../config/firebase';
+import { doc, onSnapshot } from 'firebase/firestore'; // UPDATED: Added real-time imports
+import { auth, db } from '../../../config/firebase'; // UPDATED: Added db import
 import { 
     getContractorProfile, 
     saveContractorProfile,
     migrateAnonymousInvitations 
 } from '../lib/contractorService';
+import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+
+const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
 
 export const useContractorAuth = () => {
     const [user, setUser] = useState(null);
@@ -28,27 +33,47 @@ export const useContractorAuth = () => {
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
     
-    // Listen to auth state changes
+    // Listen to auth state changes AND profile changes
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+        let unsubscribeProfile = null;
+        
+        const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             setUser(firebaseUser);
             
-            if (firebaseUser) {
-                try {
-                    // Load contractor profile
-                    const contractorProfile = await getContractorProfile(firebaseUser.uid);
-                    setProfile(contractorProfile);
-                } catch (error) {
-                    console.error('Error loading contractor profile:', error);
-                }
-            } else {
-                setProfile(null);
+            // Clean up previous profile subscription if exists
+            if (unsubscribeProfile) {
+                unsubscribeProfile();
+                unsubscribeProfile = null;
             }
             
-            setLoading(false);
+            if (firebaseUser) {
+                // Subscribe to real-time profile updates
+                const profileRef = doc(db, CONTRACTORS_COLLECTION, firebaseUser.uid);
+                
+                unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+                    if (snap.exists()) {
+                        const profileData = { id: snap.id, ...snap.data() };
+                        setProfile(profileData);
+                    } else {
+                        console.log('[useContractorAuth] No profile found');
+                        setProfile(null);
+                    }
+                    setLoading(false);
+                }, (error) => {
+                    console.error('[useContractorAuth] Profile subscription error:', error);
+                    setProfile(null);
+                    setLoading(false);
+                });
+            } else {
+                setProfile(null);
+                setLoading(false);
+            }
         });
         
-        return () => unsubscribe();
+        return () => {
+            unsubscribeAuth();
+            if (unsubscribeProfile) unsubscribeProfile();
+        };
     }, []);
     
     // Sign up with email/password
@@ -71,7 +96,6 @@ export const useContractorAuth = () => {
             });
             
             // Check for existing invitations to migrate
-            // Wrapped in try/catch to prevent non-critical errors from blocking signup
             try {
                 const migrationResult = await migrateAnonymousInvitations(newUser.uid, email);
                 
@@ -83,12 +107,9 @@ export const useContractorAuth = () => {
                 }
             } catch (migErr) {
                 console.warn("Migration failed silently:", migErr);
-                // Continue with login flow
             }
             
-            // Reload profile
-            const contractorProfile = await getContractorProfile(newUser.uid);
-            setProfile(contractorProfile);
+            // Profile state will update via the onSnapshot listener above
             
             return { success: true, user: newUser };
         } catch (error) {
@@ -105,18 +126,16 @@ export const useContractorAuth = () => {
         try {
             const credential = await signInWithEmailAndPassword(auth, email, password);
             
-            // Load profile
+            // Initial check to ensure they are actually a contractor before state updates
+            // (Real-time listener handles the data loading, this just gates access)
             const contractorProfile = await getContractorProfile(credential.user.uid);
             
             if (!contractorProfile) {
-                // User exists in Firebase Auth but not as a contractor
-                // This might be a homeowner account - redirect them
                 await firebaseSignOut(auth);
                 setAuthError('This account is not registered as a contractor. Please sign up.');
                 return { success: false, error: 'Not a contractor account' };
             }
             
-            setProfile(contractorProfile);
             return { success: true, user: credential.user };
         } catch (error) {
             console.error('Sign in error:', error);
@@ -164,14 +183,12 @@ export const useContractorAuth = () => {
                         }
                     } catch (migErr) {
                         console.warn("Migration failed silently:", migErr);
-                        // Continue with login flow
                     }
                 }
                 
-                contractorProfile = await getContractorProfile(googleUser.uid);
+                // Profile will load via listener
             }
             
-            setProfile(contractorProfile);
             return { success: true, user: googleUser, isNewUser: !contractorProfile };
         } catch (error) {
             console.error('Google sign in error:', error);
@@ -214,9 +231,7 @@ export const useContractorAuth = () => {
                 ...profileData
             });
             
-            // Reload profile
-            const updatedProfile = await getContractorProfile(user.uid);
-            setProfile(updatedProfile);
+            // No need to manually setProfile, the snapshot listener will pick it up
             
             toast.success('Profile updated!');
             return { success: true };
