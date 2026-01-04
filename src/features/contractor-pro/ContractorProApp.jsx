@@ -46,10 +46,77 @@ import {
 import { JobScheduler } from '../jobs/JobScheduler';
 
 // NEW: Job Completion Components
-import { JobCompletionForm } from '../jobs/components/completion';
+// NOTE: Uncomment this import once the completion components are created:
+// import { JobCompletionForm } from '../jobs/components/completion';
+
+// Placeholder until component exists - remove this when importing the real component
+const JobCompletionForm = ({ job, contractorId, onSuccess, onClose }) => (
+    <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Complete Job</h2>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
+                <X size={20} className="text-slate-400" />
+            </button>
+        </div>
+        <p className="text-slate-600 mb-4">
+            Submit completion details for: <strong>{job?.title || job?.description || 'This job'}</strong>
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-amber-800 text-sm">
+                <strong>Note:</strong> The JobCompletionForm component needs to be created at:
+                <code className="block mt-1 bg-amber-100 px-2 py-1 rounded text-xs">
+                    src/features/jobs/components/completion/JobCompletionForm.jsx
+                </code>
+            </p>
+        </div>
+        <div className="flex gap-2">
+            <button 
+                onClick={onClose}
+                className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
+            >
+                Cancel
+            </button>
+            <button 
+                onClick={() => { onSuccess?.(); }}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
+            >
+                Submit Completion (Placeholder)
+            </button>
+        </div>
+    </div>
+);
 
 // NEW: Rating Components
-import { RateHomeownerModal } from '../ratings';
+// NOTE: Uncomment this import once the ratings components are created:
+// import { RateHomeownerModal } from '../ratings';
+
+// Placeholder until component exists
+const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Rate Homeowner (Optional)</h2>
+            <p className="text-slate-600 mb-4">How was your experience working with this customer?</p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
+                <p className="text-slate-500 text-sm">Rating component placeholder</p>
+            </div>
+            <div className="flex gap-2">
+                <button 
+                    onClick={onClose}
+                    className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
+                >
+                    Skip
+                </button>
+                <button 
+                    onClick={() => { onSuccess?.(); }}
+                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
+                >
+                    Submit Rating
+                </button>
+            </div>
+        </div>
+    </div>
+);
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
