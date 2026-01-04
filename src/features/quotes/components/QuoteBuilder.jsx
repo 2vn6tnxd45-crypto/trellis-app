@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
-    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -77,6 +77,9 @@ const createDefaultFormState = (existingQuote = null, contractorSettings = {}) =
             : new Date(existingQuote.expiresAt).toISOString().split('T')[0])
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
     
+    // NEW: Estimated Duration
+    estimatedDuration: existingQuote?.estimatedDuration || '',
+    
     // Default to one Material AND one Labor item (both expanded)
     lineItems: existingQuote?.lineItems?.length > 0 
         ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: true }))
@@ -130,192 +133,172 @@ const TemplatePicker = ({ templates = [], onSelect, onClose }) => {
 };
 
 // ============================================
-// CUSTOMER SELECTOR (Enhanced with Maps)
+// CUSTOMER FORM
 // ============================================
-const CustomerSection = ({ 
-    customer, 
-    customers = [], 
-    customerId,
-    onChange, 
-    onSelectExisting,
-    errors = {} 
-}) => {
-    const [showDropdown, setShowDropdown] = useState(false);
-    
-    // -- GOOGLE MAPS INTEGRATION --
-    const isMapsLoaded = useGoogleMaps();
+const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers = [], errors = {} }) => {
+    const [showSearch, setShowSearch] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
     
-    const customerRef = useRef(customer);
-
-    useEffect(() => {
-        customerRef.current = customer;
-    }, [customer]);
-
-    useEffect(() => {
-        if (isMapsLoaded && addressInputRef.current && !autocompleteRef.current) {
-            try {
-                autocompleteRef.current = new window.google.maps.places.Autocomplete(
-                    addressInputRef.current, 
-                    {
-                        types: ['address'],
-                        componentRestrictions: { country: 'us' },
-                    }
-                );
-
-                autocompleteRef.current.addListener('place_changed', () => {
-                    const place = autocompleteRef.current.getPlace();
-                    if (place.formatted_address) {
-                        const currentCustomer = customerRef.current;
-                        onChange({ 
-                            ...currentCustomer, 
-                            address: place.formatted_address 
-                        });
-                    }
-                });
-            } catch (err) {
-                console.error("Autocomplete init failed", err);
-            }
-        }
-    }, [isMapsLoaded, onChange]);
+    // Google Maps initialization
+    const { isLoaded: mapsLoaded } = useGoogleMaps();
     
-    const handleCustomerSelect = (selectedCustomer) => {
-        onSelectExisting(selectedCustomer);
-        setShowDropdown(false);
-    };
-
+    useEffect(() => {
+        if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
+        
+        try {
+            autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+                types: ['address'],
+                componentRestrictions: { country: 'us' }
+            });
+            
+            autocompleteRef.current.addListener('place_changed', () => {
+                const place = autocompleteRef.current.getPlace();
+                if (place.formatted_address) {
+                    onChange({ ...customer, address: place.formatted_address });
+                }
+            });
+        } catch (err) {
+            console.warn('Autocomplete init error:', err);
+        }
+    }, [mapsLoaded]);
+    
     const handlePhoneChange = (e) => {
         const formatted = formatPhoneNumber(e.target.value);
         onChange({ ...customer, phone: formatted });
     };
     
+    const filteredCustomers = existingCustomers.filter(c => 
+        c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <User size={18} className="text-slate-400" />
-                Customer Information
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <User size={18} className="text-slate-400" />
+                    Customer Info
+                </h3>
+                {existingCustomers.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowSearch(!showSearch)}
+                        className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                    >
+                        {showSearch ? 'New Customer' : 'Existing Customer'}
+                    </button>
+                )}
+            </div>
             
-            {/* Existing Customer Selector */}
-            {customers.length > 0 && (
-                <div className="mb-4">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Select Existing Customer
-                    </label>
-                    <div className="relative">
-                        <button
-                            type="button"
-                            onClick={() => setShowDropdown(!showDropdown)}
-                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-left flex items-center justify-between hover:border-slate-300 transition-colors"
-                        >
-                            <span className={customerId ? 'text-slate-800' : 'text-slate-400'}>
-                                {customerId 
-                                    ? customers.find(c => c.id === customerId)?.customerName || 'Selected Customer'
-                                    : 'Choose from your customers...'
-                                }
-                            </span>
-                            <ChevronDown size={16} className="text-slate-400" />
-                        </button>
-                        
-                        {showDropdown && (
-                            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
-                                <button
-                                    onClick={() => {
-                                        onSelectExisting(null);
-                                        setShowDropdown(false);
-                                    }}
-                                    className="w-full px-4 py-2 text-left text-sm text-slate-500 hover:bg-slate-50"
-                                >
-                                    — New Customer —
-                                </button>
-                                {customers.map(c => (
-                                    <button
-                                        key={c.id}
-                                        onClick={() => handleCustomerSelect(c)}
-                                        className="w-full px-4 py-2 text-left hover:bg-slate-50 border-t border-slate-100"
-                                    >
-                                        <p className="font-medium text-slate-800">{c.customerName || 'Unnamed'}</p>
-                                        <p className="text-xs text-slate-500">{c.propertyName}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Customer Name *
-                    </label>
+            {showSearch ? (
+                <div className="space-y-3">
                     <input
                         type="text"
-                        value={customer.name}
-                        onChange={(e) => onChange({ ...customer, name: e.target.value })}
-                        placeholder="John Smith"
-                        className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerName ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Email *
-                    </label>
-                    <input
-                        type="email"
-                        value={customer.email}
-                        onChange={(e) => onChange({ ...customer, email: e.target.value })}
-                        placeholder="john@email.com"
-                        className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
-                    />
-                    {errors.customerEmail && <p className="text-xs text-red-500 mt-1">{errors.customerEmail}</p>}
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Phone
-                    </label>
-                    <input
-                        type="tel"
-                        value={customer.phone}
-                        onChange={handlePhoneChange}
-                        placeholder="(555) 123-4567"
+                        placeholder="Search customers..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
+                    <div className="max-h-48 overflow-y-auto space-y-2">
+                        {filteredCustomers.map(c => (
+                            <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => {
+                                    onSelectExisting(c);
+                                    setShowSearch(false);
+                                }}
+                                className="w-full p-3 text-left border border-slate-200 rounded-xl hover:border-emerald-500 hover:bg-emerald-50 transition-colors"
+                            >
+                                <p className="font-medium text-slate-800">{c.customerName}</p>
+                                <p className="text-sm text-slate-500">{c.email}</p>
+                            </button>
+                        ))}
+                    </div>
                 </div>
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                        Service Address (Google Linked)
-                    </label>
-                    <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                            Name *
+                        </label>
+                        <input
+                            type="text"
+                            value={customer.name}
+                            onChange={(e) => onChange({ ...customer, name: e.target.value })}
+                            placeholder="John Smith"
+                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
+                                errors.customerName ? 'border-red-500 bg-red-50' : 'border-slate-200'
+                            }`}
+                        />
+                        {errors.customerName && (
+                            <p className="text-red-500 text-xs mt-1">{errors.customerName}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                            Email *
+                        </label>
+                        <input
+                            type="email"
+                            value={customer.email}
+                            onChange={(e) => onChange({ ...customer, email: e.target.value })}
+                            placeholder="john@example.com"
+                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
+                                errors.customerEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'
+                            }`}
+                        />
+                        {errors.customerEmail && (
+                            <p className="text-red-500 text-xs mt-1">{errors.customerEmail}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                            Phone
+                        </label>
+                        <input
+                            type="tel"
+                            value={customer.phone}
+                            onChange={handlePhoneChange}
+                            placeholder="(555) 123-4567"
+                            maxLength={14}
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                            <MapPin size={12} className="inline mr-1" />
+                            Service Address
+                        </label>
                         <input
                             ref={addressInputRef}
                             type="text"
                             value={customer.address}
                             onChange={(e) => onChange({ ...customer, address: e.target.value })}
-                            placeholder="Start typing to search..."
-                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                            placeholder="123 Main St, City, State"
+                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };
 
 // ============================================
-// LINE ITEMS TABLE
+// LINE ITEMS SECTION
 // ============================================
 const LineItemsSection = ({ 
     lineItems, 
     onUpdate, 
     onAdd, 
-    onRemove,
-    taxRate,
-    onTaxRateChange,
+    onRemove, 
+    taxRate, 
+    onTaxRateChange, 
     errors = {},
-    // Deposit props
+    // Deposit Props
     depositRequired,
     depositType,
     depositValue,
@@ -413,27 +396,34 @@ const LineItemsSection = ({
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className={`text-xs font-medium px-2 py-1 rounded ${itemType.color}`}>
-                                                {itemType.label}
-                                            </span>
+                                            <select
+                                                value={item.type}
+                                                onChange={(e) => updateItem(item.id, 'type', e.target.value)}
+                                                className={`px-2 py-1 text-xs font-medium rounded ${itemType.color} border-0 focus:ring-2 focus:ring-emerald-500`}
+                                            >
+                                                {LINE_ITEM_TYPES.map(t => (
+                                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                                ))}
+                                            </select>
                                         </td>
                                         <td className="px-4 py-3">
                                             <input
                                                 type="text"
                                                 value={item.description}
                                                 onChange={(e) => updateItem(item.id, 'description', e.target.value)}
-                                                placeholder={item.type === 'labor' ? 'e.g., Installation labor' : 'e.g., 50-gallon water heater'}
-                                                className={`w-full px-2 py-1 border rounded focus:ring-0 bg-transparent ${itemError ? 'border-red-500 bg-red-50' : 'border-transparent hover:border-slate-200'}`}
+                                                placeholder="Item description..."
+                                                className={`w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none ${
+                                                    itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                                                }`}
                                             />
                                         </td>
                                         <td className="px-4 py-3">
                                             <input
                                                 type="number"
+                                                min="1"
                                                 value={item.quantity}
-                                                onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                                                className="w-full px-2 py-1 border border-slate-200 rounded text-right"
-                                                min="0"
-                                                step="0.5"
+                                                onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
+                                                className="w-full px-2 py-1 border border-slate-200 rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none"
                                             />
                                         </td>
                                         <td className="px-4 py-3">
@@ -441,11 +431,13 @@ const LineItemsSection = ({
                                                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400">$</span>
                                                 <input
                                                     type="number"
-                                                    value={item.unitPrice}
-                                                    onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                    className={`w-full pl-6 pr-2 py-1 border rounded text-right ${itemError && item.unitPrice <= 0 ? 'border-red-500 bg-red-50' : 'border-slate-200'}`}
                                                     min="0"
                                                     step="0.01"
+                                                    value={item.unitPrice}
+                                                    onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                    className={`w-full pl-6 pr-2 py-1 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none ${
+                                                        itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                                                    }`}
                                                 />
                                             </div>
                                         </td>
@@ -453,32 +445,28 @@ const LineItemsSection = ({
                                             ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
                                         </td>
                                         <td className="px-2 py-3">
-                                            {lineItems.length > 1 && (
-                                                <button 
-                                                    type="button"
-                                                    onClick={() => onRemove(item.id)}
-                                                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => onRemove(item.id)}
+                                                className="p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
                                         </td>
                                     </tr>
                                     
-                                    {/* EXPANDED DETAILS ROW - CONDITIONAL FIELDS */}
+                                    {/* Expanded Details Row */}
                                     {item.isExpanded && (
-                                        <tr className="bg-slate-50 border-b border-slate-100">
+                                        <tr className="bg-slate-50/80">
                                             <td colSpan="7" className="px-4 py-3">
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 p-2">
-                                                    
-                                                    {/* MATERIAL SPECIFIC FIELDS */}
-                                                    {item.type === 'material' && (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pl-4 border-l-2 border-emerald-200">
+                                                    {item.type === 'material' ? (
                                                         <>
                                                             <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand / Mfr</label>
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand</label>
                                                                 <input 
                                                                     type="text" 
-                                                                    placeholder="e.g. Rheem"
+                                                                    placeholder="e.g. Carrier, Lennox"
                                                                     value={item.brand || ''}
                                                                     onChange={(e) => updateItem(item.id, 'brand', e.target.value)}
                                                                     className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
@@ -488,29 +476,19 @@ const LineItemsSection = ({
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Model #</label>
                                                                 <input 
                                                                     type="text" 
-                                                                    placeholder="e.g. XG50T12"
+                                                                    placeholder="Model number"
                                                                     value={item.model || ''}
                                                                     onChange={(e) => updateItem(item.id, 'model', e.target.value)}
                                                                     className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
                                                                 />
                                                             </div>
-                                                            <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Serial #</label>
-                                                                <input 
-                                                                    type="text" 
-                                                                    placeholder="Optional"
-                                                                    value={item.serial || ''}
-                                                                    onChange={(e) => updateItem(item.id, 'serial', e.target.value)}
-                                                                    className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Manufacturer Warranty</label>
+                                                            <div className="col-span-2">
+                                                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Manufacturer Warranty (Specific to Item)</label>
                                                                 <div className="relative">
                                                                     <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                                                                     <input 
                                                                         type="text" 
-                                                                        placeholder="e.g. 6 Year"
+                                                                        placeholder="e.g. 10 Year Parts & Compressor"
                                                                         value={item.warranty || ''}
                                                                         onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
                                                                         className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
@@ -518,18 +496,16 @@ const LineItemsSection = ({
                                                                 </div>
                                                             </div>
                                                         </>
-                                                    )}
-
-                                                    {/* LABOR SPECIFIC FIELDS */}
-                                                    {item.type === 'labor' && (
+                                                    ) : (
                                                         <>
-                                                            <div>
+                                                            <div className="col-span-2">
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Crew Size</label>
                                                                 <div className="relative">
                                                                     <Users size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
                                                                     <input 
                                                                         type="number" 
-                                                                        placeholder="Techs"
+                                                                        min="1"
+                                                                        placeholder="Number of technicians"
                                                                         value={item.crewSize || ''}
                                                                         onChange={(e) => updateItem(item.id, 'crewSize', e.target.value)}
                                                                         className="w-full mt-1 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg"
@@ -566,48 +542,29 @@ const LineItemsSection = ({
             <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-t border-slate-100 pt-6">
                 
                 {/* Deposit Configuration */}
-                <div className="w-full md:w-1/2 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                    <div className="flex items-center justify-between mb-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input 
-                                type="checkbox"
-                                checked={depositRequired}
-                                onChange={(e) => onDepositChange('depositRequired', e.target.checked)}
-                                className="rounded text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                            />
-                            <span className="font-bold text-slate-700">Require Deposit / Retainer</span>
-                        </label>
-                    </div>
+                <div className="w-full md:w-auto">
+                    <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={depositRequired}
+                            onChange={(e) => onDepositChange('depositRequired', e.target.checked)}
+                            className="rounded text-emerald-600 focus:ring-emerald-500"
+                        />
+                        Require Deposit
+                    </label>
                     
                     {depositRequired && (
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-sm">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input 
-                                        type="radio" 
-                                        name="depositType" 
-                                        value="percentage"
-                                        checked={depositType === 'percentage'}
-                                        onChange={() => onDepositChange('depositType', 'percentage')}
-                                        className="text-emerald-600 focus:ring-emerald-500"
-                                    />
-                                    <span>Percentage (%)</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer ml-4">
-                                    <input 
-                                        type="radio" 
-                                        name="depositType" 
-                                        value="fixed"
-                                        checked={depositType === 'fixed'}
-                                        onChange={() => onDepositChange('depositType', 'fixed')}
-                                        className="text-emerald-600 focus:ring-emerald-500"
-                                    />
-                                    <span>Fixed Amount ($)</span>
-                                </label>
-                            </div>
-                            
+                        <div className="mt-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-slate-500 w-24">
+                                <select
+                                    value={depositType}
+                                    onChange={(e) => onDepositChange('depositType', e.target.value)}
+                                    className="px-2 py-1 border border-slate-200 rounded-lg text-sm"
+                                >
+                                    <option value="percentage">Percentage</option>
+                                    <option value="fixed">Fixed Amount</option>
+                                </select>
+                                <span className="text-sm text-slate-600">
                                     {depositType === 'percentage' ? 'Percent:' : 'Amount:'}
                                 </span>
                                 <input 
@@ -728,11 +685,11 @@ const QuoteSummary = ({
                         className="w-full py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         {isSending ? (
-                            <Loader2 size={16} className="animate-spin" />
+                            <Loader2 size={18} className="animate-spin" />
                         ) : (
-                            <Send size={16} />
+                            <Send size={18} />
                         )}
-                        {isSending ? 'Sending...' : 'Send to Customer'}
+                        Send to Customer
                     </button>
                     <button 
                         type="button"
@@ -741,11 +698,11 @@ const QuoteSummary = ({
                         className="w-full py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 flex items-center justify-center gap-2 disabled:opacity-50 transition-colors"
                     >
                         {isSaving ? (
-                            <Loader2 size={16} className="animate-spin" />
+                            <Loader2 size={18} className="animate-spin" />
                         ) : (
-                            <Save size={16} />
+                            <Save size={18} />
                         )}
-                        {isSaving ? 'Saving...' : 'Save Draft'}
+                        Save Draft
                     </button>
                 </div>
             </div>
@@ -754,22 +711,20 @@ const QuoteSummary = ({
 };
 
 // ============================================
-// MAIN COMPONENT
+// MAIN QUOTE BUILDER COMPONENT
 // ============================================
-export const QuoteBuilder = ({
-    quote = null, // Existing quote for editing, null for new
+export const QuoteBuilder = ({ 
+    quote = null, 
     customers = [],
     templates = [],
     contractorProfile = null,
-    onBack,
-    onSave,
+    onBack, 
+    onSave, 
     onSend,
     isSaving = false,
     isSending = false
 }) => {
-    // Extract settings
     const contractorSettings = contractorProfile?.scheduling || {};
-
     const isEditing = !!quote;
     const [formData, setFormData] = useState(() => createDefaultFormState(quote, contractorSettings));
     const [showTemplates, setShowTemplates] = useState(false);
@@ -934,52 +889,24 @@ export const QuoteBuilder = ({
                             {isEditing ? `Edit Quote ${quote.quoteNumber}` : 'New Quote'}
                         </h1>
                         <p className="text-slate-500">
-                            {isEditing ? 'Update quote details' : 'Create a quote for your customer'}
+                            {isEditing ? 'Make changes to your quote' : 'Create a professional quote for your customer'}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button 
-                        onClick={handleSaveDraft}
-                        disabled={isSaving}
-                        className="px-4 py-2 border border-slate-200 rounded-xl font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50 transition-colors"
+                
+                {templates.length > 0 && !isEditing && (
+                    <button
+                        type="button"
+                        onClick={() => setShowTemplates(!showTemplates)}
+                        className="px-4 py-2 text-sm border border-slate-200 rounded-xl hover:bg-slate-50 flex items-center gap-2 transition-colors"
                     >
-                        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                        Save Draft
+                        <Sparkles size={16} className="text-amber-500" />
+                        Use Template
                     </button>
-                    <button 
-                        onClick={handleSendQuote}
-                        disabled={isSending}
-                        className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 transition-colors"
-                    >
-                        {isSending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                        Send Quote
-                    </button>
-                </div>
+                )}
             </div>
             
-            {/* Template Suggestion Banner */}
-            {!isEditing && templates.length > 0 && (
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl p-4 flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-xl">
-                            <Sparkles size={20} className="text-purple-600" />
-                        </div>
-                        <div>
-                            <p className="font-medium text-purple-900">Start from a template</p>
-                            <p className="text-sm text-purple-700">Use your saved job templates to create quotes faster</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => setShowTemplates(!showTemplates)}
-                        className="px-4 py-2 bg-purple-600 text-white font-medium rounded-xl hover:bg-purple-700 transition-colors"
-                    >
-                        {showTemplates ? 'Hide Templates' : 'Browse Templates'}
-                    </button>
-                </div>
-            )}
-            
-            {/* Templates Dropdown */}
+            {/* Template Picker */}
             {showTemplates && (
                 <TemplatePicker 
                     templates={templates} 
@@ -988,16 +915,16 @@ export const QuoteBuilder = ({
                 />
             )}
             
+            {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Content - Left 2 cols */}
+                {/* Left col - Main form */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Customer Info */}
-                    <CustomerSection
+                    <CustomerForm
                         customer={formData.customer}
-                        customers={customers}
-                        customerId={formData.customerId}
                         onChange={handleCustomerChange}
                         onSelectExisting={handleSelectExistingCustomer}
+                        existingCustomers={customers}
                         errors={errors}
                     />
                     
@@ -1007,16 +934,16 @@ export const QuoteBuilder = ({
                             <FileText size={18} className="text-slate-400" />
                             Quote Details
                         </h3>
-                        <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                    Quote Title / Job Description *
+                                    Quote Title *
                                 </label>
                                 <input
                                     type="text"
                                     value={formData.title}
                                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-                                    placeholder="e.g., Water Heater Replacement, HVAC Repair"
+                                    placeholder="e.g. HVAC System Replacement"
                                     className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
                                         errors.title ? 'border-red-500 bg-red-50' : 'border-slate-200'
                                     }`}
@@ -1034,6 +961,19 @@ export const QuoteBuilder = ({
                                     type="date"
                                     value={formData.expiresAt}
                                     onChange={(e) => setFormData(prev => ({ ...prev, expiresAt: e.target.value }))}
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                    <Timer size={12} className="inline mr-1" />
+                                    Estimated Duration
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.estimatedDuration}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, estimatedDuration: e.target.value }))}
+                                    placeholder="e.g. 2-3 days, 1 week"
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 />
                             </div>
@@ -1143,20 +1083,14 @@ export const QuoteBuilder = ({
                     <div className="bg-white rounded-2xl border border-slate-200 p-4">
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Quick Actions</p>
                         <div className="space-y-2">
-                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors">
+                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors">
                                 <Copy size={16} className="text-slate-400" />
                                 Duplicate Quote
                             </button>
-                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors">
+                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors">
                                 <Printer size={16} className="text-slate-400" />
-                                Print / Download PDF
+                                Print Preview
                             </button>
-                            {isEditing && (
-                                <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-3 transition-colors">
-                                    <LinkIcon size={16} className="text-slate-400" />
-                                    Copy Share Link
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
