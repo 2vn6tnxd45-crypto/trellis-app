@@ -1,6 +1,6 @@
 // src/features/contractor-pro/components/SetupBusinessProfile.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Building2, MapPin, Phone, Shield, CheckCircle, Upload, X } from 'lucide-react';
+import { Building2, MapPin, Phone, Shield, CheckCircle, Upload, X, Loader2 } from 'lucide-react';
 import { Logo } from '../../../components/common/Logo';
 import { googleMapsApiKey } from '../../../config/constants';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -8,7 +8,7 @@ import { storage } from '../../../config/firebase';
 import { compressImage } from '../../../lib/images';
 import toast from 'react-hot-toast';
 
-// --- New Logo Upload Component ---
+// New Logo Upload Component with Fixes
 const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef(null);
@@ -34,22 +34,28 @@ const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
             // Compress if not SVG
             const processedFile = file.type === 'image/svg+xml' 
                 ? file 
-                : await compressImage(file, 400, 0.8); // 400px max width, 0.8 quality
+                : await compressImage(file, 400, 0.8);
             
-            // Upload to Firebase Storage
-            // Note: contractorId might not be available during initial setup if not passed
-            // Fallback to a temp path or use current user auth ID if available in parent
-            const pathId = contractorId || `temp_${Date.now()}`;
+            // Ensure we have a valid contractor ID
+            const pathId = contractorId;
+            if (!pathId) {
+                throw new Error('No contractor ID available for upload');
+            }
+            
+            console.log('[LogoUpload] Uploading to path:', `contractors/${pathId}/logo_${Date.now()}`);
             const logoRef = ref(storage, `contractors/${pathId}/logo_${Date.now()}`);
             
             await uploadBytes(logoRef, processedFile);
             const logoUrl = await getDownloadURL(logoRef);
             
+            console.log('[LogoUpload] Upload successful, URL:', logoUrl);
             onUpload(logoUrl);
             toast.success('Logo uploaded!');
         } catch (err) {
-            console.error('Logo upload error:', err);
-            toast.error('Failed to upload logo');
+            console.error('[LogoUpload] Upload error:', err);
+            console.error('[LogoUpload] Error code:', err.code);
+            console.error('[LogoUpload] Error message:', err.message);
+            toast.error(`Failed to upload logo: ${err.message}`);
         } finally {
             setUploading(false);
         }
@@ -84,7 +90,7 @@ const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                                    hover:bg-slate-50 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {uploading ? (
-                            <div className="animate-spin h-5 w-5 border-2 border-emerald-500 border-t-transparent rounded-full" />
+                            <Loader2 className="animate-spin text-emerald-500" size={24} />
                         ) : (
                             <Upload size={24} className="text-slate-400" />
                         )}
@@ -106,13 +112,16 @@ const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
     );
 };
 
-export const SetupBusinessProfile = ({ profile, onSave, saving, contractorId }) => {
+export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
+    // Determine contractorId from profile if possible
+    const contractorId = profile?.id || profile?.uid;
+
     const [formData, setFormData] = useState({
         companyName: profile?.profile?.companyName || '',
         phone: profile?.profile?.phone || '',
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
-        logoUrl: profile?.profile?.logoUrl || null, // New logo field
+        logoUrl: profile?.profile?.logoUrl || null, // Ensure logoUrl is tracked
     });
     
     // Refs for Google Maps
@@ -179,7 +188,13 @@ export const SetupBusinessProfile = ({ profile, onSave, saving, contractorId }) 
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        onSave(formData);
+        onSave({
+            companyName: formData.companyName,
+            phone: formData.phone,
+            address: formData.address,
+            licenseNumber: formData.licenseNumber,
+            logoUrl: formData.logoUrl, // <-- Include logoUrl in submission
+        });
     };
 
     const isComplete = formData.companyName && formData.phone && formData.address;
@@ -209,11 +224,12 @@ export const SetupBusinessProfile = ({ profile, onSave, saving, contractorId }) 
                     </div>
 
                     <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                        {/* Logo Upload Section */}
+                        
+                        {/* Logo Upload */}
                         <LogoUpload 
                             currentLogo={formData.logoUrl}
                             onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
-                            contractorId={contractorId || profile?.id}
+                            contractorId={contractorId}
                         />
 
                         {/* Company Name */}
