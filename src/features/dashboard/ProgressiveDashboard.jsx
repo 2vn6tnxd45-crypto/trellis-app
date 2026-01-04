@@ -12,7 +12,8 @@ import {
     Camera, Plus, Package, Sparkles, MapPin, Wrench, Send,
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
-    Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2
+    Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2,
+    ClipboardCheck  // NEW: Added for completion review
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -41,6 +42,47 @@ import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
+// NEW: Job Completion Review
+// NOTE: Uncomment this import once the completion components are created:
+// import { JobCompletionReview } from '../jobs/components/completion';
+
+// Placeholder until component exists - remove this when importing the real component
+const JobCompletionReview = ({ job, userId, propertyId, onSuccess, onClose }) => (
+    <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Review Job Completion</h2>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
+                <X size={20} className="text-slate-400" />
+            </button>
+        </div>
+        <p className="text-slate-600 mb-4">
+            {job?.contractorName || 'The contractor'} has submitted this job for completion.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-amber-800 text-sm">
+                <strong>Note:</strong> The JobCompletionReview component needs to be created at:
+                <code className="block mt-1 bg-amber-100 px-2 py-1 rounded text-xs">
+                    src/features/jobs/components/completion/JobCompletionReview.jsx
+                </code>
+            </p>
+        </div>
+        <div className="flex gap-2">
+            <button 
+                onClick={onClose}
+                className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
+            >
+                Close
+            </button>
+            <button 
+                onClick={() => { onSuccess?.(); }}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
+            >
+                Mark as Complete (Placeholder)
+            </button>
+        </div>
+    </div>
+);
+
 // ============================================
 // HELPERS
 // ============================================
@@ -49,12 +91,14 @@ const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
 
 // ============================================
 // ACTIVE PROJECTS SECTION (Progressive Style)
+// UPDATED: Added completion review support
 // ============================================
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [cancellingJob, setCancellingJob] = useState(null);
     const [requestingTimesJob, setRequestingTimesJob] = useState(null);
+    const [reviewingJob, setReviewingJob] = useState(null);  // NEW: For completion review
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -91,10 +135,11 @@ const ActiveProjectsSection = ({ userId }) => {
             const allJobs = Array.from(merged.values());
             
             // Filter for active/negotiating jobs (exclude cancelled and completed)
+            // UPDATED: Added pending_completion and revision_requested statuses
             const active = allJobs.filter(r => 
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
                 (
-                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
+                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested'].includes(r.status) || 
                     (r.status === 'quoted' && r.estimate?.status === 'approved')
                 )
             );
@@ -136,9 +181,14 @@ const ActiveProjectsSection = ({ userId }) => {
         };
     }, [userId]);
 
-    // Handle job selection - open scheduler modal
+    // Handle job selection - open scheduler modal OR completion review
+    // UPDATED: Check for pending_completion status
     const handleSelectJob = (job) => {
-        setSelectedJob(job);
+        if (job.status === 'pending_completion') {
+            setReviewingJob(job);
+        } else {
+            setSelectedJob(job);
+        }
     };
 
     // Handle cancel job
@@ -152,9 +202,11 @@ const ActiveProjectsSection = ({ userId }) => {
     };
 
     // Get status badge config (for summary display)
+    // UPDATED: Added pending_completion to needsAction count
     const getStatusSummary = () => {
         const needsAction = projects.filter(j => 
             j.status === 'slots_offered' || 
+            j.status === 'pending_completion' ||
             (j.status === 'scheduling' && j.proposedTimes?.some(p => p.proposedBy === 'contractor'))
         ).length;
         
@@ -283,6 +335,28 @@ const ActiveProjectsSection = ({ userId }) => {
                     onClose={() => setRequestingTimesJob(null)}
                     onSuccess={() => setRequestingTimesJob(null)}
                 />
+            )}
+
+            {/* NEW: Job Completion Review Modal */}
+            {reviewingJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                    <div 
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+                        onClick={() => setReviewingJob(null)} 
+                    />
+                    <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-2xl overflow-auto bg-white md:rounded-2xl md:m-4">
+                        <JobCompletionReview
+                            job={projects.find(p => p.id === reviewingJob.id) || reviewingJob}
+                            userId={userId}
+                            propertyId={reviewingJob.propertyId}
+                            onSuccess={() => {
+                                setReviewingJob(null);
+                                toast.success('Job completed! Items added to your inventory.');
+                            }}
+                            onClose={() => setReviewingJob(null)}
+                        />
+                    </div>
+                </div>
             )}
         </>
     );
