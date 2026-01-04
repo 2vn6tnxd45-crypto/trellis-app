@@ -71,26 +71,34 @@ const QuoteSummaryCard = ({ quote, contractor }) => {
 // ============================================
 // BENEFITS LIST
 // ============================================
-const BenefitsList = ({ action }) => (
-    <div className="space-y-3 my-6">
-        <p className="text-sm font-medium text-slate-700">
-            {action === 'accept' ? 'Create your account to accept this quote:' : 'Create your account to:'}
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-            {[
-                { icon: CheckCircle, text: action === 'accept' ? 'Accept & schedule' : 'Accept this quote' },
-                { icon: MessageSquare, text: 'Message contractor' },
-                { icon: Calendar, text: 'Track job progress' },
-                { icon: Shield, text: 'Store warranty' },
-            ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-center gap-2 text-sm text-slate-600">
-                    <Icon size={16} className="text-emerald-500 flex-shrink-0" />
-                    <span>{text}</span>
-                </div>
-            ))}
+const BenefitsList = ({ action }) => {
+    const getTitle = () => {
+        switch (action) {
+            case 'accept': return 'Create your account to accept this quote:';
+            case 'question': return 'Create your account to message the contractor:';
+            default: return 'Create your account to:';
+        }
+    };
+    
+    return (
+        <div className="space-y-3 my-6">
+            <p className="text-sm font-medium text-slate-700">{getTitle()}</p>
+            <div className="grid grid-cols-2 gap-2">
+                {[
+                    { icon: CheckCircle, text: action === 'accept' ? 'Accept & schedule' : 'Accept this quote' },
+                    { icon: MessageSquare, text: action === 'question' ? 'Ask questions directly' : 'Message contractor' },
+                    { icon: Calendar, text: 'Track job progress' },
+                    { icon: Shield, text: 'Store warranty' },
+                ].map(({ icon: Icon, text }) => (
+                    <div key={text} className="flex items-center gap-2 text-sm text-slate-600">
+                        <Icon size={16} className="text-emerald-500 flex-shrink-0" />
+                        <span>{text}</span>
+                    </div>
+                ))}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 // ============================================
 // MAIN COMPONENT
@@ -100,7 +108,7 @@ export const QuoteAuthScreen = ({
     contractor, 
     onSuccess, 
     onClose,
-    action = 'save', // 'save' or 'accept'
+    action = 'save', // 'save', 'accept', or 'question'
     initialMode = 'signup' // 'signup' or 'signin'
 }) => {
     const [mode, setMode] = useState(initialMode);
@@ -232,6 +240,8 @@ export const QuoteAuthScreen = ({
                         {isSignUp 
                             ? (action === 'accept' 
                                 ? 'Sign up to accept this quote and get started.'
+                                : action === 'question'
+                                ? 'Sign up to message the contractor directly.'
                                 : 'Sign up to save this quote and track your project.')
                             : 'Sign in to continue with this quote.'
                         }
@@ -348,7 +358,11 @@ export const QuoteAuthScreen = ({
                             ) : (
                                 <>
                                     {isSignUp 
-                                        ? (action === 'accept' ? 'Create Account & Accept' : 'Create Account & Save')
+                                        ? (action === 'accept' 
+                                            ? 'Create Account & Accept' 
+                                            : action === 'question'
+                                            ? 'Create Account & Message'
+                                            : 'Create Account & Save')
                                         : 'Sign In & Continue'
                                     }
                                 </>
