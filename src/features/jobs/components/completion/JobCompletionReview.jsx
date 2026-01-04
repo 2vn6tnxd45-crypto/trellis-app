@@ -2,385 +2,518 @@
 // ============================================
 // JOB COMPLETION REVIEW - HOMEOWNER SIDE
 // ============================================
-// Component for homeowners to review contractor's completion submission:
-// - View invoice and costs
-// - Review items to be added to inventory
-// - Accept or request revision
-// - Rate contractor
+// Allows homeowners to review contractor's completion submission
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
-    CheckCircle, XCircle, AlertTriangle, FileText, Package,
-    DollarSign, Calendar, Clock, ChevronDown, ChevronUp,
-    Star, MessageSquare, Camera, Download, ExternalLink,
-    Loader2, Shield, Bell, Wrench, User, Info, X,
-    CheckSquare, Square, Edit3, AlertCircle
+    X, CheckCircle, AlertTriangle, Camera, FileText, Wrench,
+    MessageSquare, Star, Loader2, ChevronDown, ChevronUp,
+    ExternalLink, Clock, User, Calendar, DollarSign, Download
 } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
-import { 
-    acceptJobCompletion, 
-    requestRevision 
-} from '../../lib/jobCompletionService';
-import { RateContractorModal } from '../../../ratings/components/RateContractorModal';
+import { acceptJobCompletion, requestRevision } from '../../lib/jobCompletionService';
+import toast from 'react-hot-toast';
 
 // ============================================
-// HELPERS
+// MAIN COMPONENT
 // ============================================
-
-const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return '—';
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount);
-};
-
-const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    try {
-        const date = dateStr.toDate ? dateStr.toDate() : new Date(dateStr);
-        return date.toLocaleDateString('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-        });
-    } catch {
-        return dateStr;
-    }
-};
-
-const getDaysUntilAutoClose = (autoCloseAt) => {
-    if (!autoCloseAt) return null;
-    const closeDate = autoCloseAt.toDate ? autoCloseAt.toDate() : new Date(autoCloseAt);
-    const now = new Date();
-    const diffTime = closeDate - now;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.max(0, diffDays);
-};
-
-// ============================================
-// INVOICE PREVIEW CARD
-// ============================================
-const InvoicePreview = ({ invoice }) => {
-    if (!invoice?.url) return null;
+export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSuccess }) => {
+    const [activeTab, setActiveTab] = useState('summary');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showRevisionModal, setShowRevisionModal] = useState(false);
+    const [showRatingModal, setShowRatingModal] = useState(false);
     
-    return (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 p-2 rounded-xl">
-                            <FileText className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-slate-800">Invoice</p>
-                            <p className="text-sm text-slate-500">{invoice.fileName || 'invoice.pdf'}</p>
-                        </div>
-                    </div>
-                    <a
-                        href={invoice.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-medium text-slate-700 transition-colors"
-                    >
-                        <ExternalLink size={16} />
-                        View
-                    </a>
-                </div>
-            </div>
+    // Get completion data from job
+    const completion = job.completion || {};
+    const photos = completion.photos || [];
+    const items = completion.itemsToImport || [];
+    const invoice = completion.invoice;
+    
+    // Calculate auto-close date
+    const autoCloseDate = completion.autoCloseAt?.toDate?.() || 
+        (completion.autoCloseAt ? new Date(completion.autoCloseAt) : null);
+    const daysUntilAutoClose = autoCloseDate 
+        ? Math.max(0, Math.ceil((autoCloseDate - new Date()) / (1000 * 60 * 60 * 24)))
+        : null;
+    
+    // ============================================
+    // HANDLERS
+    // ============================================
+    const handleApprove = async () => {
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Approving completion...');
+        
+        try {
+            await acceptJobCompletion(job.id, userId, propertyId);
             
-            {/* Cost Summary */}
-            {invoice.parsedData && (
-                <div className="p-4 bg-slate-50">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div>
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Total</p>
-                            <p className="text-lg font-bold text-slate-800">
-                                {formatCurrency(invoice.parsedData.totalAmount)}
-                            </p>
-                        </div>
-                        {invoice.parsedData.laborCost && (
-                            <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wide">Labor</p>
-                                <p className="text-lg font-bold text-slate-600">
-                                    {formatCurrency(invoice.parsedData.laborCost)}
-                                </p>
-                            </div>
-                        )}
-                        {invoice.parsedData.partsCost && (
-                            <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wide">Parts</p>
-                                <p className="text-lg font-bold text-slate-600">
-                                    {formatCurrency(invoice.parsedData.partsCost)}
-                                </p>
-                            </div>
-                        )}
-                        {invoice.parsedData.taxAmount && (
-                            <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wide">Tax</p>
-                                <p className="text-lg font-bold text-slate-600">
-                                    {formatCurrency(invoice.parsedData.taxAmount)}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ============================================
-// ITEM PREVIEW CARD
-// ============================================
-const ItemPreviewCard = ({ 
-    item, 
-    index, 
-    isSelected, 
-    onToggle, 
-    onModify,
-    isExpanded,
-    onToggleExpand 
-}) => {
-    const hasMaintenanceTasks = item.maintenanceTasks?.some(t => t.selected !== false);
+            toast.dismiss(loadingToast);
+            toast.success('Job approved! Items added to your inventory.');
+            
+            // Show rating modal after approval
+            setShowRatingModal(true);
+            
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error(error.message || 'Failed to approve completion');
+            console.error(error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
     
+    const handleRequestRevision = async (reason) => {
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Sending revision request...');
+        
+        try {
+            await requestRevision(job.id, userId, reason);
+            
+            toast.dismiss(loadingToast);
+            toast.success('Revision requested. The contractor will be notified.');
+            
+            if (onSuccess) onSuccess();
+            onClose();
+            
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error(error.message || 'Failed to request revision');
+            console.error(error);
+        } finally {
+            setIsSubmitting(false);
+            setShowRevisionModal(false);
+        }
+    };
+    
+    const handleRatingComplete = () => {
+        setShowRatingModal(false);
+        if (onSuccess) onSuccess();
+        onClose();
+    };
+    
+    // ============================================
+    // RENDER
+    // ============================================
     return (
-        <div className={`border rounded-xl overflow-hidden transition-all ${
-            isSelected 
-                ? 'border-emerald-300 bg-emerald-50/50' 
-                : 'border-slate-200 bg-white opacity-60'
-        }`}>
-            {/* Header */}
-            <div className="p-4 flex items-center gap-3">
-                <button
-                    type="button"
-                    onClick={() => onToggle(item.id)}
-                    className="shrink-0"
-                >
-                    {isSelected ? (
-                        <CheckSquare size={22} className="text-emerald-600" />
-                    ) : (
-                        <Square size={22} className="text-slate-300" />
-                    )}
-                </button>
-                
+        <>
+            <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+                {/* Backdrop */}
                 <div 
-                    className="flex-grow cursor-pointer"
-                    onClick={() => onToggleExpand(item.id)}
-                >
-                    <div className="flex items-center gap-2">
-                        <p className="font-bold text-slate-800">{item.item || 'Unnamed Item'}</p>
-                        {hasMaintenanceTasks && (
-                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                                <Bell size={10} />
-                                Reminders
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-sm text-slate-500">
-                        {item.category || 'Uncategorized'} • {item.area || 'General'}
-                    </p>
-                </div>
+                    className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+                    onClick={onClose} 
+                />
                 
-                <div className="text-right">
-                    <p className="font-bold text-slate-800">{formatCurrency(item.cost)}</p>
-                    {item.warranty && (
-                        <p className="text-xs text-emerald-600">Has warranty</p>
-                    )}
-                </div>
-                
-                <button onClick={() => onToggleExpand(item.id)}>
-                    {isExpanded ? (
-                        <ChevronUp size={20} className="text-slate-400" />
-                    ) : (
-                        <ChevronDown size={20} className="text-slate-400" />
-                    )}
-                </button>
-            </div>
-            
-            {/* Expanded Details */}
-            {isExpanded && (
-                <div className="px-4 pb-4 border-t border-slate-100 pt-4 ml-10">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                        {item.brand && (
+                {/* Modal */}
+                <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4">
+                        <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-xs text-slate-400 uppercase">Brand</p>
-                                <p className="text-slate-700">{item.brand}</p>
+                                <h2 className="text-xl font-bold text-white">Review Completion</h2>
+                                <p className="text-purple-100 text-sm mt-0.5">
+                                    {job.description || job.title || 'Service Request'}
+                                </p>
                             </div>
-                        )}
-                        {item.model && (
-                            <div>
-                                <p className="text-xs text-slate-400 uppercase">Model</p>
-                                <p className="text-slate-700">{item.model}</p>
-                            </div>
-                        )}
-                        {item.serialNumber && (
-                            <div>
-                                <p className="text-xs text-slate-400 uppercase">Serial #</p>
-                                <p className="text-slate-700">{item.serialNumber}</p>
-                            </div>
-                        )}
-                        {item.dateInstalled && (
-                            <div>
-                                <p className="text-xs text-slate-400 uppercase">Installed</p>
-                                <p className="text-slate-700">{formatDate(item.dateInstalled)}</p>
-                            </div>
-                        )}
-                        {item.warranty && (
-                            <div className="col-span-2">
-                                <p className="text-xs text-slate-400 uppercase">Warranty</p>
-                                <p className="text-emerald-700">{item.warranty}</p>
+                            <button 
+                                onClick={onClose}
+                                className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                            >
+                                <X className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+                        
+                        {/* Auto-close warning */}
+                        {daysUntilAutoClose !== null && daysUntilAutoClose <= 3 && (
+                            <div className="mt-3 bg-white/20 rounded-lg px-3 py-2 flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-white" />
+                                <span className="text-white text-sm">
+                                    Auto-approves in {daysUntilAutoClose} day{daysUntilAutoClose !== 1 ? 's' : ''} if no action taken
+                                </span>
                             </div>
                         )}
                     </div>
                     
-                    {/* Maintenance Tasks Preview */}
-                    {hasMaintenanceTasks && (
-                        <div className="mt-4 bg-amber-50 rounded-lg p-3">
-                            <p className="text-xs font-bold text-amber-800 uppercase mb-2">
-                                Scheduled Reminders
-                            </p>
-                            <div className="space-y-1">
-                                {item.maintenanceTasks
-                                    .filter(t => t.selected !== false)
-                                    .map((task, idx) => (
-                                        <p key={idx} className="text-sm text-amber-700 flex items-center gap-2">
-                                            <Bell size={12} />
-                                            {task.task} ({task.frequency})
+                    {/* Tabs */}
+                    <div className="px-6 py-3 bg-gray-50 border-b flex gap-2">
+                        {[
+                            { id: 'summary', label: 'Summary', icon: ClipboardIcon },
+                            { id: 'photos', label: `Photos (${photos.length})`, icon: Camera },
+                            { id: 'items', label: `Items (${items.length})`, icon: Wrench },
+                        ].map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                                    activeTab === tab.id
+                                        ? 'bg-purple-600 text-white'
+                                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                <tab.icon className="w-4 h-4" />
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                        {/* SUMMARY TAB */}
+                        {activeTab === 'summary' && (
+                            <div className="space-y-6">
+                                {/* Contractor Info */}
+                                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                                    <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <User className="w-6 h-6 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-medium text-gray-900">
+                                            {job.contractorName || job.contractor || 'Contractor'}
                                         </p>
-                                    ))
-                                }
+                                        <p className="text-sm text-gray-500">
+                                            Submitted {completion.submittedAt?.toDate?.()?.toLocaleDateString() || 'recently'}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                {/* Completion Notes */}
+                                {completion.notes && (
+                                    <div>
+                                        <h3 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                            <MessageSquare className="w-4 h-4" />
+                                            Contractor Notes
+                                        </h3>
+                                        <div className="bg-gray-50 rounded-xl p-4">
+                                            <p className="text-gray-700 whitespace-pre-wrap">{completion.notes}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Recommendations */}
+                                {completion.recommendations && (
+                                    <div>
+                                        <h3 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                            Recommendations
+                                        </h3>
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                            <p className="text-amber-800 whitespace-pre-wrap">{completion.recommendations}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Invoice */}
+                                {invoice?.url && (
+                                    <div>
+                                        <h3 className="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                                            <FileText className="w-4 h-4" />
+                                            Invoice
+                                        </h3>
+                                        <a
+                                            href={invoice.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <FileText className="w-5 h-5 text-blue-600" />
+                                                <span className="font-medium text-blue-800">
+                                                    {invoice.fileName || 'Invoice'}
+                                                </span>
+                                            </div>
+                                            <ExternalLink className="w-4 h-4 text-blue-600" />
+                                        </a>
+                                    </div>
+                                )}
+                                
+                                {/* Quick Stats */}
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                                        <Camera className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                                        <p className="text-2xl font-bold text-gray-900">{photos.length}</p>
+                                        <p className="text-xs text-gray-500">Photos</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                                        <Wrench className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                                        <p className="text-2xl font-bold text-gray-900">{items.length}</p>
+                                        <p className="text-xs text-gray-500">Items</p>
+                                    </div>
+                                    <div className="text-center p-4 bg-gray-50 rounded-xl">
+                                        <Clock className="w-6 h-6 text-gray-400 mx-auto mb-1" />
+                                        <p className="text-2xl font-bold text-gray-900">{daysUntilAutoClose || '—'}</p>
+                                        <p className="text-xs text-gray-500">Days left</p>
+                                    </div>
+                                </div>
                             </div>
+                        )}
+                        
+                        {/* PHOTOS TAB */}
+                        {activeTab === 'photos' && (
+                            <div className="space-y-4">
+                                {photos.length > 0 ? (
+                                    <>
+                                        {/* Group by type */}
+                                        {['before', 'after', 'work'].map(type => {
+                                            const typePhotos = photos.filter(p => p.type === type);
+                                            if (typePhotos.length === 0) return null;
+                                            
+                                            return (
+                                                <div key={type}>
+                                                    <h3 className="font-medium text-gray-900 mb-3 capitalize">
+                                                        {type === 'work' ? 'Work in Progress' : type} Photos
+                                                    </h3>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {typePhotos.map((photo, idx) => (
+                                                            <div key={idx} className="relative group">
+                                                                <img
+                                                                    src={photo.url}
+                                                                    alt={`${type} photo ${idx + 1}`}
+                                                                    className="w-full h-40 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                                                                    onClick={() => window.open(photo.url, '_blank')}
+                                                                />
+                                                                {photo.caption && (
+                                                                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-3 py-2 rounded-b-xl">
+                                                                        {photo.caption}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <Camera className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                        <p className="text-gray-500">No photos uploaded</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* ITEMS TAB */}
+                        {activeTab === 'items' && (
+                            <div className="space-y-4">
+                                {items.length > 0 ? (
+                                    <>
+                                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
+                                            <p className="text-green-800 text-sm">
+                                                <CheckCircle className="w-4 h-4 inline mr-2" />
+                                                These items will be added to your home inventory when you approve.
+                                            </p>
+                                        </div>
+                                        
+                                        {items.map((item, idx) => (
+                                            <ItemReviewCard key={item.id || idx} item={item} />
+                                        ))}
+                                    </>
+                                ) : (
+                                    <div className="text-center py-12">
+                                        <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                        <p className="text-gray-500">No items to add to inventory</p>
+                                        <p className="text-gray-400 text-sm mt-1">
+                                            This was a service-only job
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* Footer */}
+                    <div className="px-6 py-4 bg-gray-50 border-t">
+                        <div className="flex items-center justify-between">
+                            <button
+                                onClick={() => setShowRevisionModal(true)}
+                                disabled={isSubmitting}
+                                className="px-4 py-2.5 border border-amber-300 text-amber-700 rounded-xl font-medium hover:bg-amber-50 transition-colors disabled:opacity-50"
+                            >
+                                Request Changes
+                            </button>
+                            
+                            <button
+                                onClick={handleApprove}
+                                disabled={isSubmitting}
+                                className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle className="w-4 h-4" />
+                                        Approve & Complete
+                                    </>
+                                )}
+                            </button>
                         </div>
-                    )}
+                    </div>
                 </div>
+            </div>
+            
+            {/* Revision Request Modal */}
+            {showRevisionModal && (
+                <RevisionModal
+                    onSubmit={handleRequestRevision}
+                    onClose={() => setShowRevisionModal(false)}
+                    isSubmitting={isSubmitting}
+                />
             )}
-        </div>
+            
+            {/* Rating Modal */}
+            {showRatingModal && (
+                <RatingModal
+                    job={job}
+                    userId={userId}
+                    onComplete={handleRatingComplete}
+                    onSkip={handleRatingComplete}
+                />
+            )}
+        </>
     );
 };
 
 // ============================================
-// PHOTOS GALLERY
+// HELPER COMPONENTS
 // ============================================
-const PhotosGallery = ({ photos }) => {
-    const [selectedPhoto, setSelectedPhoto] = useState(null);
-    
-    if (!photos?.length) return null;
+
+// Simple clipboard icon since it's not in the main import
+const ClipboardIcon = ({ className }) => (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+    </svg>
+);
+
+// Item Review Card
+const ItemReviewCard = ({ item }) => {
+    const [expanded, setExpanded] = useState(false);
     
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-            <div className="flex items-center gap-2 mb-4">
-                <Camera size={18} className="text-slate-600" />
-                <p className="font-bold text-slate-800">Job Photos</p>
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+            <div 
+                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50"
+                onClick={() => setExpanded(!expanded)}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <Wrench className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                        <p className="font-medium text-gray-900">{item.item}</p>
+                        <p className="text-sm text-gray-500">
+                            {[item.brand, item.model].filter(Boolean).join(' • ') || item.category || 'Equipment'}
+                        </p>
+                    </div>
+                </div>
+                {expanded ? (
+                    <ChevronUp className="w-5 h-5 text-gray-400" />
+                ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                )}
             </div>
             
-            <div className="grid grid-cols-3 gap-2">
-                {photos.map((photo, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => setSelectedPhoto(photo)}
-                        className="aspect-square rounded-xl overflow-hidden relative group"
-                    >
-                        <img
-                            src={photo.url || photo.preview}
-                            alt={photo.caption || `Photo ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                        />
-                        <div className="absolute bottom-1 left-1">
-                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                                photo.type === 'before' ? 'bg-amber-500 text-white' :
-                                photo.type === 'after' ? 'bg-emerald-500 text-white' :
-                                'bg-slate-500 text-white'
-                            }`}>
-                                {photo.type || 'Work'}
-                            </span>
-                        </div>
-                    </button>
-                ))}
-            </div>
-            
-            {/* Lightbox */}
-            {selectedPhoto && (
-                <div 
-                    className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
-                    onClick={() => setSelectedPhoto(null)}
-                >
-                    <button
-                        className="absolute top-4 right-4 p-2 bg-white/10 rounded-full"
-                        onClick={() => setSelectedPhoto(null)}
-                    >
-                        <X size={24} className="text-white" />
-                    </button>
-                    <img
-                        src={selectedPhoto.url || selectedPhoto.preview}
-                        alt={selectedPhoto.caption || 'Photo'}
-                        className="max-w-full max-h-[90vh] object-contain rounded-lg"
-                    />
+            {expanded && (
+                <div className="px-4 pb-4 border-t bg-gray-50">
+                    <div className="grid grid-cols-2 gap-4 pt-4 text-sm">
+                        {item.brand && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Brand</span>
+                                <span className="text-gray-900">{item.brand}</span>
+                            </div>
+                        )}
+                        {item.model && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Model</span>
+                                <span className="text-gray-900">{item.model}</span>
+                            </div>
+                        )}
+                        {item.serialNumber && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Serial Number</span>
+                                <span className="text-gray-900 font-mono">{item.serialNumber}</span>
+                            </div>
+                        )}
+                        {item.category && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Category</span>
+                                <span className="text-gray-900">{item.category}</span>
+                            </div>
+                        )}
+                        {item.cost && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Cost</span>
+                                <span className="text-gray-900">${item.cost}</span>
+                            </div>
+                        )}
+                        {item.warranty && (
+                            <div>
+                                <span className="text-gray-500 block text-xs">Warranty</span>
+                                <span className="text-gray-900">{item.warranty}</span>
+                            </div>
+                        )}
+                        {item.maintenanceFrequency && item.maintenanceFrequency !== 'none' && (
+                            <div className="col-span-2">
+                                <span className="text-gray-500 block text-xs">Maintenance Schedule</span>
+                                <span className="text-gray-900 capitalize">{item.maintenanceFrequency}</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
     );
 };
 
-// ============================================
-// REVISION REQUEST MODAL
-// ============================================
-const RevisionRequestModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
+// Revision Request Modal
+const RevisionModal = ({ onSubmit, onClose, isSubmitting }) => {
     const [reason, setReason] = useState('');
-    
-    if (!isOpen) return null;
     
     const handleSubmit = () => {
         if (!reason.trim()) {
-            toast.error('Please explain what needs to be changed');
+            toast.error('Please provide a reason for the revision request');
             return;
         }
         onSubmit(reason);
     };
     
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60" onClick={onClose} />
             
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                <div className="p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-amber-100 p-2 rounded-xl">
-                            <AlertTriangle className="h-5 w-5 text-amber-600" />
-                        </div>
-                        <h3 className="font-bold text-slate-800 text-lg">Request Revision</h3>
-                    </div>
-                    
-                    <p className="text-slate-600 mb-4">
-                        Let the contractor know what needs to be corrected or updated.
-                    </p>
-                    
-                    <textarea
-                        value={reason}
-                        onChange={(e) => setReason(e.target.value)}
-                        placeholder="Please describe what needs to be changed..."
-                        rows={4}
-                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none resize-none"
-                    />
-                </div>
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Request Changes</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                    Let the contractor know what needs to be fixed or updated.
+                </p>
                 
-                <div className="p-4 bg-slate-50 border-t border-slate-100 flex gap-3">
+                <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Please describe what changes are needed..."
+                    rows={4}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all resize-none"
+                    autoFocus
+                />
+                
+                <div className="flex justify-end gap-3 mt-4">
                     <button
                         onClick={onClose}
-                        className="flex-1 py-3 border border-slate-200 rounded-xl font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+                        disabled={isSubmitting}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={isSubmitting}
-                        className="flex-1 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        disabled={isSubmitting || !reason.trim()}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
                         {isSubmitting ? (
-                            <Loader2 className="animate-spin" size={18} />
+                            <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
-                            'Send Request'
+                            <AlertTriangle className="w-4 h-4" />
                         )}
+                        Request Changes
                     </button>
                 </div>
             </div>
@@ -388,325 +521,105 @@ const RevisionRequestModal = ({ isOpen, onClose, onSubmit, isSubmitting }) => {
     );
 };
 
-// ============================================
-// MAIN COMPONENT
-// ============================================
-export const JobCompletionReview = ({
-    job,
-    userId,
-    propertyId,
-    onSuccess,
-    onClose
-}) => {
-    const completion = job.completion || {};
-    const items = completion.itemsToImport || [];
+// Rating Modal (simplified - can be expanded later)
+const RatingModal = ({ job, userId, onComplete, onSkip }) => {
+    const [rating, setRating] = useState(0);
+    const [review, setReview] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
-    // Item selection state
-    const [selectedItems, setSelectedItems] = useState(() => {
-        // Default: all items selected
-        const selected = {};
-        items.forEach(item => {
-            selected[item.id] = { selected: true };
-        });
-        return selected;
-    });
-    
-    const [expandedItems, setExpandedItems] = useState({});
-    
-    // UI State
-    const [isAccepting, setIsAccepting] = useState(false);
-    const [showRevisionModal, setShowRevisionModal] = useState(false);
-    const [isRequestingRevision, setIsRequestingRevision] = useState(false);
-    const [showRatingModal, setShowRatingModal] = useState(false);
-    const [acceptedSuccessfully, setAcceptedSuccessfully] = useState(false);
-    
-    // Calculate days until auto-close
-    const daysUntilAutoClose = getDaysUntilAutoClose(completion.autoCloseAt);
-    
-    // Count selected items
-    const selectedCount = useMemo(() => {
-        return Object.values(selectedItems).filter(s => s.selected).length;
-    }, [selectedItems]);
-    
-    // Toggle item selection
-    const toggleItemSelection = (itemId) => {
-        setSelectedItems(prev => ({
-            ...prev,
-            [itemId]: { 
-                ...prev[itemId], 
-                selected: !prev[itemId]?.selected 
-            }
-        }));
-    };
-    
-    // Toggle item expansion
-    const toggleItemExpansion = (itemId) => {
-        setExpandedItems(prev => ({
-            ...prev,
-            [itemId]: !prev[itemId]
-        }));
-    };
-    
-    // Accept completion
-    const handleAccept = async () => {
-        setIsAccepting(true);
+    const handleSubmit = async () => {
+        if (rating === 0) {
+            toast.error('Please select a rating');
+            return;
+        }
+        
+        setIsSubmitting(true);
         
         try {
-            // Prepare item selections
-            const itemSelections = {};
-            items.forEach(item => {
-                itemSelections[item.id] = {
-                    skip: !selectedItems[item.id]?.selected
-                };
+            // Import dynamically to avoid circular dependencies
+            const { rateContractor } = await import('../../lib/jobCompletionService');
+            
+            await rateContractor(job.id, job.contractorId, userId, {
+                overall: rating,
+                quality: rating,
+                timeliness: rating,
+                communication: rating,
+                value: rating,
+                review
             });
             
-            const result = await acceptJobCompletion(
-                job.id,
-                userId,
-                propertyId,
-                itemSelections
-            );
-            
-            toast.success(`${result.importedCount} item(s) added to your inventory!`);
-            setAcceptedSuccessfully(true);
-            
-            // Show rating modal
-            setShowRatingModal(true);
+            toast.success('Thanks for your feedback!');
+            onComplete();
             
         } catch (error) {
-            console.error('Accept error:', error);
-            toast.error('Failed to accept: ' + error.message);
+            toast.error('Failed to submit rating');
+            console.error(error);
         } finally {
-            setIsAccepting(false);
+            setIsSubmitting(false);
         }
     };
-    
-    // Request revision
-    const handleRequestRevision = async (reason) => {
-        setIsRequestingRevision(true);
-        
-        try {
-            await requestRevision(job.id, userId, reason);
-            toast.success('Revision request sent to contractor');
-            setShowRevisionModal(false);
-            if (onClose) onClose();
-        } catch (error) {
-            console.error('Revision request error:', error);
-            toast.error('Failed to send request: ' + error.message);
-        } finally {
-            setIsRequestingRevision(false);
-        }
-    };
-    
-    // Handle rating completion
-    const handleRatingComplete = () => {
-        setShowRatingModal(false);
-        if (onSuccess) onSuccess();
-    };
-    
-    // If already accepted, show rating
-    if (acceptedSuccessfully && !showRatingModal) {
-        if (onSuccess) onSuccess();
-        return null;
-    }
     
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
-            <Toaster position="top-center" />
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60" />
             
-            {/* Header */}
-            <div className="bg-white border-b border-slate-100 sticky top-0 z-40 px-4 py-4">
-                <div className="max-w-2xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        {onClose && (
-                            <button
-                                onClick={onClose}
-                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <X size={20} className="text-slate-600" />
-                            </button>
-                        )}
-                        <div>
-                            <h1 className="font-bold text-slate-800">Review Completion</h1>
-                            <p className="text-sm text-slate-500">
-                                {job.contractorName || job.contractor || 'Contractor'} has completed this job
-                            </p>
-                        </div>
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
-                </div>
-            </div>
-            
-            <div className="max-w-2xl mx-auto p-4 space-y-4">
-                {/* Auto-close Warning */}
-                {daysUntilAutoClose !== null && daysUntilAutoClose <= 3 && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                        <Clock size={20} className="text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                            <p className="font-bold text-amber-800">
-                                Auto-acceptance in {daysUntilAutoClose} day{daysUntilAutoClose !== 1 ? 's' : ''}
-                            </p>
-                            <p className="text-sm text-amber-700">
-                                If no action is taken, this completion will be automatically accepted.
-                            </p>
-                        </div>
-                    </div>
-                )}
-                
-                {/* Job Summary */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 p-3 rounded-xl">
-                            <Wrench className="h-6 w-6 text-emerald-600" />
-                        </div>
-                        <div className="flex-grow">
-                            <p className="font-bold text-slate-800">{job.description || job.item || 'Service Job'}</p>
-                            <p className="text-sm text-slate-500">
-                                Completed {formatDate(completion.submittedAt)}
-                            </p>
-                        </div>
-                        <div className="text-right">
-                            <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-bold">
-                                <CheckCircle size={14} />
-                                Complete
-                            </span>
-                        </div>
-                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">Job Completed!</h3>
+                    <p className="text-gray-500 mt-1">How was your experience?</p>
                 </div>
                 
-                {/* Invoice */}
-                <InvoicePreview invoice={completion.invoice} />
-                
-                {/* Items to Import */}
-                {items.length > 0 && (
-                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                        <div className="p-4 border-b border-slate-100">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Package size={18} className="text-emerald-600" />
-                                    <p className="font-bold text-slate-800">Items to Add to Inventory</p>
-                                </div>
-                                <span className="text-sm text-slate-500">
-                                    {selectedCount} of {items.length} selected
-                                </span>
-                            </div>
-                            <p className="text-sm text-slate-500 mt-1">
-                                These items will be added to your home inventory with warranty tracking
-                            </p>
-                        </div>
-                        
-                        <div className="p-4 space-y-3">
-                            {items.map((item, idx) => (
-                                <ItemPreviewCard
-                                    key={item.id || idx}
-                                    item={item}
-                                    index={idx}
-                                    isSelected={selectedItems[item.id]?.selected}
-                                    onToggle={toggleItemSelection}
-                                    isExpanded={expandedItems[item.id]}
-                                    onToggleExpand={toggleItemExpansion}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
-                
-                {/* Photos */}
-                <PhotosGallery photos={completion.photos} />
-                
-                {/* Notes & Recommendations */}
-                {(completion.notes || completion.recommendations) && (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-4">
-                        {completion.notes && (
-                            <div>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <MessageSquare size={16} className="text-slate-600" />
-                                    <p className="font-bold text-slate-800">Contractor Notes</p>
-                                </div>
-                                <p className="text-slate-600 text-sm whitespace-pre-wrap">
-                                    {completion.notes}
-                                </p>
-                            </div>
-                        )}
-                        
-                        {completion.recommendations && (
-                            <div className="bg-blue-50 rounded-xl p-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Info size={16} className="text-blue-600" />
-                                    <p className="font-bold text-blue-800">Recommendations</p>
-                                </div>
-                                <p className="text-blue-700 text-sm whitespace-pre-wrap">
-                                    {completion.recommendations}
-                                </p>
-                            </div>
-                        )}
-                    </div>
-                )}
-                
-                {/* Partial Completion Notice */}
-                {completion.partialCompletion?.isPartial && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                        <div className="flex items-start gap-3">
-                            <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
-                            <div>
-                                <p className="font-bold text-amber-800">Partial Completion</p>
-                                <p className="text-sm text-amber-700 mt-1">
-                                    {completion.partialCompletion.reason || 'Some work remains to be completed.'}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
-                <div className="max-w-2xl mx-auto space-y-3">
-                    <button
-                        onClick={handleAccept}
-                        disabled={isAccepting}
-                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
-                    >
-                        {isAccepting ? (
-                            <>
-                                <Loader2 className="animate-spin" size={20} />
-                                Accepting...
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle size={20} />
-                                Accept & Add {selectedCount} Item{selectedCount !== 1 ? 's' : ''} to Inventory
-                            </>
-                        )}
-                    </button>
-                    
-                    <button
-                        onClick={() => setShowRevisionModal(true)}
-                        className="w-full py-3 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <AlertTriangle size={18} />
-                        Request Revision
-                    </button>
+                {/* Star Rating */}
+                <div className="flex justify-center gap-2 mb-6">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                            key={star}
+                            onClick={() => setRating(star)}
+                            className="transition-transform hover:scale-110"
+                        >
+                            <Star
+                                className={`w-10 h-10 ${
+                                    star <= rating
+                                        ? 'text-yellow-400 fill-yellow-400'
+                                        : 'text-gray-300'
+                                }`}
+                            />
+                        </button>
+                    ))}
                 </div>
-            </div>
-            
-            {/* Revision Modal */}
-            <RevisionRequestModal
-                isOpen={showRevisionModal}
-                onClose={() => setShowRevisionModal(false)}
-                onSubmit={handleRequestRevision}
-                isSubmitting={isRequestingRevision}
-            />
-            
-            {/* Rating Modal */}
-            {showRatingModal && (
-                <RateContractorModal
-                    job={job}
-                    contractorId={completion.contractorId || job.contractorId}
-                    userId={userId}
-                    onClose={handleRatingComplete}
-                    onSuccess={handleRatingComplete}
+                
+                {/* Review Text */}
+                <textarea
+                    value={review}
+                    onChange={(e) => setReview(e.target.value)}
+                    placeholder="Write a review (optional)..."
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all resize-none mb-4"
                 />
-            )}
+                
+                <div className="flex gap-3">
+                    <button
+                        onClick={onSkip}
+                        className="flex-1 px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium border border-gray-300 rounded-xl hover:bg-gray-50"
+                    >
+                        Skip
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || rating === 0}
+                        className="flex-1 px-4 py-2.5 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                        {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            'Submit Rating'
+                        )}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
