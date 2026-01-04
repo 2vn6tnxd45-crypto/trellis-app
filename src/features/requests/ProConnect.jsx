@@ -9,26 +9,31 @@ import {
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { REQUESTS_COLLECTION_PATH, CATEGORIES, appId } from '../../config/constants'; // ADDED appId
+import { REQUESTS_COLLECTION_PATH, CATEGORIES, appId } from '../../config/constants';
 import { EmptyState } from '../../components/common/EmptyState';
 import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
-// NEW: Import Chat Service Logic
+// Chat Service
 import { getChannelId, subscribeToChat, sendMessage, markChannelAsRead } from '../../lib/chatService';
 
 // ============================================
-// REAL CHAT DRAWER
+// REAL CHAT DRAWER - UPDATED with user info
 // ============================================
-const ChatDrawer = ({ pro, userId, onClose }) => {
+const ChatDrawer = ({ pro, userId, userProfile, onClose }) => {
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
     const scrollRef = useRef(null);
 
-    // 1. Determine the Channel ID based on User + Pro Name
+    // Determine the Channel ID based on User + Pro Name
     const channelId = useMemo(() => getChannelId(userId, pro.name), [userId, pro.name]);
 
-    // 2. Subscribe to real-time updates
+    // Get homeowner's display name from profile
+    const homeownerName = userProfile?.name || userProfile?.displayName || 'Homeowner';
+    const homeownerEmail = userProfile?.email || null;
+    const homeownerPhone = userProfile?.phone || null;
+
+    // Subscribe to real-time updates
     useEffect(() => {
         setLoading(true);
         const unsubscribe = subscribeToChat(channelId, (newMessages) => {
@@ -37,13 +42,13 @@ const ChatDrawer = ({ pro, userId, onClose }) => {
             // Scroll to bottom on new message
             setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
             
-            // NEW: Mark as read whenever new messages arrive while drawer is open
+            // Mark as read whenever new messages arrive while drawer is open
             if (userId) {
                 markChannelAsRead(channelId, userId);
             }
         });
 
-        return () => unsubscribe(); // Cleanup listener on close
+        return () => unsubscribe();
     }, [channelId, userId]);
 
     const handleSend = async (e) => {
@@ -54,9 +59,21 @@ const ChatDrawer = ({ pro, userId, onClose }) => {
         setMessage(''); // Clear input immediately for better UX
 
         try {
-            // "me" is just a placeholder name for the homeowner
             const contractorId = pro.contractorId || null;
-await sendMessage(channelId, textToSend, userId, 'Homeowner', contractorId); 
+            
+            // UPDATED: Pass real homeowner name and info
+            await sendMessage(
+                channelId, 
+                textToSend, 
+                userId, 
+                homeownerName,  // Real name instead of 'Homeowner'
+                contractorId,
+                {  // senderInfo to store on channel for contractor visibility
+                    name: homeownerName,
+                    email: homeownerEmail,
+                    phone: homeownerPhone
+                }
+            );
         } catch (error) {
             console.error("Failed to send", error);
             toast.error("Message failed to send");
@@ -97,7 +114,6 @@ await sendMessage(channelId, textToSend, userId, 'Homeowner', contractorId);
                     
                     {messages.map((msg) => {
                         const isMe = msg.senderId === userId;
-                        // Format time if it exists (Firestore timestamps are objects)
                         const timeStr = msg.createdAt?.toDate 
                             ? msg.createdAt.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
                             : 'Just now';
@@ -151,7 +167,7 @@ await sendMessage(channelId, textToSend, userId, 'Homeowner', contractorId);
 const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
-    // Check if chat is available (Pro is on platform) - Workstream 6.2
+    // Check if chat is available (Pro is on platform)
     const canChat = pro.isOnPlatform && pro.contractorId;
     
     const totalSpent = pro.jobs.reduce((sum, job) => sum + (parseFloat(job.cost) || 0), 0);
@@ -331,7 +347,6 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
         toast.success('Link copied!');
     };
 
-    // Helper for formatting time (ISO string)
     const formatScheduledTime = (isoString) => {
         if (!isoString) return '';
         const date = new Date(isoString);
@@ -344,7 +359,6 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
         });
     };
 
-    // Helper for status display (Workstream 5.2)
     const getStatusDisplay = () => {
         switch (request.status) {
             case 'scheduled':
@@ -443,17 +457,28 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
     );
 };
 
-export const ProConnect = ({ userId, propertyName, propertyAddress, records, onRequestImport, onOpenQuickRequest }) => {
+// ============================================
+// MAIN COMPONENT - UPDATED with userProfile prop
+// ============================================
+export const ProConnect = ({ 
+    userId, 
+    userProfile,  // NEW: Added userProfile prop for homeowner info
+    propertyName, 
+    propertyAddress, 
+    records, 
+    onRequestImport, 
+    onOpenQuickRequest 
+}) => {
     const [requests, setRequests] = useState([]);
     const [activeTab, setActiveTab] = useState('pros');
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('all');
     const [selectedJob, setSelectedJob] = useState(null); 
     
-    // NEW: Chat State
+    // Chat State
     const [selectedChatPro, setSelectedChatPro] = useState(null);
     
-    // NEW: Platform Pros State
+    // Platform Pros State
     const [platformPros, setPlatformPros] = useState([]);
 
     // Fetch Requests
@@ -466,10 +491,9 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
         return () => unsubscribe();
     }, [userId]);
 
-    // NEW: Fetch Platform Pros (Workstream 5.1/6.3)
+    // Fetch Platform Pros
     useEffect(() => {
         if (!userId) return;
-        // Watch the user's 'pros' subcollection
         const q = collection(db, 'artifacts', appId, 'users', userId, 'pros');
         const unsubscribe = onSnapshot(q, (snapshot) => {
             setPlatformPros(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -486,7 +510,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
             prosMap[p.name] = { 
                 ...p, 
                 jobs: [], 
-                isOnPlatform: true // Explicit flag
+                isOnPlatform: true
             };
         });
 
@@ -500,13 +524,12 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                         phone: null, 
                         email: null, 
                         address: null, 
-                        isOnPlatform: false, // Default for scanned receipt pros
+                        isOnPlatform: false,
                         jobs: [] 
                     };
                 }
                 
                 const pro = prosMap[name];
-                // Aggregate contact info if missing
                 if (!pro.phone && r.contractorPhone) pro.phone = r.contractorPhone;
                 if (!pro.email && r.contractorEmail) pro.email = r.contractorEmail;
                 if (!pro.address && r.contractorAddress) pro.address = r.contractorAddress; 
@@ -562,7 +585,7 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                                 onRequestService={(p) => onOpenQuickRequest({item: 'Service', contractor: p.name})} 
                                 onCall={(p) => window.open(`tel:${p}`)} 
                                 onEmail={(e) => window.open(`mailto:${e}`)}
-                                onMessage={(p) => setSelectedChatPro(p)} // OPEN CHAT
+                                onMessage={(p) => setSelectedChatPro(p)}
                             />
                         ))
                     }
@@ -606,11 +629,12 @@ export const ProConnect = ({ userId, propertyName, propertyAddress, records, onR
                 </div>
             )}
 
-            {/* NEW: Chat Drawer Overlay */}
+            {/* Chat Drawer Overlay - UPDATED with userProfile */}
             {selectedChatPro && (
                 <ChatDrawer 
                     pro={selectedChatPro} 
-                    userId={userId} // PASSED USER ID HERE
+                    userId={userId}
+                    userProfile={userProfile}  // NEW: Pass user profile for name
                     onClose={() => setSelectedChatPro(null)} 
                 />
             )}
