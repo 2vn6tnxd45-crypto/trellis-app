@@ -1482,9 +1482,10 @@ export const ContractorProApp = () => {
         jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
         date={selectedDate}
         preferences={profile?.scheduling}
+        teamMembers={profile?.scheduling?.teamMembers || []} // <--- ADD THIS LINE
         onJobClick={handleJobClick}
         onReorder={() => {}}
-        onDateChange={(date) => setSelectedDate(date)} // <--- NEW: Enable navigation
+        onDateChange={(date) => setSelectedDate(date)}
     />
 )}
                             {scheduleView === 'team' && (
