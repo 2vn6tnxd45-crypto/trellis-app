@@ -39,6 +39,8 @@ export const getChannelId = (userId, contractorName) => {
  * @param {string} senderName - Display name of the sender
  * @param {string|null} recipientId - ID of the recipient (for unread counts)
  * @param {object|null} senderInfo - Additional sender info to store on channel
+ *        For homeowners: { name, email, phone, propertyAddress, scopeOfWork }
+ *        For contractors: { name, email, phone }
  */
 export const sendMessage = async (
     channelId, 
@@ -74,15 +76,15 @@ export const sendMessage = async (
             const isHomeowner = channelId.startsWith(senderId);
             
             if (isHomeowner) {
-    // Store homeowner info
-    if (senderInfo.name) channelUpdate.homeownerName = senderInfo.name;
-    if (senderInfo.email) channelUpdate.homeownerEmail = senderInfo.email;
-    if (senderInfo.phone) channelUpdate.homeownerPhone = senderInfo.phone;
-    
-    // NEW: Store property address and scope for fallback display
-    if (senderInfo.propertyAddress) channelUpdate.propertyAddress = senderInfo.propertyAddress;
-    if (senderInfo.scopeOfWork) channelUpdate.scopeOfWork = senderInfo.scopeOfWork;
-} else {
+                // Store homeowner info
+                if (senderInfo.name) channelUpdate.homeownerName = senderInfo.name;
+                if (senderInfo.email) channelUpdate.homeownerEmail = senderInfo.email;
+                if (senderInfo.phone) channelUpdate.homeownerPhone = senderInfo.phone;
+                
+                // NEW: Store property address and scope for fallback display
+                if (senderInfo.propertyAddress) channelUpdate.propertyAddress = senderInfo.propertyAddress;
+                if (senderInfo.scopeOfWork) channelUpdate.scopeOfWork = senderInfo.scopeOfWork;
+            } else {
                 // Store contractor info
                 if (senderInfo.name) channelUpdate.contractorName = senderInfo.name;
                 if (senderInfo.email) channelUpdate.contractorEmail = senderInfo.email;
