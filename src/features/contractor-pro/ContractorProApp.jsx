@@ -3,7 +3,7 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Consolidated Scheduling Logic & Full Code Restoration
+// UPDATED: Added LogoUpload to ProfileView
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
@@ -13,10 +13,8 @@ import {
     Briefcase,
     Scroll as ScrollIcon,
     Receipt,
-    // ADDED: Icons for enhanced views
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
-    // ADDED: Icons for Delete Flow
-    AlertTriangle, Loader2, Trash2, MessageSquare // New MessageSquare
+    AlertTriangle, Loader2, Trash2, MessageSquare
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -30,20 +28,20 @@ import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
 import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
 import { BusinessSettings } from './components/BusinessSettings';
-
-// ADDED: Phase 4 Components
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
+// NEW IMPORT
+import { LogoUpload } from './components/LogoUpload';
 
-// ADDED: Quote Components
+// Quote Components
 import { 
     QuotesListView, 
     QuoteBuilder, 
     QuoteDetailView 
 } from '../quotes';
 
-// ADDED: Job Scheduler Component
+// Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
 
 // Hooks
@@ -56,7 +54,6 @@ import {
     useContractorInvoices
 } from './hooks/useContractorData';
 
-// ADDED: Quote Hooks
 import { 
     useQuotes, 
     useQuoteTemplates, 
@@ -193,13 +190,6 @@ const SidebarNav = ({
                     active={activeView === 'customers'}
                     onClick={() => onNavigate('customers')}
                 />
-                 {/* Placeholder for Messages - Workstream 6 */}
-                 {/* <NavItem 
-                    icon={MessageSquare}
-                    label="Messages"
-                    active={activeView === 'messages'}
-                    onClick={() => onNavigate('messages')}
-                /> */}
                 <NavItem 
                     icon={User}
                     label="Profile"
@@ -387,7 +377,7 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                     </p>
                 </div>
                 
-                {/* Filter Tabs - REMOVED 'Needs Scheduling' Tab */}
+                {/* Filter Tabs */}
                 <div className="flex bg-slate-100 rounded-xl p-1">
                     {[
                         { key: 'active', label: 'Active', count: activeJobs.length },
@@ -438,8 +428,6 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                     {displayedJobs.map(job => {
                         const statusConfig = getStatusConfig(job.status);
                         const StatusIcon = statusConfig.icon;
-                        
-                        // Get the latest proposal if one exists
                         const latestProposal = job.proposedTimes && job.proposedTimes.length > 0 
                             ? job.proposedTimes[job.proposedTimes.length - 1] 
                             : null;
@@ -451,7 +439,6 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                 className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
                             >
                                 <div className="flex items-start justify-between gap-4">
-                                    {/* Left: Job Info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-3 mb-2">
                                             <h3 className="font-bold text-slate-800 text-lg truncate">
@@ -465,7 +452,6 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                             )}
                                         </div>
                                         
-                                        {/* Customer Info */}
                                         <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
                                             {job.customer?.name && (
                                                 <span className="flex items-center gap-1">
@@ -481,28 +467,24 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                             )}
                                         </div>
                                         
-                                        {/* Meta Row */}
                                         <div className="flex items-center gap-4 text-sm">
                                             {job.total > 0 && (
                                                 <span className="font-bold text-emerald-600">
                                                     {formatCurrency(job.total)}
                                                 </span>
                                             )}
-                                            {/* Show confirmed scheduled time */}
                                             {job.scheduledTime && (
                                                 <span className="text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
                                                     <Calendar size={14} />
                                                     {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
                                                 </span>
                                             )}
-                                            {/* Show latest proposed time if not yet confirmed */}
                                             {!job.scheduledTime && latestProposal && (
                                                 <span className="text-amber-600 font-medium flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
                                                     <Clock size={14} />
                                                     Proposed: {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
                                                 </span>
                                             )}
-                                            {/* Show created date if no scheduling activity */}
                                             {!job.scheduledTime && !latestProposal && job.createdAt && (
                                                 <span className="text-slate-400 text-xs">
                                                     Created {formatDate(job.createdAt)}
@@ -511,7 +493,6 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                         </div>
                                     </div>
                                     
-                                    {/* Right: Status & Arrow */}
                                     <div className="flex items-center gap-3 shrink-0">
                                         <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.color}`}>
                                             <StatusIcon size={12} />
@@ -521,7 +502,6 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                                     </div>
                                 </div>
                                 
-                                {/* Quick Contact Actions */}
                                 {(job.customer?.phone || job.customer?.email) && (
                                     <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
                                         {job.customer?.phone && (
@@ -654,7 +634,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
@@ -663,7 +642,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                     </p>
                 </div>
                 
-                {/* Sort Dropdown */}
                 <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
@@ -675,7 +653,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                 </select>
             </div>
 
-            {/* Stats Cards */}
             {customers?.length > 0 && (
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -693,7 +670,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                 </div>
             )}
 
-            {/* Customers List */}
             {loading ? (
                 <div className="text-center py-10">
                     <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/>
@@ -713,12 +689,10 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                             className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
                         >
                             <div className="flex items-start gap-4">
-                                {/* Avatar */}
                                 <div className="h-14 w-14 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0">
                                     {(customer.customerName || customer.email || 'C').charAt(0).toUpperCase()}
                                 </div>
                                 
-                                {/* Info */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
                                         <h3 className="font-bold text-slate-800 text-lg truncate">
@@ -731,7 +705,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                                         )}
                                     </div>
                                     
-                                    {/* Contact Info */}
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 mb-3">
                                         {customer.email && (
                                             <a 
@@ -761,7 +734,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                                         )}
                                     </div>
                                     
-                                    {/* Stats Row */}
                                     <div className="flex items-center gap-4 text-sm">
                                         <span className="flex items-center gap-1 text-slate-600">
                                             <Briefcase size={14} className="text-slate-400" />
@@ -777,8 +749,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
                                         )}
                                     </div>
                                 </div>
-                                
-                                {/* Arrow */}
                                 <ChevronRight size={20} className="text-slate-300 shrink-0" />
                             </div>
                         </div>
@@ -791,6 +761,9 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
 
 // --- PROFILE VIEW ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
+    // Determine contractorId from profile
+    const contractorId = profile?.id || profile?.uid;
+
     const [formData, setFormData] = useState({
         companyName: profile?.profile?.companyName || '',
         displayName: profile?.profile?.displayName || '',
@@ -798,7 +771,8 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
         phone: profile?.profile?.phone || '',
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
-        specialty: profile?.profile?.specialty || ''
+        specialty: profile?.profile?.specialty || '',
+        logoUrl: profile?.profile?.logoUrl || null // NEW: Track logo URL
     });
     const [saving, setSaving] = useState(false);
 
@@ -822,6 +796,16 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+                
+                {/* NEW: Logo Upload in Profile View */}
+                <div className="pb-4 border-b border-slate-100">
+                    <LogoUpload 
+                        currentLogo={formData.logoUrl}
+                        onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
+                        contractorId={contractorId}
+                    />
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Name</label>
@@ -1209,7 +1193,7 @@ export const ContractorProApp = () => {
         j.status !== 'completed' && j.status !== 'cancelled'
     ).length || 0;
 
-    // UPDATED: Count unscheduled jobs correctly for Schedule badge
+    // Count unscheduled jobs correctly for Schedule badge
     const unscheduledJobsCount = useMemo(() => {
         return jobs?.filter(job => 
             !job.scheduledTime && 
@@ -1319,12 +1303,7 @@ export const ContractorProApp = () => {
         }
     }, [activeView]);
 
-    // ... (previous imports)
-
-// ...
-
     const handleJobClick = useCallback((job) => {
-        // NEW: If job needs scheduling (or is in negotiation), open OfferTimeSlotsModal
         if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
             setOfferingTimesJob(job);
         } else if (job.status === 'scheduled') {
@@ -1335,8 +1314,6 @@ export const ContractorProApp = () => {
             setSelectedJob(job);
         }
     }, []);
-
-// ...
     
     const getViewTitle = () => {
         switch (activeView) {
