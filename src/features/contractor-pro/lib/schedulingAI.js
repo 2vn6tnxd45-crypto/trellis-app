@@ -574,7 +574,388 @@ export const suggestTimeSlot = (tech, job, existingJobs, date) => {
     return null; // No slot available
 };
 
+// ============================================
+// TIME SLOT SUGGESTION FUNCTIONS
+// (For AISuggestionPanel - scheduling time slots, not tech assignment)
+// ============================================
+
+/**
+ * Get working hours for a specific day
+ */
+const getWorkingHoursForDay = (preferences, date) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayHours = preferences?.workingHours?.[dayName];
+    
+    if (!dayHours?.enabled) return null;
+    
+    return {
+        start: dayHours.start || '08:00',
+        end: dayHours.end || '17:00'
+    };
+};
+
+/**
+ * Get jobs for a specific date
+ */
+const getJobsForDate = (allJobs, date) => {
+    return allJobs.filter(job => {
+        if (!job.scheduledTime && !job.scheduledDate) return false;
+        const jobDate = job.scheduledTime 
+            ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime) 
+            : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
+        return jobDate.toDateString() === date.toDateString();
+    });
+};
+
+/**
+ * Convert minutes to time string
+ */
+const minutesToTime = (minutes) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
+
+/**
+ * Format time for display
+ */
+const formatTimeDisplay = (time) => {
+    if (!time) return '';
+    const [h, m] = time.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+};
+
+/**
+ * Calculate workload for a day
+ */
+const calculateDayWorkload = (allJobs, date, preferences) => {
+    const dayJobs = getJobsForDate(allJobs, date);
+    const maxJobs = preferences?.maxJobsPerDay || 8;
+    
+    let totalMinutes = 0;
+    dayJobs.forEach(job => {
+        const duration = job.estimatedDuration || preferences?.defaultJobDuration || 120;
+        totalMinutes += typeof duration === 'number' ? duration : parseDurationToMinutes(duration);
+    });
+    
+    return {
+        jobCount: dayJobs.length,
+        totalMinutes,
+        percentFull: Math.round((dayJobs.length / maxJobs) * 100),
+        isFull: dayJobs.length >= maxJobs,
+        isLight: dayJobs.length <= 1,
+        isModerate: dayJobs.length > 1 && dayJobs.length < maxJobs - 1
+    };
+};
+
+/**
+ * Generate scheduling suggestions for a job (time slot suggestions)
+ * @param {Object} targetJob - The job to schedule
+ * @param {Array} allJobs - All jobs (scheduled and unscheduled)
+ * @param {Object} preferences - Contractor's scheduling preferences
+ * @param {Object} customerPrefs - Customer's scheduling preferences (if any)
+ * @param {number} daysToAnalyze - How many days ahead to look
+ * @returns {Object} Suggestions and analysis
+ */
+export const generateSchedulingSuggestions = (
+    targetJob,
+    allJobs,
+    preferences = {},
+    customerPrefs = null,
+    daysToAnalyze = 14
+) => {
+    const suggestions = [];
+    const warnings = [];
+    const insights = [];
+    
+    const jobDuration = targetJob?.estimatedDuration || 
+                        preferences?.defaultJobDuration || 
+                        120; // 2 hours default
+    
+    const durationMins = typeof jobDuration === 'number' ? jobDuration : parseDurationToMinutes(jobDuration);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const fullDays = [];
+    const lightDays = [];
+    
+    // Analyze each day
+    for (let i = 1; i <= daysToAnalyze; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() + i);
+        
+        // Skip if day is off
+        const workingHours = getWorkingHoursForDay(preferences, date);
+        if (!workingHours) continue;
+        
+        // Get workload
+        const workload = calculateDayWorkload(allJobs, date, preferences);
+        
+        if (workload.isFull) {
+            fullDays.push(date);
+            continue;
+        }
+        
+        if (workload.isLight) {
+            lightDays.push(date);
+        }
+        
+        // Parse working hours
+        const [startH, startM] = workingHours.start.split(':').map(Number);
+        const [endH, endM] = workingHours.end.split(':').map(Number);
+        const dayStart = startH * 60 + startM;
+        const dayEnd = endH * 60 + endM;
+        
+        // Get existing jobs for this day
+        const dayJobs = getJobsForDate(allJobs, date);
+        
+        // Find available slots
+        const busySlots = dayJobs.map(job => {
+            const jobTime = job.scheduledTime 
+                ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
+                : null;
+            if (!jobTime) return null;
+            
+            const jobDur = job.estimatedDuration || preferences?.defaultJobDuration || 120;
+            const durMins = typeof jobDur === 'number' ? jobDur : parseDurationToMinutes(jobDur);
+            const buffer = preferences?.bufferMinutes || 30;
+            
+            const start = jobTime.getHours() * 60 + jobTime.getMinutes();
+            return { start, end: start + durMins + buffer };
+        }).filter(Boolean).sort((a, b) => a.start - b.start);
+        
+        // Find gaps
+        let searchStart = dayStart;
+        
+        for (const slot of busySlots) {
+            if (searchStart + durationMins + (preferences?.bufferMinutes || 30) <= slot.start) {
+                // Found a gap!
+                const score = calculateSlotScore(date, searchStart, workload, customerPrefs, preferences);
+                suggestions.push({
+                    date,
+                    startTime: minutesToTime(searchStart),
+                    endTime: minutesToTime(searchStart + durationMins),
+                    dateFormatted: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                    timeFormatted: `${formatTimeDisplay(minutesToTime(searchStart))} - ${formatTimeDisplay(minutesToTime(searchStart + durationMins))}`,
+                    score,
+                    isRecommended: score >= 80,
+                    reasons: getSlotReasons(date, searchStart, workload, customerPrefs),
+                    workload
+                });
+            }
+            searchStart = Math.max(searchStart, slot.end);
+        }
+        
+        // Check end of day
+        if (searchStart + durationMins <= dayEnd) {
+            const score = calculateSlotScore(date, searchStart, workload, customerPrefs, preferences);
+            suggestions.push({
+                date,
+                startTime: minutesToTime(searchStart),
+                endTime: minutesToTime(searchStart + durationMins),
+                dateFormatted: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                timeFormatted: `${formatTimeDisplay(minutesToTime(searchStart))} - ${formatTimeDisplay(minutesToTime(searchStart + durationMins))}`,
+                score,
+                isRecommended: score >= 80,
+                reasons: getSlotReasons(date, searchStart, workload, customerPrefs),
+                workload
+            });
+        }
+    }
+    
+    // Sort by score
+    suggestions.sort((a, b) => b.score - a.score);
+    
+    // Add insights
+    if (fullDays.length > 0) {
+        insights.push({
+            type: 'busy',
+            message: `${fullDays.length} day${fullDays.length > 1 ? 's' : ''} are fully booked`,
+            days: fullDays
+        });
+    }
+    
+    if (lightDays.length > 0) {
+        insights.push({
+            type: 'opportunity',
+            message: `${lightDays.length} light day${lightDays.length > 1 ? 's' : ''} available`,
+            days: lightDays
+        });
+    }
+    
+    return {
+        suggestions: suggestions.slice(0, 10),
+        recommended: suggestions[0] || null,
+        warnings,
+        insights,
+        meta: {
+            analyzedDays: daysToAnalyze,
+            totalSlotsFound: suggestions.length,
+            jobDuration: durationMins,
+            hasCustomerPreferences: !!customerPrefs
+        }
+    };
+};
+
+/**
+ * Calculate score for a time slot
+ */
+const calculateSlotScore = (date, startMinutes, workload, customerPrefs, preferences) => {
+    let score = 50; // Base score
+    
+    // Light day bonus
+    if (workload.isLight) score += 20;
+    if (workload.isModerate) score += 10;
+    
+    // Morning preference (default)
+    if (startMinutes < 12 * 60) score += 10;
+    
+    // Customer preference matching
+    if (customerPrefs?.preferredDays) {
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        if (customerPrefs.preferredDays.includes(dayName)) score += 15;
+    }
+    
+    if (customerPrefs?.preferredTime) {
+        if (customerPrefs.preferredTime === 'morning' && startMinutes < 12 * 60) score += 15;
+        if (customerPrefs.preferredTime === 'afternoon' && startMinutes >= 12 * 60 && startMinutes < 17 * 60) score += 15;
+        if (customerPrefs.preferredTime === 'evening' && startMinutes >= 17 * 60) score += 15;
+    }
+    
+    // Sooner is better (within reason)
+    const today = new Date();
+    const daysAway = Math.floor((date - today) / (1000 * 60 * 60 * 24));
+    if (daysAway <= 3) score += 15;
+    else if (daysAway <= 7) score += 10;
+    
+    return Math.min(100, score);
+};
+
+/**
+ * Get reasons for slot recommendation
+ */
+const getSlotReasons = (date, startMinutes, workload, customerPrefs) => {
+    const reasons = [];
+    
+    if (workload.isLight) reasons.push('Light schedule day');
+    if (workload.isModerate) reasons.push('Good availability');
+    
+    const today = new Date();
+    const daysAway = Math.floor((date - today) / (1000 * 60 * 60 * 24));
+    if (daysAway <= 3) reasons.push('Available soon');
+    
+    if (startMinutes < 12 * 60) reasons.push('Morning slot');
+    else if (startMinutes < 17 * 60) reasons.push('Afternoon slot');
+    else reasons.push('Evening slot');
+    
+    if (customerPrefs?.preferredDays) {
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        if (customerPrefs.preferredDays.includes(dayName)) {
+            reasons.push('Customer preferred day');
+        }
+    }
+    
+    return reasons;
+};
+
+/**
+ * Quick suggest - returns just the top 3 recommendations
+ */
+export const getQuickSuggestions = (targetJob, allJobs, preferences, customerPrefs) => {
+    const result = generateSchedulingSuggestions(targetJob, allJobs, preferences, customerPrefs, 7);
+    return result.suggestions.slice(0, 3);
+};
+
+/**
+ * Check for conflicts with a proposed time (for OfferTimeSlotsModal)
+ */
+export const checkForConflicts = (proposedStart, proposedEnd, allJobs, preferences) => {
+    if (!proposedStart) return [];
+    
+    const proposedDate = new Date(proposedStart);
+    const dayJobs = getJobsForDate(allJobs, proposedDate);
+    const buffer = preferences?.bufferMinutes || 30;
+    
+    const proposedStartMinutes = proposedDate.getHours() * 60 + proposedDate.getMinutes();
+    const proposedEndDate = proposedEnd ? new Date(proposedEnd) : new Date(proposedStart.getTime() + 2 * 60 * 60 * 1000);
+    const proposedEndMinutes = proposedEndDate.getHours() * 60 + proposedEndDate.getMinutes();
+    
+    const conflicts = [];
+    
+    for (const job of dayJobs) {
+        const jobTime = job.scheduledTime 
+            ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
+            : null;
+        if (!jobTime) continue;
+        
+        const jobStartMinutes = jobTime.getHours() * 60 + jobTime.getMinutes();
+        const jobDuration = job.estimatedDuration || preferences?.defaultJobDuration || 120;
+        const durMins = typeof jobDuration === 'number' ? jobDuration : parseDurationToMinutes(jobDuration);
+        const jobEndMinutes = jobStartMinutes + durMins;
+        
+        // Check for overlap (including buffer)
+        const overlapStart = Math.max(proposedStartMinutes, jobStartMinutes - buffer);
+        const overlapEnd = Math.min(proposedEndMinutes + buffer, jobEndMinutes + buffer);
+        
+        if (overlapStart < overlapEnd) {
+            conflicts.push({
+                job,
+                overlapMinutes: overlapEnd - overlapStart,
+                message: `Conflicts with "${job.title || job.serviceType || 'Job'}" at ${formatTimeDisplay(minutesToTime(jobStartMinutes))}`
+            });
+        }
+    }
+    
+    return conflicts;
+};
+
+/**
+ * Suggest optimal route order for a day's jobs
+ */
+export const suggestRouteOrder = (jobs, homeBase) => {
+    if (jobs.length <= 1) return jobs;
+    
+    // Simple nearest-neighbor algorithm
+    const orderedJobs = [];
+    const remaining = [...jobs];
+    
+    let currentLocation = homeBase?.coordinates || null;
+    
+    while (remaining.length > 0) {
+        let nearestIndex = 0;
+        let nearestDistance = Infinity;
+        
+        for (let i = 0; i < remaining.length; i++) {
+            const jobCoords = remaining[i].serviceAddress?.coordinates;
+            if (!jobCoords || !currentLocation) {
+                nearestIndex = 0;
+                break;
+            }
+            
+            const distance = Math.sqrt(
+                Math.pow(currentLocation.lat - jobCoords.lat, 2) +
+                Math.pow(currentLocation.lng - jobCoords.lng, 2)
+            );
+            
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestIndex = i;
+            }
+        }
+        
+        const nextJob = remaining.splice(nearestIndex, 1)[0];
+        orderedJobs.push(nextJob);
+        currentLocation = nextJob.serviceAddress?.coordinates || currentLocation;
+    }
+    
+    return orderedJobs;
+};
+
 export default {
+    // Tech assignment functions
     scoreTechForJob,
     suggestAssignments,
     autoAssignAll,
@@ -583,5 +964,10 @@ export default {
     bulkAssignJobs,
     checkConflicts,
     suggestTimeSlot,
-    parseDurationToMinutes
+    parseDurationToMinutes,
+    // Time slot suggestion functions
+    generateSchedulingSuggestions,
+    getQuickSuggestions,
+    checkForConflicts,
+    suggestRouteOrder
 };
