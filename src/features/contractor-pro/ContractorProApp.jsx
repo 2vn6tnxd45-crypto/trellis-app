@@ -1179,15 +1179,15 @@ export const ContractorProApp = () => {
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
     const { templates: quoteTemplates } = useQuoteTemplates(user?.uid);
     const { 
-        createQuote: createQuoteFn,
-        updateQuote: updateQuoteFn,
-        deleteQuote: deleteQuoteFn,
-        sendQuote: sendQuoteFn,
-        getShareLink,
-        isCreating: isCreatingQuote,
-        isUpdating: isUpdatingQuote,
-        isSending: isSendingQuote
-    } = useQuoteOperations(user?.uid);
+    create: createQuoteFn,
+    update: updateQuoteFn,
+    remove: deleteQuoteFn,
+    send: sendQuoteFn,
+    getShareLink,
+    isCreating: isCreatingQuote,
+    isUpdating: isUpdatingQuote,
+    isSending: isSendingQuote
+} = useQuoteOperations(user?.uid);
 
 
     const contractorId = user?.uid;
