@@ -255,7 +255,8 @@ export const HomeownerJobCard = ({
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-500">Scheduled:</span>
                             <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
-                                {formatDate(job.scheduledTime)} at {formatTime(job.scheduledTime)}
+                                {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
+                                {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
                             </span>
                         </div>
                     )}
