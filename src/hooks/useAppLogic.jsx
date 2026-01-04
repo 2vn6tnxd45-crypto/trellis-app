@@ -89,6 +89,18 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     
     useEffect(() => {
+        // --- FIX START: Contractor Mode Check ---
+        // Prevents homeowner logic from running when a contractor is logged in
+        const urlParams = new URLSearchParams(window.location.search);
+        const isContractorMode = urlParams.get('pro') !== null || window.location.pathname.includes('/contractor');
+
+        if (isContractorMode) {
+            console.log('[useAppLogic] Contractor mode detected - skipping homeowner data load');
+            setLoading(false);
+            return; // EXIT EARLY to prevent permission errors
+        }
+        // --- FIX END ---
+
         console.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
         
         let unsubRecords = null;
