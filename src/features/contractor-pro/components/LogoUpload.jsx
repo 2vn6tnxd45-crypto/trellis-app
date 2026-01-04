@@ -1,6 +1,6 @@
 // src/features/contractor-pro/components/LogoUpload.jsx
 import React, { useState, useRef } from 'react';
-import { Upload, X, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../../config/firebase';
 import { compressImage } from '../../../lib/images';
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 
 export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
     const [uploading, setUploading] = useState(false);
+    const [imageError, setImageError] = useState(false); // Track load errors
     const fileInputRef = useRef(null);
     
     const handleFileSelect = async (e) => {
@@ -27,6 +28,8 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
         }
         
         setUploading(true);
+        setImageError(false); // Reset error state on new upload
+        
         try {
             // Compress if not SVG
             const processedFile = file.type === 'image/svg+xml' 
@@ -56,18 +59,25 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
         }
     };
     
+    const handleImageError = () => {
+        console.error('[LogoUpload] Failed to load image URL:', currentLogo);
+        setImageError(true);
+    };
+    
     return (
         <div className="space-y-3">
             <label className="block text-sm font-bold text-slate-700">
                 Company Logo
             </label>
             <div className="flex items-center gap-4">
-                {currentLogo ? (
+                {currentLogo && !imageError ? (
                     <div className="relative group">
                         <img 
                             src={currentLogo} 
                             alt="Company Logo" 
                             className="w-20 h-20 rounded-xl object-contain bg-slate-50 border border-slate-200"
+                            onError={handleImageError}
+                            crossOrigin="anonymous" 
                         />
                         <button
                             type="button"
@@ -80,12 +90,17 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                 ) : (
                     <div 
                         onClick={() => !uploading && fileInputRef.current?.click()}
-                        className={`w-20 h-20 rounded-xl border-2 border-dashed border-slate-300 
+                        className={`w-20 h-20 rounded-xl border-2 border-dashed ${imageError ? 'border-red-300 bg-red-50' : 'border-slate-300'} 
                                    flex items-center justify-center cursor-pointer hover:border-emerald-500
                                    hover:bg-slate-50 transition-colors ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         {uploading ? (
                             <Loader2 className="animate-spin text-emerald-500" size={24} />
+                        ) : imageError ? (
+                            <div className="text-center">
+                                <AlertCircle size={20} className="text-red-400 mx-auto" />
+                                <span className="text-[10px] text-red-500">Error</span>
+                            </div>
                         ) : (
                             <Upload size={24} className="text-slate-400" />
                         )}
@@ -94,6 +109,11 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                 <div className="text-sm text-slate-500">
                     <p>PNG, JPG, or SVG</p>
                     <p className="text-xs text-slate-400">Max 2MB, 400×400px recommended</p>
+                    {imageError && (
+                        <p className="text-xs text-red-500 mt-1">
+                            Failed to display image. Try uploading again.
+                        </p>
+                    )}
                 </div>
             </div>
             <input
