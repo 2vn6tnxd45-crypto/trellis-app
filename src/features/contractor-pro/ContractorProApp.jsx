@@ -4,6 +4,7 @@
 // ============================================
 // Main application wrapper for contractor dashboard with routing
 // UPDATED: Fix Initial Setup (updateDoc + dot notation) & File Structure Confirmation
+// UPDATED: Added Job Completion Flow
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
@@ -14,7 +15,8 @@ import {
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
-    AlertTriangle, Loader2, Trash2, MessageSquare
+    AlertTriangle, Loader2, Trash2, MessageSquare,
+    ClipboardCheck  // NEW: Added for completion status
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -42,6 +44,12 @@ import {
 
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
+
+// NEW: Job Completion Components
+import { JobCompletionForm } from '../jobs/components/completion';
+
+// NEW: Rating Components
+import { RateHomeownerModal } from '../ratings';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
@@ -276,7 +284,7 @@ const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
 );
 
 // ============================================
-// JOB STATUS CONFIG
+// JOB STATUS CONFIG - UPDATED with completion statuses
 // ============================================
 const JOB_STATUS_CONFIG = {
     pending_schedule: {
@@ -293,6 +301,18 @@ const JOB_STATUS_CONFIG = {
         label: 'In Progress',
         color: 'bg-purple-100 text-purple-700',
         icon: Briefcase
+    },
+    // NEW: Pending completion status
+    pending_completion: {
+        label: 'Awaiting Review',
+        color: 'bg-purple-100 text-purple-700',
+        icon: ClipboardCheck
+    },
+    // NEW: Revision requested status
+    revision_requested: {
+        label: 'Revision Requested',
+        color: 'bg-amber-100 text-amber-700',
+        icon: AlertTriangle
     },
     completed: {
         label: 'Completed',
@@ -346,8 +366,8 @@ const formatCurrency = (amount) => {
     }).format(amount || 0);
 };
 
-// --- ENHANCED JOBS VIEW ---
-const JobsView = ({ jobs, loading, onSelectJob }) => {
+// --- ENHANCED JOBS VIEW - UPDATED with completion button ---
+const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
     const [filter, setFilter] = useState('active');
     
     const activeJobs = jobs?.filter(j => 
@@ -364,6 +384,11 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
 
     const getStatusConfig = (status) => {
         return JOB_STATUS_CONFIG[status] || JOB_STATUS_CONFIG.pending;
+    };
+
+    // NEW: Helper to determine if job can be completed
+    const canCompleteJob = (job) => {
+        return ['scheduled', 'in_progress'].includes(job.status);
     };
 
     return (
@@ -436,97 +461,136 @@ const JobsView = ({ jobs, loading, onSelectJob }) => {
                         return (
                             <div 
                                 key={job.id} 
-                                onClick={() => onSelectJob?.(job)}
-                                className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
+                                className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all"
                             >
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="font-bold text-slate-800 text-lg truncate">
-                                                {job.title || job.description || 'Service Request'}
-                                            </h3>
-                                            {job.sourceType === 'quote' && (
-                                                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full flex items-center gap-1 shrink-0">
-                                                    <FileText size={10} />
-                                                    {job.sourceQuoteNumber || 'Quote'}
-                                                </span>
-                                            )}
+                                <div 
+                                    className="cursor-pointer"
+                                    onClick={() => onSelectJob?.(job)}
+                                >
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <h3 className="font-bold text-slate-800 text-lg truncate">
+                                                    {job.title || job.description || 'Service Request'}
+                                                </h3>
+                                                {job.sourceType === 'quote' && (
+                                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full flex items-center gap-1 shrink-0">
+                                                        <FileText size={10} />
+                                                        {job.sourceQuoteNumber || 'Quote'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
+                                                {job.customer?.name && (
+                                                    <span className="flex items-center gap-1">
+                                                        <User size={14} />
+                                                        {job.customer.name}
+                                                    </span>
+                                                )}
+                                                {job.customer?.address && (
+                                                    <span className="flex items-center gap-1 truncate">
+                                                        <MapPin size={14} />
+                                                        {job.customer.address}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-4 text-sm">
+                                                {job.total > 0 && (
+                                                    <span className="font-bold text-emerald-600">
+                                                        {formatCurrency(job.total)}
+                                                    </span>
+                                                )}
+                                                {job.scheduledTime && (
+                                                    <span className="text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
+                                                        <Calendar size={14} />
+                                                        {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
+                                                    </span>
+                                                )}
+                                                {!job.scheduledTime && latestProposal && (
+                                                    <span className="text-amber-600 font-medium flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
+                                                        <Clock size={14} />
+                                                        Proposed: {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
+                                                    </span>
+                                                )}
+                                                {!job.scheduledTime && !latestProposal && job.createdAt && (
+                                                    <span className="text-slate-400 text-xs">
+                                                        Created {formatDate(job.createdAt)}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                         
-                                        <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
-                                            {job.customer?.name && (
-                                                <span className="flex items-center gap-1">
-                                                    <User size={14} />
-                                                    {job.customer.name}
-                                                </span>
-                                            )}
-                                            {job.customer?.address && (
-                                                <span className="flex items-center gap-1 truncate">
-                                                    <MapPin size={14} />
-                                                    {job.customer.address}
-                                                </span>
-                                            )}
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.color}`}>
+                                                <StatusIcon size={12} />
+                                                {statusConfig.label}
+                                            </span>
+                                            <ChevronRight size={20} className="text-slate-300" />
                                         </div>
-                                        
-                                        <div className="flex items-center gap-4 text-sm">
-                                            {job.total > 0 && (
-                                                <span className="font-bold text-emerald-600">
-                                                    {formatCurrency(job.total)}
-                                                </span>
-                                            )}
-                                            {job.scheduledTime && (
-                                                <span className="text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
-                                                    <Calendar size={14} />
-                                                    {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
-                                                </span>
-                                            )}
-                                            {!job.scheduledTime && latestProposal && (
-                                                <span className="text-amber-600 font-medium flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-                                                    <Clock size={14} />
-                                                    Proposed: {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
-                                                </span>
-                                            )}
-                                            {!job.scheduledTime && !latestProposal && job.createdAt && (
-                                                <span className="text-slate-400 text-xs">
-                                                    Created {formatDate(job.createdAt)}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-3 shrink-0">
-                                        <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.color}`}>
-                                            <StatusIcon size={12} />
-                                            {statusConfig.label}
-                                        </span>
-                                        <ChevronRight size={20} className="text-slate-300" />
                                     </div>
                                 </div>
                                 
-                                {(job.customer?.phone || job.customer?.email) && (
-                                    <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-                                        {job.customer?.phone && (
-                                            <a 
-                                                href={`tel:${job.customer.phone}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
-                                            >
-                                                <Phone size={12} />
-                                                Call
-                                            </a>
-                                        )}
-                                        {job.customer?.email && (
-                                            <a 
-                                                href={`mailto:${job.customer.email}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
-                                            >
-                                                <Mail size={12} />
-                                                Email
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
+                                {/* Action buttons row */}
+                                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
+                                    {job.customer?.phone && (
+                                        <a 
+                                            href={`tel:${job.customer.phone}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <Phone size={12} />
+                                            Call
+                                        </a>
+                                    )}
+                                    {job.customer?.email && (
+                                        <a 
+                                            href={`mailto:${job.customer.email}`}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <Mail size={12} />
+                                            Email
+                                        </a>
+                                    )}
+                                    
+                                    {/* NEW: Complete Job Button */}
+                                    {canCompleteJob(job) && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCompleteJob?.(job);
+                                            }}
+                                            className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <CheckCircle size={12} />
+                                            Complete Job
+                                        </button>
+                                    )}
+                                    
+                                    {/* NEW: Awaiting Review Status */}
+                                    {job.status === 'pending_completion' && (
+                                        <span className="ml-auto px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                                            <ClipboardCheck size={12} />
+                                            Awaiting Customer Review
+                                        </span>
+                                    )}
+                                    
+                                    {/* NEW: Revision Requested - Resubmit Button */}
+                                    {job.status === 'revision_requested' && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCompleteJob?.(job);
+                                            }}
+                                            className="ml-auto px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 flex items-center gap-1.5 transition-colors"
+                                        >
+                                            <AlertTriangle size={12} />
+                                            Resubmit Completion
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         );
                     })}
@@ -1146,6 +1210,10 @@ export const ContractorProApp = () => {
     const [offeringTimesJob, setOfferingTimesJob] = useState(null);
     const [scheduleView, setScheduleView] = useState('calendar'); 
     const [selectedDate, setSelectedDate] = useState(new Date()); 
+    
+    // NEW: Job completion state
+    const [completingJob, setCompletingJob] = useState(null);
+    const [ratingHomeowner, setRatingHomeowner] = useState(null);
 
     const {
         user,
@@ -1353,6 +1421,18 @@ export const ContractorProApp = () => {
             setSelectedJob(job);
         }
     }, []);
+
+    // NEW: Handle complete job button click
+    const handleCompleteJob = useCallback((job) => {
+        setCompletingJob(job);
+    }, []);
+
+    // NEW: Handle completion success - optionally prompt for rating
+    const handleCompletionSuccess = useCallback((job) => {
+        setCompletingJob(null);
+        // Optionally prompt to rate the homeowner
+        setRatingHomeowner(job);
+    }, []);
     
     const getViewTitle = () => {
         switch (activeView) {
@@ -1420,7 +1500,14 @@ export const ContractorProApp = () => {
                         />
                     )}
                     
-                    {activeView === 'jobs' && <JobsView jobs={jobs} loading={jobsLoading} onSelectJob={handleJobClick} />}
+                    {activeView === 'jobs' && (
+                        <JobsView 
+                            jobs={jobs} 
+                            loading={jobsLoading} 
+                            onSelectJob={handleJobClick}
+                            onCompleteJob={handleCompleteJob}  // NEW: Pass completion handler
+                        />
+                    )}
                     
                     {activeView === 'schedule' && (
                         <div className="space-y-4">
@@ -1614,6 +1701,37 @@ export const ContractorProApp = () => {
                     schedulingPreferences={profile?.scheduling}
                     onClose={() => setOfferingTimesJob(null)}
                     onSuccess={() => setOfferingTimesJob(null)}
+                />
+            )}
+
+            {/* NEW: Job Completion Form Modal */}
+            {completingJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                    <div 
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+                        onClick={() => setCompletingJob(null)} 
+                    />
+                    <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-2xl overflow-auto bg-white md:rounded-2xl md:m-4">
+                        <JobCompletionForm
+                            job={jobs.find(j => j.id === completingJob.id) || completingJob}
+                            contractorId={profile?.id || user?.uid}
+                            onSuccess={() => handleCompletionSuccess(completingJob)}
+                            onClose={() => setCompletingJob(null)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* NEW: Rate Homeowner Modal (optional, after completion) */}
+            {ratingHomeowner && (
+                <RateHomeownerModal
+                    job={ratingHomeowner}
+                    contractorId={profile?.id || user?.uid}
+                    onClose={() => setRatingHomeowner(null)}
+                    onSuccess={() => {
+                        setRatingHomeowner(null);
+                        toast.success('Rating submitted!');
+                    }}
                 />
             )}
         </div>
