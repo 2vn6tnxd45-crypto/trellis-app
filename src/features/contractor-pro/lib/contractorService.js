@@ -9,7 +9,7 @@ import {
     getDoc, 
     setDoc, 
     updateDoc,
-    deleteDoc, // ADDED: Import deleteDoc
+    deleteDoc,
     collection, 
     query, 
     where, 
@@ -29,7 +29,6 @@ import {
 } from '../../../config/constants';
 
 // Collection paths
-// Fallback to 'contractors' if the constant is missing, but it should be there
 const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
 const INVITATIONS_SUBCOLLECTION = 'invitations';
 const CUSTOMERS_SUBCOLLECTION = 'customers';
@@ -66,21 +65,68 @@ export const saveContractorProfile = async (contractorId, profileData) => {
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
-            // Update existing
-            await updateDoc(docRef, {
-                profile: profileData,
+            // Update existing - merge profile data
+            const updateData = {
+                'profile.displayName': profileData.displayName ?? '',
+                'profile.companyName': profileData.companyName ?? '',
+                'profile.phone': profileData.phone ?? '',
+                'profile.email': profileData.email ?? '',
+                'profile.address': profileData.address ?? '',
+                'profile.licenseNumber': profileData.licenseNumber ?? '',
+                'profile.specialty': profileData.specialty ?? '',
+                'profile.logoUrl': profileData.logoUrl ?? null,
+                'profile.trades': profileData.trades ?? [],
+                'profile.public': profileData.public ?? false,
+                
+                // NEW: Credential fields
+                'profile.yearsInBusiness': profileData.yearsInBusiness ?? null,
+                'profile.insured': profileData.insured ?? false,
+                'profile.bonded': profileData.bonded ?? false,
+                'profile.certifications': profileData.certifications ?? [],
+                'profile.paymentMethods': profileData.paymentMethods ?? [],
+                
                 updatedAt: serverTimestamp()
+            };
+            
+            // Remove undefined values
+            Object.keys(updateData).forEach(key => {
+                if (updateData[key] === undefined) {
+                    delete updateData[key];
+                }
             });
+            
+            await updateDoc(docRef, updateData);
         } else {
             // Create new
             await setDoc(docRef, {
                 uid: contractorId,
                 profile: {
-                    ...profileData,
+                    displayName: profileData.displayName || '',
+                    companyName: profileData.companyName || '',
+                    phone: profileData.phone || '',
+                    email: profileData.email || '',
+                    address: profileData.address || '',
+                    licenseNumber: profileData.licenseNumber || '',
+                    specialty: profileData.specialty || '',
+                    logoUrl: profileData.logoUrl || null,
+                    trades: profileData.trades || [],
+                    public: profileData.public || false,
+                    
+                    // NEW: Credential fields
+                    yearsInBusiness: profileData.yearsInBusiness || null,
+                    insured: profileData.insured || false,
+                    bonded: profileData.bonded || false,
+                    certifications: profileData.certifications || [],
+                    paymentMethods: profileData.paymentMethods || [],
+                    
                     stats: {
                         totalCustomers: 0,
                         totalInvitations: 0,
-                        claimRate: 0
+                        claimRate: 0,
+                        totalQuotes: 0,
+                        acceptedQuotes: 0,
+                        totalJobValue: 0,
+                        activeJobs: 0
                     }
                 },
                 settings: {
@@ -117,6 +163,32 @@ export const updateContractorSettings = async (contractorId, settings) => {
     }
 };
 
+/**
+ * Update just the profile portion (for profile editor)
+ */
+export const updateContractorProfile = async (contractorId, profileFields) => {
+    try {
+        const docRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        
+        // Build update object with profile. prefix
+        const updateData = {
+            updatedAt: serverTimestamp()
+        };
+        
+        Object.keys(profileFields).forEach(key => {
+            if (profileFields[key] !== undefined) {
+                updateData[`profile.${key}`] = profileFields[key];
+            }
+        });
+        
+        await updateDoc(docRef, updateData);
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating contractor profile:', error);
+        throw error;
+    }
+};
+
 // ============================================
 // INVITATIONS
 // ============================================
@@ -143,10 +215,7 @@ export const linkInvitationToContractor = async (contractorId, invitationData) =
             claimedBy: null,
             customerName: null,
             customerPropertyName: null,
-            recordCount: invitationData.recordCount || 0,
-            recordSummary: invitationData.recordSummary || [],
-            totalValue: invitationData.totalValue || 0,
-            recipientEmail: invitationData.recipientEmail || null
+            email: invitationData.email || null
         });
         
         // Update stats
@@ -166,27 +235,15 @@ export const linkInvitationToContractor = async (contractorId, invitationData) =
 /**
  * Get all invitations for a contractor
  */
-export const getContractorInvitations = async (contractorId, options = {}) => {
+export const getContractorInvitations = async (contractorId) => {
     try {
-        const { status, limitCount = 50 } = options;
-        
-        let q = collection(
+        const invitationsRef = collection(
             db, 
             CONTRACTORS_COLLECTION, contractorId, 
             INVITATIONS_SUBCOLLECTION
         );
         
-        const constraints = [orderBy('createdAt', 'desc')];
-        
-        if (status) {
-            constraints.unshift(where('status', '==', status));
-        }
-        
-        if (limitCount) {
-            constraints.push(limit(limitCount));
-        }
-        
-        q = query(q, ...constraints);
+        const q = query(invitationsRef, orderBy('createdAt', 'desc'));
         const snapshot = await getDocs(q);
         
         return snapshot.docs.map(doc => ({
@@ -200,15 +257,12 @@ export const getContractorInvitations = async (contractorId, options = {}) => {
 };
 
 /**
- * Subscribe to invitations for real-time updates
+ * Subscribe to invitations with real-time updates
  */
-export const subscribeToInvitations = (contractorId, callback, options = {}) => {
-    const { limitCount = 20 } = options;
-    
+export const subscribeToContractorInvitations = (contractorId, callback) => {
     const q = query(
         collection(db, CONTRACTORS_COLLECTION, contractorId, INVITATIONS_SUBCOLLECTION),
-        orderBy('createdAt', 'desc'),
-        limit(limitCount)
+        orderBy('createdAt', 'desc')
     );
     
     return onSnapshot(q, (snapshot) => {
@@ -219,11 +273,12 @@ export const subscribeToInvitations = (contractorId, callback, options = {}) => 
         callback(invitations);
     }, (error) => {
         console.error('Invitations subscription error:', error);
+        callback([]);
     });
 };
 
 /**
- * Mark invitation as claimed (called from claim flow)
+ * Update invitation when claimed
  */
 export const markInvitationClaimed = async (contractorId, invitationId, claimData) => {
     try {
@@ -241,26 +296,83 @@ export const markInvitationClaimed = async (contractorId, invitationId, claimDat
             customerPropertyName: claimData.propertyName || null
         });
         
-        // Update contractor stats
+        // Update stats
         const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
-        const contractorSnap = await getDoc(contractorRef);
+        await updateDoc(contractorRef, {
+            'profile.stats.totalCustomers': increment(1),
+            updatedAt: serverTimestamp()
+        });
         
-        if (contractorSnap.exists()) {
-            const stats = contractorSnap.data().profile?.stats || {};
-            const totalInvitations = stats.totalInvitations || 1;
-            const currentClaimed = Math.round((stats.claimRate || 0) * totalInvitations);
-            const newClaimRate = (currentClaimed + 1) / totalInvitations;
-            
-            await updateDoc(contractorRef, {
-                'profile.stats.totalCustomers': increment(1),
-                'profile.stats.claimRate': newClaimRate,
-                updatedAt: serverTimestamp()
-            });
-        }
+        // Recalculate claim rate
+        await recalculateClaimRate(contractorId);
         
         return { success: true };
     } catch (error) {
         console.error('Error marking invitation claimed:', error);
+        throw error;
+    }
+};
+
+/**
+ * Delete an invitation
+ */
+export const deleteContractorInvitation = async (contractorId, invitationId) => {
+    try {
+        const inviteRef = doc(
+            db, 
+            CONTRACTORS_COLLECTION, contractorId, 
+            INVITATIONS_SUBCOLLECTION, invitationId
+        );
+        
+        await deleteDoc(inviteRef);
+        
+        // Update stats
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        await updateDoc(contractorRef, {
+            'profile.stats.totalInvitations': increment(-1),
+            updatedAt: serverTimestamp()
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error deleting invitation:', error);
+        throw error;
+    }
+};
+
+/**
+ * Recalculate claim rate for a contractor
+ */
+const recalculateClaimRate = async (contractorId) => {
+    try {
+        const invitationsRef = collection(
+            db, 
+            CONTRACTORS_COLLECTION, contractorId, 
+            INVITATIONS_SUBCOLLECTION
+        );
+        
+        const snapshot = await getDocs(invitationsRef);
+        
+        let total = 0;
+        let claimed = 0;
+        
+        snapshot.docs.forEach(doc => {
+            total++;
+            if (doc.data().status === 'claimed') {
+                claimed++;
+            }
+        });
+        
+        const claimRate = total > 0 ? (claimed / total) * 100 : 0;
+        
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        await updateDoc(contractorRef, {
+            'profile.stats.claimRate': claimRate
+        });
+        
+        return { success: true, claimRate };
+    } catch (error) {
+        console.error('Error recalculating claim rate:', error);
         throw error;
     }
 };
@@ -270,62 +382,17 @@ export const markInvitationClaimed = async (contractorId, invitationId, claimDat
 // ============================================
 
 /**
- * Add or update a customer relationship
- */
-export const upsertCustomer = async (contractorId, customerData) => {
-    try {
-        const customerRef = doc(
-            db, 
-            CONTRACTORS_COLLECTION, contractorId, 
-            CUSTOMERS_SUBCOLLECTION, customerData.userId
-        );
-        
-        const customerSnap = await getDoc(customerRef);
-        
-        if (customerSnap.exists()) {
-            // Update existing customer
-            const existing = customerSnap.data();
-            await updateDoc(customerRef, {
-                lastContact: serverTimestamp(),
-                totalJobs: increment(1),
-                totalSpend: increment(customerData.jobValue || 0),
-                recordIds: [...new Set([...(existing.recordIds || []), ...customerData.recordIds])]
-            });
-        } else {
-            // Create new customer
-            await setDoc(customerRef, {
-                userId: customerData.userId,
-                propertyId: customerData.propertyId,
-                propertyName: customerData.propertyName,
-                customerName: customerData.customerName || null,
-                firstContact: serverTimestamp(),
-                lastContact: serverTimestamp(),
-                totalJobs: 1,
-                totalSpend: customerData.jobValue || 0,
-                recordIds: customerData.recordIds || []
-            });
-        }
-        
-        return { success: true };
-    } catch (error) {
-        console.error('Error upserting customer:', error);
-        throw error;
-    }
-};
-
-/**
  * Get all customers for a contractor
  */
-export const getContractorCustomers = async (contractorId, options = {}) => {
+export const getContractorCustomers = async (contractorId) => {
     try {
-        const { sortBy = 'lastContact', limitCount = 100 } = options;
-        
-        const q = query(
-            collection(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION),
-            orderBy(sortBy, 'desc'),
-            limit(limitCount)
+        const customersRef = collection(
+            db, 
+            CONTRACTORS_COLLECTION, contractorId, 
+            CUSTOMERS_SUBCOLLECTION
         );
         
+        const q = query(customersRef, orderBy('customerName', 'asc'));
         const snapshot = await getDocs(q);
         
         return snapshot.docs.map(doc => ({
@@ -339,13 +406,12 @@ export const getContractorCustomers = async (contractorId, options = {}) => {
 };
 
 /**
- * Subscribe to customers for real-time updates
+ * Subscribe to customers with real-time updates
  */
-export const subscribeToCustomers = (contractorId, callback) => {
+export const subscribeToContractorCustomers = (contractorId, callback) => {
     const q = query(
         collection(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION),
-        orderBy('lastContact', 'desc'),
-        limit(50)
+        orderBy('customerName', 'asc')
     );
     
     return onSnapshot(q, (snapshot) => {
@@ -356,29 +422,65 @@ export const subscribeToCustomers = (contractorId, callback) => {
         callback(customers);
     }, (error) => {
         console.error('Customers subscription error:', error);
+        callback([]);
     });
 };
 
+/**
+ * Add or update a customer
+ */
+export const saveContractorCustomer = async (contractorId, customerData) => {
+    try {
+        const customerRef = customerData.id 
+            ? doc(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION, customerData.id)
+            : doc(collection(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION));
+        
+        const customer = {
+            customerName: customerData.customerName || '',
+            email: customerData.email || '',
+            phone: customerData.phone || '',
+            propertyName: customerData.propertyName || '',
+            address: customerData.address || '',
+            notes: customerData.notes || '',
+            totalSpend: customerData.totalSpend || 0,
+            jobCount: customerData.jobCount || 0,
+            lastContact: customerData.lastContact || null,
+            updatedAt: serverTimestamp()
+        };
+        
+        if (!customerData.id) {
+            customer.createdAt = serverTimestamp();
+        }
+        
+        await setDoc(customerRef, customer, { merge: true });
+        
+        return { success: true, customerId: customerRef.id };
+    } catch (error) {
+        console.error('Error saving customer:', error);
+        throw error;
+    }
+};
+
 // ============================================
-// MIGRATION
+// MIGRATION (Anonymous invitations)
 // ============================================
 
 /**
  * Migrate anonymous invitations to a contractor account
- * Called when a contractor signs up with an email that matches previous invitations
+ * Called after signup/login to link any invitations created before account creation
  */
 export const migrateAnonymousInvitations = async (contractorId, email) => {
-    // IMPORTANT: Return early if no email to avoid empty query error
-    if (!email) return { migratedCount: 0 };
-    
     try {
-        // Use the proper collection path for invitations, or default to standard invitations collection
-        // This ensures we respect the app's artifact path structure
-        const inviteCollectionPath = INVITATIONS_COLLECTION_PATH || 'invitations';
+        if (!email) {
+            return { migratedCount: 0 };
+        }
         
+        // Find invitations created with this email but not yet linked
+        const invitationsRef = collection(db, INVITATIONS_COLLECTION_PATH);
         const q = query(
-            collection(db, inviteCollectionPath),
-            where('contractorInfo.email', '==', email.toLowerCase())
+            invitationsRef,
+            where('contractorEmail', '==', email.toLowerCase()),
+            where('contractorId', '==', null)
         );
         
         const snapshot = await getDocs(q);
@@ -388,39 +490,44 @@ export const migrateAnonymousInvitations = async (contractorId, email) => {
         }
         
         const batch = writeBatch(db);
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
         let claimedCount = 0;
         
         snapshot.docs.forEach(docSnap => {
-            const data = docSnap.data();
+            const invitation = docSnap.data();
             
-            // Create invitation in contractor's subcollection
-            const inviteRef = doc(
+            // Update the main invitation with contractor ID
+            batch.update(docSnap.ref, {
+                contractorId,
+                linkedAt: serverTimestamp()
+            });
+            
+            // Create a copy in contractor's invitations subcollection
+            const subInviteRef = doc(
                 db, 
                 CONTRACTORS_COLLECTION, contractorId, 
                 INVITATIONS_SUBCOLLECTION, docSnap.id
             );
             
-            batch.set(inviteRef, {
+            batch.set(subInviteRef, {
                 mainInviteId: docSnap.id,
-                claimToken: data.claimToken,
-                createdAt: data.createdAt,
-                status: data.claimed ? 'claimed' : 'pending',
-                claimedAt: data.claimedAt || null,
-                claimedBy: data.claimedBy || null,
-                recordCount: data.records?.length || 0,
-                recordSummary: (data.records || []).slice(0, 5).map(r => ({
-                    item: r.item,
-                    category: r.category
-                })),
-                totalValue: (data.records || []).reduce((sum, r) => sum + (r.cost || 0), 0),
-                migratedAt: serverTimestamp()
+                claimToken: invitation.claimToken,
+                link: invitation.link,
+                createdAt: invitation.createdAt || serverTimestamp(),
+                status: invitation.status || 'pending',
+                claimedAt: invitation.claimedAt || null,
+                claimedBy: invitation.claimedBy || null,
+                customerName: invitation.customerName || null,
+                customerPropertyName: invitation.propertyName || null,
+                email: invitation.email || null
             });
             
-            if (data.claimed) claimedCount++;
+            if (invitation.status === 'claimed') {
+                claimedCount++;
+            }
         });
         
         // Update contractor stats
-        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
         const totalInvitations = snapshot.size;
         const claimRate = totalInvitations > 0 ? claimedCount / totalInvitations : 0;
         
@@ -519,47 +626,62 @@ export const subscribeToContractorJobs = (contractorId, callback) => {
 
 /**
  * Delete contractor account and data
- * Note: This deletes the profile data. Auth deletion requires client-side re-auth.
+ * Note: This deletes the profile data. The Firebase Auth user must be deleted separately.
  */
 export const deleteContractorAccount = async (contractorId) => {
     try {
-        // 1. Delete Profile
-        await deleteDoc(doc(db, CONTRACTORS_COLLECTION, contractorId));
+        const batch = writeBatch(db);
         
-        // 2. Optional: You could trigger a Cloud Function here to clean up 
-        // invitations/customers recursively, but for MVP, profile deletion is sufficient 
-        // to "hide" the user.
+        // Delete all invitations
+        const invitationsRef = collection(
+            db, 
+            CONTRACTORS_COLLECTION, contractorId, 
+            INVITATIONS_SUBCOLLECTION
+        );
+        const invitationsSnap = await getDocs(invitationsRef);
+        invitationsSnap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        // Delete all customers
+        const customersRef = collection(
+            db, 
+            CONTRACTORS_COLLECTION, contractorId, 
+            CUSTOMERS_SUBCOLLECTION
+        );
+        const customersSnap = await getDocs(customersRef);
+        customersSnap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        // Delete the contractor document
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        batch.delete(contractorRef);
+        
+        await batch.commit();
         
         return { success: true };
     } catch (error) {
-        console.error('Error deleting account:', error);
+        console.error('Error deleting contractor account:', error);
         throw error;
     }
 };
 
-// ... existing imports
-
-// ============================================
-// INVOICES
-// ============================================
-
-/**
- * Subscribe to invoices for a contractor
- */
-export const subscribeToContractorInvoices = (contractorId, callback) => {
-    const q = query(
-        collection(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'invoices'),
-        orderBy('createdAt', 'desc')
-    );
-
-    return onSnapshot(q, (snapshot) => {
-        const invoices = snapshot.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-        }));
-        callback(invoices);
-    }, (error) => {
-        console.error('Invoices subscription error:', error);
-        callback([]); 
-    });
+export default {
+    getContractorProfile,
+    saveContractorProfile,
+    updateContractorSettings,
+    updateContractorProfile,
+    linkInvitationToContractor,
+    getContractorInvitations,
+    subscribeToContractorInvitations,
+    markInvitationClaimed,
+    deleteContractorInvitation,
+    getContractorCustomers,
+    subscribeToContractorCustomers,
+    saveContractorCustomer,
+    migrateAnonymousInvitations,
+    getContractorStats,
+    subscribeToContractorJobs,
+    deleteContractorAccount
 };
