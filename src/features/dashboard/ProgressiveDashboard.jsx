@@ -12,7 +12,6 @@ import {
     Camera, Plus, Package, Sparkles, MapPin, Wrench, Send,
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
-    // NEW IMPORTS for Active Projects
     Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -21,7 +20,7 @@ import toast from 'react-hot-toast';
 import { ModernDashboard } from './ModernDashboard';
 import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { ReportTeaser } from './ReportTeaser';
-import { PedigreeReportTeaser } from '../report/PedigreeReportTeaser'; // NEW IMPORT
+// Note: PedigreeReportTeaser import removed as it's now integrated
 
 // NEW: Property data hook for getting started view
 import usePropertyData from '../../hooks/usePropertyData';
@@ -290,169 +289,6 @@ const ActiveProjectsSection = ({ userId }) => {
 };
 
 // ============================================
-// SIMPLE VERSION (Inline) - Restored
-// ============================================
-const ActiveProjectsSectionInline = ({ userId }) => {
-    const [projects, setProjects] = useState([]);
-    const [selectedJob, setSelectedJob] = useState(null);
-    const [cancellingJob, setCancellingJob] = useState(null);
-    const [requestingTimesJob, setRequestingTimesJob] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (!userId) {
-            setLoading(false);
-            return;
-        }
-        
-        const q1 = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
-        const q2 = query(collection(db, REQUESTS_COLLECTION_PATH), where("customerId", "==", userId));
-        
-        let results1 = [], results2 = [];
-        let loaded1 = false, loaded2 = false;
-        
-        const mergeAndUpdate = () => {
-            if (!loaded1 || !loaded2) return;
-            const merged = new Map();
-            [...results1, ...results2].forEach(job => merged.set(job.id, job));
-            const allJobs = Array.from(merged.values());
-            const active = allJobs.filter(r => 
-                !['cancelled', 'completed', 'archived'].includes(r.status) &&
-                (['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
-                (r.status === 'quoted' && r.estimate?.status === 'approved'))
-            );
-            setProjects(active);
-            setLoading(false);
-        };
-        
-        const unsub1 = onSnapshot(q1, (snap) => { results1 = snap.docs.map(d => ({ id: d.id, ...d.data() })); loaded1 = true; mergeAndUpdate(); });
-        const unsub2 = onSnapshot(q2, (snap) => { results2 = snap.docs.map(d => ({ id: d.id, ...d.data() })); loaded2 = true; mergeAndUpdate(); });
-        
-        return () => { unsub1(); unsub2(); };
-    }, [userId]);
-
-    const getStatusBadge = (status) => {
-        const configs = {
-            scheduled: { label: 'Scheduled', bg: 'bg-emerald-100', text: 'text-emerald-700', icon: Calendar },
-            scheduling: { label: 'Needs Scheduling', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock },
-            quoted: { label: 'Ready to Schedule', bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle },
-            in_progress: { label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700', icon: Wrench },
-            pending_schedule: { label: 'Pending', bg: 'bg-slate-100', text: 'text-slate-600', icon: Clock }
-        };
-        return configs[status] || configs.pending_schedule;
-    };
-
-    if (loading) return <div className="p-4 text-xs text-slate-400">Loading projects...</div>;
-    if (projects.length === 0) return null;
-
-    return (
-        <>
-            <DashboardSection 
-                title="Active Projects" 
-                icon={Hammer} 
-                defaultOpen={true}
-                summary={<span className="text-xs text-amber-600 font-bold">{projects.length} active</span>}
-            >
-                <div className="space-y-3">
-                    {projects.map(job => {
-                        const effectiveStatus = (job.status === 'quoted' && job.estimate?.status === 'approved') ? 'pending_schedule' : job.status;
-                        const badge = getStatusBadge(effectiveStatus);
-                        const BadgeIcon = badge.icon;
-                        const latestProposal = job.proposedTimes?.length > 0 ? job.proposedTimes[job.proposedTimes.length - 1] : null;
-                        const contractorName = job.contractorName || job.contractorCompany || 'Contractor';
-                        
-                        return (
-                            <div 
-                                key={job.id}
-                                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all"
-                            >
-                                {/* Header */}
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedJob(job)}>
-                                        <h3 className="font-bold text-slate-800 hover:text-emerald-600 transition-colors">
-                                            {job.description || job.title || 'Service Request'}
-                                        </h3>
-                                        <p className="text-sm text-slate-500 mt-0.5">{contractorName}</p>
-                                    </div>
-                                    <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 shrink-0 ${badge.bg} ${badge.text}`}>
-                                        <BadgeIcon size={10} />
-                                        {badge.label}
-                                    </span>
-                                </div>
-                                
-                                {/* Schedule Info */}
-                                <div className="flex justify-between items-center text-sm text-slate-500 mb-3">
-                                    {job.scheduledTime ? (
-                                        <span className="font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
-                                            {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
-                                        </span>
-                                    ) : latestProposal ? (
-                                        <div className="text-right">
-                                            <span className="text-xs text-slate-400 block">Proposed:</span>
-                                            <span className="text-amber-600 font-bold text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-                                                {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-amber-600 font-medium text-xs">Awaiting times</span>
-                                    )}
-                                </div>
-                                
-                                {/* Action Buttons */}
-                                <div className="flex gap-2 pt-3 border-t border-slate-100">
-                                    <button
-                                        onClick={() => setSelectedJob(job)}
-                                        className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors"
-                                    >
-                                        {latestProposal?.proposedBy === 'contractor' ? 'Review & Confirm' : 'View Details'}
-                                    </button>
-                                    <button
-                                        onClick={() => setRequestingTimesJob(job)}
-                                        className="px-3 py-2 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-                                    >
-                                        Request Times
-                                    </button>
-                                    <button
-                                        onClick={() => setCancellingJob(job)}
-                                        className="px-3 py-2 text-red-600 text-xs font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </DashboardSection>
-
-            {/* Modals */}
-            {selectedJob && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
-                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
-                            <div>
-                                <h3 className="font-bold text-slate-800">{selectedJob.title || selectedJob.description || 'Manage Project'}</h3>
-                                <p className="text-xs text-slate-500">{selectedJob.contractorName || 'Contractor'}</p>
-                            </div>
-                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                                <X size={20} className="text-slate-400" />
-                            </button>
-                        </div>
-                        <div className="flex-grow overflow-hidden bg-slate-50">
-                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => {}} />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {cancellingJob && <CancelJobModal job={cancellingJob} onClose={() => setCancellingJob(null)} onSuccess={() => setCancellingJob(null)} />}
-            {requestingTimesJob && <RequestTimesModal job={requestingTimesJob} onClose={() => setRequestingTimesJob(null)} onSuccess={() => setRequestingTimesJob(null)} />}
-        </>
-    );
-};
-
-// ============================================
 // QUOTES SECTION COMPONENT
 // ============================================
 const MyQuotesSection = ({ userId }) => {
@@ -551,6 +387,138 @@ const MyQuotesSection = ({ userId }) => {
 };
 
 // ============================================
+// PROPERTY INTEL TEASER (INTEGRATED PEDIGREE)
+// ============================================
+const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5, onAddItem }) => {
+    const { address, coordinates } = activeProperty || {};
+    const {
+        propertyData,
+        loading,
+        estimatedValue,
+        appreciation,
+    } = usePropertyData(address, coordinates);
+
+    const isUnlocked = recordCount >= unlockThreshold;
+    const itemsRemaining = unlockThreshold - recordCount;
+    const progress = Math.min((recordCount / unlockThreshold) * 100, 100);
+
+    if (loading) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 animate-pulse">
+                <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
+                <div className="grid grid-cols-4 gap-3">
+                    {[...Array(4)].map((_, i) => (
+                        <div key={i} className="h-20 bg-slate-100 rounded-xl"></div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    if (!propertyData) return null;
+
+    const isPositive = appreciation?.dollarChange > 0;
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Home size={18} className="text-emerald-600" />
+                    <h3 className="font-bold text-slate-800">Property Details</h3>
+                </div>
+                <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
+                    County Records
+                </span>
+            </div>
+
+            <div className="p-5 space-y-4">
+                {/* Basic property stats - ALWAYS VISIBLE */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                        <CalendarClock size={18} className="mx-auto mb-2 text-emerald-500" />
+                        <p className="text-xl font-bold text-slate-800">{propertyData.yearBuilt || '--'}</p>
+                        <p className="text-xs text-slate-500 font-medium">Year Built</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                        <Ruler size={18} className="mx-auto mb-2 text-amber-500" />
+                        <p className="text-xl font-bold text-slate-800">{formatNumber(propertyData.squareFootage)}</p>
+                        <p className="text-xs text-slate-500 font-medium">Sq Ft</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                        <LandPlot size={18} className="mx-auto mb-2 text-green-500" />
+                        <p className="text-xl font-bold text-slate-800">{propertyData.lotSize ? formatNumber(propertyData.lotSize) : '--'}</p>
+                        <p className="text-xs text-slate-500 font-medium">Lot (sqft)</p>
+                    </div>
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                        <BedDouble size={18} className="mx-auto mb-2 text-indigo-500" />
+                        <p className="text-xl font-bold text-slate-800">{propertyData.bedrooms || '--'} / {propertyData.bathrooms || '--'}</p>
+                        <p className="text-xs text-slate-500 font-medium">Bed / Bath</p>
+                    </div>
+                </div>
+
+                {/* Locked/Unlocked: Financial History & Pedigree Report */}
+                <div className="relative">
+                    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
+                        <div className="flex items-center justify-between mb-4">
+                            <p className={`text-xs font-bold uppercase tracking-wider ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
+                                Financial History
+                            </p>
+                            {isUnlocked && <Sparkles size={16} className="text-emerald-300" />}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>Estimated Value</p>
+                                <p className={`text-2xl font-bold ${isUnlocked ? 'text-white' : 'text-slate-600'}`}>
+                                    {formatCurrency(estimatedValue)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>
+                                    Appreciation
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <p className={`text-2xl font-bold ${isUnlocked ? (isPositive ? 'text-white' : 'text-red-200') : 'text-slate-600'}`}>
+                                        {appreciation ? `${isPositive ? '+' : ''}${formatCurrency(appreciation.dollarChange)}` : '--'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {!isUnlocked && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-xl border-2 border-dashed border-slate-300 p-4 text-center z-10">
+                            <div className="bg-slate-100 p-3 rounded-full mb-3">
+                                <Lock size={24} className="text-slate-500" />
+                            </div>
+                            <h3 className="font-bold text-slate-800 text-lg mb-1">Property Pedigree Report</h3>
+                            <p className="text-emerald-600 font-bold text-sm mb-2">
+                                Add {itemsRemaining} more item{itemsRemaining !== 1 ? 's' : ''} to unlock
+                            </p>
+                            <div className="w-full max-w-[200px] h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
+                                <div 
+                                    className="h-full bg-emerald-500 transition-all duration-500"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                            <p className="text-slate-500 text-xs max-w-xs mb-4">
+                                Upload receipts or scan appliance labels to build your report and unlock financial insights.
+                            </p>
+                            <button 
+                                onClick={onAddItem}
+                                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                            >
+                                Add Items
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // EMPTY STATE (0 items)
 // ============================================
 const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink, recordCount }) => {
@@ -582,34 +550,15 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 </div>
             )}
 
-            {/* Property Quick Stats */}
-            {propertyData && !propertyLoading && (
+            {/* Property Intelligence & Pedigree Report (INTEGRATED) */}
+            {activeProperty?.address && (
                 <div className="w-full max-w-lg mb-6">
-                    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Home size={16} className="text-emerald-600" />
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Property Details</span>
-                            <span className="text-xs text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full ml-auto">County Records</span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-2">
-                            <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                <p className="text-lg font-bold text-slate-800">{propertyData.yearBuilt || '--'}</p>
-                                <p className="text-[10px] text-slate-500 font-medium uppercase">Built</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                <p className="text-lg font-bold text-slate-800">{propertyData.squareFootage ? propertyData.squareFootage.toLocaleString() : '--'}</p>
-                                <p className="text-[10px] text-slate-500 font-medium uppercase">Sq Ft</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                <p className="text-lg font-bold text-slate-800">{propertyData.bedrooms || '--'}</p>
-                                <p className="text-[10px] text-slate-500 font-medium uppercase">Beds</p>
-                            </div>
-                            <div className="bg-slate-50 rounded-xl p-3 text-center">
-                                <p className="text-lg font-bold text-slate-800">{propertyData.bathrooms || '--'}</p>
-                                <p className="text-[10px] text-slate-500 font-medium uppercase">Baths</p>
-                            </div>
-                        </div>
-                    </div>
+                    <PropertyIntelTeaser 
+                        activeProperty={activeProperty} 
+                        recordCount={recordCount}
+                        unlockThreshold={5}
+                        onAddItem={onAddItem}
+                    />
                 </div>
             )}
 
@@ -619,14 +568,6 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 <div className="mt-4">
                     <MyQuotesSection userId={userId} />
                 </div>
-            </div>
-
-            {/* NEW: Pedigree Teaser */}
-            <div className="w-full max-w-lg text-left mb-6">
-                <PedigreeReportTeaser 
-                    itemCount={recordCount || 0} 
-                    onAddItem={onAddItem} 
-                />
             </div>
             
             <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
@@ -663,124 +604,6 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 >
                     or add details manually
                 </button>
-            </div>
-        </div>
-    );
-};
-
-// ============================================
-// PROPERTY INTEL TEASER (for getting started)
-// ============================================
-const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5 }) => {
-    const { address, coordinates } = activeProperty || {};
-    const {
-        propertyData,
-        loading,
-        estimatedValue,
-        appreciation,
-    } = usePropertyData(address, coordinates);
-
-    const isUnlocked = recordCount >= unlockThreshold;
-    const itemsRemaining = unlockThreshold - recordCount;
-
-    if (loading) {
-        return (
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
-                <div className="grid grid-cols-4 gap-3">
-                    {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-20 bg-slate-100 rounded-xl"></div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    if (!propertyData) return null;
-
-    const isPositive = appreciation?.dollarChange > 0;
-
-    return (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-            {/* Header */}
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Home size={18} className="text-emerald-600" />
-                    <h3 className="font-bold text-slate-800">Property Intelligence</h3>
-                </div>
-                <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
-                    County Records
-                </span>
-            </div>
-
-            <div className="p-5 space-y-4">
-                {/* Basic property stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="bg-slate-50 rounded-xl p-4 text-center">
-                        <CalendarClock size={18} className="mx-auto mb-2 text-emerald-500" />
-                        <p className="text-xl font-bold text-slate-800">{propertyData.yearBuilt || '--'}</p>
-                        <p className="text-xs text-slate-500 font-medium">Year Built</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-4 text-center">
-                        <Ruler size={18} className="mx-auto mb-2 text-amber-500" />
-                        <p className="text-xl font-bold text-slate-800">{formatNumber(propertyData.squareFootage)}</p>
-                        <p className="text-xs text-slate-500 font-medium">Sq Ft</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-4 text-center">
-                        <LandPlot size={18} className="mx-auto mb-2 text-green-500" />
-                        <p className="text-xl font-bold text-slate-800">{propertyData.lotSize ? formatNumber(propertyData.lotSize) : '--'}</p>
-                        <p className="text-xs text-slate-500 font-medium">Lot (sqft)</p>
-                    </div>
-                    <div className="bg-slate-50 rounded-xl p-4 text-center">
-                        <BedDouble size={18} className="mx-auto mb-2 text-indigo-500" />
-                        <p className="text-xl font-bold text-slate-800">{propertyData.bedrooms || '--'} / {propertyData.bathrooms || '--'}</p>
-                        <p className="text-xs text-slate-500 font-medium">Bed / Bath</p>
-                    </div>
-                </div>
-
-                {/* Locked/Unlocked: Home Value Insights */}
-                <div className="relative">
-                    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-60 blur-[2px]' : ''}`}>
-                        <p className={`text-xs font-bold uppercase tracking-wider mb-3 ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
-                            Home Value Insights
-                        </p>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>Estimated Value</p>
-                                <p className={`text-2xl font-bold ${isUnlocked ? 'text-white' : 'text-slate-600'}`}>
-                                    {formatCurrency(estimatedValue)}
-                                </p>
-                            </div>
-                            <div>
-                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>
-                                    Since Purchase
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <p className={`text-2xl font-bold ${isUnlocked ? (isPositive ? 'text-white' : 'text-red-200') : 'text-slate-600'}`}>
-                                        {appreciation ? `${isPositive ? '+' : ''}${formatCurrency(appreciation.dollarChange)}` : '--'}
-                                    </p>
-                                    {appreciation && isUnlocked && (
-                                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${isPositive ? 'bg-white/20 text-white' : 'bg-red-400/30 text-red-100'}`}>
-                                            {isPositive ? '+' : ''}{appreciation.percentChange}%
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {!isUnlocked && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-xl border-2 border-dashed border-slate-300">
-                            <div className="bg-slate-100 p-3 rounded-full mb-3">
-                                <Lock size={24} className="text-slate-500" />
-                            </div>
-                            <p className="font-bold text-slate-700 text-sm">Home Value Insights</p>
-                            <p className="text-slate-500 text-xs">
-                                Track {itemsRemaining} more item{itemsRemaining !== 1 ? 's' : ''} to unlock
-                            </p>
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
@@ -861,18 +684,13 @@ const GettingStartedDashboard = ({
             <ActiveProjectsSection userId={userId} />
             <MyQuotesSection userId={userId} />
 
-            {/* NEW: Pedigree Teaser */}
-            <PedigreeReportTeaser 
-                itemCount={records.length} 
-                onAddItem={onAddItem} 
-            />
-
-            {/* Property Intelligence Teaser */}
+            {/* Property Intelligence Teaser (INTEGRATED PEDIGREE) */}
             {activeProperty?.address && (
                 <PropertyIntelTeaser 
                     activeProperty={activeProperty} 
                     recordCount={records.length}
                     unlockThreshold={unlockThreshold}
+                    onAddItem={onAddItem}
                 />
             )}
 
@@ -984,7 +802,7 @@ export const ProgressiveDashboard = ({
                 onAddItem={onAddRecord} 
                 onScanReceipt={onScanReceipt}
                 onCreateContractorLink={onCreateContractorLink}
-                recordCount={records.length} // Pass to empty state for teaser
+                recordCount={records.length} 
             />
         );
     
