@@ -470,13 +470,13 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                                     <>
                                                         {item.brand && <span className="text-xs text-slate-500">Brand: {item.brand}</span>}
                                                         {item.model && <span className="text-xs text-slate-500">Model: {item.model}</span>}
-                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> {item.warranty}</span>}
+                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> Mfr Warranty: {item.warranty}</span>}
                                                     </>
                                                 )}
                                                 {item.type === 'labor' && (
                                                     <>
                                                         {item.crewSize && <span className="text-xs text-slate-500 flex items-center gap-1"><Users size={10} /> {item.crewSize} Techs</span>}
-                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> {item.warranty}</span>}
+                                                        {item.warranty && <span className="text-xs text-emerald-600 flex items-center gap-1"><Shield size={10} /> Labor Warranty: {item.warranty}</span>}
                                                     </>
                                                 )}
                                             </div>
@@ -546,7 +546,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                         {quote.clientWarranty && (
                             <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100 col-span-1 md:col-span-2">
                                 <p className="text-xs font-bold text-emerald-700 uppercase mb-2 flex items-center gap-1">
-                                    <Shield size={14} /> Warranty
+                                    <Shield size={14} /> Workmanship Warranty
                                 </p>
                                 <p className="text-sm text-slate-700 font-medium">{quote.clientWarranty}</p>
                             </div>
