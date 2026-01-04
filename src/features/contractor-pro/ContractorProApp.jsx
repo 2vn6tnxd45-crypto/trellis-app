@@ -1189,6 +1189,13 @@ export const ContractorProApp = () => {
         isSending: isSendingQuote
     } = useQuoteOperations(user?.uid);
 
+    console.log('Quote Operations Debug:', {
+    contractorId,
+    createQuoteFn: typeof createQuoteFn,
+    updateQuoteFn: typeof updateQuoteFn,
+    sendQuoteFn: typeof sendQuoteFn
+});
+
     const contractorId = user?.uid;
 
     // Derived data
