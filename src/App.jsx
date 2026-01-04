@@ -536,7 +536,7 @@ const AppContent = () => {
                     </div>
                 )}
                 
-                {app.activeTab === 'Contractors' && <FeatureErrorBoundary label="Contractors"><ProConnect userId={app.user.uid} propertyName={app.activeProperty.name} propertyAddress={app.activeProperty.address} records={app.activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} /></FeatureErrorBoundary>}
+                {app.activeTab === 'Contractors' && <FeatureErrorBoundary label="Contractors"><ProConnect userId={app.user.uid} userProfile={app.profile} propertyName={app.activeProperty.name} propertyAddress={app.activeProperty.address} records={app.activePropertyRecords} onRequestImport={handleRequestImport} onOpenQuickRequest={handleOpenQuickService} /></FeatureErrorBoundary>}
                 {app.activeTab === 'Settings' && (
     <FeatureErrorBoundary label="Settings">
         <SettingsPage 
