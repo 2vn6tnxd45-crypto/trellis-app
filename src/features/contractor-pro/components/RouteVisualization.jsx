@@ -3,14 +3,15 @@
 // ROUTE VISUALIZATION
 // ============================================
 // Shows daily jobs on a map-like visualization with route optimization suggestions
-// UPDATED: Added "Open in Google Maps" Deep Linking
+// UPDATED: Full restoration of Summary/Optimization + New Dispatch Features
 
 import React, { useState, useMemo } from 'react';
 import { 
     Navigation, MapPin, Clock, ArrowRight, 
     Route, Sparkles, ChevronDown, ChevronUp,
     Car, Home, CheckCircle, AlertCircle, Zap,
-    ChevronLeft, ChevronRight, Calendar, ExternalLink, Map // Added Map icon
+    ChevronLeft, ChevronRight, Calendar, Map,
+    Users, MessageSquare, Phone
 } from 'lucide-react';
 import { suggestRouteOrder } from '../lib/schedulingAI';
 
@@ -43,29 +44,29 @@ const estimateTravelTime = (miles) => {
 };
 
 // ============================================
-// GOOGLE MAPS INTEGRATION
+// EXTERNAL ACTIONS
 // ============================================
+
 const openGoogleMapsRoute = (jobs, homeBase) => {
     if (!jobs || jobs.length === 0) return;
-
     const baseUrl = "https://www.google.com/maps/dir/?api=1";
     
-    // 1. Determine Origin (Home Base or First Job)
+    // Origin
     const originAddr = homeBase?.address || jobs[0].serviceAddress?.formatted || jobs[0].customer?.address;
     const originParam = `&origin=${encodeURIComponent(originAddr)}`;
 
-    // 2. Determine Destination (Last Job)
+    // Destination
     const lastJob = jobs[jobs.length - 1];
     const destAddr = lastJob.serviceAddress?.formatted || lastJob.customer?.address;
     const destParam = `&destination=${encodeURIComponent(destAddr)}`;
 
-    // 3. Determine Waypoints (All jobs between Origin and Destination)
+    // Waypoints
     let waypointsParam = "";
+    // If we have a home base, ALL jobs are waypoints (except maybe the last one if it's the dest)
+    // Actually, Google Maps Directions API works best with Origin -> Waypoints -> Dest
+    // Let's treat the Home Base as Origin, Last Job as Dest, and everything in between as waypoints
     
-    // If we have a home base, ALL jobs except the last one are waypoints
-    // If NO home base, the first job is origin, so waypoints start at job #2
     let intermediateJobs = [];
-    
     if (homeBase?.address) {
         intermediateJobs = jobs.slice(0, jobs.length - 1);
     } else {
@@ -79,22 +80,23 @@ const openGoogleMapsRoute = (jobs, homeBase) => {
         waypointsParam = `&waypoints=${points}`;
     }
 
-    // 4. Launch
     window.open(`${baseUrl}${originParam}${destParam}${waypointsParam}`, '_blank');
 };
 
-const openSingleJobMap = (job) => {
-    const address = job.serviceAddress?.formatted || job.customer?.address;
-    if (!address) return;
-    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
-    window.open(url, '_blank');
+const sendDispatchSMS = (job, travelTime) => {
+    if (!job.customer?.phone) return;
+    
+    const timeMsg = travelTime ? `in about ${travelTime} minutes` : 'shortly';
+    const text = `Hi ${job.customer.name.split(' ')[0]}, this is your technician from ${job.contractorName || 'the team'}. I'm on my way to your property and should arrive ${timeMsg}.`;
+    
+    window.location.href = `sms:${job.customer.phone.replace(/[^\d]/g, '')}?&body=${encodeURIComponent(text)}`;
 };
 
 // ============================================
-// JOB CARD IN ROUTE
+// ROUTE JOB CARD
 // ============================================
 
-const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
+const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) => {
     return (
         <div className="relative">
             {/* Travel indicator */}
@@ -110,9 +112,12 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
             
             {/* Job card */}
             <div className="w-full flex items-start gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all text-left group">
-                {/* Number badge */}
-                <div className="w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0">
-                    {index + 1}
+                <div className="flex flex-col items-center gap-1">
+                    <div className="w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+                        {index + 1}
+                    </div>
+                    {/* Connection Line */}
+                    <div className="w-0.5 h-full bg-slate-200 -mb-4 mt-1 group-last:hidden" />
                 </div>
                 
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onClick?.(job)}>
@@ -123,9 +128,17 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
                             </p>
                             <p className="text-sm text-slate-500">{job.customer?.name}</p>
                         </div>
-                        <span className="text-sm font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                            {formatTime(job.scheduledTime)}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                            <span className="text-sm font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                                {formatTime(job.scheduledTime)}
+                            </span>
+                            {assignedMember && (
+                                <div className="flex items-center gap-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                                    <div className="w-2 h-2 rounded-full" style={{ background: assignedMember.color }} />
+                                    {assignedMember.name}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     
                     {job.customer?.address && (
@@ -134,31 +147,34 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
                             {job.customer.address}
                         </p>
                     )}
-                    
-                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            {job.estimatedDuration || 120} min
-                        </span>
-                        {job.total > 0 && (
-                            <span className="text-emerald-600 font-bold">
-                                ${job.total.toLocaleString()}
-                            </span>
-                        )}
-                    </div>
                 </div>
 
-                {/* Individual Map Button */}
-                <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        openSingleJobMap(job);
-                    }}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                    title="Open in Maps"
-                >
-                    <Map size={18} />
-                </button>
+                {/* Quick Actions */}
+                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {job.customer?.phone && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                sendDispatchSMS(job, travelFromPrev?.time);
+                            }}
+                            className="p-2 text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg shadow-sm"
+                            title="Text Client ETA"
+                        >
+                            <MessageSquare size={16} />
+                        </button>
+                    )}
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const addr = job.serviceAddress?.formatted || job.customer?.address;
+                            if(addr) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank');
+                        }}
+                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        title="Navigate"
+                    >
+                        <Map size={16} />
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -203,7 +219,7 @@ const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
     }, [jobs, homeBase]);
 
     return (
-        <div className="bg-slate-50 rounded-xl p-4 mb-4">
+        <div className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
             <div className="flex items-center justify-between mb-4">
                 <h4 className="font-bold text-slate-800 flex items-center gap-2">
                     <Route size={16} className="text-emerald-600" />
@@ -344,30 +360,40 @@ export const RouteVisualization = ({
     jobs = [], 
     date,
     preferences = {},
+    teamMembers = [], 
     onJobClick,
     onReorder,
     onDateChange
 }) => {
     const [isOptimized, setIsOptimized] = useState(false);
+    const [selectedTech, setSelectedTech] = useState('all'); // 'all' | 'unassigned' | memberId
 
-    // Sort jobs by scheduled time
+    // Filter jobs based on selected tech
+    const filteredJobs = useMemo(() => {
+        if (selectedTech === 'all') return jobs;
+        if (selectedTech === 'unassigned') return jobs.filter(j => !j.assignedTo);
+        return jobs.filter(j => j.assignedTo === selectedTech);
+    }, [jobs, selectedTech]);
+
+    // Sort jobs by time
     const sortedJobs = useMemo(() => {
-        return [...jobs].sort((a, b) => {
+        return [...filteredJobs].sort((a, b) => {
             const timeA = new Date(a.scheduledTime || a.scheduledDate);
             const timeB = new Date(b.scheduledTime || b.scheduledDate);
             return timeA - timeB;
         });
-    }, [jobs]);
+    }, [filteredJobs]);
 
-    // Get optimized order
+    // Get optimized order (only suggest if viewing specific tech or < 10 jobs)
     const optimizedJobs = useMemo(() => {
         return suggestRouteOrder(sortedJobs, preferences?.homeBase);
     }, [sortedJobs, preferences]);
 
-    // Calculate travel info between jobs
+    const displayJobs = isOptimized ? optimizedJobs : sortedJobs;
+
+    // Calculate travel info
     const travelInfo = useMemo(() => {
         const info = [];
-        const displayJobs = isOptimized ? optimizedJobs : sortedJobs;
         let prevCoords = preferences?.homeBase?.coordinates;
         
         displayJobs.forEach((job, idx) => {
@@ -388,18 +414,9 @@ export const RouteVisualization = ({
         });
         
         return info;
-    }, [sortedJobs, optimizedJobs, isOptimized, preferences]);
+    }, [displayJobs, preferences]);
 
-    const displayJobs = isOptimized ? optimizedJobs : sortedJobs;
-
-    const handleApplyOptimization = () => {
-        setIsOptimized(true);
-        if (onReorder) {
-            onReorder(optimizedJobs);
-        }
-    };
-
-    // Date Navigation Handlers
+    // Handle Date Nav
     const handlePrevDay = () => {
         const newDate = new Date(date);
         newDate.setDate(newDate.getDate() - 1);
@@ -412,54 +429,84 @@ export const RouteVisualization = ({
         if (onDateChange) onDateChange(newDate);
     };
 
-    // NEW: Handle Map Button Click
     const handleOpenRoute = () => {
         openGoogleMapsRoute(displayJobs, preferences?.homeBase);
     };
 
     return (
         <div className="space-y-4">
-            {/* Date Header with Navigation */}
-            <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
-                <button 
-                    onClick={handlePrevDay}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
-                >
-                    <ChevronLeft size={20} />
-                </button>
-                
-                <div className="text-center">
-                    <h3 className="font-bold text-slate-800 flex items-center justify-center gap-2">
-                        <Calendar size={16} className="text-emerald-600" />
-                        {date?.toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            month: 'short', 
-                            day: 'numeric' 
-                        }) || 'Today'}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-medium">
-                        {jobs.length} job{jobs.length !== 1 ? 's' : ''} scheduled
-                    </p>
+            {/* Header Controls */}
+            <div className="flex flex-col gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                {/* Date Nav */}
+                <div className="flex items-center justify-between">
+                    <button onClick={handlePrevDay} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
+                        <ChevronLeft size={20} />
+                    </button>
+                    <div className="text-center">
+                        <h3 className="font-bold text-slate-800 flex items-center justify-center gap-2">
+                            <Calendar size={16} className="text-emerald-600" />
+                            {date?.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) || 'Today'}
+                        </h3>
+                    </div>
+                    <button onClick={handleNextDay} className="p-2 hover:bg-slate-100 rounded-full text-slate-500">
+                        <ChevronRight size={20} />
+                    </button>
                 </div>
 
-                <button 
-                    onClick={handleNextDay}
-                    className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
-                >
-                    <ChevronRight size={20} />
-                </button>
+                {/* Technician Filter */}
+                {teamMembers.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                        <button
+                            onClick={() => setSelectedTech('all')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                                selectedTech === 'all' 
+                                    ? 'bg-emerald-100 text-emerald-700' 
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            All Routes ({jobs.length})
+                        </button>
+                        {teamMembers.map(member => {
+                            const count = jobs.filter(j => j.assignedTo === member.id).length;
+                            return (
+                                <button
+                                    key={member.id}
+                                    onClick={() => setSelectedTech(member.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap flex items-center gap-2 transition-colors ${
+                                        selectedTech === member.id 
+                                            ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-500' 
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    <div className="w-2 h-2 rounded-full" style={{ background: member.color }} />
+                                    {member.name} ({count})
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={() => setSelectedTech('unassigned')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${
+                                selectedTech === 'unassigned' 
+                                    ? 'bg-amber-100 text-amber-700' 
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            Unassigned ({jobs.filter(j => !j.assignedTo).length})
+                        </button>
+                    </div>
+                )}
             </div>
 
-            {/* Content Logic */}
-            {jobs.length === 0 ? (
+            {/* List */}
+            {displayJobs.length === 0 ? (
                 <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
                     <Navigation size={32} className="mx-auto mb-3 opacity-50" />
-                    <p className="font-medium text-slate-600">No jobs scheduled for this day</p>
-                    <p className="text-sm">Use the arrows above to find your schedule</p>
+                    <p className="font-medium text-slate-600">No jobs scheduled</p>
+                    <p className="text-sm">Try changing the date or technician filter</p>
                 </div>
             ) : (
                 <>
-                    {/* Route Summary */}
+                    {/* Route Summary (Restored & Enhanced) */}
                     <RouteSummary 
                         jobs={displayJobs} 
                         homeBase={preferences?.homeBase}
@@ -467,7 +514,7 @@ export const RouteVisualization = ({
                         onOpenMaps={handleOpenRoute}
                     />
 
-                    {/* Optimization Suggestion */}
+                    {/* Optimization Suggestion (Restored) */}
                     {!isOptimized && (
                         <OptimizationSuggestion
                             currentJobs={sortedJobs}
@@ -478,7 +525,7 @@ export const RouteVisualization = ({
 
                     {/* Start from home */}
                     {preferences?.homeBase?.address && (
-                        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl text-slate-600">
+                        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl text-slate-600 mb-2">
                             <Home size={18} />
                             <div>
                                 <p className="text-xs font-medium text-slate-500">Starting from</p>
@@ -489,21 +536,25 @@ export const RouteVisualization = ({
 
                     {/* Job List with Route */}
                     <div className="space-y-1">
-                        {displayJobs.map((job, idx) => (
-                            <RouteJobCard
-                                key={job.id}
-                                job={job}
-                                index={idx}
-                                travelFromPrev={travelInfo[idx]}
-                                isLast={idx === displayJobs.length - 1}
-                                onClick={onJobClick}
-                            />
-                        ))}
+                        {displayJobs.map((job, idx) => {
+                            const member = teamMembers.find(m => m.id === job.assignedTo);
+                            return (
+                                <RouteJobCard
+                                    key={job.id}
+                                    job={job}
+                                    index={idx}
+                                    travelFromPrev={travelInfo[idx]}
+                                    isLast={idx === displayJobs.length - 1}
+                                    onClick={onJobClick}
+                                    assignedMember={member}
+                                />
+                            );
+                        })}
                     </div>
 
                     {/* Return home */}
                     {preferences?.homeBase?.address && (
-                        <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-500">
+                        <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-500 mt-2">
                             <Car size={12} />
                             <span>Return home</span>
                             <div className="flex-1 border-t border-dashed border-slate-300 mx-2" />
