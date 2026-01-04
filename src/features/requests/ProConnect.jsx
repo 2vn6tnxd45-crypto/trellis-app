@@ -17,7 +17,20 @@ import { JobScheduler } from '../jobs/JobScheduler';
 import { getChannelId, subscribeToChat, sendMessage, markChannelAsRead } from '../../lib/chatService';
 
 // ============================================
-// REAL CHAT DRAWER - UPDATED with user info
+// HELPER: Format property address for display
+// ============================================
+const formatAddressForChannel = (address) => {
+    if (!address) return null;
+    if (typeof address === 'string') return address;
+    // Handle address object format
+    if (address.street) {
+        return [address.street, address.city, address.state].filter(Boolean).join(', ');
+    }
+    return null;
+};
+
+// ============================================
+// REAL CHAT DRAWER - UPDATED with propertyAddress
 // ============================================
 const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
     const [message, setMessage] = useState('');
@@ -32,9 +45,13 @@ const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
     const homeownerName = userProfile?.name || userProfile?.displayName || 'Homeowner';
     const homeownerEmail = userProfile?.email || null;
     const homeownerPhone = userProfile?.phone || null;
-    // Derive scope of work from pro's service categories
-const categories = [...new Set((pro.jobs || []).map(j => j.category).filter(Boolean))];
-const scopeOfWork = categories.length > 0 ? categories.join(', ') : pro.specialty || null;
+
+    // NEW: Derive scope of work from pro's service categories
+    const categories = [...new Set((pro.jobs || []).map(j => j.category).filter(Boolean))];
+    const scopeOfWork = categories.length > 0 ? categories.join(', ') : (pro.specialty || null);
+
+    // NEW: Format property address for storage
+    const formattedAddress = formatAddressForChannel(propertyAddress);
 
     // Subscribe to real-time updates
     useEffect(() => {
@@ -64,20 +81,20 @@ const scopeOfWork = categories.length > 0 ? categories.join(', ') : pro.specialt
         try {
             const contractorId = pro.contractorId || null;
             
-            // UPDATED: Pass real homeowner name and info
+            // UPDATED: Pass homeowner info including address and scope
             await sendMessage(
                 channelId, 
                 textToSend, 
                 userId, 
-                homeownerName,  // Real name instead of 'Homeowner'
+                homeownerName,
                 contractorId,
                 {  // senderInfo to store on channel for contractor visibility
-    name: homeownerName,
-    email: homeownerEmail,
-    phone: homeownerPhone,
-    propertyAddress: propertyAddress || null,
-    scopeOfWork: scopeOfWork || null
-}
+                    name: homeownerName,
+                    email: homeownerEmail,
+                    phone: homeownerPhone,
+                    propertyAddress: formattedAddress,  // NEW
+                    scopeOfWork: scopeOfWork            // NEW
+                }
             );
         } catch (error) {
             console.error("Failed to send", error);
@@ -190,65 +207,55 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
                     {pro.logoUrl ? (
                         <img 
                             src={pro.logoUrl} 
-                            alt={pro.name} 
-                            className="h-14 w-14 rounded-xl object-contain bg-slate-50 border border-slate-100" 
+                            alt={pro.name}
+                            className="h-12 w-12 rounded-xl object-cover"
                         />
                     ) : (
-                        <div className="h-14 w-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">
-                            {pro.name.charAt(0).toUpperCase()}
+                        <div className="h-12 w-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                            <span className="text-lg font-bold text-emerald-700">
+                                {pro.name.charAt(0)}
+                            </span>
                         </div>
                     )}
                     
                     {/* Info */}
-                    <div className="flex-grow min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                            <div>
-                                <h3 className="font-bold text-slate-800 text-lg">{pro.name}</h3>
-                                {pro.address && (
-                                    <p className="text-xs text-slate-500 flex items-center mt-0.5">
-                                        <MapPin size={10} className="mr-1" />
-                                        {pro.address}
-                                    </p>
-                                )}
-                                <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-xs text-slate-500 font-medium">
-                                        {pro.jobs.length} job{pro.jobs.length !== 1 ? 's' : ''}
-                                    </span>
-                                    {totalSpent > 0 && (
-                                        <>
-                                            <span className="text-slate-300">•</span>
-                                            <span className="text-xs text-emerald-600 font-bold">
-                                                ${totalSpent.toLocaleString()} total
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            {/* Quick Actions (Collapsed View) */}
-                            <div className="flex gap-1">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-800 truncate">{pro.name}</h3>
+                            {pro.isOnPlatform && (
+                                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded">
+                                    PRO
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-sm text-slate-500">
+                            {pro.jobs.length} job{pro.jobs.length !== 1 ? 's' : ''} 
+                            {totalSpent > 0 && ` • $${totalSpent.toLocaleString()}`}
+                        </p>
+                        
+                        {/* Quick Actions */}
+                        <div className="flex items-center gap-2 mt-2">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
+                                disabled={!canChat}
+                                className={`p-2 rounded-lg transition-colors ${
+                                    canChat 
+                                        ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
+                                        : 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                                }`}
+                                title={canChat ? "Message" : "This pro is not on Krib yet"}
+                            >
+                                <MessageSquare size={18} />
+                            </button>
+                            {pro.phone && (
                                 <button 
-                                    onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
-                                    disabled={!canChat}
-                                    className={`p-2 rounded-lg transition-colors ${
-                                        canChat 
-                                            ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
-                                            : 'text-slate-300 bg-slate-50 cursor-not-allowed'
-                                    }`}
-                                    title={canChat ? "Message" : "This pro is not on Krib yet"}
+                                    onClick={(e) => { e.stopPropagation(); onCall(pro.phone); }}
+                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    title="Call"
                                 >
-                                    <MessageSquare size={18} />
+                                    <Phone size={18} />
                                 </button>
-                                {pro.phone && (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onCall(pro.phone); }}
-                                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                        title="Call"
-                                    >
-                                        <Phone size={18} />
-                                    </button>
-                                )}
-                            </div>
+                            )}
                         </div>
                         
                         {/* Categories */}
@@ -270,34 +277,12 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
             
             {/* Expanded Content */}
             {isExpanded && (
-                <div className="px-5 pb-5 pt-0 border-t border-slate-50 animate-in slide-in-from-top-2">
-                    {/* Contact Info */}
-                    {(pro.phone || pro.email || pro.address) && (
-                        <div className="bg-slate-50 rounded-xl p-3 mt-4 space-y-2">
-                            {pro.phone && (
-                                <a href={`tel:${pro.phone}`} className="flex items-center gap-2 text-sm text-slate-600 hover:text-emerald-600">
-                                    <Phone size={14} /> {pro.phone}
-                                </a>
-                            )}
-                            {pro.email && (
-                                <a href={`mailto:${pro.email}`} className="flex items-center gap-2 text-sm text-slate-600 hover:text-emerald-600">
-                                    <Mail size={14} /> {pro.email}
-                                </a>
-                            )}
-                            {pro.address && (
-                                <div className="flex items-start gap-2 text-sm text-slate-600">
-                                    <MapPin size={14} className="mt-0.5 shrink-0" />
-                                    <span>{pro.address}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    
-                    {/* Work History */}
-                    <div className="mt-4">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-2">Work History</p>
-                        <div className="space-y-2">
-                            {pro.jobs.slice(0, 5).map(job => (
+                <div className="px-5 pb-5 border-t border-slate-100 pt-4 bg-slate-50">
+                    {/* Job History */}
+                    <div className="mb-4">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Job History</h4>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {pro.jobs.map((job) => (
                                 <div key={job.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg">
                                     <div className="flex items-center gap-3">
                                         <div className="h-8 w-8 bg-slate-100 rounded-lg flex items-center justify-center">
@@ -344,105 +329,44 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
     );
 };
 
-// Active Request Card
+// ============================================
+// REQUEST CARD COMPONENT
+// ============================================
 const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
     const handleCopy = () => {
         const url = `${window.location.origin}${window.location.pathname}?requestId=${request.id}`;
         navigator.clipboard.writeText(url);
         toast.success('Link copied!');
     };
-
-    const formatScheduledTime = (isoString) => {
-        if (!isoString) return '';
-        const date = new Date(isoString);
-        return date.toLocaleString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
-        });
-    };
-
-    const getStatusDisplay = () => {
-        switch (request.status) {
-            case 'scheduled':
-                return {
-                    badge: 'SCHEDULED',
-                    badgeColor: 'bg-emerald-100 text-emerald-700',
-                    action: 'View Details',
-                    actionColor: 'bg-emerald-600 text-white'
-                };
-            case 'slots_offered':
-                return {
-                    badge: 'TIMES AVAILABLE',
-                    badgeColor: 'bg-amber-100 text-amber-700',
-                    action: 'Pick a Time',
-                    actionColor: 'bg-amber-600 text-white'
-                };
-            case 'quoted':
-                return {
-                    badge: 'QUOTE RECEIVED',
-                    badgeColor: 'bg-blue-100 text-blue-700',
-                    action: 'View Quote',
-                    actionColor: 'bg-blue-600 text-white'
-                };
-            case 'submitted':
-                return {
-                    badge: 'SUBMITTED',
-                    badgeColor: 'bg-slate-100 text-slate-600',
-                    action: 'Import',
-                    actionColor: 'bg-slate-600 text-white'
-                };
-            default:
-                return {
-                    badge: request.status?.toUpperCase() || 'PENDING',
-                    badgeColor: 'bg-slate-100 text-slate-600',
-                    action: 'View Details',
-                    actionColor: 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                };
+    
+    const getStatusInfo = (status) => {
+        switch (status) {
+            case 'pending': return { label: 'Awaiting Response', color: 'bg-amber-100 text-amber-700', action: 'Copy Link', actionColor: 'bg-slate-100 text-slate-700 hover:bg-slate-200' };
+            case 'submitted': return { label: 'Ready to Import', color: 'bg-emerald-100 text-emerald-700', action: 'Import Details', actionColor: 'bg-emerald-600 text-white hover:bg-emerald-700' };
+            case 'scheduling': return { label: 'Scheduling', color: 'bg-blue-100 text-blue-700', action: 'View Times', actionColor: 'bg-blue-600 text-white hover:bg-blue-700' };
+            case 'quoted': return { label: 'Quote Received', color: 'bg-purple-100 text-purple-700', action: 'View Quote', actionColor: 'bg-purple-600 text-white hover:bg-purple-700' };
+            case 'scheduled': return { label: 'Scheduled', color: 'bg-emerald-100 text-emerald-700', action: 'View Details', actionColor: 'bg-emerald-600 text-white hover:bg-emerald-700' };
+            case 'slots_offered': return { label: 'Times Available', color: 'bg-blue-100 text-blue-700', action: 'Pick a Time', actionColor: 'bg-blue-600 text-white hover:bg-blue-700' };
+            default: return { label: status, color: 'bg-slate-100 text-slate-600', action: 'View', actionColor: 'bg-slate-100 text-slate-700' };
         }
     };
-
-    const status = getStatusDisplay();
-
+    
+    const status = getStatusInfo(request.status);
+    
     return (
-        <div className={`p-4 rounded-xl border ${request.status === 'submitted' ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
-            {/* Header */}
-            <div className="flex items-center gap-3 mb-4">
-                {request.contractorLogoUrl ? (
-                    <img 
-                        src={request.contractorLogoUrl} 
-                        alt="" 
-                        className="w-12 h-12 rounded-xl object-contain bg-slate-50 border border-slate-100"
-                    />
-                ) : (
-                    <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center">
-                        <Building2 className="text-slate-400" />
-                    </div>
-                )}
-                <div className="flex-1">
-                    <p className="font-bold text-slate-800">
-                        {request.contractorName || 'Service Request'}
-                    </p>
-                    <p className="text-sm text-slate-500 truncate">{request.description}</p>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-start justify-between mb-3">
+                <div>
+                    <h3 className="font-bold text-slate-800">{request.description}</h3>
+                    {request.contractorName && (
+                        <p className="text-sm text-slate-500">{request.contractorName}</p>
+                    )}
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${status.badgeColor}`}>
-                    {status.badge}
+                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${status.color}`}>
+                    {status.label}
                 </span>
             </div>
-
-            {/* Scheduled Time Display */}
-            {request.status === 'scheduled' && request.scheduledTime && (
-                <div className="bg-emerald-50 rounded-xl p-3 mb-4 flex items-center gap-2 text-emerald-700">
-                    <Calendar size={16} />
-                    <span className="font-bold text-sm">
-                        {formatScheduledTime(request.scheduledTime)}
-                    </span>
-                </div>
-            )}
-
-            {/* Action Area */}
+            
             <div className="flex gap-2">
                 <button 
                     onClick={request.status === 'submitted' ? () => onImport(request) : () => onManage(request)}
@@ -467,7 +391,7 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
 // ============================================
 export const ProConnect = ({ 
     userId, 
-    userProfile,  // NEW: Added userProfile prop for homeowner info
+    userProfile,  // User profile for homeowner info
     propertyName, 
     propertyAddress, 
     records, 
@@ -566,23 +490,56 @@ export const ProConnect = ({
     return (
         <div className="space-y-6 relative"> 
             <div className="flex items-center justify-between">
-                <div><h1 className="text-2xl font-extrabold text-slate-800">Pro Connect</h1><p className="text-sm text-slate-500">Manage contractors & service requests</p></div>
-                <button onClick={() => onOpenQuickRequest && onOpenQuickRequest(null)} className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center gap-2"><Plus size={18}/> New Request</button>
+                <div>
+                    <h1 className="text-2xl font-extrabold text-slate-800">Pro Connect</h1>
+                    <p className="text-sm text-slate-500">Manage contractors & service requests</p>
+                </div>
+                <button 
+                    onClick={() => onOpenQuickRequest && onOpenQuickRequest(null)} 
+                    className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center gap-2"
+                >
+                    <Plus size={18}/> New Request
+                </button>
             </div>
             
             <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                <button onClick={() => setActiveTab('pros')} className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'pros' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>My Pros ({contractors.length})</button>
-                <button onClick={() => setActiveTab('requests')} className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'requests' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>Requests ({pendingRequests.length})</button>
+                <button 
+                    onClick={() => setActiveTab('pros')} 
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'pros' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                >
+                    My Pros ({contractors.length})
+                </button>
+                <button 
+                    onClick={() => setActiveTab('requests')} 
+                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'requests' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                >
+                    Requests ({pendingRequests.length})
+                </button>
             </div>
             
             {activeTab === 'pros' && (
                 <div className="space-y-4">
                     {contractors.length > 0 && (
                         <div className="flex gap-3">
-                            <div className="relative flex-grow"><Search className="absolute left-3 top-3 h-5 w-5 text-slate-400"/><input type="text" placeholder="Search contractors..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none"/></div>
+                            <div className="relative flex-grow">
+                                <Search className="absolute left-3 top-3 h-5 w-5 text-slate-400"/>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search contractors..." 
+                                    value={searchTerm} 
+                                    onChange={(e) => setSearchTerm(e.target.value)} 
+                                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl outline-none"
+                                />
+                            </div>
                         </div>
                     )}
-                    {filteredContractors.length === 0 ? <EmptyState icon={Wrench} title="No Contractors" description="Scan receipts to automatically add pros."/> : 
+                    {filteredContractors.length === 0 ? (
+                        <EmptyState 
+                            icon={Wrench} 
+                            title="No Contractors" 
+                            description="Scan receipts to automatically add pros."
+                        />
+                    ) : (
                         filteredContractors.map((pro, idx) => (
                             <ProCard 
                                 key={idx} 
@@ -593,15 +550,20 @@ export const ProConnect = ({
                                 onMessage={(p) => setSelectedChatPro(p)}
                             />
                         ))
-                    }
+                    )}
                 </div>
             )}
             
             {activeTab === 'requests' && (
                 <div className="space-y-3">
-                    {pendingRequests.length === 0 ? 
-                        <EmptyState icon={Send} title="No Requests" description="Create a link to send to a contractor."/> 
-                        : pendingRequests.map(req => (
+                    {pendingRequests.length === 0 ? (
+                        <EmptyState 
+                            icon={Send} 
+                            title="No Requests" 
+                            description="Create a link to send to a contractor."
+                        />
+                    ) : (
+                        pendingRequests.map(req => (
                             <RequestCard 
                                 key={req.id} 
                                 request={req} 
@@ -610,7 +572,7 @@ export const ProConnect = ({
                                 onManage={(job) => setSelectedJob(job)}
                             />
                         ))
-                    }
+                    )}
                 </div>
             )}
 
@@ -621,7 +583,9 @@ export const ProConnect = ({
                     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center">
                             <h3 className="font-bold text-slate-800">Manage Job</h3>
-                            <button onClick={() => setSelectedJob(null)}><X size={20} className="text-slate-400" /></button>
+                            <button onClick={() => setSelectedJob(null)}>
+                                <X size={20} className="text-slate-400" />
+                            </button>
                         </div>
                         <div className="p-4 bg-slate-50">
                             <JobScheduler 
@@ -634,16 +598,16 @@ export const ProConnect = ({
                 </div>
             )}
 
-            {/* Chat Drawer Overlay - UPDATED with userProfile */}
+            {/* Chat Drawer Overlay - UPDATED with propertyAddress */}
             {selectedChatPro && (
-    <ChatDrawer 
-        pro={selectedChatPro} 
-        userId={userId}
-        userProfile={userProfile}
-        propertyAddress={propertyAddress}
-        onClose={() => setSelectedChatPro(null)} 
-    />
-)}
+                <ChatDrawer 
+                    pro={selectedChatPro} 
+                    userId={userId}
+                    userProfile={userProfile}
+                    propertyAddress={propertyAddress}  // NEW: Pass property address
+                    onClose={() => setSelectedChatPro(null)} 
+                />
+            )}
         </div>
     );
 };
