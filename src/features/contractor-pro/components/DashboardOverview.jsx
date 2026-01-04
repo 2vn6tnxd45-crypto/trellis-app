@@ -3,6 +3,7 @@
 // CONTRACTOR DASHBOARD OVERVIEW
 // ============================================
 // Main dashboard showing stats, recent activity, and quick actions
+// FIXED: Added defensive null checking for stats prop
 
 import React, { useState } from 'react';
 import { 
@@ -202,9 +203,9 @@ const QuickTip = ({ tip, onDismiss }) => (
 // ============================================
 export const DashboardOverview = ({ 
     profile,
-    stats,
-    invitations,
-    customers,
+    stats = { totalCustomers: 0, totalInvitations: 0, claimRate: 0, pendingInvitations: 0 },
+    invitations = [],
+    customers = [],
     loading,
     onCreateInvitation,
     onViewAllInvitations,
@@ -216,8 +217,8 @@ export const DashboardOverview = ({
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Your Business';
     const hasData = invitations.length > 0 || customers.length > 0;
     
-    // Format claim rate as percentage
-    const claimRatePercent = Math.round((stats.claimRate || 0) * 100);
+    // Format claim rate as percentage - FIX: Added optional chaining
+    const claimRatePercent = Math.round((stats?.claimRate || 0) * 100);
     
     // Recent activity (claimed invitations first, then pending)
     const recentActivity = [...invitations]
@@ -234,62 +235,59 @@ export const DashboardOverview = ({
     
     if (loading) {
         return (
-            <div className="space-y-6 animate-pulse">
-                <div className="h-8 w-48 bg-slate-200 rounded-lg" />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[1,2,3,4].map(i => (
-                        <div key={i} className="h-32 bg-slate-100 rounded-2xl" />
-                    ))}
+            <div className="p-6 flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                    <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full mx-auto mb-4" />
+                    <p className="text-slate-500">Loading dashboard...</p>
                 </div>
-                <div className="h-64 bg-slate-100 rounded-2xl" />
             </div>
         );
     }
     
     return (
-        <div className="space-y-6">
+        <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">
-                        Welcome back! 👋
+                        Welcome back!
                     </h1>
                     <p className="text-slate-500">{companyName}</p>
                 </div>
                 <button
                     onClick={onCreateInvitation}
-                    className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20"
+                    className="hidden md:inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20"
                 >
                     <Plus size={18} />
                     New Invitation
                 </button>
             </div>
             
-            {/* Quick Tip (dismissible) */}
-            {showTip && stats.totalInvitations < 5 && (
+            {/* Quick Tip */}
+            {showTip && hasData && (
                 <QuickTip 
                     tip={{
-                        title: "Pro Tip",
-                        message: "Send invitations after every job. When customers need service again, you're one tap away!"
+                        title: 'Pro Tip',
+                        message: "Share your invitation link via text or email after completing a job. When customers need service again, you're one tap away!"
                     }}
                     onDismiss={() => setShowTip(false)}
                 />
             )}
             
-            {/* Stats Grid */}
+            {/* Stats Grid - FIX: Added optional chaining for all stats properties */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard 
                     icon={Users}
                     label="Customers"
-                    value={stats.totalCustomers}
+                    value={stats?.totalCustomers || 0}
                     subtext="have your info saved"
                     color="emerald"
                 />
                 <StatCard 
                     icon={FileText}
                     label="Invitations"
-                    value={stats.totalInvitations}
-                    subtext={`${stats.pendingInvitations} pending`}
+                    value={stats?.totalInvitations || 0}
+                    subtext={`${stats?.pendingInvitations || 0} pending`}
                     color="blue"
                 />
                 <StatCard 
@@ -302,7 +300,7 @@ export const DashboardOverview = ({
                 <StatCard 
                     icon={Clock}
                     label="Pending"
-                    value={stats.pendingInvitations}
+                    value={stats?.pendingInvitations || 0}
                     subtext="awaiting claim"
                     color="amber"
                 />
