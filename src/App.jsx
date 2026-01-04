@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore'; 
 import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home, MapPin } from 'lucide-react'; 
@@ -103,6 +103,18 @@ const AppContent = () => {
     const inviteToken = urlParams.get('invite');
     const proParam = urlParams.get('pro');
     const quoteToken = urlParams.get('quote');
+    
+    // NEW: Check if user came from quote claim flow
+    const comingFromQuote = urlParams.get('from') === 'quote';
+
+    // NEW: Clear "from=quote" param after loading to prevent issues on refresh
+    useEffect(() => {
+        if (comingFromQuote && app.activeTab === 'Dashboard') {
+            const newUrl = new URL(window.location.href);
+            newUrl.searchParams.delete('from');
+            window.history.replaceState({}, '', newUrl.toString());
+        }
+    }, [comingFromQuote, app.activeTab]);
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -392,8 +404,8 @@ const AppContent = () => {
             <main className="max-w-5xl mx-auto px-4 py-6">
                 {app.showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => app.setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={app.activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { app.setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { app.setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
                 
-                {/* UPDATED: WelcomeScreen with scan-first props */}
-                {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && !app.showScanner && (
+                {/* UPDATED: WelcomeScreen with scan-first props & skip check */}
+                {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && !app.showScanner && !comingFromQuote && (
                     <WelcomeScreen 
                         propertyName={app.activeProperty?.name} 
                         onScanReceipt={() => app.setShowScanner(true)}
@@ -404,13 +416,13 @@ const AppContent = () => {
                 )}
                 
                 {/* UPDATED: Dashboard with new task action props */}
-                {app.activeTab === 'Dashboard' && !isNewUser && (
+                {app.activeTab === 'Dashboard' && (!isNewUser || comingFromQuote) && (
                     <FeatureErrorBoundary label="Dashboard">
                         <ProgressiveDashboard 
                             records={app.activePropertyRecords} 
                             contractors={contractorsList} 
                             activeProperty={app.activeProperty}
-                            userId={app.user.uid} // <--- PASS USER ID HERE
+                            userId={app.user.uid}
                             onScanReceipt={() => app.setShowScanner(true)} 
                             onAddRecord={() => openAddModal()} 
                             onNavigateToItems={() => app.setActiveTab('Items')} 
@@ -568,25 +580,19 @@ const AppContent = () => {
             />
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
-            {/* NEW: Notification Panel - renders when bell icon is clicked */}
+            {/* Notification Panel */}
             <NotificationPanel 
-                // === EXISTING PROPS (unchanged) ===
                 isOpen={app.showNotifications} 
                 onClose={() => app.setShowNotifications(false)} 
                 dueTasks={app.dueTasks}
                 newSubmissions={app.newSubmissions}
                 onTaskClick={(task) => {
-                    // Navigate to maintenance tab when a task is clicked
                     app.setActiveTab('Maintenance');
-                    // NEW: Set highlighted task for scroll-to functionality
                     app.setHighlightedTaskId?.(task.recordId + '-' + (task.taskName || task.item));
                 }}
                 onSubmissionClick={(submission) => {
-                    // Navigate to contractors tab when a submission is clicked
                     app.setActiveTab('Contractors');
                 }}
-                
-                // === NEW PROPS (additions for dismiss/clear/quick actions) ===
                 dismissedIds={app.dismissedNotifications}
                 onDismiss={app.handleDismissNotification}
                 onClearAll={app.handleClearAllNotifications}
@@ -594,7 +600,7 @@ const AppContent = () => {
                 onQuickSnooze={(task, days) => app.handleSnoozeTask(task, days)}
             />
 
-            {/* NEW: User Menu - renders when hamburger menu icon is clicked (desktop) */}
+            {/* User Menu */}
             <UserMenu 
                 isOpen={app.showUserMenu} 
                 onClose={() => app.setShowUserMenu(false)} 
