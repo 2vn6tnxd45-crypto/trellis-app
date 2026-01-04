@@ -1,6 +1,4 @@
 // src/features/quotes/lib/quoteService.js
-// MINIMAL STUB VERSION - to isolate circular dependency issue
-
 import { 
     doc, 
     getDoc, 
@@ -21,7 +19,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 
-// HARDCODED VALUES - NO IMPORTS FROM CONSTANTS
+// HARDCODED to avoid circular dependency issues
 const appId = 'krib-app';
 const CONTRACTORS_COLLECTION = `/artifacts/${appId}/public/data/contractors`;
 const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
@@ -37,6 +35,13 @@ export const JOB_STATUSES = {
     IN_PROGRESS: 'in_progress',
     COMPLETED: 'completed',
     CANCELLED: 'cancelled'
+};
+
+const generateJobNumber = async () => {
+    const year = new Date().getFullYear();
+    const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const suffix = Date.now().toString().slice(-4);
+    return `JOB-${year}${month}-${suffix}`;
 };
 
 export async function generateQuoteNumber(contractorId) {
@@ -176,15 +181,173 @@ export async function markQuoteViewed(contractorId, quoteId) {
     return { success: true };
 }
 
+// ============================================
+// ACCEPT QUOTE - FULL VERSION THAT CREATES JOB
+// ============================================
 export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
-    const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
-    await updateDoc(quoteRef, {
-        status: 'accepted',
-        acceptedAt: serverTimestamp(),
-        customerMessage: customerMessage || null,
-        updatedAt: serverTimestamp()
-    });
-    return { success: true };
+    const batch = writeBatch(db);
+    
+    try {
+        // STEP 1: Get the quote data
+        const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+        const quoteSnap = await getDoc(quoteRef);
+        
+        if (!quoteSnap.exists()) {
+            throw new Error('Quote not found');
+        }
+        
+        const quote = quoteSnap.data();
+        
+        // Prevent double-acceptance
+        if (quote.status === 'accepted') {
+            throw new Error('Quote has already been accepted');
+        }
+        
+        // STEP 2: Get Contractor Profile
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        const contractorSnap = await getDoc(contractorRef);
+        const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : null;
+        
+        // STEP 3: Create the Job
+        const jobNumber = await generateJobNumber();
+        const jobRef = doc(collection(db, REQUESTS_COLLECTION_PATH));
+        
+        const jobData = {
+            // Identity
+            id: jobRef.id,
+            jobNumber,
+            
+            // Link to source
+            sourceType: 'quote',
+            sourceQuoteId: quoteId,
+            sourceQuoteNumber: quote.quoteNumber,
+            
+            // Contractor ownership
+            contractorId,
+            contractorName: contractorProfile?.companyName || contractorProfile?.displayName || 'Contractor',
+            contractorPhone: contractorProfile?.phone || null,
+            contractorEmail: contractorProfile?.email || null,
+            
+            // Customer info (copied from quote)
+            customer: {
+                name: quote.customer?.name || '',
+                email: quote.customer?.email || '',
+                phone: quote.customer?.phone || '',
+                address: quote.customer?.address || ''
+            },
+            customerId: quote.customerId || null,
+            createdBy: quote.customerId || null,
+            
+            // Service address
+            serviceAddress: quote.customer?.address ? {
+                formatted: quote.customer.address,
+                street: quote.customer.address,
+            } : null,
+            
+            // Job details
+            title: quote.title,
+            description: quote.notes || '',
+            lineItems: quote.lineItems || [],
+            
+            // Financials
+            subtotal: quote.subtotal || 0,
+            taxRate: quote.taxRate || 0,
+            taxAmount: quote.taxAmount || 0,
+            total: quote.total || 0,
+            
+            // Status - PENDING_SCHEDULE so homeowner sees it in Active Projects
+            status: JOB_STATUSES.PENDING_SCHEDULE,
+            
+            // Scheduling (to be filled later)
+            scheduledDate: null,
+            scheduledTime: null,
+            estimatedDuration: null,
+            
+            // Work tracking
+            workNotes: [],
+            attachments: [],
+            
+            // Timestamps
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastActivity: serverTimestamp(),
+            acceptedAt: serverTimestamp(),
+            scheduledAt: null,
+            startedAt: null,
+            completedAt: null,
+            
+            // Customer message on acceptance
+            customerAcceptanceMessage: customerMessage || null
+        };
+        
+        batch.set(jobRef, jobData);
+        console.log('Creating job with customerId:', quote.customerId, 'createdBy:', quote.customerId);
+        
+        // STEP 4: Update the Quote
+        batch.update(quoteRef, {
+            status: 'accepted',
+            acceptedAt: serverTimestamp(),
+            customerMessage: customerMessage || null,
+            convertedToJobId: jobRef.id,
+            updatedAt: serverTimestamp()
+        });
+        
+        // STEP 5: Upsert Customer Record
+        const customerId = quote.customerId || 
+            (quote.customer?.email 
+                ? quote.customer.email.toLowerCase().replace(/[^a-z0-9]/g, '_')
+                : `customer_${Date.now()}`);
+        
+        const customerRef = doc(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION, customerId);
+        const customerSnap = await getDoc(customerRef);
+        
+        if (customerSnap.exists()) {
+            batch.update(customerRef, {
+                totalJobs: increment(1),
+                totalSpend: increment(quote.total || 0),
+                lastContact: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            batch.set(customerRef, {
+                id: customerId,
+                customerName: quote.customer?.name || '',
+                email: quote.customer?.email || '',
+                phone: quote.customer?.phone || '',
+                propertyName: quote.customer?.address || '',
+                totalJobs: 1,
+                totalSpend: quote.total || 0,
+                firstContact: serverTimestamp(),
+                lastContact: serverTimestamp(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+        }
+        
+        // STEP 6: Update Contractor Stats
+        batch.update(contractorRef, {
+            'profile.stats.acceptedQuotes': increment(1),
+            'profile.stats.totalJobValue': increment(quote.total || 0),
+            'profile.stats.activeJobs': increment(1),
+            updatedAt: serverTimestamp()
+        });
+        
+        // STEP 7: Commit the batch
+        await batch.commit();
+        
+        console.log(`✅ Quote ${quoteId} accepted → Job ${jobRef.id} created`);
+        
+        return { 
+            success: true, 
+            jobId: jobRef.id,
+            jobNumber,
+            customerId
+        };
+        
+    } catch (error) {
+        console.error('Error accepting quote:', error);
+        throw error;
+    }
 }
 
 export async function declineQuote(contractorId, quoteId, reason = '') {
@@ -295,10 +458,16 @@ export function generateQuoteShareLink(contractorId, quoteId) {
 }
 
 export async function claimQuote(contractorId, quoteId, userId, propertyId = null) {
+    console.log('claimQuote called:', { contractorId, quoteId, userId, propertyId });
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
-    const updateData = { customerId: userId, claimedAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const updateData = { 
+        customerId: userId, 
+        claimedAt: serverTimestamp(), 
+        updatedAt: serverTimestamp() 
+    };
     if (propertyId) updateData.propertyId = propertyId;
     await updateDoc(quoteRef, updateData);
+    console.log('✅ Quote claimed, customerId set to:', userId);
     return { success: true };
 }
 
