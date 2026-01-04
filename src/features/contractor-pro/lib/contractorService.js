@@ -667,6 +667,38 @@ export const deleteContractorAccount = async (contractorId) => {
     }
 };
 
+// ============================================
+// INVOICES
+// ============================================
+
+/**
+ * Subscribe to invoices for a contractor
+ */
+export const subscribeToContractorInvoices = (contractorId, callback) => {
+    const q = query(
+        collection(db, CONTRACTORS_COLLECTION, contractorId, 'invoices'),
+        orderBy('createdAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const invoices = snapshot.docs.map(doc => ({ 
+            id: doc.id, 
+            ...doc.data() 
+        }));
+        callback(invoices);
+    }, (error) => {
+        console.error('Invoices subscription error:', error);
+        callback([]); 
+    });
+};
+
+// ============================================
+// ALIAS EXPORTS (for backwards compatibility)
+// ============================================
+// These aliases match what useContractorData.js imports
+export const subscribeToInvitations = subscribeToContractorInvitations;
+export const subscribeToCustomers = subscribeToContractorCustomers;
+
 export default {
     getContractorProfile,
     saveContractorProfile,
@@ -683,5 +715,6 @@ export default {
     migrateAnonymousInvitations,
     getContractorStats,
     subscribeToContractorJobs,
+    subscribeToContractorInvoices,
     deleteContractorAccount
 };
