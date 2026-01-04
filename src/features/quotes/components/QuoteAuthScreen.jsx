@@ -71,12 +71,14 @@ const QuoteSummaryCard = ({ quote, contractor }) => {
 // ============================================
 // BENEFITS LIST
 // ============================================
-const BenefitsList = () => (
+const BenefitsList = ({ action }) => (
     <div className="space-y-3 my-6">
-        <p className="text-sm font-medium text-slate-700">Create your account to:</p>
+        <p className="text-sm font-medium text-slate-700">
+            {action === 'accept' ? 'Create your account to accept this quote:' : 'Create your account to:'}
+        </p>
         <div className="grid grid-cols-2 gap-2">
             {[
-                { icon: CheckCircle, text: 'Accept this quote' },
+                { icon: CheckCircle, text: action === 'accept' ? 'Accept & schedule' : 'Accept this quote' },
                 { icon: MessageSquare, text: 'Message contractor' },
                 { icon: Calendar, text: 'Track job progress' },
                 { icon: Shield, text: 'Store warranty' },
@@ -98,6 +100,7 @@ export const QuoteAuthScreen = ({
     contractor, 
     onSuccess, 
     onClose,
+    action = 'save', // 'save' or 'accept'
     initialMode = 'signup' // 'signup' or 'signin'
 }) => {
     const [mode, setMode] = useState(initialMode);
@@ -227,13 +230,15 @@ export const QuoteAuthScreen = ({
                     </h2>
                     <p className="text-slate-500 text-sm mb-4">
                         {isSignUp 
-                            ? 'Sign up to accept this quote and track your project.'
+                            ? (action === 'accept' 
+                                ? 'Sign up to accept this quote and get started.'
+                                : 'Sign up to save this quote and track your project.')
                             : 'Sign in to continue with this quote.'
                         }
                     </p>
 
                     {/* Benefits - only show on signup */}
-                    {isSignUp && <BenefitsList />}
+                    {isSignUp && <BenefitsList action={action} />}
 
                     {/* Google Sign In */}
                     <button
@@ -342,7 +347,10 @@ export const QuoteAuthScreen = ({
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
                                 <>
-                                    {isSignUp ? 'Create Account & Continue' : 'Sign In & Continue'}
+                                    {isSignUp 
+                                        ? (action === 'accept' ? 'Create Account & Accept' : 'Create Account & Save')
+                                        : 'Sign In & Continue'
+                                    }
                                 </>
                             )}
                         </button>
