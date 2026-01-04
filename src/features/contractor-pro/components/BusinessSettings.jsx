@@ -4,7 +4,7 @@
 // ============================================
 // Collects information to power AI scheduling suggestions
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     Users, Truck, Clock, MapPin, Calendar, Sparkles,
     ChevronDown, ChevronUp, Save, Info, Building2,
@@ -14,6 +14,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+import { googleMapsApiKey } from '../../../config/constants';
 
 // Default working hours
 const DEFAULT_HOURS = {
@@ -133,6 +134,55 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         // Team members (if not solo)
         teamMembers: profile?.scheduling?.teamMembers || []
     });
+
+    // Refs for Google Maps Autocomplete
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
+
+    // Initialize Autocomplete for Home Base
+    useEffect(() => {
+        const loadGoogleMaps = () => {
+            if (window.google?.maps?.places) {
+                initAutocomplete();
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places`;
+            script.async = true;
+            script.defer = true;
+            script.onload = initAutocomplete;
+            document.head.appendChild(script);
+        };
+
+        const initAutocomplete = () => {
+            if (!addressInputRef.current || autocompleteRef.current) return;
+            try {
+                autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+                    types: ['geocode', 'establishment'],
+                    componentRestrictions: { country: 'us' },
+                });
+                autocompleteRef.current.addListener('place_changed', () => {
+                    const place = autocompleteRef.current.getPlace();
+                    if (place.formatted_address && place.geometry?.location) {
+                        const lat = place.geometry.location.lat();
+                        const lng = place.geometry.location.lng();
+                        
+                        setSettings(s => ({ 
+                            ...s, 
+                            homeBase: { 
+                                address: place.formatted_address,
+                                coordinates: { lat, lng } // Save exact coordinates
+                            }
+                        }));
+                    }
+                });
+            } catch (err) {
+                console.error('Autocomplete init error:', err);
+            }
+        };
+
+        loadGoogleMaps();
+    }, []);
 
     // Calculate profile completeness
     const calculateCompleteness = () => {
@@ -566,6 +616,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             Starting Location
                         </label>
                         <input
+                            ref={addressInputRef}
                             type="text"
                             value={settings.homeBase?.address || ''}
                             onChange={(e) => setSettings(s => ({ 
