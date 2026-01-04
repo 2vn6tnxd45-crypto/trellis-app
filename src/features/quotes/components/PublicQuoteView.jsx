@@ -416,10 +416,35 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                 
                 {/* Quote Content */}
                 <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8 mb-6">
-                    {/* Title */}
-                    <div className="mb-6">
-                        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Service Description</p>
-                        <h2 className="text-xl font-bold text-slate-800">{quote.title}</h2>
+                    {/* Customer Info & Title Row */}
+                    <div className="flex flex-col md:flex-row md:justify-between gap-6 mb-6 pb-6 border-b border-slate-100">
+                        {/* Customer Info */}
+                        {quote.customer && (quote.customer.name || quote.customer.address) && (
+                            <div>
+                                <p className="text-xs font-bold text-slate-500 uppercase mb-2">Quote For</p>
+                                {quote.customer.name && (
+                                    <p className="font-bold text-slate-800">{quote.customer.name}</p>
+                                )}
+                                {quote.customer.address && (
+                                    <p className="text-sm text-slate-600 flex items-center gap-1 mt-1">
+                                        <MapPin size={14} className="text-slate-400" />
+                                        {quote.customer.address}
+                                    </p>
+                                )}
+                                {quote.customer.email && (
+                                    <p className="text-sm text-slate-500 mt-1">{quote.customer.email}</p>
+                                )}
+                                {quote.customer.phone && (
+                                    <p className="text-sm text-slate-500">{quote.customer.phone}</p>
+                                )}
+                            </div>
+                        )}
+                        
+                        {/* Service Title */}
+                        <div className={quote.customer && (quote.customer.name || quote.customer.address) ? 'md:text-right' : ''}>
+                            <p className="text-xs font-bold text-slate-500 uppercase mb-2">Service Description</p>
+                            <h2 className="text-xl font-bold text-slate-800">{quote.title}</h2>
+                        </div>
                     </div>
                     
                     {/* Line Items */}
