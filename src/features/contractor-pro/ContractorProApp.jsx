@@ -1551,7 +1551,7 @@ export const ContractorProApp = () => {
                             {/* Solo contractor - simple calendar */}
                             {!hasTeam && (
                                 <DragDropCalendar 
-                                    jobs={scheduledJobs}
+                                    jobs={Jobs}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
@@ -1562,7 +1562,7 @@ export const ContractorProApp = () => {
                             {/* Team - Calendar View */}
                             {hasTeam && scheduleView === 'calendar' && (
                                 <DragDropCalendar 
-                                    jobs={scheduledJobs}
+                                    jobs={Jobs}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
