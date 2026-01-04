@@ -110,7 +110,7 @@ export const ContractorAuthScreen = ({
                 <div>
                     <div className="flex items-center gap-3 mb-12">
                         <div className="bg-white/20 p-2 rounded-xl">
-                            <Logo className="h-8 w-8 text-white" />
+                            <Logo className="h-8 w-8" />
                         </div>
                         <div>
                             <h1 className="text-2xl font-bold text-white">krib</h1>
