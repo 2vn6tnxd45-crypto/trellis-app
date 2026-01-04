@@ -3,7 +3,7 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Added LogoUpload to ProfileView
+// UPDATED: Handle Initial Setup with split data
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
@@ -31,7 +31,6 @@ import { BusinessSettings } from './components/BusinessSettings';
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
-// NEW IMPORT
 import { LogoUpload } from './components/LogoUpload';
 
 // Quote Components
@@ -69,7 +68,9 @@ import {
     reauthenticateWithCredential,
     OAuthProvider 
 } from 'firebase/auth';
-import { auth } from '../../config/firebase';
+import { auth, db } from '../../config/firebase';
+import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
 // HELPER: Date Comparison
@@ -1204,14 +1205,41 @@ export const ContractorProApp = () => {
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
     
+    // UPDATED: Handle Initial Setup with split data
     const handleInitialSetup = async (formData) => {
         setIsSavingProfile(true);
         try {
-            await updateProfile(formData);
+            const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, user.uid);
+            
+            const updates = {};
+            
+            // Merge profile fields
+            if (formData.profile) {
+                updates['profile.companyName'] = formData.profile.companyName;
+                updates['profile.phone'] = formData.profile.phone;
+                updates['profile.address'] = formData.profile.address;
+                updates['profile.licenseNumber'] = formData.profile.licenseNumber;
+                updates['profile.logoUrl'] = formData.profile.logoUrl;
+            }
+            
+            // Merge scheduling fields (root level 'scheduling' map)
+            if (formData.scheduling) {
+                updates['scheduling'] = formData.scheduling;
+            } else {
+                // Fallback for flat structure
+                updates['profile.companyName'] = formData.companyName;
+                updates['profile.phone'] = formData.phone;
+                updates['profile.address'] = formData.address;
+            }
+
+            // Using setDoc with merge: true to create if not exists
+            await setDoc(contractorRef, updates, { merge: true });
+            
             toast.success("Profile setup complete!");
+            
         } catch (error) {
-            console.error(error);
-            toast.error("Failed to save profile.");
+            console.error("Setup error:", error);
+            toast.error("Failed to save profile: " + error.message);
         } finally {
             setIsSavingProfile(false);
         }
