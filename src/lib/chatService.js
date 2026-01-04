@@ -74,11 +74,15 @@ export const sendMessage = async (
             const isHomeowner = channelId.startsWith(senderId);
             
             if (isHomeowner) {
-                // Store homeowner info
-                if (senderInfo.name) channelUpdate.homeownerName = senderInfo.name;
-                if (senderInfo.email) channelUpdate.homeownerEmail = senderInfo.email;
-                if (senderInfo.phone) channelUpdate.homeownerPhone = senderInfo.phone;
-            } else {
+    // Store homeowner info
+    if (senderInfo.name) channelUpdate.homeownerName = senderInfo.name;
+    if (senderInfo.email) channelUpdate.homeownerEmail = senderInfo.email;
+    if (senderInfo.phone) channelUpdate.homeownerPhone = senderInfo.phone;
+    
+    // NEW: Store property address and scope for fallback display
+    if (senderInfo.propertyAddress) channelUpdate.propertyAddress = senderInfo.propertyAddress;
+    if (senderInfo.scopeOfWork) channelUpdate.scopeOfWork = senderInfo.scopeOfWork;
+} else {
                 // Store contractor info
                 if (senderInfo.name) channelUpdate.contractorName = senderInfo.name;
                 if (senderInfo.email) channelUpdate.contractorEmail = senderInfo.email;
