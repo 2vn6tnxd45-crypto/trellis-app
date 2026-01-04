@@ -3,12 +3,13 @@
 // AI SUGGESTION PANEL
 // ============================================
 // Displays smart scheduling recommendations
+// UPDATED: Better empty states & debugging
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     Sparkles, Star, Clock, MapPin, TrendingUp, 
     AlertTriangle, ChevronDown, ChevronUp, Check,
-    Navigation, Users, Calendar, Lightbulb, Zap
+    Navigation, Users, Calendar, Lightbulb, Zap, Settings
 } from 'lucide-react';
 import { generateSchedulingSuggestions } from '../lib/schedulingAI';
 
@@ -163,7 +164,21 @@ export const AISuggestionPanel = ({
     compact = false
 }) => {
     const [showAll, setShowAll] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    
+    // Check if working hours are actually configured
+    const hasWorkingHours = useMemo(() => {
+        return preferences?.workingHours && 
+               Object.values(preferences.workingHours).some(d => d?.enabled);
+    }, [preferences]);
+
+    // Debugging: Log what AI sees
+    useEffect(() => {
+        if (!hasWorkingHours) {
+            console.log('[AISuggestionPanel] ❌ No working hours detected');
+        } else {
+            console.log('[AISuggestionPanel] ✅ Working hours detected');
+        }
+    }, [hasWorkingHours]);
     
     // Generate suggestions
     const analysis = useMemo(() => {
@@ -187,12 +202,33 @@ export const AISuggestionPanel = ({
         return (
             <div className="bg-slate-50 rounded-xl p-4 text-center">
                 <Sparkles size={24} className="mx-auto mb-2 text-slate-300" />
-                <p className="text-sm text-slate-500">
-                    No AI suggestions available
+                <p className="text-sm font-medium text-slate-600">
+                    No AI suggestions found
                 </p>
-                <p className="text-xs text-slate-400 mt-1">
-                    Add working hours in Settings to enable smart scheduling
-                </p>
+                
+                {!hasWorkingHours ? (
+                    <div className="mt-2">
+                        <p className="text-xs text-amber-600 mb-2">
+                            Working hours are not set up yet.
+                        </p>
+                        <a 
+                            href="/app/?pro=dashboard&view=settings" // Quick link to settings
+                            className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                        >
+                            <Settings size={12} />
+                            Go to Settings
+                        </a>
+                    </div>
+                ) : (
+                    <div className="mt-2 text-xs text-slate-400">
+                        <p>We checked the next 14 days but couldn't find an opening.</p>
+                        <ul className="mt-2 text-left list-disc list-inside opacity-70">
+                            <li>Check "Max Jobs Per Day" setting</li>
+                            <li>Check "Default Job Duration"</li>
+                            <li>Ensure working days are enabled</li>
+                        </ul>
+                    </div>
+                )}
             </div>
         );
     }
