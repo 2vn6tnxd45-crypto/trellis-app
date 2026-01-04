@@ -1,5 +1,5 @@
 // src/features/contractor-pro/components/LogoUpload.jsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../../config/firebase';
@@ -10,6 +10,11 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
     const [uploading, setUploading] = useState(false);
     const [imageError, setImageError] = useState(false); // Track load errors
     const fileInputRef = useRef(null);
+    
+    // Reset error when logo changes
+    useEffect(() => {
+        setImageError(false);
+    }, [currentLogo]);
     
     const handleFileSelect = async (e) => {
         const file = e.target.files[0];
@@ -28,7 +33,7 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
         }
         
         setUploading(true);
-        setImageError(false); // Reset error state on new upload
+        setImageError(false);
         
         try {
             // Compress if not SVG
@@ -59,8 +64,9 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
         }
     };
     
-    const handleImageError = () => {
+    const handleImageError = (e) => {
         console.error('[LogoUpload] Failed to load image URL:', currentLogo);
+        console.error('[LogoUpload] Browser error event:', e);
         setImageError(true);
     };
     
@@ -77,7 +83,7 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                             alt="Company Logo" 
                             className="w-20 h-20 rounded-xl object-contain bg-slate-50 border border-slate-200"
                             onError={handleImageError}
-                            crossOrigin="anonymous" 
+                            // REMOVED crossOrigin="anonymous" to prevent CORS blocks
                         />
                         <button
                             type="button"
@@ -99,7 +105,7 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                         ) : imageError ? (
                             <div className="text-center">
                                 <AlertCircle size={20} className="text-red-400 mx-auto" />
-                                <span className="text-[10px] text-red-500">Error</span>
+                                <span className="text-[10px] text-red-500 font-medium">Retry</span>
                             </div>
                         ) : (
                             <Upload size={24} className="text-slate-400" />
@@ -111,7 +117,7 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                     <p className="text-xs text-slate-400">Max 2MB, 400×400px recommended</p>
                     {imageError && (
                         <p className="text-xs text-red-500 mt-1">
-                            Failed to display image. Try uploading again.
+                            Failed to display image. Click box to try again.
                         </p>
                     )}
                 </div>
