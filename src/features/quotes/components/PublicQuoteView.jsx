@@ -90,8 +90,8 @@ const ExpiredState = ({ quote, contractor }) => (
 // ============================================
 const SuccessState = ({ quote, contractor }) => {
     const handleGoToDashboard = () => {
-        // Remove the quote param and redirect to the app
-        window.location.href = window.location.origin + '/app';
+        // Navigate to app with from=quote to skip onboarding screen
+        window.location.href = window.location.origin + '/app?from=quote';
     };
 
     return (
