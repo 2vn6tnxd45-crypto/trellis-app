@@ -52,24 +52,32 @@ const MAINTENANCE_FREQUENCIES = [
 const mapQuoteItemsToCompletionItems = (quoteItems) => {
     if (!quoteItems || !Array.isArray(quoteItems)) return [];
     
-    return quoteItems.map((qItem, idx) => ({
-        id: `quote_item_${Date.now()}_${idx}`,
-        // Core fields from quote
-        item: qItem.description || qItem.item || qItem.name || '',
-        category: qItem.category || 'Service & Repairs',
-        area: qItem.area || qItem.location || '',
-        brand: qItem.brand || '',
-        model: qItem.model || '',
-        cost: qItem.cost || qItem.price || qItem.amount || null,
-        // These need to be filled in by contractor at completion
-        serialNumber: qItem.serialNumber || '',
-        warranty: qItem.warranty || '',
-        maintenanceFrequency: qItem.maintenanceFrequency || 'none',
-        dateInstalled: new Date().toISOString().split('T')[0],
-        // Track that this came from quote
-        fromQuote: true,
-        quoteLineId: qItem.id || null
-    }));
+    return quoteItems.map((qItem, idx) => {
+        // Calculate total cost from unitPrice * quantity if available
+        const quantity = qItem.quantity || 1;
+        const unitPrice = qItem.unitPrice || qItem.price || 0;
+        const totalCost = qItem.cost || qItem.amount || (unitPrice * quantity) || null;
+        
+        return {
+            id: `quote_item_${Date.now()}_${idx}`,
+            // Core fields from quote - handle various field name conventions
+            item: qItem.description || qItem.item || qItem.name || '',
+            category: qItem.category || 'Service & Repairs',
+            area: qItem.area || qItem.location || '',
+            brand: qItem.brand || '',
+            model: qItem.model || '',
+            cost: totalCost,
+            quantity: quantity,
+            // These need to be filled in by contractor at completion
+            serialNumber: qItem.serialNumber || '',
+            warranty: qItem.warranty || qItem.clientWarranty || '',
+            maintenanceFrequency: qItem.maintenanceFrequency || 'none',
+            dateInstalled: new Date().toISOString().split('T')[0],
+            // Track that this came from quote
+            fromQuote: true,
+            quoteLineId: qItem.id || null
+        };
+    });
 };
 
 // ============================================
@@ -108,7 +116,8 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
         if (hasLoadedQuoteItems) return;
         
         // Check for quote items on the job
-        const quoteItems = job?.quoteItems || job?.estimate?.lineItems || job?.quote?.items;
+        // job.lineItems is set by acceptQuote() in quoteService.js
+        const quoteItems = job?.lineItems || job?.quoteItems || job?.estimate?.lineItems || job?.quote?.items;
         
         if (quoteItems && quoteItems.length > 0) {
             const mappedItems = mapQuoteItemsToCompletionItems(quoteItems);
