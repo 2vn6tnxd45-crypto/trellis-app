@@ -6,13 +6,13 @@
 // - AI-powered suggestions
 // - Visual calendar date picker
 // - Quick presets
-// - Conflict checking
+// - Conflict checking (Schedule & Resource Capacity)
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
     X, Calendar, Clock, Plus, Trash2, Send, 
     Sparkles, MapPin, User, DollarSign, AlertCircle,
-    Sun, Coffee, Moon, ChevronDown, ChevronUp, Zap, CheckCircle
+    Sun, Coffee, Moon, ChevronDown, ChevronUp, CheckCircle
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -20,7 +20,7 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { AISuggestionPanel } from './AISuggestionPanel';
 import { CalendarPicker } from '../../../components/common/CalendarPicker';
-// Ensure this import path is correct based on your file structure
+// Import existing conflict checker
 import { checkForConflicts } from '../lib/schedulingAI';
 
 // Quick time presets
@@ -51,6 +51,71 @@ const getScheduledDates = (jobs) => {
     return jobs
         .filter(job => job.scheduledTime || job.scheduledDate)
         .map(job => new Date(job.scheduledTime || job.scheduledDate));
+};
+
+// NEW HELPER: Check for resource conflicts (Fix 5b)
+const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
+    if (!selectedSlot.date || !selectedSlot.startTime) return null;
+    
+    const selectedDate = new Date(selectedSlot.date);
+    // Add time component for accurate comparison if needed, currently checking date overlap
+    const selectedStart = selectedSlot.startTime;
+    const selectedEnd = selectedSlot.endTime;
+    
+    // Get jobs on the same date
+    const sameDateJobs = allJobs.filter(job => {
+        if (!job.scheduledTime && !job.scheduledDate) return false;
+        const jobDate = job.scheduledTime 
+            ? new Date(job.scheduledTime) // ISO string or timestamp
+            : new Date(job.scheduledDate);
+        
+        // Handle Firestore timestamp if needed (though we standardized on ISO)
+        const dateObj = jobDate.seconds ? new Date(jobDate.seconds * 1000) : jobDate;
+        
+        // Simple date comparison ignoring time for filtering
+        return dateObj.getDate() === selectedDate.getDate() &&
+               dateObj.getMonth() === selectedDate.getMonth() &&
+               dateObj.getFullYear() === selectedDate.getFullYear();
+    });
+    
+    // Check for time overlaps
+    const overlappingJobs = sameDateJobs.filter(job => {
+        // If your job object has explicit start/end times, use them. 
+        // Otherwise, assuming standard blocks for conflict check logic placeholder:
+        // Ideally we'd parse job.scheduledTime (ISO) to HH:MM for start
+        // and calculate end based on duration.
+        
+        // For strict safety in this fix, we flag ANY job on the same day if we can't determine exact hours,
+        // effectively warning the user to check their schedule.
+        return true; 
+    });
+    
+    if (overlappingJobs.length === 0) return null;
+    
+    // Get resource capacity from preferences
+    const vehicles = preferences?.vehicles || 1;
+    const teamSize = preferences?.teamSize || 1;
+    // Rough logic: Max concurrent jobs = max(vehicles, 1) - can be tuned
+    const maxConcurrent = Math.max(1, vehicles); 
+    
+    // Count how many resources are already committed
+    const resourcesInUse = overlappingJobs.length;
+    const availableResources = maxConcurrent - resourcesInUse;
+    
+    if (availableResources < 0) availableResources = 0; // Safety
+    
+    // If we have resources, no conflict. If 0 or less, conflict.
+    if (availableResources > 0) return null;
+
+    return {
+        hasConflict: true,
+        overlappingJobs,
+        resourcesInUse,
+        maxConcurrent,
+        availableResources,
+        canProceed: false, // Strict block or warning
+        message: `All ${maxConcurrent} crews/vehicles are booked on this day.`
+    };
 };
 
 // --- AI Prerequisite Check Component ---
@@ -121,6 +186,7 @@ export const OfferTimeSlotsModal = ({
     const [message, setMessage] = useState('');
     const [showAISuggestions, setShowAISuggestions] = useState(true);
     const [showManualEntry, setShowManualEntry] = useState(false);
+    const [slotConflicts, setSlotConflicts] = useState({}); // New State for Fix 5b
 
     // Get dates that already have jobs scheduled
     const scheduledDates = useMemo(() => getScheduledDates(allJobs), [allJobs]);
@@ -148,6 +214,28 @@ export const OfferTimeSlotsModal = ({
         
         return disabled.length > 0 ? disabled : [0]; // Default: Sunday off
     }, [schedulingPreferences]);
+
+    // DEBUG LOG (Fix 5c)
+    useEffect(() => {
+        console.log('[OfferTimeSlotsModal] Preferences:', schedulingPreferences);
+        if (schedulingPreferences?.workingHours) {
+            console.log('[OfferTimeSlotsModal] Working Hours:', schedulingPreferences.workingHours);
+        }
+    }, [schedulingPreferences]);
+
+    // CONFLICT CHECK EFFECT (Fix 5b)
+    useEffect(() => {
+        const conflicts = {};
+        slots.forEach(slot => {
+            if (slot.date && slot.startTime) {
+                const conflict = checkResourceConflicts(slot, allJobs, schedulingPreferences);
+                if (conflict) {
+                    conflicts[slot.id] = conflict;
+                }
+            }
+        });
+        setSlotConflicts(conflicts);
+    }, [slots, allJobs, schedulingPreferences]);
 
     // Add a new slot
     const addSlot = () => {
@@ -256,7 +344,7 @@ export const OfferTimeSlotsModal = ({
             return { valid: false, error: 'End time must be after start' };
         }
         
-        // Check for conflicts with existing scheduled jobs (Item #11)
+        // Check for conflicts with existing scheduled jobs (Original logic preserved)
         if (checkForConflicts) {
              const conflicts = checkForConflicts(
                 startDateTime.toISOString(),
@@ -426,7 +514,7 @@ export const OfferTimeSlotsModal = ({
                         </div>
                     )}
                     
-                    {/* ADDED: AI Prerequisite Check */}
+                    {/* AI Prerequisite Check */}
                     <AIPrerequisiteCheck preferences={schedulingPreferences} allJobs={allJobs} />
 
                     {/* AI Suggestions Section */}
@@ -494,32 +582,43 @@ export const OfferTimeSlotsModal = ({
                                     const startLabel = TIME_OPTIONS.find(t => t.value === slot.startTime)?.label || slot.startTime;
                                     const endLabel = TIME_OPTIONS.find(t => t.value === slot.endTime)?.label || slot.endTime;
                                     
-                                    // ADDED: Validation Check for List
+                                    // Validation Check
                                     const validation = validateSlot(slot);
                                     
                                     return (
-                                        <div 
-                                            key={slot.id}
-                                            className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl"
-                                        >
-                                            <div>
-                                                <div className="flex items-center gap-2">
-                                                    <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
-                                                    {!validation.valid && (
-                                                         <span className="text-xs text-red-500 font-bold bg-red-50 px-1 rounded border border-red-200">
-                                                            Conflict
-                                                         </span>
-                                                    )}
+                                        <div key={slot.id}>
+                                            <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
+                                                        {!validation.valid && (
+                                                             <span className="text-xs text-red-500 font-bold bg-red-50 px-1 rounded border border-red-200">
+                                                                Conflict
+                                                             </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-emerald-600">{startLabel} - {endLabel}</p>
                                                 </div>
-                                                <p className="text-xs text-emerald-600">{startLabel} - {endLabel}</p>
+                                                <button
+                                                    onClick={() => removeSlot(slot.id)}
+                                                    className="p-1.5 text-emerald-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    type="button"
+                                                >
+                                                    <Trash2 size={14} />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => removeSlot(slot.id)}
-                                                className="p-1.5 text-emerald-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                                type="button"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            
+                                            {/* NEW: Capacity Conflict Warning (Fix 5b) */}
+                                            {slotConflicts[slot.id] && (
+                                                <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
+                                                    slotConflicts[slot.id].canProceed 
+                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        : 'bg-red-50 text-red-700 border border-red-200'
+                                                }`}>
+                                                    <AlertCircle size={14} />
+                                                    <span>{slotConflicts[slot.id].message}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -553,7 +652,7 @@ export const OfferTimeSlotsModal = ({
                                                 <span className="text-xs font-bold text-slate-500">
                                                     Option {idx + 1}
                                                 </span>
-                                                {/* ADDED: Validation Indicator */}
+                                                {/* Validation Indicator */}
                                                 {slot.date && <SlotValidationIndicator validation={validateSlot(slot)} />}
                                             </div>
                                             {(slots.length > 1 || slot.date) && (
