@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
     MessageSquare, Send, Search, ArrowLeft, 
     User, Clock, Check, CheckCheck, Circle,
-    MoreVertical, Phone, Mail, ChevronRight
+    MoreVertical, Phone, Mail, ChevronRight, MapPin
 } from 'lucide-react';
 import { 
     collection, query, where, orderBy, onSnapshot, 
@@ -42,12 +42,29 @@ const formatMessageTime = (timestamp) => {
     return date.toLocaleDateString();
 };
 
+const formatChatTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// Extract homeowner ID from channel ID (format: {homeownerId}_{contractorSlug})
+const getHomeownerIdFromChannel = (channelId) => {
+    if (!channelId) return null;
+    const parts = channelId.split('_');
+    return parts[0] || null;
+};
+
+// ============================================
+// NEW: Smart display name helpers
+// ============================================
+
 /**
  * Get a meaningful display name for a conversation
  * Priority: homeownerName > propertyAddress + scopeOfWork > "Customer"
  */
 const getConversationDisplayName = (conversation) => {
-    // If we have a real name, use it
+    // If we have a real name (and it's not the default "Homeowner"), use it
     if (conversation.homeownerName && conversation.homeownerName !== 'Homeowner') {
         return conversation.homeownerName;
     }
@@ -81,23 +98,11 @@ const getConversationSubtitle = (conversation) => {
     if (conversation.homeownerEmail) {
         return conversation.homeownerEmail;
     }
-    if (conversation.scopeOfWork && conversation.homeownerName) {
+    // If we showed address in title and have scope, show scope as subtitle
+    if (conversation.scopeOfWork && conversation.homeownerName && conversation.homeownerName !== 'Homeowner') {
         return conversation.scopeOfWork;
     }
     return 'Customer';
-};
-
-const formatChatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-};
-
-// Extract homeowner ID from channel ID (format: {homeownerId}_{contractorSlug})
-const getHomeownerIdFromChannel = (channelId) => {
-    if (!channelId) return null;
-    const parts = channelId.split('_');
-    return parts[0] || null;
 };
 
 // ============================================
@@ -106,6 +111,9 @@ const getHomeownerIdFromChannel = (channelId) => {
 const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => {
     const unreadCount = conversation[`unreadCount_${contractorId}`] || 0;
     const hasUnread = unreadCount > 0;
+    
+    // Use smart display name
+    const displayName = getConversationDisplayName(conversation);
     
     return (
         <button
@@ -127,10 +135,10 @@ const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                     <h4 className={`font-semibold truncate ${
-    hasUnread ? 'text-slate-900' : 'text-slate-700'
-}`}>
-    {getConversationDisplayName(conversation)}
-</h4>
+                        hasUnread ? 'text-slate-900' : 'text-slate-700'
+                    }`}>
+                        {displayName}
+                    </h4>
                     <span className={`text-xs flex-shrink-0 ${
                         hasUnread ? 'text-emerald-600 font-medium' : 'text-slate-400'
                     }`}>
@@ -186,6 +194,10 @@ const ChatPanel = ({
     const inputRef = useRef(null);
 
     const homeownerId = getHomeownerIdFromChannel(conversation?.channelId);
+    
+    // Use smart display name
+    const displayName = conversation ? getConversationDisplayName(conversation) : 'Customer';
+    const subtitle = conversation ? getConversationSubtitle(conversation) : '';
 
     // Subscribe to messages
     useEffect(() => {
@@ -268,11 +280,11 @@ const ChatPanel = ({
                 </div>
                 <div className="flex-1">
                     <h3 className="font-bold text-slate-800">
-    {getConversationDisplayName(conversation)}
-</h3>
-<p className="text-xs text-slate-500">
-    {getConversationSubtitle(conversation)}
-</p>
+                        {displayName}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                        {subtitle}
+                    </p>
                 </div>
                 
                 {/* Quick actions */}
@@ -389,45 +401,46 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
                 const data = docSnap.data();
                 const homeownerId = getHomeownerIdFromChannel(data.channelId);
                 
-                // Try to get homeowner details (if we have them stored)
-                // For now, we'll use what's in the channel or defaults
+                // Include all channel data including new fields
                 channelData.push({
-    id: docSnap.id,
-    ...data,
-    homeownerId,
-    homeownerName: data.homeownerName || null,  // Don't default to 'Homeowner' here
-    homeownerEmail: data.homeownerEmail || null,
-    homeownerPhone: data.homeownerPhone || null,
-    propertyAddress: data.propertyAddress || null,
-    scopeOfWork: data.scopeOfWork || null,
-});
+                    id: docSnap.id,
+                    ...data,
+                    homeownerId,
+                    // Don't default to 'Homeowner' here - let the display helper handle it
+                    homeownerName: data.homeownerName || null,
+                    homeownerEmail: data.homeownerEmail || null,
+                    homeownerPhone: data.homeownerPhone || null,
+                    // NEW: Include property address and scope
+                    propertyAddress: data.propertyAddress || null,
+                    scopeOfWork: data.scopeOfWork || null,
+                });
             }
             
             setConversations(channelData);
             setLoading(false);
         }, (error) => {
-            console.error('Error loading conversations:', error);
+            console.error('Channels subscription error:', error);
             setLoading(false);
         });
 
         return () => unsubscribe();
     }, [contractorId]);
 
-    // Filter conversations by search
+    // Filter conversations by search term
     const filteredConversations = useMemo(() => {
-        if (!searchTerm.trim()) return conversations;
+        if (!searchTerm) return conversations;
         const term = searchTerm.toLowerCase();
-        return conversations.filter(c => 
-            c.homeownerName?.toLowerCase().includes(term) ||
-            c.lastMessage?.toLowerCase().includes(term)
-        );
+        return conversations.filter(c => {
+            const displayName = getConversationDisplayName(c).toLowerCase();
+            const email = (c.homeownerEmail || '').toLowerCase();
+            const lastMsg = (c.lastMessage || '').toLowerCase();
+            return displayName.includes(term) || email.includes(term) || lastMsg.includes(term);
+        });
     }, [conversations, searchTerm]);
 
     // Calculate total unread
     const totalUnread = useMemo(() => {
-        return conversations.reduce((sum, c) => {
-            return sum + (c[`unreadCount_${contractorId}`] || 0);
-        }, 0);
+        return conversations.reduce((sum, c) => sum + (c[`unreadCount_${contractorId}`] || 0), 0);
     }, [conversations, contractorId]);
 
     const handleSelectConversation = (conversation) => {
@@ -444,13 +457,13 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
     };
 
     return (
-        <div className="h-[calc(100vh-140px)] md:h-[calc(100vh-100px)] flex flex-col">
+        <div className="h-full flex flex-col bg-slate-50">
             {/* Header */}
-            <div className="p-6 border-b border-slate-100 bg-white">
-                <div className="flex items-center justify-between mb-4">
+            <div className="bg-white border-b border-slate-100 p-4">
+                <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Messages</h1>
-                        <p className="text-slate-500">
+                        <h1 className="text-xl font-bold text-slate-800">Messages</h1>
+                        <p className="text-sm text-slate-500">
                             {totalUnread > 0 
                                 ? `${totalUnread} unread message${totalUnread !== 1 ? 's' : ''}`
                                 : 'Chat with your customers'
