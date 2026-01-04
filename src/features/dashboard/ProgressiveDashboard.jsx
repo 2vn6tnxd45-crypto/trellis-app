@@ -21,6 +21,7 @@ import toast from 'react-hot-toast';
 import { ModernDashboard } from './ModernDashboard';
 import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { ReportTeaser } from './ReportTeaser';
+import { PedigreeReportTeaser } from '../report/PedigreeReportTeaser'; // NEW IMPORT
 
 // NEW: Property data hook for getting started view
 import usePropertyData from '../../hooks/usePropertyData';
@@ -40,7 +41,6 @@ import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
-// Optional: import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
 // ============================================
 // HELPERS
@@ -51,23 +51,6 @@ const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
 // ============================================
 // ACTIVE PROJECTS SECTION (Progressive Style)
 // ============================================
-// ============================================
-// UPDATED: ActiveProjectsSection with Phase 1 Features
-// ============================================
-// 
-// This is the complete replacement for ActiveProjectsSection in ModernDashboard.jsx
-// It includes:
-// - Dual query (createdBy + customerId) for data model fix
-// - HomeownerJobCard with proper display
-// - Cancel job functionality
-// - Request different times functionality
-// - Improved modal with real-time data
-//
-// REQUIRED IMPORTS (add to top of ModernDashboard.jsx):
-// import { CancelJobModal } from '../jobs/CancelJobModal';
-// import { RequestTimesModal } from '../jobs/RequestTimesModal';
-// import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
-
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
@@ -307,11 +290,8 @@ const ActiveProjectsSection = ({ userId }) => {
 };
 
 // ============================================
-// SIMPLE VERSION (if you prefer inline job cards)
+// SIMPLE VERSION (Inline) - Restored
 // ============================================
-// If you don't want to create a separate HomeownerJobCard component,
-// here's a version with inline job card rendering:
-
 const ActiveProjectsSectionInline = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
@@ -445,7 +425,7 @@ const ActiveProjectsSectionInline = ({ userId }) => {
                 </div>
             </DashboardSection>
 
-            {/* Modals - same as above */}
+            {/* Modals */}
             {selectedJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
@@ -473,7 +453,7 @@ const ActiveProjectsSectionInline = ({ userId }) => {
 };
 
 // ============================================
-// QUOTES SECTION COMPONENT (Reusable)
+// QUOTES SECTION COMPONENT
 // ============================================
 const MyQuotesSection = ({ userId }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
@@ -539,7 +519,6 @@ const MyQuotesSection = ({ userId }) => {
                                     {quote.status}
                                 </span>
                                 
-                                {/* Delete button */}
                                 <button 
                                     onClick={(e) => handleDelete(e, quote)}
                                     className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
@@ -549,7 +528,6 @@ const MyQuotesSection = ({ userId }) => {
                                 </button>
                             </div>
                             
-                            {/* Details Row */}
                             <div className="flex justify-between items-center pt-3 border-t border-slate-100">
                                 <span className="text-sm text-slate-500">Total:</span>
                                 <span className="font-bold text-slate-800 text-lg">
@@ -557,7 +535,6 @@ const MyQuotesSection = ({ userId }) => {
                                 </span>
                             </div>
                             
-                            {/* Action hint */}
                             {quote.status !== 'accepted' && (
                                 <div className="mt-3 pt-3 border-t border-slate-100">
                                     <span className="text-emerald-600 font-medium text-sm flex items-center gap-1">
@@ -576,8 +553,7 @@ const MyQuotesSection = ({ userId }) => {
 // ============================================
 // EMPTY STATE (0 items)
 // ============================================
-const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink }) => {
-    // Get property data even in empty state
+const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink, recordCount }) => {
     const { address, coordinates } = activeProperty || {};
     const {
         propertyData,
@@ -606,7 +582,7 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 </div>
             )}
 
-            {/* Property Quick Stats - Show even in empty state */}
+            {/* Property Quick Stats */}
             {propertyData && !propertyLoading && (
                 <div className="w-full max-w-lg mb-6">
                     <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -637,12 +613,20 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 </div>
             )}
 
-            {/* ACTIVE PROJECTS & QUOTES - Full width with consistent styling */}
+            {/* ACTIVE PROJECTS & QUOTES */}
             <div className="w-full max-w-lg text-left mb-6">
                 <ActiveProjectsSection userId={userId} />
                 <div className="mt-4">
                     <MyQuotesSection userId={userId} />
                 </div>
+            </div>
+
+            {/* NEW: Pedigree Teaser */}
+            <div className="w-full max-w-lg text-left mb-6">
+                <PedigreeReportTeaser 
+                    itemCount={recordCount || 0} 
+                    onAddItem={onAddItem} 
+                />
             </div>
             
             <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
@@ -877,6 +861,12 @@ const GettingStartedDashboard = ({
             <ActiveProjectsSection userId={userId} />
             <MyQuotesSection userId={userId} />
 
+            {/* NEW: Pedigree Teaser */}
+            <PedigreeReportTeaser 
+                itemCount={records.length} 
+                onAddItem={onAddItem} 
+            />
+
             {/* Property Intelligence Teaser */}
             {activeProperty?.address && (
                 <PropertyIntelTeaser 
@@ -994,6 +984,7 @@ export const ProgressiveDashboard = ({
                 onAddItem={onAddRecord} 
                 onScanReceipt={onScanReceipt}
                 onCreateContractorLink={onCreateContractorLink}
+                recordCount={records.length} // Pass to empty state for teaser
             />
         );
     
