@@ -42,6 +42,51 @@ const formatMessageTime = (timestamp) => {
     return date.toLocaleDateString();
 };
 
+/**
+ * Get a meaningful display name for a conversation
+ * Priority: homeownerName > propertyAddress + scopeOfWork > "Customer"
+ */
+const getConversationDisplayName = (conversation) => {
+    // If we have a real name, use it
+    if (conversation.homeownerName && conversation.homeownerName !== 'Homeowner') {
+        return conversation.homeownerName;
+    }
+    
+    // Build fallback from address + scope
+    const parts = [];
+    
+    if (conversation.propertyAddress) {
+        // Extract just the street address (first part before comma)
+        const streetAddress = conversation.propertyAddress.split(',')[0].trim();
+        parts.push(streetAddress);
+    }
+    
+    if (conversation.scopeOfWork) {
+        parts.push(conversation.scopeOfWork);
+    }
+    
+    // If we have address or scope, join them
+    if (parts.length > 0) {
+        return parts.join(' • ');
+    }
+    
+    // Final fallback
+    return 'Customer';
+};
+
+/**
+ * Get a subtitle for the conversation (email or scope)
+ */
+const getConversationSubtitle = (conversation) => {
+    if (conversation.homeownerEmail) {
+        return conversation.homeownerEmail;
+    }
+    if (conversation.scopeOfWork && conversation.homeownerName) {
+        return conversation.scopeOfWork;
+    }
+    return 'Customer';
+};
+
 const formatChatTime = (timestamp) => {
     if (!timestamp) return '';
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -82,10 +127,10 @@ const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => 
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                     <h4 className={`font-semibold truncate ${
-                        hasUnread ? 'text-slate-900' : 'text-slate-700'
-                    }`}>
-                        {conversation.homeownerName || 'Homeowner'}
-                    </h4>
+    hasUnread ? 'text-slate-900' : 'text-slate-700'
+}`}>
+    {getConversationDisplayName(conversation)}
+</h4>
                     <span className={`text-xs flex-shrink-0 ${
                         hasUnread ? 'text-emerald-600 font-medium' : 'text-slate-400'
                     }`}>
@@ -223,11 +268,11 @@ const ChatPanel = ({
                 </div>
                 <div className="flex-1">
                     <h3 className="font-bold text-slate-800">
-                        {conversation.homeownerName || 'Homeowner'}
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                        {conversation.homeownerEmail || 'Customer'}
-                    </p>
+    {getConversationDisplayName(conversation)}
+</h3>
+<p className="text-xs text-slate-500">
+    {getConversationSubtitle(conversation)}
+</p>
                 </div>
                 
                 {/* Quick actions */}
@@ -347,13 +392,15 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
                 // Try to get homeowner details (if we have them stored)
                 // For now, we'll use what's in the channel or defaults
                 channelData.push({
-                    id: docSnap.id,
-                    ...data,
-                    homeownerId,
-                    homeownerName: data.homeownerName || 'Homeowner',
-                    homeownerEmail: data.homeownerEmail || null,
-                    homeownerPhone: data.homeownerPhone || null,
-                });
+    id: docSnap.id,
+    ...data,
+    homeownerId,
+    homeownerName: data.homeownerName || null,  // Don't default to 'Homeowner' here
+    homeownerEmail: data.homeownerEmail || null,
+    homeownerPhone: data.homeownerPhone || null,
+    propertyAddress: data.propertyAddress || null,
+    scopeOfWork: data.scopeOfWork || null,
+});
             }
             
             setConversations(channelData);
