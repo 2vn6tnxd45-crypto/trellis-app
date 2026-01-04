@@ -486,8 +486,9 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
                 </div>
 
                 {/* Locked/Unlocked: Financial History & Pedigree Report */}
-                <div className="relative">
-                    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
+                {/* Locked/Unlocked: Financial History & Pedigree Report */}
+<div className="relative overflow-hidden rounded-xl">
+    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
                         <div className="flex items-center justify-between mb-4">
                             <p className={`text-xs font-bold uppercase tracking-wider ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
                                 Financial History
