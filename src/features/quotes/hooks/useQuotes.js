@@ -3,6 +3,7 @@
 // QUOTE HOOKS
 // ============================================
 // React hooks for managing quote state and operations
+// FIXED: Added defensive checks for undefined contractorId
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -188,6 +189,7 @@ export const useQuoteStats = (contractorId) => {
 
 /**
  * Hook for quote CRUD operations
+ * FIX: Added better error handling and defensive checks
  */
 export const useQuoteOperations = (contractorId) => {
     const [isCreating, setIsCreating] = useState(false);
@@ -195,56 +197,98 @@ export const useQuoteOperations = (contractorId) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
+    // FIX: Ensure createQuote is available
     const create = useCallback(async (quoteData) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) {
+            throw new Error('Contractor not authenticated');
+        }
+        if (typeof createQuote !== 'function') {
+            console.error('createQuote is not a function:', createQuote);
+            throw new Error('Quote service not available');
+        }
         
         setIsCreating(true);
         try {
             const result = await createQuote(contractorId, quoteData);
             return result;
+        } catch (error) {
+            console.error('Error creating quote:', error);
+            throw error;
         } finally {
             setIsCreating(false);
         }
     }, [contractorId]);
 
+    // FIX: Ensure updateQuote is available
     const update = useCallback(async (quoteId, quoteData) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) {
+            throw new Error('Contractor not authenticated');
+        }
+        if (typeof updateQuote !== 'function') {
+            console.error('updateQuote is not a function:', updateQuote);
+            throw new Error('Quote service not available');
+        }
         
         setIsUpdating(true);
         try {
             const result = await updateQuote(contractorId, quoteId, quoteData);
             return result;
+        } catch (error) {
+            console.error('Error updating quote:', error);
+            throw error;
         } finally {
             setIsUpdating(false);
         }
     }, [contractorId]);
 
+    // FIX: Ensure deleteQuote is available
     const remove = useCallback(async (quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) {
+            throw new Error('Contractor not authenticated');
+        }
+        if (typeof deleteQuote !== 'function') {
+            console.error('deleteQuote is not a function:', deleteQuote);
+            throw new Error('Quote service not available');
+        }
         
         setIsDeleting(true);
         try {
             const result = await deleteQuote(contractorId, quoteId);
             return result;
+        } catch (error) {
+            console.error('Error deleting quote:', error);
+            throw error;
         } finally {
             setIsDeleting(false);
         }
     }, [contractorId]);
 
+    // FIX: Ensure sendQuote is available
     const send = useCallback(async (quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) {
+            throw new Error('Contractor not authenticated');
+        }
+        if (typeof sendQuote !== 'function') {
+            console.error('sendQuote is not a function:', sendQuote);
+            throw new Error('Quote service not available');
+        }
         
         setIsSending(true);
         try {
             const result = await sendQuote(contractorId, quoteId);
             return result;
+        } catch (error) {
+            console.error('Error sending quote:', error);
+            throw error;
         } finally {
             setIsSending(false);
         }
     }, [contractorId]);
 
     const getShareLink = useCallback((quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) {
+            throw new Error('Contractor not authenticated');
+        }
         return generateQuoteShareLink(contractorId, quoteId);
     }, [contractorId]);
 
