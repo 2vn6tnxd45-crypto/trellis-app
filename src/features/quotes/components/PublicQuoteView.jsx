@@ -131,7 +131,7 @@ const SuccessState = ({ quote, contractor }) => {
 };
 
 // ============================================
-// PROPERTY SELECTION MODAL (Restored Workstream 2)
+// PROPERTY SELECTION MODAL
 // ============================================
 const PropertySelectionModal = ({ 
     isOpen, 
@@ -393,6 +393,12 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                 <h1 className="text-xl font-bold">
                                     {contractor?.companyName || 'Service Quote'}
                                 </h1>
+                                {/* NEW: License Display */}
+                                {contractor?.licenseNumber && (
+                                    <p className="text-emerald-200 text-xs font-medium uppercase tracking-wide mb-1">
+                                        License #: {contractor.licenseNumber}
+                                    </p>
+                                )}
                                 {contractor?.phone && (
                                     <p className="text-emerald-100 text-sm flex items-center gap-2 mt-1">
                                         <Phone size={14} />
