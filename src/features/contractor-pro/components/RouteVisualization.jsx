@@ -3,7 +3,7 @@
 // ROUTE VISUALIZATION
 // ============================================
 // Shows daily jobs on a map-like visualization with route optimization suggestions
-// UPDATED: Full restoration of Summary/Optimization + New Dispatch Features
+// UPDATED: Fixed ReferenceError (restored handleApplyOptimization)
 
 import React, { useState, useMemo } from 'react';
 import { 
@@ -62,9 +62,6 @@ const openGoogleMapsRoute = (jobs, homeBase) => {
 
     // Waypoints
     let waypointsParam = "";
-    // If we have a home base, ALL jobs are waypoints (except maybe the last one if it's the dest)
-    // Actually, Google Maps Directions API works best with Origin -> Waypoints -> Dest
-    // Let's treat the Home Base as Origin, Last Job as Dest, and everything in between as waypoints
     
     let intermediateJobs = [];
     if (homeBase?.address) {
@@ -167,7 +164,7 @@ const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) =
                         onClick={(e) => {
                             e.stopPropagation();
                             const addr = job.serviceAddress?.formatted || job.customer?.address;
-                            if(addr) window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`, '_blank');
+                            if(addr) window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addr)}`, '_blank');
                         }}
                         className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
                         title="Navigate"
@@ -252,7 +249,7 @@ const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
                 </div>
             </div>
 
-            {/* NEW: Open in Google Maps Button */}
+            {/* Open in Google Maps Button */}
             <button
                 onClick={onOpenMaps}
                 className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
@@ -427,6 +424,14 @@ export const RouteVisualization = ({
         const newDate = new Date(date);
         newDate.setDate(newDate.getDate() + 1);
         if (onDateChange) onDateChange(newDate);
+    };
+
+    // FIXED: Missing function added here
+    const handleApplyOptimization = () => {
+        setIsOptimized(true);
+        if (onReorder) {
+            onReorder(optimizedJobs);
+        }
     };
 
     const handleOpenRoute = () => {
