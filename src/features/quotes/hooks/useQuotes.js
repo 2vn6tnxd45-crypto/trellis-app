@@ -1,4 +1,6 @@
 // src/features/quotes/hooks/useQuotes.js
+// MINIMAL VERSION
+
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     subscribeToQuotes,
@@ -13,7 +15,9 @@ import {
     generateQuoteShareLink
 } from '../lib/quoteService';
 
-export const useQuotes = (contractorId) => {
+console.log('✅ useQuotes.js loaded successfully');
+
+export function useQuotes(contractorId) {
     const [quotes, setQuotes] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -25,7 +29,6 @@ export const useQuotes = (contractorId) => {
             return;
         }
         setLoading(true);
-        setError(null);
         const unsubscribe = subscribeToQuotes(contractorId, (data) => {
             setQuotes(data);
             setLoading(false);
@@ -42,16 +45,15 @@ export const useQuotes = (contractorId) => {
     const expiredQuotes = useMemo(() => quotes.filter(q => q.status === 'expired'), [quotes]);
 
     return { quotes, draftQuotes, sentQuotes, viewedQuotes, pendingQuotes, acceptedQuotes, declinedQuotes, expiredQuotes, loading, error };
-};
+}
 
-export const useQuoteTemplates = (contractorId) => {
+export function useQuoteTemplates(contractorId) {
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (!contractorId) {
             setLoading(false);
-            setTemplates([]);
             return;
         }
         const unsubscribe = subscribeToQuoteTemplates(contractorId, (data) => {
@@ -62,19 +64,19 @@ export const useQuoteTemplates = (contractorId) => {
     }, [contractorId]);
 
     const createTemplate = useCallback(async (templateData) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
-        return await createQuoteTemplate(contractorId, templateData);
+        if (!contractorId) throw new Error('Not authenticated');
+        return createQuoteTemplate(contractorId, templateData);
     }, [contractorId]);
 
     const removeTemplate = useCallback(async (templateId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
-        return await deleteQuoteTemplate(contractorId, templateId);
+        if (!contractorId) throw new Error('Not authenticated');
+        return deleteQuoteTemplate(contractorId, templateId);
     }, [contractorId]);
 
     return { templates, loading, createTemplate, removeTemplate };
-};
+}
 
-export const useQuoteStats = (contractorId) => {
+export function useQuoteStats(contractorId) {
     const [stats, setStats] = useState({
         total: 0, draft: 0, pending: 0, accepted: 0, declined: 0, expired: 0,
         totalValue: 0, acceptedValue: 0, conversionRate: 0
@@ -88,7 +90,7 @@ export const useQuoteStats = (contractorId) => {
             const newStats = await getQuoteStats(contractorId);
             setStats(newStats);
         } catch (err) {
-            console.error('Error loading quote stats:', err);
+            console.error('Error loading stats:', err);
         } finally {
             setLoading(false);
         }
@@ -97,16 +99,16 @@ export const useQuoteStats = (contractorId) => {
     useEffect(() => { refresh(); }, [refresh]);
 
     return { stats, loading, refresh };
-};
+}
 
-export const useQuoteOperations = (contractorId) => {
+export function useQuoteOperations(contractorId) {
     const [isCreating, setIsCreating] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSending, setIsSending] = useState(false);
 
     const create = useCallback(async (quoteData) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) throw new Error('Not authenticated');
         setIsCreating(true);
         try {
             return await createQuote(contractorId, quoteData);
@@ -116,7 +118,7 @@ export const useQuoteOperations = (contractorId) => {
     }, [contractorId]);
 
     const update = useCallback(async (quoteId, quoteData) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) throw new Error('Not authenticated');
         setIsUpdating(true);
         try {
             return await updateQuote(contractorId, quoteId, quoteData);
@@ -126,7 +128,7 @@ export const useQuoteOperations = (contractorId) => {
     }, [contractorId]);
 
     const remove = useCallback(async (quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) throw new Error('Not authenticated');
         setIsDeleting(true);
         try {
             return await deleteQuote(contractorId, quoteId);
@@ -136,7 +138,7 @@ export const useQuoteOperations = (contractorId) => {
     }, [contractorId]);
 
     const send = useCallback(async (quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) throw new Error('Not authenticated');
         setIsSending(true);
         try {
             return await sendQuote(contractorId, quoteId);
@@ -146,14 +148,14 @@ export const useQuoteOperations = (contractorId) => {
     }, [contractorId]);
 
     const getShareLink = useCallback((quoteId) => {
-        if (!contractorId) throw new Error('Contractor not authenticated');
+        if (!contractorId) throw new Error('Not authenticated');
         return generateQuoteShareLink(contractorId, quoteId);
     }, [contractorId]);
 
     return { create, update, remove, send, getShareLink, isCreating, isUpdating, isDeleting, isSending };
-};
+}
 
-export const useQuoteManagement = (contractorId) => {
+export function useQuoteManagement(contractorId) {
     const quotesData = useQuotes(contractorId);
     const templatesData = useQuoteTemplates(contractorId);
     const statsData = useQuoteStats(contractorId);
@@ -186,4 +188,4 @@ export const useQuoteManagement = (contractorId) => {
         isDeleting: operations.isDeleting,
         isSending: operations.isSending
     };
-};
+}
