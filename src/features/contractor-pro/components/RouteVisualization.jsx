@@ -3,12 +3,14 @@
 // ROUTE VISUALIZATION
 // ============================================
 // Shows daily jobs on a map-like visualization with route optimization suggestions
+// UPDATED: Added Date Navigation Controls
 
 import React, { useState, useMemo } from 'react';
 import { 
     Navigation, MapPin, Clock, ArrowRight, 
     Route, Sparkles, ChevronDown, ChevronUp,
-    Car, Home, CheckCircle, AlertCircle, Zap
+    Car, Home, CheckCircle, AlertCircle, Zap,
+    ChevronLeft, ChevronRight, Calendar // Added icons for nav
 } from 'lucide-react';
 import { suggestRouteOrder } from '../lib/schedulingAI';
 
@@ -277,7 +279,8 @@ export const RouteVisualization = ({
     date,
     preferences = {},
     onJobClick,
-    onReorder
+    onReorder,
+    onDateChange // NEW PROP
 }) => {
     const [isOptimized, setIsOptimized] = useState(false);
 
@@ -330,81 +333,112 @@ export const RouteVisualization = ({
         }
     };
 
-    if (jobs.length === 0) {
-        return (
-            <div className="text-center py-12 text-slate-400">
-                <Navigation size={32} className="mx-auto mb-3 opacity-50" />
-                <p className="font-medium">No jobs scheduled</p>
-                <p className="text-sm">Schedule some jobs to see your route</p>
-            </div>
-        );
-    }
+    // Date Navigation Handlers
+    const handlePrevDay = () => {
+        const newDate = new Date(date);
+        newDate.setDate(newDate.getDate() - 1);
+        if (onDateChange) onDateChange(newDate);
+    };
+
+    const handleNextDay = () => {
+        const newDate = new Date(date);
+        newDate.setDate(newDate.getDate() + 1);
+        if (onDateChange) onDateChange(newDate);
+    };
 
     return (
         <div className="space-y-4">
-            {/* Date header */}
-            <div className="flex items-center justify-between">
-                <h3 className="font-bold text-slate-800">
-                    {date?.toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        month: 'long', 
-                        day: 'numeric' 
-                    }) || 'Today'}
-                </h3>
-                <span className="text-sm text-slate-500">
-                    {jobs.length} job{jobs.length !== 1 ? 's' : ''}
-                </span>
+            {/* UPDATED: Date Header with Navigation */}
+            <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                <button 
+                    onClick={handlePrevDay}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
+                >
+                    <ChevronLeft size={20} />
+                </button>
+                
+                <div className="text-center">
+                    <h3 className="font-bold text-slate-800 flex items-center justify-center gap-2">
+                        <Calendar size={16} className="text-emerald-600" />
+                        {date?.toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'short', 
+                            day: 'numeric' 
+                        }) || 'Today'}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                        {jobs.length} job{jobs.length !== 1 ? 's' : ''} scheduled
+                    </p>
+                </div>
+
+                <button 
+                    onClick={handleNextDay}
+                    className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
+                >
+                    <ChevronRight size={20} />
+                </button>
             </div>
 
-            {/* Route Summary */}
-            <RouteSummary 
-                jobs={displayJobs} 
-                homeBase={preferences?.homeBase}
-                isOptimized={isOptimized}
-            />
-
-            {/* Optimization Suggestion */}
-            {!isOptimized && (
-                <OptimizationSuggestion
-                    currentJobs={sortedJobs}
-                    optimizedJobs={optimizedJobs}
-                    onApply={handleApplyOptimization}
-                />
-            )}
-
-            {/* Start from home */}
-            {preferences?.homeBase?.address && (
-                <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl text-slate-600">
-                    <Home size={18} />
-                    <div>
-                        <p className="text-xs font-medium text-slate-500">Starting from</p>
-                        <p className="text-sm">{preferences.homeBase.address}</p>
-                    </div>
+            {/* Content Logic */}
+            {jobs.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
+                    <Navigation size={32} className="mx-auto mb-3 opacity-50" />
+                    <p className="font-medium text-slate-600">No jobs scheduled for this day</p>
+                    <p className="text-sm">Use the arrows above to find your schedule</p>
                 </div>
-            )}
-
-            {/* Job List with Route */}
-            <div className="space-y-1">
-                {displayJobs.map((job, idx) => (
-                    <RouteJobCard
-                        key={job.id}
-                        job={job}
-                        index={idx}
-                        travelFromPrev={travelInfo[idx]}
-                        isLast={idx === displayJobs.length - 1}
-                        onClick={onJobClick}
+            ) : (
+                <>
+                    {/* Route Summary */}
+                    <RouteSummary 
+                        jobs={displayJobs} 
+                        homeBase={preferences?.homeBase}
+                        isOptimized={isOptimized}
                     />
-                ))}
-            </div>
 
-            {/* Return home */}
-            {preferences?.homeBase?.address && (
-                <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-500">
-                    <Car size={12} />
-                    <span>Return home</span>
-                    <div className="flex-1 border-t border-dashed border-slate-300 mx-2" />
-                    <Home size={12} />
-                </div>
+                    {/* Optimization Suggestion */}
+                    {!isOptimized && (
+                        <OptimizationSuggestion
+                            currentJobs={sortedJobs}
+                            optimizedJobs={optimizedJobs}
+                            onApply={handleApplyOptimization}
+                        />
+                    )}
+
+                    {/* Start from home */}
+                    {preferences?.homeBase?.address && (
+                        <div className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl text-slate-600">
+                            <Home size={18} />
+                            <div>
+                                <p className="text-xs font-medium text-slate-500">Starting from</p>
+                                <p className="text-sm">{preferences.homeBase.address}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Job List with Route */}
+                    <div className="space-y-1">
+                        {displayJobs.map((job, idx) => (
+                            <RouteJobCard
+                                key={job.id}
+                                job={job}
+                                index={idx}
+                                travelFromPrev={travelInfo[idx]}
+                                isLast={idx === displayJobs.length - 1}
+                                onClick={onJobClick}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Return home */}
+                    {preferences?.homeBase?.address && (
+                        <div className="flex items-center gap-2 py-2 px-4 text-xs text-slate-500">
+                            <Car size={12} />
+                            <span>Return home</span>
+                            <div className="flex-1 border-t border-dashed border-slate-300 mx-2" />
+                            <Home size={12} />
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
