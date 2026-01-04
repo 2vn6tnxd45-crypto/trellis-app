@@ -19,7 +19,7 @@ import { getChannelId, subscribeToChat, sendMessage, markChannelAsRead } from '.
 // ============================================
 // REAL CHAT DRAWER - UPDATED with user info
 // ============================================
-const ChatDrawer = ({ pro, userId, userProfile, onClose }) => {
+const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,6 +32,9 @@ const ChatDrawer = ({ pro, userId, userProfile, onClose }) => {
     const homeownerName = userProfile?.name || userProfile?.displayName || 'Homeowner';
     const homeownerEmail = userProfile?.email || null;
     const homeownerPhone = userProfile?.phone || null;
+    // Derive scope of work from pro's service categories
+const categories = [...new Set((pro.jobs || []).map(j => j.category).filter(Boolean))];
+const scopeOfWork = categories.length > 0 ? categories.join(', ') : pro.specialty || null;
 
     // Subscribe to real-time updates
     useEffect(() => {
@@ -69,10 +72,12 @@ const ChatDrawer = ({ pro, userId, userProfile, onClose }) => {
                 homeownerName,  // Real name instead of 'Homeowner'
                 contractorId,
                 {  // senderInfo to store on channel for contractor visibility
-                    name: homeownerName,
-                    email: homeownerEmail,
-                    phone: homeownerPhone
-                }
+    name: homeownerName,
+    email: homeownerEmail,
+    phone: homeownerPhone,
+    propertyAddress: propertyAddress || null,
+    scopeOfWork: scopeOfWork || null
+}
             );
         } catch (error) {
             console.error("Failed to send", error);
@@ -631,13 +636,14 @@ export const ProConnect = ({
 
             {/* Chat Drawer Overlay - UPDATED with userProfile */}
             {selectedChatPro && (
-                <ChatDrawer 
-                    pro={selectedChatPro} 
-                    userId={userId}
-                    userProfile={userProfile}  // NEW: Pass user profile for name
-                    onClose={() => setSelectedChatPro(null)} 
-                />
-            )}
+    <ChatDrawer 
+        pro={selectedChatPro} 
+        userId={userId}
+        userProfile={userProfile}
+        propertyAddress={propertyAddress}
+        onClose={() => setSelectedChatPro(null)} 
+    />
+)}
         </div>
     );
 };
