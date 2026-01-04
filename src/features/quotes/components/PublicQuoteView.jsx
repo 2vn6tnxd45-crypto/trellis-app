@@ -11,7 +11,8 @@ import {
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
     FileText, Clock, UserPlus, Save, ArrowLeft, Shield, Users,
-    Sparkles, Home, Plus
+    Sparkles, Home, Plus, MessageCircle, BadgeCheck, Briefcase,
+    ClipboardList, Wrench, CreditCard, Award, Timer
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -273,7 +274,7 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 // ============================================
 // MAIN QUOTE CONTENT VIEW
 // ============================================
-const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave, isSaving, alreadyClaimed }) => {
+const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecline, onSave, onAskQuestion, isSaving, alreadyClaimed }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
@@ -412,6 +413,36 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             </span>
                         )}
                     </div>
+                    
+                    {/* Contractor Credentials Row */}
+                    {(contractor?.insured || contractor?.bonded || contractor?.yearsInBusiness || contractor?.certifications?.length > 0) && (
+                        <div className="px-4 py-3 bg-emerald-50/50 border-b border-emerald-100 flex flex-wrap items-center gap-4 text-xs">
+                            {contractor.yearsInBusiness && (
+                                <span className="flex items-center gap-1.5 text-slate-600">
+                                    <Briefcase size={14} className="text-emerald-600" />
+                                    {contractor.yearsInBusiness}+ Years in Business
+                                </span>
+                            )}
+                            {contractor.insured && (
+                                <span className="flex items-center gap-1.5 text-slate-600">
+                                    <Shield size={14} className="text-emerald-600" />
+                                    Fully Insured
+                                </span>
+                            )}
+                            {contractor.bonded && (
+                                <span className="flex items-center gap-1.5 text-slate-600">
+                                    <BadgeCheck size={14} className="text-emerald-600" />
+                                    Bonded
+                                </span>
+                            )}
+                            {contractor.certifications?.slice(0, 2).map((cert, idx) => (
+                                <span key={idx} className="flex items-center gap-1.5 text-slate-600">
+                                    <Award size={14} className="text-emerald-600" />
+                                    {cert}
+                                </span>
+                            ))}
+                        </div>
+                    )}
                 </div>
                 
                 {/* Quote Content */}
@@ -444,6 +475,12 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                         <div className={quote.customer && (quote.customer.name || quote.customer.address) ? 'md:text-right' : ''}>
                             <p className="text-xs font-bold text-slate-500 uppercase mb-2">Service Description</p>
                             <h2 className="text-xl font-bold text-slate-800">{quote.title}</h2>
+                            {quote.estimatedDuration && (
+                                <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-2 md:justify-end">
+                                    <Timer size={14} className="text-emerald-600" />
+                                    Estimated: {quote.estimatedDuration}
+                                </p>
+                            )}
                         </div>
                     </div>
                     
@@ -590,6 +627,52 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                 {depositAmount > 0 ? `Accept & Pay Deposit` : 'Accept Quote'}
                             </button>
                         </div>
+                        
+                        {/* Ask a Question */}
+                        <div className="mt-4 pt-4 border-t border-slate-100 text-center">
+                            <button
+                                onClick={onAskQuestion}
+                                className="text-emerald-600 hover:text-emerald-700 font-medium text-sm flex items-center gap-2 mx-auto transition-colors"
+                            >
+                                <MessageCircle size={16} />
+                                Have questions? Message {contractor?.companyName || 'the contractor'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+                
+                {/* What Happens Next - Show when quote can be responded to */}
+                {canRespond && (
+                    <div className="bg-white rounded-2xl shadow-lg p-6 mt-6">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <ClipboardList size={18} className="text-emerald-600" />
+                            What Happens Next?
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {[
+                                { step: '1', icon: CheckCircle, title: 'Accept Quote', desc: 'Confirm the scope & price' },
+                                { step: '2', icon: Calendar, title: 'Schedule', desc: 'Pick a date that works' },
+                                { step: '3', icon: Wrench, title: 'Work Completed', desc: 'Pro does the job' },
+                                { step: '4', icon: CreditCard, title: 'Final Payment', desc: 'Pay remaining balance' },
+                            ].map(({ step, icon: Icon, title, desc }) => (
+                                <div key={step} className="text-center">
+                                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <Icon size={18} className="text-emerald-600" />
+                                    </div>
+                                    <p className="text-xs font-bold text-emerald-600 mb-0.5">Step {step}</p>
+                                    <p className="text-sm font-medium text-slate-800">{title}</p>
+                                    <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {/* Payment Methods */}
+                        {contractor?.paymentMethods?.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500">
+                                <CreditCard size={14} />
+                                <span>Accepts: {contractor.paymentMethods.join(', ')}</span>
+                            </div>
+                        )}
                     </div>
                 )}
                 
@@ -639,6 +722,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [showAuth, setShowAuth] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
     const [pendingAccept, setPendingAccept] = useState(false); // NEW: Track if user wanted to accept
+    const [pendingQuestion, setPendingQuestion] = useState(false); // NEW: Track if user wanted to ask question
     const [isClaiming, setIsClaiming] = useState(false);
     const [alreadyClaimed, setAlreadyClaimed] = useState(false);
     
@@ -793,6 +877,14 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 return;
             }
             
+            // Handle pending question (user wanted to message contractor)
+            if (pendingQuestion) {
+                setPendingQuestion(false);
+                setShowAuth(false);
+                handleAskQuestion();
+                return;
+            }
+            
             // Handle pending save (user wanted to save to Krib)
             if (pendingSave) {
                 setPendingSave(false);
@@ -800,7 +892,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 handleSaveQuote();
             }
         }
-    }, [user, pendingSave, pendingAccept, data, isClaiming]);
+    }, [user, pendingSave, pendingAccept, pendingQuestion, data, isClaiming]);
     
     const handleAccept = async () => {
         // NEW: Require auth before accepting
@@ -818,6 +910,23 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             console.error('Error accepting quote:', err);
             toast.error('Failed to accept quote. Please try again.');
         }
+    };
+    
+    // Handle Ask Question - requires auth, then redirects to messages
+    const handleAskQuestion = () => {
+        if (!user) {
+            setPendingQuestion(true);
+            setShowAuth(true);
+            return;
+        }
+        
+        // Redirect to app with message context
+        const messageParams = new URLSearchParams({
+            from: 'quote',
+            openChat: data.contractorId,
+            quoteId: data.quote.id
+        });
+        window.location.href = `${window.location.origin}/app?${messageParams.toString()}`;
     };
     
     const handleDecline = async (reason) => {
@@ -852,7 +961,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                     <QuoteAuthScreen
                         quote={data.quote}
                         contractor={data.contractor}
-                        action={pendingAccept ? 'accept' : 'save'}
+                        action={pendingAccept ? 'accept' : pendingQuestion ? 'question' : 'save'}
                         onSuccess={() => {
                             // Auth success - useEffect will handle the save/accept
                         }}
@@ -860,6 +969,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                             setShowAuth(false);
                             setPendingSave(false);
                             setPendingAccept(false);
+                            setPendingQuestion(false);
                         }}
                     />
                 </div>
@@ -882,6 +992,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 onAccept={handleAccept}
                 onDecline={handleDecline}
                 onSave={handleSaveQuote}
+                onAskQuestion={handleAskQuestion}
                 isSaving={isClaiming}
                 alreadyClaimed={alreadyClaimed}
             />
