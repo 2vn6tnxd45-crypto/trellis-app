@@ -3,14 +3,14 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Added Chat/Messages functionality
+// UPDATED: Added Chat/Messages functionality and Profile Credentials
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase,
+    Briefcase, BadgeCheck, Award, CreditCard,
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
@@ -112,6 +112,18 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
+// CONSTANTS
+// ============================================
+const PAYMENT_METHOD_OPTIONS = [
+    'Credit Card',
+    'Debit Card', 
+    'Check',
+    'Cash',
+    'Bank Transfer',
+    'Financing Available'
+];
+
+// ============================================
 // HELPER: Date Comparison
 // ============================================
 const isSameDay = (d1, d2) => {
@@ -137,8 +149,8 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
     >
         <Icon size={20} />
         <span className="font-medium">{label}</span>
-        {badge !== undefined && badge > 0 && (
-            <span className="ml-auto bg-emerald-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+        {badge > 0 && (
+            <span className="ml-auto bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {badge}
             </span>
         )}
@@ -146,164 +158,88 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
 );
 
 // ============================================
-// SIDEBAR NAV - UPDATED with Messages
+// SIDEBAR
 // ============================================
-const SidebarNav = ({ 
-    profile, 
-    activeView, 
-    onNavigate, 
-    onSignOut,
-    pendingCount,
-    pendingQuotesCount,
-    activeJobsCount,
-    unscheduledJobsCount,
-    unreadMessageCount // NEW
-}) => {
-    const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
-    const email = profile?.profile?.email || '';
-    
-    return (
-        <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col sticky top-0 h-screen">
-            {/* Logo */}
-            <div className="p-4 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                    <div className="bg-emerald-100 p-2 rounded-xl">
-                        <Logo className="h-6 w-6" />
+const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount }) => (
+    <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0">
+        {/* Logo */}
+        <div className="p-6 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+                {profile?.profile?.logoUrl ? (
+                    <img src={profile.profile.logoUrl} alt="Logo" className="h-10 w-10 rounded-xl object-cover" />
+                ) : (
+                    <div className="h-10 w-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+                        <Logo className="h-6 w-6 text-emerald-700" />
                     </div>
-                    <div>
-                        <h1 className="font-bold text-slate-800">krib</h1>
-                        <p className="text-xs text-slate-500">Pro Dashboard</p>
-                    </div>
+                )}
+                <div>
+                    <p className="font-bold text-slate-800">{profile?.profile?.companyName || 'My Business'}</p>
+                    <p className="text-xs text-slate-400">Pro Dashboard</p>
                 </div>
             </div>
+        </div>
+        
+        {/* Nav */}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            <NavItem icon={Home} label="Dashboard" active={activeView === 'dashboard'} onClick={() => onNavigate('dashboard')} />
+            <NavItem icon={Briefcase} label="Jobs" active={activeView === 'jobs'} onClick={() => onNavigate('jobs')} badge={unscheduledJobsCount} />
+            <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
+            <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
+            <NavItem icon={FileText} label="Quotes" active={['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView)} onClick={() => onNavigate('quotes')} badge={pendingQuotesCount} />
+            <NavItem icon={ScrollIcon} label="Invoices" active={['invoices', 'create-invoice'].includes(activeView)} onClick={() => onNavigate('invoices')} />
             
-            {/* Profile Summary */}
-            <div className="p-4 border-b border-slate-100">
-                <p className="font-bold text-slate-800 truncate">{companyName}</p>
-                <p className="text-xs text-slate-500 truncate">{email}</p>
+            <div className="pt-4 mt-4 border-t border-slate-100">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
+                <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
+                <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
             </div>
             
-            {/* Nav Items */}
-            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                <NavItem 
-                    icon={Home}
-                    label="Dashboard"
-                    active={activeView === 'dashboard'}
-                    onClick={() => onNavigate('dashboard')}
-                />
-                <NavItem 
-                    icon={Briefcase}
-                    label="My Jobs"
-                    active={activeView === 'jobs'}
-                    onClick={() => onNavigate('jobs')}
-                    badge={activeJobsCount}
-                />
-                {/* NEW: Messages Nav Item */}
-                <NavItem 
-                    icon={MessageSquare}
-                    label="Messages"
-                    active={activeView === 'messages'}
-                    onClick={() => onNavigate('messages')}
-                    badge={unreadMessageCount}
-                />
-                <NavItem 
-                    icon={Calendar} 
-                    label="Schedule" 
-                    active={activeView === 'schedule'}
-                    onClick={() => onNavigate('schedule')}
-                    badge={unscheduledJobsCount}
-                />
-                <NavItem 
-                    icon={Receipt}
-                    label="Quotes"
-                    active={activeView === 'quotes' || activeView === 'create-quote' || activeView === 'quote-detail' || activeView === 'edit-quote'}
-                    onClick={() => onNavigate('quotes')}
-                    badge={pendingQuotesCount}
-                />
-                <NavItem 
-                    icon={ScrollIcon}
-                    label="Invoices"
-                    active={activeView === 'invoices' || activeView === 'create-invoice'}
-                    onClick={() => onNavigate('invoices')}
-                />
-                <NavItem 
-                    icon={FileText}
-                    label="Invitations"
-                    active={activeView === 'invitations'}
-                    onClick={() => onNavigate('invitations')}
-                    badge={pendingCount}
-                />
-                <NavItem 
-                    icon={Users}
-                    label="Customers"
-                    active={activeView === 'customers'}
-                    onClick={() => onNavigate('customers')}
-                />
-                <NavItem 
-                    icon={User}
-                    label="Profile"
-                    active={activeView === 'profile'}
-                    onClick={() => onNavigate('profile')}
-                />
-                <NavItem 
-                    icon={SettingsIcon}
-                    label="Settings"
-                    active={activeView === 'settings'}
-                    onClick={() => onNavigate('settings')}
-                />
-            </nav>
-            
-            {/* Sign Out */}
-            <div className="p-4 border-t border-slate-100">
-                <button
-                    onClick={onSignOut}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-                >
-                    <LogOut size={20} />
-                    <span className="font-medium">Sign Out</span>
-                </button>
+            <div className="pt-4 mt-4 border-t border-slate-100">
+                <NavItem icon={User} label="Profile" active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
+                <NavItem icon={SettingsIcon} label="Settings" active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
             </div>
-        </aside>
-    );
-};
+        </nav>
+        
+        {/* User */}
+        <div className="p-4 border-t border-slate-100">
+            <button 
+                onClick={onSignOut}
+                className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+            >
+                <LogOut size={20} />
+                <span className="font-medium">Sign Out</span>
+            </button>
+        </div>
+    </aside>
+);
 
 // ============================================
-// MOBILE NAV - UPDATED with Messages
+// MOBILE NAV
 // ============================================
-const MobileNav = ({ 
-    activeView, 
-    onNavigate, 
-    pendingCount, 
-    pendingQuotesCount, 
-    activeJobsCount, 
-    unscheduledJobsCount,
-    unreadMessageCount // NEW
-}) => (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
-        <div className="flex items-center justify-around">
+const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount }) => (
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-40">
+        <div className="flex justify-around items-center">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
-                { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: activeJobsCount },
-                { id: 'messages', icon: MessageSquare, label: 'Chat', badge: unreadMessageCount }, // NEW: Replaced Schedule with Messages on mobile
-                { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount },
-                { id: 'profile', icon: User, label: 'Profile' },
+                { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: unscheduledJobsCount },
+                { id: 'messages', icon: MessageSquare, label: 'Messages', badge: unreadMessageCount },
+                { id: 'quotes', icon: FileText, label: 'Quotes', badge: pendingQuotesCount },
+                { id: 'settings', icon: SettingsIcon, label: 'Settings' }
             ].map(item => (
                 <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-colors relative ${
-                        activeView === item.id || 
-                        (item.id === 'invoices' && activeView === 'create-invoice') ||
-                        (item.id === 'quotes' && ['create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
-                            ? 'text-emerald-600'
+                    className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
+                        activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                            ? 'text-emerald-600' 
                             : 'text-slate-400'
                     }`}
                 >
                     <item.icon size={22} />
-                    <span className="text-[10px] font-medium">{item.label}</span>
+                    <span className="text-xs mt-1 font-medium">{item.label}</span>
                     {item.badge > 0 && (
-                        <span className="absolute top-1 right-2 h-4 w-4 bg-emerald-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                            {item.badge}
+                        <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                            {item.badge > 9 ? '9+' : item.badge}
                         </span>
                     )}
                 </button>
@@ -313,318 +249,125 @@ const MobileNav = ({
 );
 
 // ============================================
-// MOBILE HEADER
+// HELPER FUNCTIONS
 // ============================================
-const MobileHeader = ({ title, onMenuClick, onCreateInvitation }) => (
-    <header className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-3">
-            <div className="bg-emerald-100 p-1.5 rounded-lg">
-                <Logo className="h-5 w-5" />
+const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+const formatDate = (date) => {
+    if (!date) return 'N/A';
+    const d = date.toDate ? date.toDate() : new Date(date);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+// ============================================
+// JOBS VIEW
+// ============================================
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
+    const activeJobs = jobs.filter(j => !['completed', 'cancelled'].includes(j.status));
+    const completedJobs = jobs.filter(j => j.status === 'completed');
+    
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'scheduled': return 'bg-blue-100 text-blue-700';
+            case 'in_progress': return 'bg-amber-100 text-amber-700';
+            case 'completed': return 'bg-emerald-100 text-emerald-700';
+            case 'pending_schedule': 
+            case 'slots_offered':
+            case 'quoted':
+            case 'accepted':
+                return 'bg-purple-100 text-purple-700';
+            case 'pending_completion_approval': return 'bg-orange-100 text-orange-700';
+            case 'completion_rejected': return 'bg-red-100 text-red-700';
+            default: return 'bg-slate-100 text-slate-600';
+        }
+    };
+    
+    const getStatusLabel = (status) => {
+        switch (status) {
+            case 'pending_schedule': return 'Needs Scheduling';
+            case 'slots_offered': return 'Awaiting Response';
+            case 'scheduled': return 'Scheduled';
+            case 'in_progress': return 'In Progress';
+            case 'completed': return 'Completed';
+            case 'quoted': return 'Quote Accepted';
+            case 'accepted': return 'Needs Scheduling';
+            case 'pending_completion_approval': return 'Pending Approval';
+            case 'completion_rejected': return 'Needs Resubmission';
+            default: return status;
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
             </div>
-            <span className="font-bold text-slate-800">{title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-            <button className="p-2 text-slate-400 hover:text-slate-600">
-                <Bell size={20} />
-            </button>
-        </div>
-    </header>
-);
-
-// ============================================
-// JOB STATUS CONFIG - UPDATED with completion statuses
-// ============================================
-const JOB_STATUS_CONFIG = {
-    pending_schedule: {
-        label: 'Needs Scheduling',
-        color: 'bg-amber-100 text-amber-700',
-        icon: Clock
-    },
-    scheduled: {
-        label: 'Scheduled',
-        color: 'bg-blue-100 text-blue-700',
-        icon: Calendar
-    },
-    in_progress: {
-        label: 'In Progress',
-        color: 'bg-purple-100 text-purple-700',
-        icon: Briefcase
-    },
-    pending_completion: {
-        label: 'Awaiting Review',
-        color: 'bg-purple-100 text-purple-700',
-        icon: ClipboardCheck
-    },
-    revision_requested: {
-        label: 'Revision Requested',
-        color: 'bg-amber-100 text-amber-700',
-        icon: AlertTriangle
-    },
-    completed: {
-        label: 'Completed',
-        color: 'bg-emerald-100 text-emerald-700',
-        icon: CheckCircle
-    },
-    cancelled: {
-        label: 'Cancelled',
-        color: 'bg-slate-100 text-slate-500',
-        icon: AlertCircle
-    },
-    scheduling: {
-        label: 'Scheduling',
-        color: 'bg-purple-100 text-purple-700',
-        icon: Calendar
-    },
-    pending: {
-        label: 'Pending',
-        color: 'bg-amber-100 text-amber-700',
-        icon: Clock
-    },
-    quoted: {
-        label: 'Quote Accepted',
-        color: 'bg-emerald-100 text-emerald-700',
-        icon: CheckCircle
+        );
     }
-};
-
-// ============================================
-// HELPER: Format Date
-// ============================================
-const formatDate = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric'
-    });
-};
-
-// ============================================
-// HELPER: Format Currency
-// ============================================
-const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(amount || 0);
-};
-
-// --- ENHANCED JOBS VIEW - UPDATED with completion button ---
-const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
-    const [filter, setFilter] = useState('active');
-    
-    const activeJobs = jobs?.filter(j => 
-        j.status !== 'completed' && j.status !== 'cancelled'
-    ) || [];
-    
-    const completedJobs = jobs?.filter(j => j.status === 'completed') || [];
-    
-    const displayedJobs = filter === 'active' 
-        ? activeJobs 
-        : filter === 'completed' 
-            ? completedJobs 
-            : jobs;
-
-    const getStatusConfig = (status) => {
-        return JOB_STATUS_CONFIG[status] || JOB_STATUS_CONFIG.pending;
-    };
-
-    const canCompleteJob = (job) => {
-        return ['scheduled', 'in_progress'].includes(job.status);
-    };
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
-                    <p className="text-slate-500">
-                        {activeJobs.length} active job{activeJobs.length !== 1 ? 's' : ''}
-                        {completedJobs.length > 0 && ` · ${completedJobs.length} completed`}
-                    </p>
-                </div>
-                
-                {/* Filter Tabs */}
-                <div className="flex bg-slate-100 rounded-xl p-1">
-                    {[
-                        { key: 'active', label: 'Active', count: activeJobs.length },
-                        { key: 'completed', label: 'Completed', count: completedJobs.length },
-                        { key: 'all', label: 'All', count: jobs?.length || 0 }
-                    ].map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setFilter(tab.key)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                filter === tab.key
-                                    ? 'bg-white text-slate-800 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                        >
-                            {tab.label}
-                            {tab.count > 0 && (
-                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                                    filter === tab.key ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                                }`}>
-                                    {tab.count}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                </div>
+            <div>
+                <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
+                <p className="text-slate-500">Active jobs and history</p>
             </div>
 
-            {/* Jobs List */}
-            {loading ? (
-                <div className="text-center py-10">
-                    <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/>
-                </div>
-            ) : displayedJobs?.length === 0 ? (
+            {activeJobs.length === 0 && completedJobs.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                     <Briefcase className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">
-                        {filter === 'active' ? 'No Active Jobs' : filter === 'completed' ? 'No Completed Jobs' : 'No Jobs Yet'}
-                    </h3>
-                    <p className="text-slate-500">
-                        {filter === 'active' 
-                            ? 'When customers accept your quotes, jobs will appear here.'
-                            : 'Completed jobs will appear here.'}
-                    </p>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Jobs Yet</h3>
+                    <p className="text-slate-500">Jobs from accepted quotes will appear here.</p>
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {displayedJobs.map(job => {
-                        const statusConfig = getStatusConfig(job.status);
-                        const StatusIcon = statusConfig.icon;
-                        const latestProposal = job.proposedTimes && job.proposedTimes.length > 0 
-                            ? job.proposedTimes[job.proposedTimes.length - 1] 
-                            : null;
-
+                    {activeJobs.map(job => {
+                        const showCompleteButton = job.status === 'scheduled' || job.status === 'in_progress';
+                        const showResubmitButton = job.status === 'completion_rejected';
+                        
                         return (
                             <div 
-                                key={job.id} 
-                                className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all"
+                                key={job.id}
+                                onClick={() => onJobClick(job)}
+                                className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
                             >
-                                <div 
-                                    className="cursor-pointer"
-                                    onClick={() => onSelectJob?.(job)}
-                                >
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-3 mb-2">
-                                                <h3 className="font-bold text-slate-800 text-lg truncate">
-                                                    {job.title || job.description || 'Service Request'}
-                                                </h3>
-                                                {job.sourceType === 'quote' && (
-                                                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full flex items-center gap-1 shrink-0">
-                                                        <FileText size={10} />
-                                                        {job.sourceQuoteNumber || 'Quote'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
-                                                {job.customer?.name && (
-                                                    <span className="flex items-center gap-1">
-                                                        <User size={14} />
-                                                        {job.customer.name}
-                                                    </span>
-                                                )}
-                                                {job.customer?.address && (
-                                                    <span className="flex items-center gap-1 truncate">
-                                                        <MapPin size={14} />
-                                                        {job.customer.address}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            
-                                            <div className="flex items-center gap-4 text-sm">
-                                                {job.total > 0 && (
-                                                    <span className="font-bold text-emerald-600">
-                                                        {formatCurrency(job.total)}
-                                                    </span>
-                                                )}
-                                                {job.scheduledTime && (
-                                                    <span className="text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md">
-                                                        <Calendar size={14} />
-                                                        {new Date(job.scheduledTime).toLocaleDateString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'})}
-                                                    </span>
-                                                )}
-                                                {!job.scheduledTime && latestProposal && (
-                                                    <span className="text-amber-600 font-medium flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-                                                        <Clock size={14} />
-                                                        Proposed: {new Date(latestProposal.date).toLocaleDateString([], {weekday:'short', month:'short', day:'numeric'})}
-                                                    </span>
-                                                )}
-                                                {!job.scheduledTime && !latestProposal && job.createdAt && (
-                                                    <span className="text-slate-400 text-xs">
-                                                        Created {formatDate(job.createdAt)}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-3 shrink-0">
-                                            <span className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.color}`}>
-                                                <StatusIcon size={12} />
-                                                {statusConfig.label}
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusColor(job.status)}`}>
+                                                {getStatusLabel(job.status)}
                                             </span>
-                                            <ChevronRight size={20} className="text-slate-300" />
+                                            {job.jobNumber && (
+                                                <span className="text-xs text-slate-400">#{job.jobNumber}</span>
+                                            )}
                                         </div>
+                                        <p className="font-bold text-slate-800 truncate">{job.title || job.serviceType || 'Job'}</p>
+                                        <p className="text-sm text-slate-500">{job.customer?.name || job.customerName || 'Customer'}</p>
+                                        {job.scheduledDate && (
+                                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                                <Calendar size={12} />
+                                                {formatDate(job.scheduledDate)}
+                                                {job.scheduledTime && ` at ${job.scheduledTime}`}
+                                            </p>
+                                        )}
                                     </div>
-                                </div>
-                                
-                                {/* Action buttons row */}
-                                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100">
-                                    {job.customer?.phone && (
-                                        <a 
-                                            href={`tel:${job.customer.phone}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
-                                        >
-                                            <Phone size={12} />
-                                            Call
-                                        </a>
-                                    )}
-                                    {job.customer?.email && (
-                                        <a 
-                                            href={`mailto:${job.customer.email}`}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
-                                        >
-                                            <Mail size={12} />
-                                            Email
-                                        </a>
-                                    )}
                                     
-                                    {canCompleteJob(job) && (
+                                    {showCompleteButton && (
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onCompleteJob?.(job);
+                                                onCompleteJob(job);
                                             }}
                                             className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
                                         >
-                                            <CheckCircle size={12} />
-                                            Complete Job
+                                            <ClipboardCheck size={12} />
+                                            Complete
                                         </button>
                                     )}
                                     
-                                    {job.status === 'pending_completion' && (
-                                        <span className="ml-auto px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
-                                            <ClipboardCheck size={12} />
-                                            Awaiting Customer Review
-                                        </span>
-                                    )}
-                                    
-                                    {job.status === 'revision_requested' && (
+                                    {showResubmitButton && (
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onCompleteJob?.(job);
+                                                onCompleteJob(job);
                                             }}
                                             className="ml-auto px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 flex items-center gap-1.5 transition-colors"
                                         >
@@ -690,26 +433,34 @@ const InvitationsView = ({ invitations, loading, onCreate }) => {
             </div>
 
             {loading ? (
-                <div className="text-center py-10"><div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/></div>
+                <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                </div>
             ) : invitations.length === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-                    <FileText className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <Tag className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                     <h3 className="font-bold text-slate-800 text-lg mb-2">No Invitations Yet</h3>
-                    <p className="text-slate-500 mb-4">Create your first invitation to share service records with a homeowner.</p>
-                    <button onClick={onCreate} className="px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700">Create Invitation</button>
+                    <p className="text-slate-500">Create your first invitation to start connecting with homeowners.</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100">
+                <div className="space-y-3">
                     {invitations.map(inv => {
                         const statusInfo = getStatusInfo(inv.status);
                         return (
-                            <div key={inv.id} className="p-4 hover:bg-slate-50 transition-colors">
-                                <div className="flex items-start justify-between">
+                            <div key={inv.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="font-bold text-slate-800">{inv.recordCount || 0} record(s)</p>
-                                        <p className="text-sm text-slate-500">{inv.recipientEmail || 'No email specified'}</p>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusInfo.color}`}>
+                                            {statusInfo.label}
+                                        </span>
+                                        <p className="font-medium text-slate-800 mt-1">
+                                            {inv.customerName || inv.email || 'Invitation'}
+                                        </p>
+                                        <p className="text-sm text-slate-400">
+                                            Created {formatDate(inv.createdAt)}
+                                        </p>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusInfo.color}`}>{statusInfo.label}</span>
+                                    <ChevronRight size={20} className="text-slate-300" />
                                 </div>
                             </div>
                         );
@@ -720,157 +471,69 @@ const InvitationsView = ({ invitations, loading, onCreate }) => {
     );
 };
 
-// --- ENHANCED CUSTOMERS VIEW ---
-const CustomersView = ({ customers, loading, onSelectCustomer }) => {
-    const [sortBy, setSortBy] = useState('lastContact');
-    
-    const sortedCustomers = [...(customers || [])].sort((a, b) => {
-        if (sortBy === 'totalSpend') {
-            return (b.totalSpend || 0) - (a.totalSpend || 0);
-        }
-        if (sortBy === 'totalJobs') {
-            return (b.totalJobs || 0) - (a.totalJobs || 0);
-        }
-        const aDate = a.lastContact?.toDate?.() || new Date(0);
-        const bDate = b.lastContact?.toDate?.() || new Date(0);
-        return bDate - aDate;
-    });
-
-    const totalRevenue = customers?.reduce((sum, c) => sum + (c.totalSpend || 0), 0) || 0;
-    const totalJobsCount = customers?.reduce((sum, c) => sum + (c.totalJobs || 0), 0) || 0;
-
-    return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
-                    <p className="text-slate-500">
-                        {customers?.length || 0} customer{customers?.length !== 1 ? 's' : ''} · {formatCurrency(totalRevenue)} total revenue
-                    </p>
-                </div>
-                
-                <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-600 bg-white"
-                >
-                    <option value="lastContact">Recent Activity</option>
-                    <option value="totalSpend">Highest Spend</option>
-                    <option value="totalJobs">Most Jobs</option>
-                </select>
-            </div>
-
-            {customers?.length > 0 && (
-                <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500 mb-1">Total Customers</p>
-                        <p className="text-2xl font-bold text-slate-800">{customers.length}</p>
-                    </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500 mb-1">Total Jobs</p>
-                        <p className="text-2xl font-bold text-slate-800">{totalJobsCount}</p>
-                    </div>
-                    <div className="bg-white rounded-xl border border-slate-200 p-4">
-                        <p className="text-sm text-slate-500 mb-1">Total Revenue</p>
-                        <p className="text-2xl font-bold text-emerald-600">{formatCurrency(totalRevenue)}</p>
-                    </div>
-                </div>
-            )}
-
-            {loading ? (
-                <div className="text-center py-10">
-                    <div className="animate-spin h-8 w-8 border-4 border-emerald-600 border-t-transparent rounded-full mx-auto"/>
-                </div>
-            ) : customers?.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-                    <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Customers Yet</h3>
-                    <p className="text-slate-500">When customers accept your quotes or claim invitations, they'll appear here.</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {sortedCustomers.map(customer => (
-                        <div 
-                            key={customer.id}
-                            onClick={() => onSelectCustomer?.(customer)}
-                            className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
-                        >
-                            <div className="flex items-start gap-4">
-                                <div className="h-14 w-14 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center text-white font-bold text-xl shrink-0">
-                                    {(customer.customerName || customer.email || 'C').charAt(0).toUpperCase()}
-                                </div>
-                                
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold text-slate-800 text-lg truncate">
-                                            {customer.customerName || 'Customer'}
-                                        </h3>
-                                        {customer.source === 'quote' && (
-                                            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full">
-                                                Via Quote
-                                            </span>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500 mb-3">
-                                        {customer.email && (
-                                            <a 
-                                                href={`mailto:${customer.email}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="flex items-center gap-1 hover:text-emerald-600 transition-colors"
-                                            >
-                                                <Mail size={14} />
-                                                {customer.email}
-                                            </a>
-                                        )}
-                                        {customer.phone && (
-                                            <a 
-                                                href={`tel:${customer.phone}`}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="flex items-center gap-1 hover:text-emerald-600 transition-colors"
-                                            >
-                                                <Phone size={14} />
-                                                {customer.phone}
-                                            </a>
-                                        )}
-                                        {customer.address && (
-                                            <span className="flex items-center gap-1">
-                                                <MapPin size={14} />
-                                                {customer.address}
-                                            </span>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="flex items-center gap-4 text-sm">
-                                        <span className="flex items-center gap-1 text-slate-600">
-                                            <Briefcase size={14} className="text-slate-400" />
-                                            <span className="font-medium">{customer.totalJobs || 0}</span> job{customer.totalJobs !== 1 ? 's' : ''}
-                                        </span>
-                                        <span className="font-bold text-emerald-600">
-                                            {formatCurrency(customer.totalSpend)}
-                                        </span>
-                                        {customer.lastContact && (
-                                            <span className="text-slate-400 text-xs">
-                                                Last contact: {formatDate(customer.lastContact)}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <ChevronRight size={20} className="text-slate-300 shrink-0" />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+// --- CUSTOMERS VIEW ---
+const CustomersView = ({ customers, loading }) => (
+    <div className="space-y-6">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-800">Customers</h1>
+            <p className="text-slate-500">Your connected homeowners</p>
         </div>
-    );
-};
 
-// --- PROFILE VIEW ---
+        {loading ? (
+            <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+            </div>
+        ) : customers.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                <h3 className="font-bold text-slate-800 text-lg mb-2">No Customers Yet</h3>
+                <p className="text-slate-500">Customers who claim your invitations will appear here.</p>
+            </div>
+        ) : (
+            <div className="space-y-3">
+                {customers.map(customer => (
+                    <div key={customer.id} className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-sm transition-shadow">
+                        <div className="flex items-center gap-4">
+                            <div className="h-12 w-12 bg-emerald-100 rounded-full flex items-center justify-center shrink-0">
+                                <span className="text-emerald-700 font-bold text-lg">
+                                    {(customer.customerName || 'C')[0].toUpperCase()}
+                                </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-800 truncate">{customer.customerName || 'Customer'}</p>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                                    <span className="flex items-center gap-1 truncate">
+                                        <MapPin size={12} /> {customer.propertyName || 'No property'}
+                                    </span>
+                                    <span>
+                                        {customer.jobCount || 0} job{customer.jobCount !== 1 ? 's' : ''}
+                                    </span>
+                                    <span className="font-bold text-emerald-600">
+                                        {formatCurrency(customer.totalSpend)}
+                                    </span>
+                                    {customer.lastContact && (
+                                        <span className="text-slate-400 text-xs">
+                                            Last contact: {formatDate(customer.lastContact)}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <ChevronRight size={20} className="text-slate-300 shrink-0" />
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
+    </div>
+);
+
+// --- PROFILE VIEW (UPDATED WITH CREDENTIALS) ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
     const contractorId = profile?.id || profile?.uid;
+    const [newCertification, setNewCertification] = useState('');
 
     const [formData, setFormData] = useState({
+        // Basic Info
         companyName: profile?.profile?.companyName || '',
         displayName: profile?.profile?.displayName || '',
         email: profile?.profile?.email || '',
@@ -878,14 +541,72 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
         specialty: profile?.profile?.specialty || '',
-        logoUrl: profile?.profile?.logoUrl || null
+        logoUrl: profile?.profile?.logoUrl || null,
+        // NEW: Credentials
+        yearsInBusiness: profile?.profile?.yearsInBusiness || '',
+        insured: profile?.profile?.insured || false,
+        bonded: profile?.profile?.bonded || false,
+        certifications: profile?.profile?.certifications || [],
+        paymentMethods: profile?.profile?.paymentMethods || [],
     });
     const [saving, setSaving] = useState(false);
+
+    // Update form when profile changes
+    useEffect(() => {
+        if (profile) {
+            setFormData({
+                companyName: profile?.profile?.companyName || '',
+                displayName: profile?.profile?.displayName || '',
+                email: profile?.profile?.email || '',
+                phone: profile?.profile?.phone || '',
+                address: profile?.profile?.address || '',
+                licenseNumber: profile?.profile?.licenseNumber || '',
+                specialty: profile?.profile?.specialty || '',
+                logoUrl: profile?.profile?.logoUrl || null,
+                yearsInBusiness: profile?.profile?.yearsInBusiness || '',
+                insured: profile?.profile?.insured || false,
+                bonded: profile?.profile?.bonded || false,
+                certifications: profile?.profile?.certifications || [],
+                paymentMethods: profile?.profile?.paymentMethods || [],
+            });
+        }
+    }, [profile]);
+
+    // Certification handlers
+    const addCertification = () => {
+        if (newCertification.trim() && !formData.certifications.includes(newCertification.trim())) {
+            setFormData(prev => ({
+                ...prev,
+                certifications: [...prev.certifications, newCertification.trim()]
+            }));
+            setNewCertification('');
+        }
+    };
+
+    const removeCertification = (cert) => {
+        setFormData(prev => ({
+            ...prev,
+            certifications: prev.certifications.filter(c => c !== cert)
+        }));
+    };
+
+    // Payment method toggle
+    const togglePaymentMethod = (method) => {
+        setFormData(prev => ({
+            ...prev,
+            paymentMethods: prev.paymentMethods.includes(method)
+                ? prev.paymentMethods.filter(m => m !== method)
+                : [...prev.paymentMethods, method]
+        }));
+    };
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await onUpdateProfile(formData);
+            await onUpdateProfile({
+                ...formData,
+                yearsInBusiness: formData.yearsInBusiness ? parseInt(formData.yearsInBusiness) : null,
+            });
             toast.success('Profile updated!');
         } catch (err) {
             toast.error('Failed to save profile');
@@ -901,47 +622,227 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                 <p className="text-slate-500">Your business information</p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
-                
-                <div className="pb-4 border-b border-slate-100">
-                    <LogoUpload 
-                        currentLogo={formData.logoUrl}
-                        onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
-                        contractorId={contractorId}
-                    />
-                </div>
+            {/* Logo Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-800 mb-4">Company Logo</h3>
+                <LogoUpload 
+                    currentLogo={formData.logoUrl}
+                    onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
+                    contractorId={contractorId}
+                />
+            </div>
 
+            {/* Basic Info Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+                <h3 className="font-bold text-slate-800">Basic Information</h3>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Name</label>
-                        <input type="text" value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="text" 
+                            value={formData.companyName} 
+                            onChange={(e) => setFormData({...formData, companyName: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Name</label>
-                        <input type="text" value={formData.displayName} onChange={(e) => setFormData({...formData, displayName: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="text" 
+                            value={formData.displayName} 
+                            onChange={(e) => setFormData({...formData, displayName: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
-                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="email" 
+                            value={formData.email} 
+                            onChange={(e) => setFormData({...formData, email: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
-                        <input type="tel" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="tel" 
+                            value={formData.phone} 
+                            onChange={(e) => setFormData({...formData, phone: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Business Address</label>
-                        <input type="text" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="text" 
+                            value={formData.address} 
+                            onChange={(e) => setFormData({...formData, address: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">License Number</label>
-                        <input type="text" value={formData.licenseNumber} onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})} className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <input 
+                            type="text" 
+                            value={formData.licenseNumber} 
+                            onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})} 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Specialty</label>
-                        <input type="text" value={formData.specialty} onChange={(e) => setFormData({...formData, specialty: e.target.value})} placeholder="e.g., HVAC, Plumbing" className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Years in Business</label>
+                        <input 
+                            type="number" 
+                            min="0"
+                            value={formData.yearsInBusiness} 
+                            onChange={(e) => setFormData({...formData, yearsInBusiness: e.target.value})} 
+                            placeholder="e.g. 15"
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
+                    </div>
+                    <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Specialty / Trade</label>
+                        <input 
+                            type="text" 
+                            value={formData.specialty} 
+                            onChange={(e) => setFormData({...formData, specialty: e.target.value})} 
+                            placeholder="e.g., HVAC, Plumbing, Electrical" 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        />
                     </div>
                 </div>
-                <button onClick={handleSave} disabled={saving} className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50">
+            </div>
+
+            {/* Insurance & Bonding Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-800 mb-2">Insurance & Bonding</h3>
+                <p className="text-sm text-slate-500 mb-4">These badges will appear on your quotes to build customer trust.</p>
+                
+                <div className="flex flex-wrap gap-3">
+                    <label 
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            formData.insured 
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                                : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={formData.insured}
+                            onChange={(e) => setFormData({ ...formData, insured: e.target.checked })}
+                            className="sr-only"
+                        />
+                        <Shield size={18} className={formData.insured ? 'text-emerald-600' : 'text-slate-400'} />
+                        <span className="font-medium">Fully Insured</span>
+                        {formData.insured && <CheckCircle size={16} className="text-emerald-600" />}
+                    </label>
+                    
+                    <label 
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                            formData.bonded 
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                                : 'border-slate-200 hover:border-slate-300'
+                        }`}
+                    >
+                        <input
+                            type="checkbox"
+                            checked={formData.bonded}
+                            onChange={(e) => setFormData({ ...formData, bonded: e.target.checked })}
+                            className="sr-only"
+                        />
+                        <BadgeCheck size={18} className={formData.bonded ? 'text-emerald-600' : 'text-slate-400'} />
+                        <span className="font-medium">Bonded</span>
+                        {formData.bonded && <CheckCircle size={16} className="text-emerald-600" />}
+                    </label>
+                </div>
+            </div>
+
+            {/* Certifications Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-800 mb-2">Certifications</h3>
+                <p className="text-sm text-slate-500 mb-4">Add any professional certifications or licenses.</p>
+                
+                <div className="flex gap-2 mb-3">
+                    <div className="relative flex-1">
+                        <Award className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                        <input
+                            type="text"
+                            value={newCertification}
+                            onChange={(e) => setNewCertification(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCertification())}
+                            placeholder="e.g. EPA Certified, NATE Certified, Master Plumber"
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={addCertification}
+                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors"
+                    >
+                        <Plus size={18} />
+                    </button>
+                </div>
+                
+                {formData.certifications.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                        {formData.certifications.map((cert, idx) => (
+                            <span 
+                                key={idx}
+                                className="inline-flex items-center gap-1 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm"
+                            >
+                                <Award size={14} />
+                                {cert}
+                                <button
+                                    type="button"
+                                    onClick={() => removeCertification(cert)}
+                                    className="ml-1 hover:text-red-600 transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-400 italic">No certifications added yet</p>
+                )}
+            </div>
+
+            {/* Payment Methods Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h3 className="font-bold text-slate-800 mb-2">Accepted Payment Methods</h3>
+                <p className="text-sm text-slate-500 mb-4">Let customers know how they can pay you.</p>
+                
+                <div className="flex flex-wrap gap-2">
+                    {PAYMENT_METHOD_OPTIONS.map(method => (
+                        <label 
+                            key={method}
+                            className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${
+                                formData.paymentMethods.includes(method)
+                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                    : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                            }`}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={formData.paymentMethods.includes(method)}
+                                onChange={() => togglePaymentMethod(method)}
+                                className="sr-only"
+                            />
+                            {method}
+                        </label>
+                    ))}
+                </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end">
+                <button 
+                    onClick={handleSave} 
+                    disabled={saving} 
+                    className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 transition-colors"
+                >
                     {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
                     Save Changes
                 </button>
@@ -962,6 +863,14 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
 
     const isGoogleUser = user?.providerData?.some(p => p.providerId === 'google.com');
     const isEmailUser = user?.providerData?.some(p => p.providerId === 'password');
+
+    const resetAndClose = () => {
+        setStep(1);
+        setPassword('');
+        setConfirmText('');
+        setError('');
+        onClose();
+    };
 
     const handleReauthenticate = async () => {
         setError('');
@@ -1009,18 +918,11 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
             if (err.code === 'auth/requires-recent-login') {
                 setError('Security timeout. Please refresh the page and try again immediately.');
             } else {
-                setError(err.message.replace('Firebase: ', ''));
+                setError(err.message || 'Failed to delete account');
             }
+        } finally {
             setIsDeleting(false);
         }
-    };
-
-    const resetAndClose = () => {
-        setStep(1);
-        setPassword('');
-        setConfirmText('');
-        setError('');
-        onClose();
     };
 
     if (!isOpen) return null;
@@ -1028,16 +930,16 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={resetAndClose} />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 {/* Header */}
-                <div className="p-6 bg-red-50 border-b border-red-100">
+                <div className="p-6 border-b border-slate-100">
                     <div className="flex items-center gap-3">
-                        <div className="p-3 bg-red-100 rounded-full">
-                            <AlertTriangle className="h-6 w-6 text-red-600" />
+                        <div className="h-10 w-10 bg-red-100 rounded-full flex items-center justify-center">
+                            <AlertTriangle className="h-5 w-5 text-red-600" />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-red-900">Delete Account</h2>
-                            <p className="text-sm text-red-700">This action cannot be undone</p>
+                            <h2 className="text-lg font-bold text-slate-800">Delete Account</h2>
+                            <p className="text-sm text-slate-500">This action cannot be undone</p>
                         </div>
                     </div>
                 </div>
@@ -1052,48 +954,32 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
 
                     {step === 1 && (
                         <>
-                            <p className="text-slate-600">
-                                To delete your account, please verify your identity first.
-                            </p>
-                            
-                            {isGoogleUser ? (
-                                <button
-                                    onClick={handleReauthenticate}
-                                    className="w-full p-3 border border-slate-300 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-50 transition-colors font-medium"
-                                >
-                                    <svg className="h-5 w-5" viewBox="0 0 24 24">
-                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                                    </svg>
-                                    Verify with Google
-                                </button>
-                            ) : isEmailUser ? (
-                                <div className="space-y-3">
-                                    <label className="block">
-                                        <span className="text-sm font-medium text-slate-700">Enter your password</span>
-                                        <input
-                                            type="password"
-                                            value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
-                                            className="mt-1 w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
-                                            placeholder="••••••••"
-                                        />
-                                    </label>
+                            {isGoogleUser && (
+                                <div className="space-y-4">
+                                    <p className="text-slate-600">
+                                        To verify your identity, please re-authenticate with Google.
+                                    </p>
                                     <button
                                         onClick={handleReauthenticate}
-                                        disabled={!password}
-                                        className="w-full py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
                                     >
-                                        Continue
+                                        Verify with Google
                                     </button>
                                 </div>
-                            ) : (
-                                <div className="text-center">
-                                    <p className="text-slate-600 mb-4">
-                                        Please re-authenticate to continue.
+                            )}
+                            
+                            {isEmailUser && !isGoogleUser && (
+                                <div className="space-y-4">
+                                    <p className="text-slate-600">
+                                        Enter your password to verify your identity.
                                     </p>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Your password"
+                                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    />
                                     <button
                                         onClick={handleReauthenticate}
                                         className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
@@ -1194,26 +1080,37 @@ const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
     return (
         <div className="space-y-6 max-w-2xl">
             <div>
-                <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-                <p className="text-slate-500">Manage your preferences</p>
+                <h2 className="text-xl font-bold text-slate-800">Account Settings</h2>
+                <p className="text-slate-500">Manage your notifications and account</p>
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
                 <h3 className="font-bold text-slate-800">Notifications</h3>
+                
                 {[
                     { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive updates via email' },
                     { key: 'smsNotifications', label: 'SMS Notifications', desc: 'Receive text message alerts' },
-                    { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Get a summary of your activity' },
+                    { key: 'weeklyDigest', label: 'Weekly Digest', desc: 'Summary of activity each week' }
                 ].map(item => (
-                    <label key={item.key} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl cursor-pointer">
+                    <label key={item.key} className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 cursor-pointer">
                         <div>
                             <p className="font-medium text-slate-800">{item.label}</p>
                             <p className="text-sm text-slate-500">{item.desc}</p>
                         </div>
-                        <input type="checkbox" checked={settings[item.key]} onChange={(e) => setSettings({...settings, [item.key]: e.target.checked})} className="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500" />
+                        <input
+                            type="checkbox"
+                            checked={settings[item.key]}
+                            onChange={(e) => setSettings({...settings, [item.key]: e.target.checked})}
+                            className="h-5 w-5 text-emerald-600 rounded focus:ring-emerald-500"
+                        />
                     </label>
                 ))}
-                <button onClick={handleSaveSettings} disabled={saving} className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50">
+                
+                <button 
+                    onClick={handleSaveSettings} 
+                    disabled={saving} 
+                    className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50"
+                >
                     {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
                     Save Settings
                 </button>
@@ -1272,43 +1169,51 @@ export const ContractorProApp = () => {
     // Data hooks
     const { invitations, loading: invitationsLoading, pendingInvitations } = useInvitations(user?.uid);
     const { customers, loading: customersLoading, byLastContact: customersByLastContact } = useCustomers(user?.uid);
-    const { stats, loading: statsLoading } = useDashboardStats(user?.uid);
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
-    const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
     
-    // Quote Hooks
-    const contractorId = profile?.id || user?.uid;
+    // Quote hooks
+    const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
+    const { templates: quoteTemplates } = useQuoteTemplates(user?.uid);
     const { 
-        quotes, 
-        pendingQuotes, 
-        acceptedQuotes,
-        loading: quotesLoading 
-    } = useQuotes(contractorId);
-    
-    const { templates: quoteTemplates } = useQuoteTemplates(contractorId);
-    
-    const { 
-        create: createQuoteFn, 
-        update: updateQuoteFn, 
-        remove: deleteQuoteFn, 
-        send: sendQuoteFn,
+        createQuote: createQuoteFn,
+        updateQuote: updateQuoteFn,
+        deleteQuote: deleteQuoteFn,
+        sendQuote: sendQuoteFn,
         getShareLink,
         isCreating: isCreatingQuote,
         isUpdating: isUpdatingQuote,
         isSending: isSendingQuote
-    } = useQuoteOperations(contractorId);
-    
-    const activeJobsCount = jobs?.filter(j => 
-        j.status !== 'completed' && j.status !== 'cancelled'
-    ).length || 0;
+    } = useQuoteOperations(user?.uid);
 
-    const unscheduledJobsCount = useMemo(() => {
+    const contractorId = user?.uid;
+
+    // Derived data
+    const pendingQuotes = useMemo(() => {
+        return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
+    }, [quotes]);
+    
+    const activeJobsCount = useMemo(() => {
         return jobs?.filter(job => 
-            !job.scheduledTime && 
-            !job.scheduledDate &&
             !['completed', 'cancelled'].includes(job.status)
         ).length || 0;
     }, [jobs]);
+
+    const unscheduledJobsCount = useMemo(() => {
+        return jobs?.filter(job => 
+            ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(job.status)
+        ).length || 0;
+    }, [jobs]);
+
+    const scheduledJobs = useMemo(() => {
+        return jobs?.filter(job => 
+            job.status === 'scheduled' && job.scheduledDate
+        ) || [];
+    }, [jobs]);
+
+    const todaysJobs = useMemo(() => {
+        const today = new Date();
+        return scheduledJobs.filter(job => isSameDay(job.scheduledDate, today));
+    }, [scheduledJobs]);
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
 
@@ -1341,6 +1246,12 @@ export const ContractorProApp = () => {
                 if (formData.profile.address) updates['profile.address'] = formData.profile.address;
                 if (formData.profile.licenseNumber) updates['profile.licenseNumber'] = formData.profile.licenseNumber;
                 if (formData.profile.logoUrl) updates['profile.logoUrl'] = formData.profile.logoUrl;
+                // NEW: Credential fields
+                if (formData.profile.yearsInBusiness !== undefined) updates['profile.yearsInBusiness'] = formData.profile.yearsInBusiness;
+                if (formData.profile.insured !== undefined) updates['profile.insured'] = formData.profile.insured;
+                if (formData.profile.bonded !== undefined) updates['profile.bonded'] = formData.profile.bonded;
+                if (formData.profile.certifications) updates['profile.certifications'] = formData.profile.certifications;
+                if (formData.profile.paymentMethods) updates['profile.paymentMethods'] = formData.profile.paymentMethods;
             }
             
             if (formData.scheduling) {
@@ -1472,12 +1383,12 @@ export const ContractorProApp = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
             case 'jobs': return 'My Jobs'; 
-            case 'messages': return 'Messages'; // NEW
+            case 'messages': return 'Messages';
             case 'schedule': return 'Schedule'; 
             case 'quotes': return 'Quotes'; 
             case 'create-quote': return 'New Quote'; 
             case 'quote-detail': return 'Quote Details'; 
-            case 'edit-quote': return 'Edit Quote'; 
+            case 'edit-quote': return 'Edit Quote';
             case 'invoices': return 'Invoices';
             case 'create-invoice': return 'New Invoice';
             case 'invitations': return 'Invitations';
@@ -1487,136 +1398,138 @@ export const ContractorProApp = () => {
             default: return 'Dashboard';
         }
     };
-    
-    if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-slate-500">Loading...</p></div>;
-    
-    if (!isAuthenticated) return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} loading={authLoading} error={authError} onClearError={clearError} />;
-    
-    const isProfileComplete = profile?.profile?.companyName && profile?.profile?.phone;
 
-    if (!isProfileComplete) {
+    // Loading
+    if (authLoading) {
         return (
-            <SetupBusinessProfile 
-                profile={profile} 
-                onSave={handleInitialSetup} 
-                saving={isSavingProfile} 
-            />
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <div className="text-center">
+                    <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
+                    <p className="text-slate-500">Loading...</p>
+                </div>
+            </div>
         );
+    }
+    
+    // Auth
+    if (!user) {
+        return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} error={authError} clearError={clearError} />;
+    }
+    
+    // Setup
+    if (profile && !profile.profile?.companyName) {
+        return <SetupBusinessProfile profile={profile} onSave={handleInitialSetup} saving={isSavingProfile} />;
     }
 
     return (
         <div className="min-h-screen bg-slate-50 flex">
-            <Toaster position="top-center" />
-            <SidebarNav 
-                profile={profile} 
+            <Toaster position="top-right" />
+            
+            <Sidebar 
                 activeView={activeView} 
                 onNavigate={handleNavigate} 
-                onSignOut={signOut} 
+                profile={profile}
+                onSignOut={signOut}
                 pendingCount={pendingInvitations.length}
                 pendingQuotesCount={pendingQuotes?.length || 0}
                 activeJobsCount={activeJobsCount}
                 unscheduledJobsCount={unscheduledJobsCount}
-                unreadMessageCount={unreadMessageCount} // NEW
+                unreadMessageCount={unreadMessageCount}
             />
             
-            <div className="flex-1 flex flex-col min-h-screen">
-                <MobileHeader title={getViewTitle()} onCreateInvitation={handleCreateInvitation} />
+            <div className="flex-1 flex flex-col min-h-screen pb-20 lg:pb-0">
+                {/* Mobile Header */}
+                <header className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            {profile?.profile?.logoUrl ? (
+                                <img src={profile.profile.logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-cover" />
+                            ) : (
+                                <div className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                    <Logo className="h-5 w-5 text-emerald-700" />
+                                </div>
+                            )}
+                            <h1 className="font-bold text-slate-800">{getViewTitle()}</h1>
+                        </div>
+                        <button className="p-2 hover:bg-slate-100 rounded-lg relative">
+                            <Bell size={20} className="text-slate-500" />
+                            {(pendingInvitations.length + unscheduledJobsCount) > 0 && (
+                                <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
+                            )}
+                        </button>
+                    </div>
+                </header>
                 
-                <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8">
+                {/* Main Content */}
+                <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">
                     {activeView === 'dashboard' && (
                         <DashboardOverview 
-                            profile={profile} 
-                            stats={stats} 
-                            invitations={invitations} 
-                            customers={customersByLastContact} 
-                            loading={statsLoading} 
-                            onCreateInvitation={handleCreateInvitation} 
-                            onViewAllInvitations={() => handleNavigate('invitations')} 
-                            onViewAllCustomers={() => handleNavigate('customers')} 
+                            profile={profile}
+                            invitations={invitations}
+                            customers={customers}
+                            jobs={jobs}
+                            quotes={quotes}
+                            onNavigate={handleNavigate}
+                            onJobClick={handleJobClick}
                         />
                     )}
                     
                     {activeView === 'jobs' && (
                         <JobsView 
                             jobs={jobs} 
-                            loading={jobsLoading} 
-                            onSelectJob={handleJobClick}
+                            loading={jobsLoading}
+                            onJobClick={handleJobClick}
                             onCompleteJob={handleCompleteJob}
                         />
                     )}
 
-                    {/* NEW: Messages View */}
                     {activeView === 'messages' && (
-                        <ContractorMessagesView 
-                            contractorId={user.uid}
-                            contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
-                        />
+                        <ContractorMessagesView contractorId={contractorId} />
                     )}
-                    
+
                     {activeView === 'schedule' && (
-                        <div className="space-y-4">
-                            <div className="flex bg-slate-100 rounded-xl p-1">
-                                <button
-                                    onClick={() => setScheduleView('calendar')}
-                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                        scheduleView === 'calendar' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    Calendar
-                                </button>
-                                <button
-                                    onClick={() => setScheduleView('drag')}
-                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                        scheduleView === 'drag' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    Drag & Drop
-                                </button>
-                                <button
-                                    onClick={() => setScheduleView('route')}
-                                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                        scheduleView === 'route' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                                >
-                                    Route
-                                </button>
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between flex-wrap gap-4">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
+                                    <p className="text-slate-500">
+                                        {todaysJobs.length} job{todaysJobs.length !== 1 ? 's' : ''} today
+                                    </p>
+                                </div>
+                                
                                 {hasTeam && (
-                                    <button
-                                        onClick={() => setScheduleView('team')}
-                                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${
-                                            scheduleView === 'team' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                    >
-                                        Team
-                                    </button>
+                                    <div className="flex bg-slate-100 rounded-xl p-1">
+                                        <button
+                                            onClick={() => setScheduleView('calendar')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                scheduleView === 'calendar' 
+                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            Calendar
+                                        </button>
+                                        <button
+                                            onClick={() => setScheduleView('team')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                scheduleView === 'team' 
+                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            Team View
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-                            
+
                             {scheduleView === 'calendar' && (
-                                <ContractorCalendar 
-                                    jobs={jobs}
-                                    onSelectJob={handleJobClick}
-                                    onOfferTimes={(job) => setOfferingTimesJob(job)}
-                                    onCreateJob={() => setActiveView('create-quote')}
-                                />
-                            )}
-                            {scheduleView === 'drag' && (
                                 <DragDropCalendar 
-                                    jobs={jobs}
-                                    preferences={profile?.scheduling}
-                                    onJobUpdate={() => {}}
+                                    jobs={scheduledJobs}
+                                    selectedDate={selectedDate}
+                                    onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
-                                />
-                            )}
-                            {scheduleView === 'route' && (
-                                <RouteVisualization 
-                                    jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
-                                    date={selectedDate}
-                                    preferences={profile?.scheduling}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
-                                    onJobClick={handleJobClick}
-                                    onReorder={() => {}}
-                                    onDateChange={(date) => setSelectedDate(date)}
                                 />
                             )}
                             {scheduleView === 'team' && (
@@ -1710,10 +1623,11 @@ export const ContractorProApp = () => {
                     pendingQuotesCount={pendingQuotes?.length || 0}
                     activeJobsCount={activeJobsCount}
                     unscheduledJobsCount={unscheduledJobsCount}
-                    unreadMessageCount={unreadMessageCount} // NEW
+                    unreadMessageCount={unreadMessageCount}
                 />
             </div>
 
+            {/* Job Detail Modal */}
             {selectedJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
@@ -1723,49 +1637,56 @@ export const ContractorProApp = () => {
                                 <h3 className="font-bold text-slate-800">Manage Job</h3>
                                 <p className="text-xs text-slate-500">{selectedJob.customerName || 'Customer'}</p>
                             </div>
-                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-lg">
                                 <X size={20} className="text-slate-400" />
                             </button>
                         </div>
-                        <div className="flex-grow overflow-hidden bg-slate-50">
+                        <div className="p-4 overflow-y-auto flex-1">
                             <JobScheduler 
-                                job={jobs.find(j => j.id === selectedJob.id) || selectedJob} 
-                                userType="contractor" 
-                                contractorId={profile?.id || user?.uid} 
-                                onUpdate={() => {}} 
+                                job={selectedJob}
+                                contractorId={contractorId}
+                                contractorProfile={profile}
+                                onClose={() => setSelectedJob(null)}
                             />
                         </div>
                     </div>
                 </div>
             )}
-            
+
+            {/* Offer Time Slots Modal */}
             {offeringTimesJob && (
                 <OfferTimeSlotsModal
                     job={offeringTimesJob}
-                    allJobs={jobs}
-                    schedulingPreferences={profile?.scheduling}
+                    contractorId={contractorId}
+                    workingHours={profile?.scheduling?.workingHours}
                     onClose={() => setOfferingTimesJob(null)}
-                    onSuccess={() => setOfferingTimesJob(null)}
                 />
             )}
 
+            {/* Job Completion Modal */}
             {completingJob && (
-                <JobCompletionForm
-                    job={jobs.find(j => j.id === completingJob.id) || completingJob}
-                    contractorId={profile?.id || user?.uid}
-                    onSuccess={() => handleCompletionSuccess(completingJob)}
-                    onClose={() => setCompletingJob(null)}
-                />
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCompletingJob(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+                        <JobCompletionForm
+                            job={completingJob}
+                            contractorId={contractorId}
+                            onClose={() => setCompletingJob(null)}
+                            onSuccess={() => handleCompletionSuccess(completingJob)}
+                        />
+                    </div>
+                </div>
             )}
 
+            {/* Rate Homeowner Modal */}
             {ratingHomeowner && (
                 <RateHomeownerModal
                     job={ratingHomeowner}
-                    contractorId={profile?.id || user?.uid}
+                    contractorId={contractorId}
                     onClose={() => setRatingHomeowner(null)}
                     onSuccess={() => {
                         setRatingHomeowner(null);
-                        toast.success('Rating submitted!');
+                        toast.success('Thanks for your feedback!');
                     }}
                 />
             )}
