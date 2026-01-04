@@ -1207,6 +1207,7 @@ export const ContractorProApp = () => {
     
     // UPDATED: Handle Initial Setup with split data
     const handleInitialSetup = async (formData) => {
+        console.log("handleInitialSetup called with:", formData); // Debug Log
         setIsSavingProfile(true);
         try {
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, user.uid);
@@ -1222,17 +1223,16 @@ export const ContractorProApp = () => {
                 updates['profile.logoUrl'] = formData.profile.logoUrl;
             }
             
-            // Merge scheduling fields (root level 'scheduling' map)
+            // Merge scheduling fields
             if (formData.scheduling) {
                 updates['scheduling'] = formData.scheduling;
             } else {
-                // Fallback for flat structure
                 updates['profile.companyName'] = formData.companyName;
                 updates['profile.phone'] = formData.phone;
                 updates['profile.address'] = formData.address;
             }
 
-            // Using setDoc with merge: true to create if not exists
+            // Using setDoc with merge: true
             await setDoc(contractorRef, updates, { merge: true });
             
             toast.success("Profile setup complete!");
