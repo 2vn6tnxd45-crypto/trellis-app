@@ -1,561 +1,587 @@
 // src/features/contractor-pro/lib/schedulingAI.js
 // ============================================
-// SCHEDULING AI - Smart Suggestion Engine
+// AI SCHEDULING SERVICE
 // ============================================
-// Analyzes schedule, jobs, and preferences to suggest optimal times
+// Smart job assignment and scheduling optimization
+// Considers: skills, availability, capacity, location, workload balance
+
+import { db } from '../../../config/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+
+// ============================================
+// CONSTANTS
+// ============================================
+
+const SCORING_WEIGHTS = {
+    SKILL_MATCH: 50,          // Tech has required skills
+    CERTIFICATION_MATCH: 30,  // Tech has relevant certs
+    AVAILABILITY: 40,         // Tech is working that day
+    CAPACITY: 30,             // Tech has room for more jobs
+    PROXIMITY: 25,            // Job is near tech's other jobs
+    WORKLOAD_BALANCE: 20,     // Prefer less-loaded techs
+    PREFERRED_ZONE: 15,       // Job in tech's preferred area
+    TRAVEL_DISTANCE: -2,      // Penalty per mile beyond base radius
+};
+
+// Job type to skill mapping
+const JOB_SKILL_MAP = {
+    'HVAC': ['HVAC', 'Heating', 'Cooling', 'AC'],
+    'Plumbing': ['Plumbing', 'Drains', 'Water Heater'],
+    'Electrical': ['Electrical', 'Wiring', 'Panel'],
+    'Appliance': ['Appliance', 'Repair'],
+    'General': [] // Any tech can handle
+};
 
 // ============================================
 // HELPERS
 // ============================================
 
 /**
- * Parse time string (HH:MM) to minutes from midnight
+ * Parse duration string to minutes
+ * "2 hours" → 120, "1.5 hrs" → 90, "45 minutes" → 45
  */
-const timeToMinutes = (timeStr) => {
-    if (!timeStr) return 0;
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    return hours * 60 + minutes;
-};
-
-/**
- * Convert minutes from midnight to time string
- */
-const minutesToTime = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
-};
-
-/**
- * Format time for display
- */
-const formatTimeDisplay = (timeStr) => {
-    const [hours, minutes] = timeStr.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-};
-
-/**
- * Get day of week name
- */
-const getDayName = (date) => {
-    return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-};
-
-/**
- * Check if two dates are the same day
- */
-const isSameDay = (date1, date2) => {
-    return date1.getFullYear() === date2.getFullYear() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getDate() === date2.getDate();
-};
-
-/**
- * Calculate distance between two coordinates (Haversine formula)
- * Returns distance in miles
- */
-const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+export const parseDurationToMinutes = (duration) => {
+    if (!duration) return 60; // Default 1 hour
+    if (typeof duration === 'number') return duration;
     
-    const R = 3959; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-};
-
-/**
- * Estimate travel time based on distance (rough estimate)
- * Assumes average 30 mph in suburban/urban areas
- */
-const estimateTravelTime = (miles) => {
-    if (!miles) return 30; // Default 30 min if unknown
-    return Math.ceil(miles * 2); // ~30 mph = 2 min per mile
-};
-
-// ============================================
-// CORE ANALYSIS FUNCTIONS
-// ============================================
-
-/**
- * Get all scheduled jobs for a specific date
- */
-const getJobsForDate = (jobs, date) => {
-    return jobs.filter(job => {
-        const jobDate = job.scheduledTime || job.scheduledDate;
-        if (!jobDate) return false;
-        return isSameDay(new Date(jobDate), date);
-    }).sort((a, b) => {
-        const timeA = new Date(a.scheduledTime || a.scheduledDate);
-        const timeB = new Date(b.scheduledTime || b.scheduledDate);
-        return timeA - timeB;
-    });
-};
-
-/**
- * Get working hours for a specific day
- */
-const getWorkingHoursForDay = (preferences, date) => {
-    const dayName = getDayName(date);
-    const dayHours = preferences?.workingHours?.[dayName];
+    const str = duration.toLowerCase();
     
-    if (!dayHours?.enabled) {
-        return null; // Day off
+    // Try hours first
+    const hoursMatch = str.match(/([\d.]+)\s*(hours?|hrs?)/);
+    if (hoursMatch) {
+        return Math.round(parseFloat(hoursMatch[1]) * 60);
     }
     
-    return {
-        start: timeToMinutes(dayHours.start || '08:00'),
-        end: timeToMinutes(dayHours.end || '17:00')
-    };
+    // Try minutes
+    const minsMatch = str.match(/([\d.]+)\s*(minutes?|mins?)/);
+    if (minsMatch) {
+        return Math.round(parseFloat(minsMatch[1]));
+    }
+    
+    // Try days (convert to 8hr workday)
+    const daysMatch = str.match(/([\d.]+)\s*(days?)/);
+    if (daysMatch) {
+        return Math.round(parseFloat(daysMatch[1]) * 480);
+    }
+    
+    // Default
+    return 60;
 };
 
 /**
- * Find available time slots for a specific date
+ * Check if a time slot is available for a tech
  */
-const findAvailableSlots = (date, jobs, preferences, requiredDuration) => {
-    const workingHours = getWorkingHoursForDay(preferences, date);
-    if (!workingHours) return []; // Day off
+const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'lowercase' });
+    const techHours = tech.workingHours?.[dayName];
     
-    const buffer = preferences?.bufferMinutes || 30;
-    const dayJobs = getJobsForDate(jobs, date);
-    const slots = [];
+    // Check if tech works this day
+    if (!techHours?.enabled) return false;
     
-    let currentStart = workingHours.start;
+    // Parse times
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const jobStart = startHour * 60 + startMin;
+    const jobEnd = jobStart + durationMinutes;
     
-    for (const job of dayJobs) {
-        const jobStart = new Date(job.scheduledTime || job.scheduledDate);
-        const jobStartMinutes = jobStart.getHours() * 60 + jobStart.getMinutes();
-        const jobDuration = job.estimatedDuration || preferences?.defaultJobDuration || 120;
-        const jobEnd = jobStartMinutes + jobDuration;
+    const [workStartH, workStartM] = techHours.start.split(':').map(Number);
+    const [workEndH, workEndM] = techHours.end.split(':').map(Number);
+    const workStart = workStartH * 60 + workStartM;
+    const workEnd = workEndH * 60 + workEndM;
+    
+    // Check if within working hours
+    if (jobStart < workStart || jobEnd > workEnd) return false;
+    
+    // Check for conflicts with existing jobs
+    const techJobs = existingJobs.filter(j => j.assignedTechId === tech.id);
+    const buffer = tech.defaultBufferMinutes || 30;
+    
+    for (const existingJob of techJobs) {
+        if (!existingJob.scheduledTime) continue;
         
-        // Check if there's a gap before this job
-        const gapDuration = jobStartMinutes - buffer - currentStart;
-        if (gapDuration >= requiredDuration) {
-            slots.push({
-                start: currentStart,
-                end: jobStartMinutes - buffer,
-                duration: gapDuration,
-                type: 'gap'
-            });
+        const [exStartH, exStartM] = existingJob.scheduledTime.split(':').map(Number);
+        const exStart = exStartH * 60 + exStartM;
+        const exDuration = parseDurationToMinutes(existingJob.estimatedDuration);
+        const exEnd = exStart + exDuration + buffer;
+        
+        // Check overlap
+        if (!(jobEnd + buffer <= exStart || jobStart >= exEnd)) {
+            return false;
         }
-        
-        currentStart = jobEnd + buffer;
     }
     
-    // Check remaining time after last job
-    const remainingDuration = workingHours.end - currentStart;
-    if (remainingDuration >= requiredDuration) {
-        slots.push({
-            start: currentStart,
-            end: workingHours.end,
-            duration: remainingDuration,
-            type: dayJobs.length === 0 ? 'empty_day' : 'end_of_day'
-        });
-    }
-    
-    return slots;
+    return true;
 };
 
 /**
- * Find nearby jobs on the same date
+ * Calculate distance between two zip codes (simplified)
+ * In production, use Google Distance Matrix API
  */
-const findNearbyJobs = (targetJob, allJobs, date) => {
-    const targetCoords = targetJob.serviceAddress?.coordinates;
-    if (!targetCoords) return [];
+const estimateDistance = (zip1, zip2) => {
+    if (!zip1 || !zip2) return 10; // Default 10 miles
     
-    const dayJobs = getJobsForDate(allJobs, date);
-    
-    return dayJobs
-        .map(job => {
-            const jobCoords = job.serviceAddress?.coordinates;
-            if (!jobCoords) return null;
-            
-            const distance = calculateDistance(
-                targetCoords.lat, targetCoords.lng,
-                jobCoords.lat, jobCoords.lng
-            );
-            
-            return {
-                job,
-                distance,
-                travelTime: estimateTravelTime(distance)
-            };
-        })
-        .filter(item => item && item.distance !== null && item.distance < 15) // Within 15 miles
-        .sort((a, b) => a.distance - b.distance);
+    // Simplified: If same first 3 digits, close
+    if (zip1.substring(0, 3) === zip2.substring(0, 3)) return 5;
+    if (zip1.substring(0, 2) === zip2.substring(0, 2)) return 15;
+    return 25;
 };
 
 /**
- * Check if a slot matches customer preferences
+ * Get required skills for a job based on category/type
  */
-const matchesCustomerPreferences = (slot, preferences) => {
-    // FIX: Added reasons: [] to prevent crash when preferences is null
-    if (!preferences) return { matches: true, score: 50, reasons: [] };
+const getRequiredSkills = (job) => {
+    const category = job.category || job.serviceType || 'General';
     
-    let score = 50; // Base score
+    for (const [key, skills] of Object.entries(JOB_SKILL_MAP)) {
+        if (category.toLowerCase().includes(key.toLowerCase())) {
+            return skills;
+        }
+    }
+    
+    return []; // No specific skills required
+};
+
+/**
+ * Check if tech has required skills
+ */
+const techHasSkills = (tech, requiredSkills) => {
+    if (!requiredSkills.length) return true; // No requirements
+    if (!tech.skills?.length && !tech.specialties?.length) return true; // Tech is generalist
+    
+    const techSkills = [...(tech.skills || []), ...(tech.specialties || [])];
+    return requiredSkills.some(skill => 
+        techSkills.some(ts => ts.toLowerCase().includes(skill.toLowerCase()))
+    );
+};
+
+// ============================================
+// SCORING FUNCTIONS
+// ============================================
+
+/**
+ * Calculate a comprehensive score for how well a tech matches a job
+ * Higher score = better match
+ */
+export const scoreTechForJob = (tech, job, allJobsForDay, date) => {
+    let score = 0;
     const reasons = [];
-    
-    // Check time of day preference
-    const slotHour = Math.floor(slot.start / 60);
-    const timePrefs = preferences.timeOfDay || [];
-    
-    if (timePrefs.includes('Mornings') && slotHour >= 8 && slotHour < 12) {
-        score += 20;
-        reasons.push('Matches morning preference');
-    } else if (timePrefs.includes('Afternoons') && slotHour >= 12 && slotHour < 17) {
-        score += 20;
-        reasons.push('Matches afternoon preference');
-    } else if (timePrefs.includes('Evenings') && slotHour >= 17) {
-        score += 20;
-        reasons.push('Matches evening preference');
-    } else if (timePrefs.includes('Flexible')) {
-        score += 10;
-    }
-    
-    // Check day preference
-    const dayPref = preferences.dayPreference;
-    const slotDay = slot.date.getDay();
-    const isWeekend = slotDay === 0 || slotDay === 6;
-    
-    if (dayPref === 'Weekdays' && !isWeekend) {
-        score += 15;
-        reasons.push('Weekday as preferred');
-    } else if (dayPref === 'Weekends' && isWeekend) {
-        score += 15;
-        reasons.push('Weekend as preferred');
-    } else if (dayPref === 'Any Day') {
-        score += 5;
-    }
-    
-    return {
-        matches: score > 50,
-        score,
-        reasons
-    };
-};
-
-/**
- * Calculate workload for a date
- */
-const calculateDayWorkload = (date, jobs, preferences) => {
-    const dayJobs = getJobsForDate(jobs, date);
-    const maxJobs = preferences?.maxJobsPerDay || 4;
-    
-    const totalMinutes = dayJobs.reduce((sum, job) => {
-        return sum + (job.estimatedDuration || preferences?.defaultJobDuration || 120);
-    }, 0);
-    
-    return {
-        jobCount: dayJobs.length,
-        maxJobs,
-        totalMinutes,
-        utilizationPercent: Math.round((dayJobs.length / maxJobs) * 100),
-        isFull: dayJobs.length >= maxJobs,
-        isLight: dayJobs.length <= 1,
-        isModerate: dayJobs.length > 1 && dayJobs.length < maxJobs - 1
-    };
-};
-
-// ============================================
-// MAIN SUGGESTION ENGINE
-// ============================================
-
-/**
- * Generate scheduling suggestions for a job
- * * @param {Object} targetJob - The job to schedule
- * @param {Array} allJobs - All jobs (scheduled and unscheduled)
- * @param {Object} preferences - Contractor's scheduling preferences
- * @param {Object} customerPrefs - Customer's scheduling preferences (if any)
- * @param {number} daysToAnalyze - How many days ahead to look
- * @returns {Object} Suggestions and analysis
- */
-export const generateSchedulingSuggestions = (
-    targetJob,
-    allJobs,
-    preferences = {},
-    customerPrefs = null,
-    daysToAnalyze = 14
-) => {
-    const suggestions = [];
     const warnings = [];
-    const insights = [];
     
-    const jobDuration = targetJob.estimatedDuration || 
-                        preferences?.defaultJobDuration || 
-                        120; // 2 hours default
+    // 1. SKILL MATCHING
+    const requiredSkills = getRequiredSkills(job);
+    if (techHasSkills(tech, requiredSkills)) {
+        score += SCORING_WEIGHTS.SKILL_MATCH;
+        if (requiredSkills.length > 0) {
+            reasons.push(`Has ${requiredSkills[0]} skills`);
+        }
+    } else {
+        warnings.push(`May lack ${requiredSkills[0] || 'required'} skills`);
+    }
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // 2. CERTIFICATION MATCHING
+    const jobCerts = job.requiredCertifications || [];
+    const techCerts = tech.certifications || [];
+    if (jobCerts.length === 0 || jobCerts.some(c => techCerts.includes(c))) {
+        score += SCORING_WEIGHTS.CERTIFICATION_MATCH;
+    } else {
+        warnings.push('Missing required certification');
+    }
     
-    // Analyze each day
-    for (let i = 1; i <= daysToAnalyze; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() + i);
+    // 3. AVAILABILITY CHECK
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech.workingHours?.[dayName];
+    
+    if (techHours?.enabled) {
+        score += SCORING_WEIGHTS.AVAILABILITY;
+        reasons.push(`Works ${dayName}s`);
+    } else {
+        score -= 100; // Major penalty - tech doesn't work this day
+        warnings.push(`Not scheduled to work ${dayName}`);
+    }
+    
+    // 4. CAPACITY CHECK
+    const techJobsToday = allJobsForDay.filter(j => j.assignedTechId === tech.id);
+    const maxJobs = tech.maxJobsPerDay || 4;
+    const currentJobCount = techJobsToday.length;
+    
+    if (currentJobCount < maxJobs) {
+        const availableSlots = maxJobs - currentJobCount;
+        score += SCORING_WEIGHTS.CAPACITY * (availableSlots / maxJobs);
+        reasons.push(`${availableSlots} slots available`);
+    } else {
+        score -= 50;
+        warnings.push('At max jobs for day');
+    }
+    
+    // 5. HOURS CAPACITY
+    const totalHoursBooked = techJobsToday.reduce((sum, j) => {
+        return sum + (parseDurationToMinutes(j.estimatedDuration) / 60);
+    }, 0);
+    const maxHours = tech.maxHoursPerDay || 8;
+    const jobHours = parseDurationToMinutes(job.estimatedDuration) / 60;
+    
+    if (totalHoursBooked + jobHours <= maxHours) {
+        reasons.push(`${(maxHours - totalHoursBooked).toFixed(1)}hrs available`);
+    } else {
+        score -= 30;
+        warnings.push('Would exceed daily hours');
+    }
+    
+    // 6. WORKLOAD BALANCE
+    // Prefer techs with fewer jobs to balance the load
+    const balanceScore = SCORING_WEIGHTS.WORKLOAD_BALANCE * (1 - currentJobCount / maxJobs);
+    score += balanceScore;
+    
+    // 7. LOCATION/PROXIMITY
+    const jobZip = job.customer?.address?.match(/\d{5}/)?.[0] || 
+                   job.serviceAddress?.match(/\d{5}/)?.[0];
+    const techHomeZip = tech.homeZip;
+    
+    if (jobZip && techHomeZip) {
+        const distance = estimateDistance(techHomeZip, jobZip);
+        const maxRadius = tech.maxTravelMiles || 30;
         
-        // Skip if day is off
-        const workingHours = getWorkingHoursForDay(preferences, date);
-        if (!workingHours) continue;
-        
-        // Get workload
-        const workload = calculateDayWorkload(date, allJobs, preferences);
-        
-        // Skip if day is full
-        if (workload.isFull) {
-            if (i <= 7) {
-                warnings.push({
-                    type: 'full_day',
-                    date,
-                    message: `${date.toLocaleDateString('en-US', { weekday: 'long' })} is fully booked`
-                });
-            }
-            continue;
+        if (distance <= maxRadius) {
+            score += SCORING_WEIGHTS.PROXIMITY;
+            if (distance <= 10) reasons.push('Close to home base');
+        } else {
+            score += SCORING_WEIGHTS.TRAVEL_DISTANCE * (distance - maxRadius);
+            warnings.push(`${distance}mi from home base`);
         }
         
-        // Find available slots
-        const availableSlots = findAvailableSlots(date, allJobs, preferences, jobDuration);
+        // Bonus if near other jobs that day
+        const otherJobZips = techJobsToday
+            .map(j => j.customer?.address?.match(/\d{5}/)?.[0])
+            .filter(Boolean);
         
-        for (const slot of availableSlots) {
-            // Calculate score
-            let score = 50; // Base score
-            const reasons = [];
-            
-            // Bonus for empty days (good for route efficiency)
-            if (slot.type === 'empty_day') {
-                score += 5;
-                reasons.push('Open day');
-            }
-            
-            // Bonus for light days (workload balancing)
-            if (workload.isLight) {
-                score += 10;
-                reasons.push('Light schedule');
-            }
-            
-            // Check nearby jobs for route optimization
-            const nearbyJobs = findNearbyJobs(targetJob, allJobs, date);
-            if (nearbyJobs.length > 0) {
-                const closest = nearbyJobs[0];
-                if (closest.distance < 5) {
-                    score += 25;
-                    reasons.push(`Near ${nearbyJobs.length} other job${nearbyJobs.length > 1 ? 's' : ''} (${closest.distance.toFixed(1)} mi)`);
-                } else if (closest.distance < 10) {
-                    score += 15;
-                    reasons.push(`${closest.distance.toFixed(1)} mi from another job`);
-                }
-            }
-            
-            // Check customer preferences
-            const prefMatch = matchesCustomerPreferences(
-                { ...slot, date }, 
-                customerPrefs
-            );
-            if (prefMatch.matches) {
-                score += prefMatch.score - 50;
-                // FIX: This was the source of the spread error if prefMatch.reasons was missing
-                if (prefMatch.reasons && prefMatch.reasons.length > 0) {
-                    reasons.push(...prefMatch.reasons);
-                }
-            }
-            
-            // Prefer earlier in the week for responsiveness
-            if (i <= 3) {
-                score += 10;
-                reasons.push('Soon availability');
-            }
-            
-            // Prefer morning slots (common customer preference)
-            const slotHour = Math.floor(slot.start / 60);
-            if (slotHour < 12) {
-                score += 5;
-            }
-            
-            suggestions.push({
-                date,
-                startTime: minutesToTime(slot.start),
-                endTime: minutesToTime(Math.min(slot.start + jobDuration, slot.end)),
-                slotStart: slot.start,
-                slotEnd: slot.end,
-                score,
-                reasons,
-                workload,
-                nearbyJobs: nearbyJobs.slice(0, 3),
-                isRecommended: false, // Will be set later
-                dateFormatted: date.toLocaleDateString('en-US', { 
-                    weekday: 'short', 
-                    month: 'short', 
-                    day: 'numeric' 
-                }),
-                timeFormatted: `${formatTimeDisplay(minutesToTime(slot.start))} - ${formatTimeDisplay(minutesToTime(slot.start + jobDuration))}`
-            });
+        if (otherJobZips.some(z => estimateDistance(z, jobZip) <= 10)) {
+            score += 15;
+            reasons.push('Near other jobs today');
         }
     }
     
-    // Sort by score and mark top recommendation
+    // 8. PREFERRED ZONES
+    if (tech.preferredZones?.length && job.zone) {
+        if (tech.preferredZones.includes(job.zone)) {
+            score += SCORING_WEIGHTS.PREFERRED_ZONE;
+            reasons.push('In preferred zone');
+        }
+    }
+    
+    return {
+        techId: tech.id,
+        techName: tech.name,
+        score: Math.round(score),
+        reasons,
+        warnings,
+        isRecommended: score >= 80 && warnings.length === 0,
+        hasWarnings: warnings.length > 0
+    };
+};
+
+/**
+ * Get ranked tech suggestions for a job
+ */
+export const suggestAssignments = (job, techs, allJobsForDay, date) => {
+    const suggestions = techs.map(tech => 
+        scoreTechForJob(tech, job, allJobsForDay, date)
+    );
+    
+    // Sort by score descending
     suggestions.sort((a, b) => b.score - a.score);
     
-    if (suggestions.length > 0) {
-        suggestions[0].isRecommended = true;
-    }
-    
-    // Generate insights
-    const scheduledJobs = allJobs.filter(j => j.scheduledTime || j.scheduledDate);
-    const unscheduledJobs = allJobs.filter(j => !j.scheduledTime && !j.scheduledDate && !['completed', 'cancelled'].includes(j.status));
-    
-    // Check for geographic clusters in unscheduled jobs
-    if (targetJob.serviceAddress?.coordinates && unscheduledJobs.length > 1) {
-        const nearbyUnscheduled = unscheduledJobs.filter(job => {
-            if (job.id === targetJob.id) return false;
-            const coords = job.serviceAddress?.coordinates;
-            if (!coords) return false;
-            const distance = calculateDistance(
-                targetJob.serviceAddress.coordinates.lat,
-                targetJob.serviceAddress.coordinates.lng,
-                coords.lat,
-                coords.lng
-            );
-            return distance && distance < 10;
-        });
-        
-        if (nearbyUnscheduled.length > 0) {
-            insights.push({
-                type: 'cluster',
-                message: `${nearbyUnscheduled.length} other unscheduled job${nearbyUnscheduled.length > 1 ? 's' : ''} nearby - consider scheduling together`,
-                jobs: nearbyUnscheduled.slice(0, 3)
-            });
-        }
-    }
-    
-    // Workload insight
-    const next7Days = [];
-    for (let i = 1; i <= 7; i++) {
-        const date = new Date(today);
-        date.setDate(date.getDate() + i);
-        const workload = calculateDayWorkload(date, allJobs, preferences);
-        next7Days.push({ date, ...workload });
-    }
-    
-    const lightDays = next7Days.filter(d => d.isLight && !d.isFull);
-    const fullDays = next7Days.filter(d => d.isFull);
-    
-    if (lightDays.length > 0 && fullDays.length > 0) {
-        insights.push({
-            type: 'workload_imbalance',
-            message: `${fullDays.length} busy day${fullDays.length > 1 ? 's' : ''}, ${lightDays.length} light day${lightDays.length > 1 ? 's' : ''} this week`,
-            lightDays,
-            fullDays
-        });
-    }
-    
     return {
-        suggestions: suggestions.slice(0, 10), // Top 10 suggestions
-        recommended: suggestions[0] || null,
-        warnings,
-        insights,
-        meta: {
-            analyzedDays: daysToAnalyze,
-            totalSlotsFound: suggestions.length,
-            jobDuration,
-            hasCustomerPreferences: !!customerPrefs
-        }
+        job,
+        suggestions,
+        topPick: suggestions[0] || null,
+        hasGoodMatch: suggestions.some(s => s.isRecommended)
     };
 };
 
 /**
- * Quick suggest - returns just the top 3 recommendations
+ * Auto-assign all unassigned jobs optimally
+ * Uses greedy algorithm with look-ahead
  */
-export const getQuickSuggestions = (targetJob, allJobs, preferences, customerPrefs) => {
-    const result = generateSchedulingSuggestions(targetJob, allJobs, preferences, customerPrefs, 7);
-    return result.suggestions.slice(0, 3);
-};
-
-/**
- * Check for conflicts with a proposed time
- */
-export const checkForConflicts = (proposedStart, proposedEnd, allJobs, preferences) => {
-    const proposedDate = new Date(proposedStart);
-    const dayJobs = getJobsForDate(allJobs, proposedDate);
-    const buffer = preferences?.bufferMinutes || 30;
+export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) => {
+    const assignments = [];
+    const jobsToAssign = [...unassignedJobs];
+    const currentAssignments = [...existingAssignments];
     
-    const proposedStartMinutes = proposedDate.getHours() * 60 + proposedDate.getMinutes();
-    const proposedEndDate = new Date(proposedEnd);
-    const proposedEndMinutes = proposedEndDate.getHours() * 60 + proposedEndDate.getMinutes();
+    // Sort jobs by priority (could add urgency, customer tier, etc.)
+    jobsToAssign.sort((a, b) => {
+        // Longer jobs first (harder to fit)
+        const aDur = parseDurationToMinutes(a.estimatedDuration);
+        const bDur = parseDurationToMinutes(b.estimatedDuration);
+        return bDur - aDur;
+    });
     
-    const conflicts = [];
-    
-    for (const job of dayJobs) {
-        const jobStart = new Date(job.scheduledTime || job.scheduledDate);
-        const jobStartMinutes = jobStart.getHours() * 60 + jobStart.getMinutes();
-        const jobDuration = job.estimatedDuration || preferences?.defaultJobDuration || 120;
-        const jobEndMinutes = jobStartMinutes + jobDuration;
+    for (const job of jobsToAssign) {
+        const { suggestions, topPick } = suggestAssignments(
+            job, 
+            techs, 
+            currentAssignments, 
+            date
+        );
         
-        // Check for overlap (including buffer)
-        const overlapStart = Math.max(proposedStartMinutes, jobStartMinutes - buffer);
-        const overlapEnd = Math.min(proposedEndMinutes, jobEndMinutes + buffer);
-        
-        if (overlapStart < overlapEnd) {
-            conflicts.push({
+        if (topPick && topPick.score > 0) {
+            assignments.push({
+                jobId: job.id,
                 job,
-                overlapMinutes: overlapEnd - overlapStart,
-                message: `Conflicts with "${job.title || 'Job'}" at ${formatTimeDisplay(minutesToTime(jobStartMinutes))}`
+                techId: topPick.techId,
+                techName: topPick.techName,
+                score: topPick.score,
+                reasons: topPick.reasons,
+                warnings: topPick.warnings
+            });
+            
+            // Add to current assignments for next iteration
+            currentAssignments.push({
+                ...job,
+                assignedTechId: topPick.techId
+            });
+        } else {
+            assignments.push({
+                jobId: job.id,
+                job,
+                techId: null,
+                techName: null,
+                score: 0,
+                reasons: [],
+                warnings: ['No suitable tech available'],
+                failed: true
             });
         }
     }
     
-    return conflicts;
+    return {
+        assignments,
+        successful: assignments.filter(a => !a.failed),
+        failed: assignments.filter(a => a.failed),
+        summary: {
+            total: assignments.length,
+            assigned: assignments.filter(a => !a.failed).length,
+            unassigned: assignments.filter(a => a.failed).length
+        }
+    };
+};
+
+// ============================================
+// ASSIGNMENT ACTIONS
+// ============================================
+
+/**
+ * Assign a job to a tech
+ */
+export const assignJobToTech = async (jobId, techId, techName, assignedBy = 'manual') => {
+    try {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+        
+        await updateDoc(jobRef, {
+            assignedTechId: techId,
+            assignedTechName: techName,
+            assignedAt: serverTimestamp(),
+            assignedBy,
+            lastActivity: serverTimestamp()
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error assigning job:', error);
+        throw error;
+    }
 };
 
 /**
- * Suggest optimal route order for a day's jobs
+ * Unassign a job from a tech
  */
-export const suggestRouteOrder = (jobs, homeBase) => {
-    if (jobs.length <= 1) return jobs;
-    
-    // Simple nearest-neighbor algorithm
-    const orderedJobs = [];
-    const remaining = [...jobs];
-    
-    let currentLocation = homeBase?.coordinates || null;
-    
-    while (remaining.length > 0) {
-        let nearestIndex = 0;
-        let nearestDistance = Infinity;
+export const unassignJob = async (jobId) => {
+    try {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         
-        for (let i = 0; i < remaining.length; i++) {
-            const jobCoords = remaining[i].serviceAddress?.coordinates;
-            if (!jobCoords || !currentLocation) {
-                // If no coordinates, just take first
-                nearestIndex = 0;
-                break;
-            }
-            
-            const distance = calculateDistance(
-                currentLocation.lat, currentLocation.lng,
-                jobCoords.lat, jobCoords.lng
+        await updateDoc(jobRef, {
+            assignedTechId: null,
+            assignedTechName: null,
+            assignedAt: null,
+            assignedBy: null,
+            lastActivity: serverTimestamp()
+        });
+        
+        return { success: true };
+    } catch (error) {
+        console.error('Error unassigning job:', error);
+        throw error;
+    }
+};
+
+/**
+ * Bulk assign jobs (from auto-assign)
+ */
+export const bulkAssignJobs = async (assignments) => {
+    const results = [];
+    
+    for (const assignment of assignments) {
+        if (assignment.failed) continue;
+        
+        try {
+            await assignJobToTech(
+                assignment.jobId,
+                assignment.techId,
+                assignment.techName,
+                'ai'
             );
-            
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestIndex = i;
-            }
+            results.push({ ...assignment, success: true });
+        } catch (error) {
+            results.push({ ...assignment, success: false, error: error.message });
         }
-        
-        const nextJob = remaining.splice(nearestIndex, 1)[0];
-        orderedJobs.push(nextJob);
-        currentLocation = nextJob.serviceAddress?.coordinates || currentLocation;
     }
     
-    return orderedJobs;
+    return results;
+};
+
+// ============================================
+// CONFLICT DETECTION
+// ============================================
+
+/**
+ * Check for scheduling conflicts
+ */
+export const checkConflicts = (tech, job, existingJobs, date) => {
+    const conflicts = [];
+    
+    // 1. Day availability
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech.workingHours?.[dayName];
+    
+    if (!techHours?.enabled) {
+        conflicts.push({
+            type: 'day_off',
+            severity: 'error',
+            message: `${tech.name} doesn't work on ${dayName}s`
+        });
+    }
+    
+    // 2. Job count capacity
+    const techJobsToday = existingJobs.filter(j => j.assignedTechId === tech.id);
+    const maxJobs = tech.maxJobsPerDay || 4;
+    
+    if (techJobsToday.length >= maxJobs) {
+        conflicts.push({
+            type: 'max_jobs',
+            severity: 'error',
+            message: `${tech.name} already has ${maxJobs} jobs scheduled`
+        });
+    }
+    
+    // 3. Hours capacity
+    const totalHours = techJobsToday.reduce((sum, j) => {
+        return sum + (parseDurationToMinutes(j.estimatedDuration) / 60);
+    }, 0);
+    const jobHours = parseDurationToMinutes(job.estimatedDuration) / 60;
+    const maxHours = tech.maxHoursPerDay || 8;
+    
+    if (totalHours + jobHours > maxHours) {
+        conflicts.push({
+            type: 'max_hours',
+            severity: 'warning',
+            message: `Would exceed ${maxHours}hr daily limit (${(totalHours + jobHours).toFixed(1)}hrs total)`
+        });
+    }
+    
+    // 4. Skill mismatch
+    const requiredSkills = getRequiredSkills(job);
+    if (!techHasSkills(tech, requiredSkills)) {
+        conflicts.push({
+            type: 'skills',
+            severity: 'warning',
+            message: `${tech.name} may not have ${requiredSkills[0] || 'required'} skills`
+        });
+    }
+    
+    // 5. Time slot conflict
+    if (job.scheduledTime) {
+        const duration = parseDurationToMinutes(job.estimatedDuration);
+        const available = isSlotAvailable(tech, date, job.scheduledTime, duration, existingJobs);
+        
+        if (!available) {
+            conflicts.push({
+                type: 'time_conflict',
+                severity: 'error',
+                message: 'Time slot conflicts with existing job'
+            });
+        }
+    }
+    
+    return {
+        hasConflicts: conflicts.length > 0,
+        hasErrors: conflicts.some(c => c.severity === 'error'),
+        hasWarnings: conflicts.some(c => c.severity === 'warning'),
+        conflicts
+    };
+};
+
+// ============================================
+// SCHEDULE OPTIMIZATION
+// ============================================
+
+/**
+ * Suggest optimal time for a job based on tech's schedule
+ */
+export const suggestTimeSlot = (tech, job, existingJobs, date) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech.workingHours?.[dayName];
+    
+    if (!techHours?.enabled) return null;
+    
+    const [startH, startM] = techHours.start.split(':').map(Number);
+    const [endH, endM] = techHours.end.split(':').map(Number);
+    const workStart = startH * 60 + startM;
+    const workEnd = endH * 60 + endM;
+    
+    const duration = parseDurationToMinutes(job.estimatedDuration);
+    const buffer = tech.defaultBufferMinutes || 30;
+    
+    // Get all booked slots
+    const techJobs = existingJobs
+        .filter(j => j.assignedTechId === tech.id && j.scheduledTime)
+        .map(j => {
+            const [h, m] = j.scheduledTime.split(':').map(Number);
+            const start = h * 60 + m;
+            const dur = parseDurationToMinutes(j.estimatedDuration);
+            return { start, end: start + dur + buffer };
+        })
+        .sort((a, b) => a.start - b.start);
+    
+    // Find first available slot
+    let searchStart = workStart;
+    
+    for (const slot of techJobs) {
+        if (searchStart + duration + buffer <= slot.start) {
+            // Found a gap!
+            const hours = Math.floor(searchStart / 60);
+            const mins = searchStart % 60;
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+        }
+        searchStart = Math.max(searchStart, slot.end);
+    }
+    
+    // Check if fits at the end
+    if (searchStart + duration <= workEnd) {
+        const hours = Math.floor(searchStart / 60);
+        const mins = searchStart % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    }
+    
+    return null; // No slot available
 };
 
 export default {
-    generateSchedulingSuggestions,
-    getQuickSuggestions,
-    checkForConflicts,
-    suggestRouteOrder
+    scoreTechForJob,
+    suggestAssignments,
+    autoAssignAll,
+    assignJobToTech,
+    unassignJob,
+    bulkAssignJobs,
+    checkConflicts,
+    suggestTimeSlot,
+    parseDurationToMinutes
 };
