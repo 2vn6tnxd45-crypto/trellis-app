@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     Building2, MapPin, Phone, Shield, CheckCircle, 
     ArrowRight, ArrowLeft, Clock, DollarSign, Percent, 
-    Edit2, Save
+    Edit2, Save, Briefcase, BadgeCheck, Award, CreditCard, Plus, X
 } from 'lucide-react';
 import { Logo } from '../../../components/common/Logo';
 import { googleMapsApiKey } from '../../../config/constants';
@@ -20,53 +20,75 @@ const DEFAULT_HOURS = {
     sunday: { enabled: false, start: '09:00', end: '14:00' }
 };
 
+const PAYMENT_METHOD_OPTIONS = [
+    'Credit Card',
+    'Debit Card', 
+    'Check',
+    'Cash',
+    'Bank Transfer',
+    'Financing Available'
+];
+
 export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
     // Determine contractorId from profile
     const contractorId = profile?.id || profile?.uid;
     const [step, setStep] = useState(1);
     const [isEditingHours, setIsEditingHours] = useState(false);
+    const [newCertification, setNewCertification] = useState('');
 
     // Form State
     const [formData, setFormData] = useState({
-        // Profile Data
+        // Profile Data (Step 1)
         companyName: profile?.profile?.companyName || '',
         phone: profile?.profile?.phone || '',
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
         logoUrl: profile?.profile?.logoUrl || null,
         
-        // Operations Data
+        // NEW: Credentials (Step 1)
+        yearsInBusiness: profile?.profile?.yearsInBusiness || '',
+        insured: profile?.profile?.insured || false,
+        bonded: profile?.profile?.bonded || false,
+        certifications: profile?.profile?.certifications || [],
+        paymentMethods: profile?.profile?.paymentMethods || ['Credit Card', 'Check'],
+        
+        // Operations Data (Step 2)
         defaultLaborWarranty: '', 
         defaultTaxRate: 8.75,
         defaultDepositValue: 15,
         
         // Working Hours (Editable)
-        workingHours: DEFAULT_HOURS
+        workingHours: profile?.scheduling?.workingHours || DEFAULT_HOURS
     });
-    
-    // Refs for Google Maps
-    const addressInputRef = useRef(null);
-    const autocompleteRef = useRef(null);
 
-    // --- Phone Formatter ---
+    // --- Phone Formatting ---
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhoneNumber(e.target.value);
+        setFormData({ ...formData, phone: formatted });
+    };
+    
     const formatPhoneNumber = (value) => {
         if (!value) return value;
         const phoneNumber = value.replace(/[^\d]/g, '');
-        if (phoneNumber.length < 4) return phoneNumber;
-        if (phoneNumber.length < 7) return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+        const len = phoneNumber.length;
+        if (len < 4) return phoneNumber;
+        if (len < 7) return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
         return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
     };
 
-    const handlePhoneChange = (e) => {
-        const formatted = formatPhoneNumber(e.target.value);
-        setFormData(prev => ({ ...prev, phone: formatted }));
-    };
+    // --- Google Maps Autocomplete ---
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
 
-    // --- Google Maps Init ---
     useEffect(() => {
         const loadGoogleMaps = () => {
             if (window.google?.maps?.places) {
                 initAutocomplete();
+                return;
+            }
+            const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+            if (existingScript) {
+                existingScript.addEventListener('load', initAutocomplete);
                 return;
             }
             const script = document.createElement('script');
@@ -81,8 +103,8 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
             if (!addressInputRef.current || autocompleteRef.current) return;
             try {
                 autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-                    types: ['establishment', 'geocode'],
-                    componentRestrictions: { country: 'us' },
+                    types: ['address'],
+                    componentRestrictions: { country: 'us' }
                 });
                 autocompleteRef.current.addListener('place_changed', () => {
                     const place = autocompleteRef.current.getPlace();
@@ -97,6 +119,34 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
 
         if (step === 1) loadGoogleMaps();
     }, [step]);
+
+    // --- Certification Management ---
+    const addCertification = () => {
+        if (newCertification.trim() && !formData.certifications.includes(newCertification.trim())) {
+            setFormData(prev => ({
+                ...prev,
+                certifications: [...prev.certifications, newCertification.trim()]
+            }));
+            setNewCertification('');
+        }
+    };
+
+    const removeCertification = (cert) => {
+        setFormData(prev => ({
+            ...prev,
+            certifications: prev.certifications.filter(c => c !== cert)
+        }));
+    };
+
+    // --- Payment Methods ---
+    const togglePaymentMethod = (method) => {
+        setFormData(prev => ({
+            ...prev,
+            paymentMethods: prev.paymentMethods.includes(method)
+                ? prev.paymentMethods.filter(m => m !== method)
+                : [...prev.paymentMethods, method]
+        }));
+    };
 
     // --- Navigation & Submission ---
     const handleNext = (e) => {
@@ -121,13 +171,19 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                 address: formData.address,
                 licenseNumber: formData.licenseNumber,
                 logoUrl: formData.logoUrl,
+                // NEW: Credentials
+                yearsInBusiness: formData.yearsInBusiness ? parseInt(formData.yearsInBusiness) : null,
+                insured: formData.insured,
+                bonded: formData.bonded,
+                certifications: formData.certifications,
+                paymentMethods: formData.paymentMethods,
             },
             scheduling: {
                 defaultLaborWarranty: formData.defaultLaborWarranty,
                 defaultTaxRate: parseFloat(formData.defaultTaxRate) || 0,
                 defaultDepositValue: parseFloat(formData.defaultDepositValue) || 0,
                 defaultDepositType: 'percentage',
-                workingHours: formData.workingHours // Use edited hours
+                workingHours: formData.workingHours
             }
         };
         
@@ -189,7 +245,7 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                     <form onSubmit={handleNext} className="p-8 space-y-6">
                         
                         {step === 1 ? (
-                            // === STEP 1: IDENTITY ===
+                            // === STEP 1: IDENTITY & CREDENTIALS ===
                             <>
                                 <LogoUpload 
                                     currentLogo={formData.logoUrl}
@@ -244,17 +300,154 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                                     </div>
                                 </div>
 
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                            License # <span className="text-slate-400 font-normal">(Optional)</span>
+                                        </label>
+                                        <div className="relative">
+                                            <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="text"
+                                                value={formData.licenseNumber}
+                                                onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                                                placeholder="LIC-12345"
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                            Years in Business
+                                        </label>
+                                        <div className="relative">
+                                            <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={formData.yearsInBusiness}
+                                                onChange={(e) => setFormData({ ...formData, yearsInBusiness: e.target.value })}
+                                                placeholder="e.g. 15"
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Insurance & Bonding */}
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-1.5">License Number <span className="text-slate-400 font-normal">(Optional)</span></label>
-                                    <div className="relative">
-                                        <Shield className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                        <input
-                                            type="text"
-                                            value={formData.licenseNumber}
-                                            onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-                                            placeholder="e.g. LIC-12345678"
-                                            className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                        />
+                                    <label className="block text-sm font-bold text-slate-700 mb-3">Insurance & Bonding</label>
+                                    <div className="flex flex-wrap gap-3">
+                                        <label 
+                                            className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                                formData.insured 
+                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                                                    : 'border-slate-200 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.insured}
+                                                onChange={(e) => setFormData({ ...formData, insured: e.target.checked })}
+                                                className="sr-only"
+                                            />
+                                            <Shield size={18} className={formData.insured ? 'text-emerald-600' : 'text-slate-400'} />
+                                            <span className="font-medium">Fully Insured</span>
+                                            {formData.insured && <CheckCircle size={16} className="text-emerald-600" />}
+                                        </label>
+                                        
+                                        <label 
+                                            className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
+                                                formData.bonded 
+                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                                                    : 'border-slate-200 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.bonded}
+                                                onChange={(e) => setFormData({ ...formData, bonded: e.target.checked })}
+                                                className="sr-only"
+                                            />
+                                            <BadgeCheck size={18} className={formData.bonded ? 'text-emerald-600' : 'text-slate-400'} />
+                                            <span className="font-medium">Bonded</span>
+                                            {formData.bonded && <CheckCircle size={16} className="text-emerald-600" />}
+                                        </label>
+                                    </div>
+                                </div>
+
+                                {/* Certifications */}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                        Certifications <span className="text-slate-400 font-normal">(Optional)</span>
+                                    </label>
+                                    <div className="flex gap-2 mb-2">
+                                        <div className="relative flex-1">
+                                            <Award className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                            <input
+                                                type="text"
+                                                value={newCertification}
+                                                onChange={(e) => setNewCertification(e.target.value)}
+                                                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addCertification())}
+                                                placeholder="e.g. EPA Certified, NATE Certified"
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={addCertification}
+                                            className="px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                                        >
+                                            <Plus size={18} className="text-slate-600" />
+                                        </button>
+                                    </div>
+                                    {formData.certifications.length > 0 && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {formData.certifications.map((cert, idx) => (
+                                                <span 
+                                                    key={idx}
+                                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm"
+                                                >
+                                                    <Award size={14} />
+                                                    {cert}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeCertification(cert)}
+                                                        className="ml-1 hover:text-red-600"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Payment Methods */}
+                                <div>
+                                    <label className="block text-sm font-bold text-slate-700 mb-1.5">
+                                        <CreditCard size={14} className="inline mr-1" />
+                                        Accepted Payment Methods
+                                    </label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {PAYMENT_METHOD_OPTIONS.map(method => (
+                                            <label 
+                                                key={method}
+                                                className={`px-3 py-2 rounded-lg border cursor-pointer text-sm transition-all ${
+                                                    formData.paymentMethods.includes(method)
+                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                                        : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.paymentMethods.includes(method)}
+                                                    onChange={() => togglePaymentMethod(method)}
+                                                    className="sr-only"
+                                                />
+                                                {method}
+                                            </label>
+                                        ))}
                                     </div>
                                 </div>
                             </>
@@ -279,7 +472,7 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                                     <div>
                                         <label className="block text-sm font-bold text-slate-700 mb-1.5">Default Tax Rate</label>
                                         <div className="relative">
-                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                            <Percent className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                             <input
                                                 type="number"
                                                 step="0.01"
@@ -290,120 +483,133 @@ export const SetupBusinessProfile = ({ profile, onSave, saving }) => {
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Deposit Request</label>
+                                        <label className="block text-sm font-bold text-slate-700 mb-1.5">Default Deposit %</label>
                                         <div className="relative">
-                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                             <input
                                                 type="number"
+                                                min="0"
+                                                max="100"
                                                 value={formData.defaultDepositValue}
                                                 onChange={(e) => setFormData({ ...formData, defaultDepositValue: e.target.value })}
-                                                className="w-full pl-10 pr-12 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                                className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                             />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Working Hours Section */}
-                                <div className="bg-slate-50 border border-slate-100 rounded-xl p-4">
+                                {/* Working Hours */}
+                                <div>
                                     <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="text-emerald-600" size={20} />
-                                            <span className="font-bold text-slate-800">Working Hours</span>
-                                        </div>
+                                        <label className="block text-sm font-bold text-slate-700">Working Hours</label>
                                         <button 
                                             type="button"
                                             onClick={() => setIsEditingHours(!isEditingHours)}
-                                            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                                            className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center gap-1"
                                         >
                                             {isEditingHours ? <Save size={14} /> : <Edit2 size={14} />}
                                             {isEditingHours ? 'Done' : 'Edit'}
                                         </button>
                                     </div>
-
-                                    {!isEditingHours ? (
-                                        // View Mode
-                                        <div>
-                                            <p className="text-sm text-slate-600">
-                                                Standard schedule set. 
-                                                {Object.values(formData.workingHours).some(d => d.enabled) 
-                                                    ? ' Custom hours applied.' 
-                                                    : ' No hours enabled.'}
-                                            </p>
-                                            <p className="text-xs text-slate-400 mt-1">Used for AI scheduling suggestions.</p>
-                                        </div>
-                                    ) : (
-                                        // Edit Mode
-                                        <div className="space-y-2">
-                                            {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                                                <div key={day} className="flex items-center gap-2">
-                                                    <div className="w-20 text-xs font-bold capitalize text-slate-600">{day}</div>
-                                                    <input 
-                                                        type="checkbox"
-                                                        checked={formData.workingHours[day]?.enabled}
-                                                        onChange={(e) => updateHours(day, 'enabled', e.target.checked)}
-                                                        className="rounded text-emerald-600 focus:ring-emerald-500"
-                                                    />
-                                                    {formData.workingHours[day]?.enabled && (
-                                                        <div className="flex items-center gap-1 text-xs">
-                                                            <input 
-                                                                type="time" 
-                                                                value={formData.workingHours[day]?.start}
-                                                                onChange={(e) => updateHours(day, 'start', e.target.value)}
-                                                                className="border border-slate-200 rounded px-1 py-0.5"
+                                    
+                                    <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+                                        {Object.entries(formData.workingHours).map(([day, hours]) => (
+                                            <div key={day} className="flex items-center gap-3">
+                                                <span className="w-24 text-sm font-medium capitalize text-slate-600">
+                                                    {day.slice(0, 3)}
+                                                </span>
+                                                
+                                                {isEditingHours ? (
+                                                    <>
+                                                        <label className="flex items-center gap-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={hours.enabled}
+                                                                onChange={(e) => updateHours(day, 'enabled', e.target.checked)}
+                                                                className="rounded text-emerald-600"
                                                             />
-                                                            <span>-</span>
-                                                            <input 
-                                                                type="time" 
-                                                                value={formData.workingHours[day]?.end}
-                                                                onChange={(e) => updateHours(day, 'end', e.target.value)}
-                                                                className="border border-slate-200 rounded px-1 py-0.5"
-                                                            />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                                        </label>
+                                                        <input
+                                                            type="time"
+                                                            value={hours.start}
+                                                            onChange={(e) => updateHours(day, 'start', e.target.value)}
+                                                            disabled={!hours.enabled}
+                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-sm disabled:opacity-50"
+                                                        />
+                                                        <span className="text-slate-400">–</span>
+                                                        <input
+                                                            type="time"
+                                                            value={hours.end}
+                                                            onChange={(e) => updateHours(day, 'end', e.target.value)}
+                                                            disabled={!hours.enabled}
+                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-sm disabled:opacity-50"
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <span className={`text-sm ${hours.enabled ? 'text-slate-800' : 'text-slate-400'}`}>
+                                                        {hours.enabled 
+                                                            ? `${hours.start} – ${hours.end}` 
+                                                            : 'Closed'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </>
                         )}
 
-                        {/* Navigation Buttons */}
-                        <div className="flex gap-3 pt-2">
+                        {/* Navigation */}
+                        <div className="flex gap-3 pt-4">
                             {step === 2 && (
                                 <button
                                     type="button"
                                     onClick={() => setStep(1)}
-                                    className="px-6 py-4 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                    className="flex-1 py-3 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
                                 >
-                                    <ArrowLeft size={20} />
+                                    <ArrowLeft size={18} />
+                                    Back
                                 </button>
                             )}
-                            
                             <button
                                 type="submit"
-                                disabled={(step === 1 && !isStep1Complete) || saving}
-                                className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
+                                disabled={step === 1 && !isStep1Complete}
+                                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 
+                                           disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                             >
                                 {saving ? (
-                                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                                    <span className="flex items-center gap-2">
+                                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                        Saving...
+                                    </span>
                                 ) : step === 1 ? (
                                     <>
-                                        Next: Operations
-                                        <ArrowRight size={20} />
+                                        Next
+                                        <ArrowRight size={18} />
                                     </>
                                 ) : (
                                     <>
-                                        <CheckCircle size={20} />
-                                        Complete Setup
+                                        <CheckCircle size={18} />
+                                        Finish Setup
                                     </>
                                 )}
                             </button>
                         </div>
                     </form>
                 </div>
+
+                {/* Skip for now */}
+                {step === 1 && (
+                    <p className="text-center text-slate-400 text-sm mt-4">
+                        You can update these details anytime in Settings
+                    </p>
+                )}
             </div>
         </div>
     );
 };
+
+export default SetupBusinessProfile;
