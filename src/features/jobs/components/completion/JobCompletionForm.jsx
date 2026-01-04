@@ -2,984 +2,856 @@
 // ============================================
 // JOB COMPLETION FORM - CONTRACTOR SIDE
 // ============================================
-// Form for contractors to submit job completion with:
-// - Invoice upload (required) with AI parsing
-// - Items installed/serviced
-// - Photos (before/after)
-// - Notes and recommendations
-// - Partial completion option
+// Allows contractors to submit job completion with photos, notes, and items
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-    Receipt, Camera, FileText, Plus, Trash2, ChevronDown, ChevronUp,
-    Loader2, CheckCircle, Send, AlertCircle, X, Sparkles,
-    Calendar, DollarSign, Wrench, MessageSquare, Clock,
-    Package, Bell, CheckSquare, Square, Info, ArrowLeft,
-    Upload, Image as ImageIcon, AlertTriangle
+    X, Camera, Upload, FileText, Plus, Trash2, CheckCircle,
+    Loader2, Image, AlertCircle, DollarSign, Wrench, Calendar,
+    ClipboardList, MessageSquare, ChevronDown, ChevronUp
 } from 'lucide-react';
-import toast, { Toaster } from 'react-hot-toast';
-import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../../../config/constants';
-import { useGemini } from '../../../../hooks/useGemini';
-import { compressImage, fileToBase64 } from '../../../../lib/images';
-import {
-    submitJobCompletion,
-    uploadInvoiceFile,
-    uploadCompletionPhoto
+import { 
+    submitJobCompletion, 
+    uploadCompletionPhoto, 
+    uploadInvoiceFile 
 } from '../../lib/jobCompletionService';
+import toast from 'react-hot-toast';
 
 // ============================================
-// COLLAPSIBLE SECTION
+// CONSTANTS
 // ============================================
-const Section = ({ title, icon: Icon, children, defaultOpen = true, badge, required }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
-            <button
-                type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full p-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
-            >
-                <div className="flex items-center gap-3">
-                    <div className="bg-slate-100 p-2 rounded-lg">
-                        <Icon className="h-5 w-5 text-slate-600" />
-                    </div>
-                    <span className="font-bold text-slate-800">{title}</span>
-                    {required && (
-                        <span className="text-red-500 text-sm">*</span>
-                    )}
-                    {badge && (
-                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                            {badge}
-                        </span>
-                    )}
-                </div>
-                {isOpen ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
-            </button>
-            {isOpen && <div className="px-5 pb-5 border-t border-slate-100 pt-4">{children}</div>}
-        </div>
-    );
-};
+const PHOTO_TYPES = [
+    { id: 'before', label: 'Before', icon: '📷' },
+    { id: 'after', label: 'After', icon: '✨' },
+    { id: 'work', label: 'Work in Progress', icon: '🔧' }
+];
 
-// ============================================
-// INVOICE UPLOAD SECTION
-// ============================================
-const InvoiceUploadSection = ({ onInvoiceParsed, invoice, onRemove }) => {
-    const fileInputRef = useRef(null);
-    const { scanReceipt, isScanning } = useGemini();
-    
-    const handleInvoiceUpload = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        
-        const loadingToast = toast.loading('Analyzing invoice with AI...');
-        
-        try {
-            let base64Str;
-            if (file.type === 'application/pdf') {
-                base64Str = await fileToBase64(file);
-            } else {
-                base64Str = await compressImage(file);
-            }
-            
-            const data = await scanReceipt(file, base64Str);
-            
-            toast.dismiss(loadingToast);
-            
-            const preview = file.type.startsWith('image/') 
-                ? URL.createObjectURL(file) 
-                : null;
-            
-            if (data) {
-                toast.success('Invoice analyzed! Review the details below.', { icon: '✨' });
-                onInvoiceParsed(data, file, preview);
-            } else {
-                // Still accept the file even if parsing fails
-                onInvoiceParsed({}, file, preview);
-                toast.error('Could not extract details. Please fill in manually.');
-            }
-        } catch (err) {
-            console.error('Invoice parsing error:', err);
-            toast.dismiss(loadingToast);
-            toast.error('Failed to analyze invoice.');
-        }
-        
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    
-    if (invoice?.file) {
-        return (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white p-2 rounded-lg shadow-sm">
-                            {invoice.preview ? (
-                                <img src={invoice.preview} alt="Invoice" className="w-12 h-12 object-cover rounded" />
-                            ) : (
-                                <FileText className="h-8 w-8 text-emerald-600" />
-                            )}
-                        </div>
-                        <div>
-                            <p className="font-bold text-emerald-800">{invoice.file.name}</p>
-                            <p className="text-xs text-emerald-600">
-                                {invoice.parsedData?.totalAmount 
-                                    ? `$${invoice.parsedData.totalAmount.toLocaleString()} detected`
-                                    : 'Uploaded successfully'
-                                }
-                            </p>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={onRemove}
-                        className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-                </div>
-            </div>
-        );
-    }
-    
-    return (
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl border-2 border-dashed border-emerald-200 p-6">
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={handleInvoiceUpload}
-                className="hidden"
-            />
-            
-            <div className="text-center">
-                <div className="bg-white w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm border border-emerald-100">
-                    {isScanning ? (
-                        <Loader2 className="h-7 w-7 text-emerald-600 animate-spin" />
-                    ) : (
-                        <Receipt className="h-7 w-7 text-emerald-600" />
-                    )}
-                </div>
-                
-                <h3 className="font-bold text-slate-800 mb-1">
-                    {isScanning ? 'Analyzing Invoice...' : 'Upload Invoice'}
-                </h3>
-                <p className="text-sm text-slate-600 mb-4">
-                    {isScanning
-                        ? 'AI is extracting items, costs, and warranty info...'
-                        : 'Required to complete the job. AI will auto-fill details.'
-                    }
-                </p>
-                
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isScanning}
-                    className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 mx-auto transition-all"
-                >
-                    {isScanning ? (
-                        <>
-                            <Loader2 className="animate-spin" size={16} />
-                            Analyzing...
-                        </>
-                    ) : (
-                        <>
-                            <Upload size={16} />
-                            Upload Invoice
-                        </>
-                    )}
-                </button>
-                
-                <p className="text-xs text-slate-500 mt-3">
-                    Supports JPG, PNG, and PDF
-                </p>
-            </div>
-        </div>
-    );
-};
+const CATEGORIES = [
+    "HVAC & Systems",
+    "Plumbing",
+    "Electrical",
+    "Appliances",
+    "Roof & Exterior",
+    "Interior",
+    "Service & Repairs",
+    "Other"
+];
 
-// ============================================
-// ITEM EDITOR CARD
-// ============================================
-const ItemEditorCard = ({ item, index, onChange, onRemove, isOnly }) => {
-    const [isExpanded, setIsExpanded] = useState(true);
-    
-    const handleChange = (field, value) => {
-        onChange(index, { ...item, [field]: value });
-    };
-    
-    const toggleMaintenanceTask = (taskIdx) => {
-        const tasks = [...(item.maintenanceTasks || [])];
-        tasks[taskIdx] = { ...tasks[taskIdx], selected: !tasks[taskIdx].selected };
-        handleChange('maintenanceTasks', tasks);
-    };
-    
-    return (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            {/* Header */}
-            <div 
-                className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-50"
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <div className="flex items-center gap-3">
-                    <div className="bg-slate-100 p-2 rounded-lg">
-                        <Package size={18} className="text-slate-600" />
-                    </div>
-                    <div>
-                        <p className="font-bold text-slate-800">
-                            {item.item || `Item ${index + 1}`}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                            {item.category || 'Uncategorized'} • {item.area || 'General'}
-                        </p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-2">
-                    {!isOnly && (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onRemove(index); }}
-                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    )}
-                    {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
-                </div>
-            </div>
-            
-            {/* Expanded Content */}
-            {isExpanded && (
-                <div className="px-4 pb-4 border-t border-slate-100 pt-4 space-y-4">
-                    {/* Item Name & Category */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Item Name *
-                            </label>
-                            <input
-                                type="text"
-                                value={item.item || ''}
-                                onChange={(e) => handleChange('item', e.target.value)}
-                                placeholder="e.g., Carrier AC Unit"
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Category
-                            </label>
-                            <select
-                                value={item.category || ''}
-                                onChange={(e) => handleChange('category', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                            >
-                                <option value="">Select...</option>
-                                {CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-                    
-                    {/* Brand, Model, Serial */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Brand
-                            </label>
-                            <input
-                                type="text"
-                                value={item.brand || ''}
-                                onChange={(e) => handleChange('brand', e.target.value)}
-                                placeholder="e.g., Carrier"
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Model
-                            </label>
-                            <input
-                                type="text"
-                                value={item.model || ''}
-                                onChange={(e) => handleChange('model', e.target.value)}
-                                placeholder="Model #"
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Serial Number
-                            </label>
-                            <input
-                                type="text"
-                                value={item.serialNumber || ''}
-                                onChange={(e) => handleChange('serialNumber', e.target.value)}
-                                placeholder="Serial #"
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                    </div>
-                    
-                    {/* Area & Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Location/Area
-                            </label>
-                            <select
-                                value={item.area || ''}
-                                onChange={(e) => handleChange('area', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                            >
-                                <option value="">Select...</option>
-                                {ROOMS.map(room => (
-                                    <option key={room} value={room}>{room}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Date Installed
-                            </label>
-                            <input
-                                type="date"
-                                value={item.dateInstalled || ''}
-                                onChange={(e) => handleChange('dateInstalled', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                        </div>
-                    </div>
-                    
-                    {/* Costs */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Total Cost
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                <input
-                                    type="number"
-                                    value={item.cost || ''}
-                                    onChange={(e) => handleChange('cost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Labor Cost
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                <input
-                                    type="number"
-                                    value={item.laborCost || ''}
-                                    onChange={(e) => handleChange('laborCost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                Parts Cost
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                                <input
-                                    type="number"
-                                    value={item.partsCost || ''}
-                                    onChange={(e) => handleChange('partsCost', e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full pl-8 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                />
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Warranty */}
-                    <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                            Warranty Information
-                        </label>
-                        <input
-                            type="text"
-                            value={item.warranty || ''}
-                            onChange={(e) => handleChange('warranty', e.target.value)}
-                            placeholder="e.g., 10 year parts, 1 year labor"
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        />
-                    </div>
-                    
-                    {/* Maintenance Tasks */}
-                    {(item.maintenanceTasks?.length > 0) && (
-                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl border border-amber-200 p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Bell size={16} className="text-amber-600" />
-                                <span className="text-sm font-bold text-amber-800">
-                                    Maintenance Reminders
-                                </span>
-                                <span className="text-[10px] bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-bold uppercase ml-auto">
-                                    Drives Repeat Business
-                                </span>
-                            </div>
-                            <p className="text-xs text-amber-700 mb-3">
-                                Customer will receive reminders for selected tasks
-                            </p>
-                            <div className="space-y-2">
-                                {item.maintenanceTasks.map((task, taskIdx) => (
-                                    <button
-                                        key={taskIdx}
-                                        type="button"
-                                        onClick={() => toggleMaintenanceTask(taskIdx)}
-                                        className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                                            task.selected !== false
-                                                ? 'bg-white border-amber-300 shadow-sm'
-                                                : 'bg-amber-50/50 border-amber-100'
-                                        }`}
-                                    >
-                                        {task.selected !== false ? (
-                                            <CheckSquare size={18} className="text-amber-600 shrink-0" />
-                                        ) : (
-                                            <Square size={18} className="text-amber-300 shrink-0" />
-                                        )}
-                                        <div className="flex-grow text-left">
-                                            <p className={`text-sm font-medium ${
-                                                task.selected !== false ? 'text-slate-800' : 'text-slate-400'
-                                            }`}>
-                                                {task.task}
-                                            </p>
-                                            <p className="text-xs text-slate-500">
-                                                {task.frequency}
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ============================================
-// PHOTO UPLOAD SECTION
-// ============================================
-const PhotoUploadSection = ({ photos, onAdd, onRemove, onUpdateCaption }) => {
-    const fileInputRef = useRef(null);
-    const [uploadingCount, setUploadingCount] = useState(0);
-    
-    const handlePhotoSelect = async (e) => {
-        const files = Array.from(e.target.files);
-        if (files.length === 0) return;
-        
-        setUploadingCount(files.length);
-        
-        for (const file of files) {
-            try {
-                const compressed = await compressImage(file);
-                const response = await fetch(compressed);
-                const blob = await response.blob();
-                
-                onAdd({
-                    file: new File([blob], file.name, { type: 'image/jpeg' }),
-                    preview: compressed,
-                    type: 'work',
-                    caption: ''
-                });
-            } catch (err) {
-                console.error('Photo processing error:', err);
-            }
-        }
-        
-        setUploadingCount(0);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-    };
-    
-    return (
-        <div className="space-y-4">
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handlePhotoSelect}
-                className="hidden"
-            />
-            
-            {/* Photo Grid */}
-            <div className="grid grid-cols-3 gap-3">
-                {photos.map((photo, idx) => (
-                    <div key={idx} className="relative group aspect-square">
-                        <img
-                            src={photo.preview || photo.url}
-                            alt={photo.caption || `Photo ${idx + 1}`}
-                            className="w-full h-full object-cover rounded-xl"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors rounded-xl">
-                            <button
-                                type="button"
-                                onClick={() => onRemove(idx)}
-                                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                                <X size={14} />
-                            </button>
-                        </div>
-                        {/* Type Badge */}
-                        <div className="absolute bottom-2 left-2">
-                            <select
-                                value={photo.type}
-                                onChange={(e) => onUpdateCaption(idx, { ...photo, type: e.target.value })}
-                                className="text-[10px] bg-black/60 text-white px-2 py-1 rounded-lg border-0 focus:ring-0"
-                            >
-                                <option value="before">Before</option>
-                                <option value="after">After</option>
-                                <option value="work">Work</option>
-                            </select>
-                        </div>
-                    </div>
-                ))}
-                
-                {/* Add Photo Button */}
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingCount > 0}
-                    className="aspect-square border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-emerald-500 hover:text-emerald-500 transition-colors"
-                >
-                    {uploadingCount > 0 ? (
-                        <Loader2 className="animate-spin" size={24} />
-                    ) : (
-                        <>
-                            <Camera size={24} />
-                            <span className="text-xs mt-1">Add Photo</span>
-                        </>
-                    )}
-                </button>
-            </div>
-            
-            <p className="text-xs text-slate-500 text-center">
-                Add before/after photos to showcase your work
-            </p>
-        </div>
-    );
-};
-
-// ============================================
-// PARTIAL COMPLETION TOGGLE
-// ============================================
-const PartialCompletionSection = ({ isPartial, setIsPartial, reason, setReason }) => {
-    return (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-                <button
-                    type="button"
-                    onClick={() => setIsPartial(!isPartial)}
-                    className="mt-0.5"
-                >
-                    {isPartial ? (
-                        <CheckSquare size={20} className="text-amber-600" />
-                    ) : (
-                        <Square size={20} className="text-amber-400" />
-                    )}
-                </button>
-                <div className="flex-grow">
-                    <p className="font-bold text-amber-800">Partial Completion</p>
-                    <p className="text-xs text-amber-700 mb-2">
-                        Check this if some work remains (e.g., waiting for parts)
-                    </p>
-                    
-                    {isPartial && (
-                        <textarea
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="Explain what's remaining and why..."
-                            rows={2}
-                            className="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none bg-white resize-none"
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-};
+const MAINTENANCE_FREQUENCIES = [
+    { value: 'none', label: 'No regular maintenance' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'quarterly', label: 'Quarterly (every 3 months)' },
+    { value: 'semiannual', label: 'Semi-annual (every 6 months)' },
+    { value: 'annual', label: 'Annual (yearly)' }
+];
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export const JobCompletionForm = ({ 
-    job, 
-    contractorId,
-    contractorProfile,
-    onSuccess, 
-    onCancel 
-}) => {
-    // Form State
-    const [invoice, setInvoice] = useState(null);
-    const [items, setItems] = useState([]);
+export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => {
+    // Form state
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [activeSection, setActiveSection] = useState('photos');
+    
+    // Photos
     const [photos, setPhotos] = useState([]);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
+    const photoInputRef = useRef(null);
+    const [selectedPhotoType, setSelectedPhotoType] = useState('after');
+    
+    // Invoice
+    const [invoice, setInvoice] = useState(null);
+    const [uploadingInvoice, setUploadingInvoice] = useState(false);
+    const invoiceInputRef = useRef(null);
+    
+    // Items installed
+    const [items, setItems] = useState([]);
+    const [showAddItem, setShowAddItem] = useState(false);
+    
+    // Notes
     const [notes, setNotes] = useState('');
     const [recommendations, setRecommendations] = useState('');
-    const [isPartial, setIsPartial] = useState(false);
-    const [partialReason, setPartialReason] = useState('');
     
-    // UI State
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [currentStep, setCurrentStep] = useState(1); // 1: Invoice, 2: Details, 3: Review
-    
-    // Handle invoice parsed data
-    const handleInvoiceParsed = (data, file, preview) => {
-        setInvoice({
-            file,
-            preview,
-            parsedData: {
-                totalAmount: data.totalAmount || null,
-                laborCost: data.laborCost || null,
-                partsCost: data.partsCost || null,
-                taxAmount: data.taxAmount || null,
-                date: data.date || null,
-                vendorName: data.vendorName || null
+    // ============================================
+    // PHOTO HANDLERS
+    // ============================================
+    const handlePhotoSelect = async (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        
+        setUploadingPhoto(true);
+        const loadingToast = toast.loading('Uploading photos...');
+        
+        try {
+            for (const file of files) {
+                if (file.size > 10 * 1024 * 1024) {
+                    toast.error(`${file.name} is too large (max 10MB)`);
+                    continue;
+                }
+                
+                const result = await uploadCompletionPhoto(job.id, file, selectedPhotoType);
+                setPhotos(prev => [...prev, {
+                    ...result,
+                    type: selectedPhotoType,
+                    caption: ''
+                }]);
             }
-        });
-        
-        // Auto-populate items from parsed invoice
-        if (data.items && data.items.length > 0) {
-            const parsedItems = data.items.map((item, idx) => ({
-                id: `item_${Date.now()}_${idx}`,
-                item: item.item || '',
-                category: item.category || '',
-                area: item.area || 'General',
-                brand: item.brand || '',
-                model: item.model || '',
-                serialNumber: item.serial || '',
-                dateInstalled: data.date || new Date().toISOString().split('T')[0],
-                cost: item.cost || '',
-                laborCost: '',
-                partsCost: '',
-                warranty: data.warranty || item.warranty || '',
-                warrantyDetails: item.warrantyDetails || null,
-                maintenanceFrequency: item.maintenanceFrequency || 'annual',
-                maintenanceTasks: (item.suggestedTasks || []).map(t => ({
-                    ...t,
-                    selected: true
-                })),
-                attachments: []
-            }));
-            setItems(parsedItems);
-        } else if (items.length === 0) {
-            // Add one empty item if none parsed
-            addEmptyItem();
+            toast.dismiss(loadingToast);
+            toast.success('Photos uploaded!');
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error('Failed to upload photos');
+            console.error(error);
+        } finally {
+            setUploadingPhoto(false);
+            if (photoInputRef.current) photoInputRef.current.value = '';
         }
-        
-        // Move to next step
-        setCurrentStep(2);
     };
     
-    // Add empty item
-    const addEmptyItem = () => {
-        setItems(prev => [...prev, {
-            id: `item_${Date.now()}`,
-            item: '',
-            category: '',
-            area: 'General',
-            brand: '',
-            model: '',
-            serialNumber: '',
-            dateInstalled: new Date().toISOString().split('T')[0],
-            cost: '',
-            laborCost: '',
-            partsCost: '',
-            warranty: '',
-            warrantyDetails: null,
-            maintenanceFrequency: 'none',
-            maintenanceTasks: [],
-            attachments: []
-        }]);
-    };
-    
-    // Update item
-    const handleItemChange = (index, updatedItem) => {
-        setItems(prev => prev.map((item, i) => i === index ? updatedItem : item));
-    };
-    
-    // Remove item
-    const handleItemRemove = (index) => {
-        setItems(prev => prev.filter((_, i) => i !== index));
-    };
-    
-    // Photo handlers
-    const handlePhotoAdd = (photo) => {
-        setPhotos(prev => [...prev, photo]);
-    };
-    
-    const handlePhotoRemove = (index) => {
+    const handleRemovePhoto = (index) => {
         setPhotos(prev => prev.filter((_, i) => i !== index));
     };
     
-    const handlePhotoUpdate = (index, updated) => {
-        setPhotos(prev => prev.map((p, i) => i === index ? updated : p));
+    const handlePhotoCaption = (index, caption) => {
+        setPhotos(prev => prev.map((photo, i) => 
+            i === index ? { ...photo, caption } : photo
+        ));
     };
     
-    // Validation
-    const validateForm = () => {
-        if (!invoice?.file) {
-            toast.error('Invoice is required');
-            return false;
+    // ============================================
+    // INVOICE HANDLERS
+    // ============================================
+    const handleInvoiceSelect = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 15 * 1024 * 1024) {
+            toast.error('Invoice file too large (max 15MB)');
+            return;
         }
         
-        const validItems = items.filter(item => item.item?.trim());
-        if (validItems.length === 0) {
-            toast.error('At least one item is required');
-            return false;
-        }
+        setUploadingInvoice(true);
+        const loadingToast = toast.loading('Uploading invoice...');
         
-        if (isPartial && !partialReason.trim()) {
-            toast.error('Please explain what work remains');
-            return false;
+        try {
+            const result = await uploadInvoiceFile(job.id, file, contractorId);
+            setInvoice(result);
+            toast.dismiss(loadingToast);
+            toast.success('Invoice uploaded!');
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error('Failed to upload invoice');
+            console.error(error);
+        } finally {
+            setUploadingInvoice(false);
+            if (invoiceInputRef.current) invoiceInputRef.current.value = '';
         }
-        
-        return true;
     };
     
-    // Submit
+    // ============================================
+    // ITEM HANDLERS
+    // ============================================
+    const handleAddItem = (itemData) => {
+        setItems(prev => [...prev, {
+            id: `item_${Date.now()}`,
+            ...itemData
+        }]);
+        setShowAddItem(false);
+    };
+    
+    const handleRemoveItem = (itemId) => {
+        setItems(prev => prev.filter(item => item.id !== itemId));
+    };
+    
+    // ============================================
+    // SUBMIT HANDLER
+    // ============================================
     const handleSubmit = async () => {
-        if (!validateForm()) return;
+        // Validation
+        if (photos.length === 0) {
+            toast.error('Please add at least one photo');
+            return;
+        }
         
         setIsSubmitting(true);
         const loadingToast = toast.loading('Submitting completion...');
         
         try {
-            // 1. Upload invoice
-            const invoiceUpload = await uploadInvoiceFile(job.id, invoice.file, contractorId);
-            
-            // 2. Upload photos
-            const uploadedPhotos = [];
-            for (const photo of photos) {
-                if (photo.file) {
-                    const uploaded = await uploadCompletionPhoto(job.id, photo.file, photo.type);
-                    uploaded.caption = photo.caption || '';
-                    uploadedPhotos.push(uploaded);
-                }
-            }
-            
-            // 3. Prepare completion data
             const completionData = {
-                invoice: {
-                    url: invoiceUpload.url,
-                    fileName: invoiceUpload.fileName,
-                    parsedData: invoice.parsedData
-                },
-                items: items.filter(item => item.item?.trim()).map(item => ({
-                    ...item,
-                    cost: item.cost ? parseFloat(item.cost) : null,
-                    laborCost: item.laborCost ? parseFloat(item.laborCost) : null,
-                    partsCost: item.partsCost ? parseFloat(item.partsCost) : null
-                })),
-                photos: uploadedPhotos,
-                notes: notes,
-                recommendations: recommendations,
-                isPartial: isPartial,
-                partialReason: isPartial ? partialReason : null
+                photos,
+                invoice: invoice || null,
+                items,
+                notes,
+                recommendations,
+                nextServiceSuggestion: null // Could add UI for this later
             };
             
-            // 4. Submit to Firestore
             await submitJobCompletion(job.id, completionData, contractorId);
             
             toast.dismiss(loadingToast);
-            toast.success('Job completion submitted!');
+            toast.success('Job completion submitted! Awaiting customer review.');
             
             if (onSuccess) onSuccess();
+            onClose();
             
         } catch (error) {
-            console.error('Submission error:', error);
             toast.dismiss(loadingToast);
-            toast.error('Failed to submit: ' + error.message);
+            toast.error(error.message || 'Failed to submit completion');
+            console.error(error);
         } finally {
             setIsSubmitting(false);
         }
     };
     
+    // ============================================
+    // RENDER
+    // ============================================
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
-            <Toaster position="top-center" />
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
+                onClick={onClose} 
+            />
             
-            {/* Header */}
-            <div className="bg-white border-b border-slate-100 sticky top-0 z-40 px-4 py-4">
-                <div className="max-w-2xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        {onCancel && (
-                            <button
-                                onClick={onCancel}
-                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <ArrowLeft size={20} className="text-slate-600" />
-                            </button>
-                        )}
-                        <div>
-                            <h1 className="font-bold text-slate-800">Complete Job</h1>
-                            <p className="text-sm text-slate-500">
-                                {job.customerName || job.propertyName || 'Customer'}
-                            </p>
-                        </div>
+            {/* Modal */}
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-4 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-xl font-bold text-white">Complete Job</h2>
+                        <p className="text-emerald-100 text-sm mt-0.5">
+                            {job.description || job.title || 'Service Request'}
+                        </p>
                     </div>
-                    
-                    {/* Step Indicator */}
-                    <div className="flex items-center gap-2">
-                        {[1, 2, 3].map(step => (
+                    <button 
+                        onClick={onClose}
+                        className="p-2 hover:bg-white/20 rounded-full transition-colors"
+                    >
+                        <X className="w-5 h-5 text-white" />
+                    </button>
+                </div>
+                
+                {/* Progress Indicator */}
+                <div className="px-6 py-3 bg-gray-50 border-b flex gap-2">
+                    {[
+                        { id: 'photos', label: 'Photos', icon: Camera },
+                        { id: 'items', label: 'Items', icon: Wrench },
+                        { id: 'notes', label: 'Notes', icon: MessageSquare },
+                        { id: 'review', label: 'Review', icon: ClipboardList }
+                    ].map((section, idx) => (
+                        <button
+                            key={section.id}
+                            onClick={() => setActiveSection(section.id)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                                activeSection === section.id
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <section.icon className="w-4 h-4" />
+                            {section.label}
+                        </button>
+                    ))}
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {/* PHOTOS SECTION */}
+                    {activeSection === 'photos' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <h3 className="font-semibold text-gray-900">Completion Photos</h3>
+                                <span className="text-sm text-gray-500">{photos.length} uploaded</span>
+                            </div>
+                            
+                            {/* Photo Type Selector */}
+                            <div className="flex gap-2">
+                                {PHOTO_TYPES.map(type => (
+                                    <button
+                                        key={type.id}
+                                        onClick={() => setSelectedPhotoType(type.id)}
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            selectedPhotoType === type.id
+                                                ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-500'
+                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                        }`}
+                                    >
+                                        <span>{type.icon}</span>
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                            
+                            {/* Upload Button */}
                             <div
-                                key={step}
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                                    currentStep >= step
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-slate-200 text-slate-500'
+                                onClick={() => !uploadingPhoto && photoInputRef.current?.click()}
+                                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                                    uploadingPhoto 
+                                        ? 'border-gray-300 bg-gray-50' 
+                                        : 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50'
                                 }`}
                             >
-                                {currentStep > step ? <CheckCircle size={16} /> : step}
+                                {uploadingPhoto ? (
+                                    <Loader2 className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
+                                ) : (
+                                    <>
+                                        <Camera className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                        <p className="text-gray-600 font-medium">
+                                            Click to upload {PHOTO_TYPES.find(t => t.id === selectedPhotoType)?.label} photos
+                                        </p>
+                                        <p className="text-gray-400 text-sm mt-1">PNG, JPG up to 10MB</p>
+                                    </>
+                                )}
                             </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-            
-            <div className="max-w-2xl mx-auto p-4">
-                {/* Job Summary */}
-                <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 p-2 rounded-xl">
-                            <Wrench className="h-5 w-5 text-emerald-600" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-slate-800">{job.description || job.item || 'Service Job'}</p>
-                            <p className="text-sm text-slate-500">
-                                {job.scheduledDate ? new Date(job.scheduledDate).toLocaleDateString() : 'Date TBD'}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Step 1: Invoice Upload */}
-                <Section 
-                    title="Invoice" 
-                    icon={Receipt} 
-                    required 
-                    badge={invoice?.file ? 'Uploaded' : null}
-                >
-                    <InvoiceUploadSection
-                        invoice={invoice}
-                        onInvoiceParsed={handleInvoiceParsed}
-                        onRemove={() => setInvoice(null)}
-                    />
-                </Section>
-                
-                {/* Step 2: Items (only show after invoice) */}
-                {invoice?.file && (
-                    <>
-                        <Section title="Items Installed/Serviced" icon={Package} badge={`${items.length} items`}>
-                            <div className="space-y-4">
-                                {items.map((item, idx) => (
-                                    <ItemEditorCard
-                                        key={item.id || idx}
-                                        item={item}
-                                        index={idx}
-                                        onChange={handleItemChange}
-                                        onRemove={handleItemRemove}
-                                        isOnly={items.length === 1}
-                                    />
-                                ))}
-                                
-                                <button
-                                    type="button"
-                                    onClick={addEmptyItem}
-                                    className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 hover:border-emerald-500 hover:text-emerald-500 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <Plus size={18} />
-                                    Add Another Item
-                                </button>
-                            </div>
-                        </Section>
-                        
-                        <Section title="Photos" icon={Camera} defaultOpen={false}>
-                            <PhotoUploadSection
-                                photos={photos}
-                                onAdd={handlePhotoAdd}
-                                onRemove={handlePhotoRemove}
-                                onUpdateCaption={handlePhotoUpdate}
+                            <input
+                                ref={photoInputRef}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handlePhotoSelect}
+                                className="hidden"
                             />
-                        </Section>
-                        
-                        <Section title="Notes & Recommendations" icon={MessageSquare} defaultOpen={false}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Job Notes
-                                    </label>
-                                    <textarea
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        placeholder="Any notes about the work performed..."
-                                        rows={3}
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
-                                    />
+                            
+                            {/* Photo Grid */}
+                            {photos.length > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                    {photos.map((photo, idx) => (
+                                        <div key={idx} className="relative group">
+                                            <img
+                                                src={photo.url}
+                                                alt={`Completion photo ${idx + 1}`}
+                                                className="w-full h-32 object-cover rounded-lg"
+                                            />
+                                            <div className="absolute top-2 left-2">
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                    photo.type === 'before' ? 'bg-orange-100 text-orange-700' :
+                                                    photo.type === 'after' ? 'bg-green-100 text-green-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                    {PHOTO_TYPES.find(t => t.id === photo.type)?.label}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleRemovePhoto(idx)}
+                                                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </button>
+                                            <input
+                                                type="text"
+                                                placeholder="Add caption..."
+                                                value={photo.caption}
+                                                onChange={(e) => handlePhotoCaption(idx, e.target.value)}
+                                                className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-xs px-2 py-1 rounded-b-lg"
+                                            />
+                                        </div>
+                                    ))}
                                 </div>
+                            )}
+                            
+                            {/* Invoice Upload */}
+                            <div className="mt-6 pt-6 border-t">
+                                <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                    <FileText className="w-4 h-4" />
+                                    Invoice (Optional)
+                                </h4>
                                 
+                                {invoice ? (
+                                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                            <span className="text-sm font-medium text-green-800">
+                                                {invoice.fileName}
+                                            </span>
+                                        </div>
+                                        <button
+                                            onClick={() => setInvoice(null)}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        onClick={() => !uploadingInvoice && invoiceInputRef.current?.click()}
+                                        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all ${
+                                            uploadingInvoice
+                                                ? 'border-gray-300 bg-gray-50'
+                                                : 'border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'
+                                        }`}
+                                    >
+                                        {uploadingInvoice ? (
+                                            <Loader2 className="w-5 h-5 text-gray-400 mx-auto animate-spin" />
+                                        ) : (
+                                            <div className="flex items-center justify-center gap-2 text-gray-500">
+                                                <Upload className="w-4 h-4" />
+                                                <span className="text-sm">Upload invoice (PDF or image)</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <input
+                                    ref={invoiceInputRef}
+                                    type="file"
+                                    accept=".pdf,image/*"
+                                    onChange={handleInvoiceSelect}
+                                    className="hidden"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* ITEMS SECTION */}
+                    {activeSection === 'items' && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
-                                        Recommendations for Customer
-                                    </label>
-                                    <textarea
-                                        value={recommendations}
-                                        onChange={(e) => setRecommendations(e.target.value)}
-                                        placeholder="e.g., Consider upgrading ductwork next year..."
-                                        rows={3}
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
-                                    />
+                                    <h3 className="font-semibold text-gray-900">Items Installed</h3>
+                                    <p className="text-sm text-gray-500">
+                                        These will be added to the customer's home inventory
+                                    </p>
                                 </div>
                             </div>
-                        </Section>
-                        
-                        {/* Partial Completion */}
-                        <PartialCompletionSection
-                            isPartial={isPartial}
-                            setIsPartial={setIsPartial}
-                            reason={partialReason}
-                            setReason={setPartialReason}
-                        />
-                    </>
-                )}
-            </div>
-            
-            {/* Submit Button */}
-            {invoice?.file && (
-                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
-                    <div className="max-w-2xl mx-auto">
-                        <button
-                            onClick={handleSubmit}
-                            disabled={isSubmitting}
-                            className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
-                        >
-                            {isSubmitting ? (
-                                <>
-                                    <Loader2 className="animate-spin" size={20} />
-                                    Submitting...
-                                </>
+                            
+                            {/* Items List */}
+                            {items.length > 0 ? (
+                                <div className="space-y-3">
+                                    {items.map((item) => (
+                                        <ItemCard 
+                                            key={item.id} 
+                                            item={item} 
+                                            onRemove={() => handleRemoveItem(item.id)}
+                                        />
+                                    ))}
+                                </div>
                             ) : (
-                                <>
-                                    <Send size={20} />
-                                    Submit Completion
-                                </>
+                                <div className="text-center py-8 bg-gray-50 rounded-xl">
+                                    <Wrench className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+                                    <p className="text-gray-500">No items added yet</p>
+                                    <p className="text-gray-400 text-sm">
+                                        Add equipment or parts you installed
+                                    </p>
+                                </div>
                             )}
-                        </button>
-                        
-                        <p className="text-xs text-slate-500 text-center mt-2">
-                            Customer will review and accept your completion
+                            
+                            {/* Add Item Button/Form */}
+                            {showAddItem ? (
+                                <AddItemForm 
+                                    onAdd={handleAddItem}
+                                    onCancel={() => setShowAddItem(false)}
+                                />
+                            ) : (
+                                <button
+                                    onClick={() => setShowAddItem(true)}
+                                    className="w-full py-3 border-2 border-dashed border-emerald-300 rounded-xl text-emerald-600 font-medium hover:bg-emerald-50 hover:border-emerald-500 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-5 h-5" />
+                                    Add Item
+                                </button>
+                            )}
+                            
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
+                                <p className="text-amber-800 text-sm">
+                                    <AlertCircle className="w-4 h-4 inline mr-1" />
+                                    Tip: Adding items with serial numbers and warranty info helps homeowners track their equipment.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* NOTES SECTION */}
+                    {activeSection === 'notes' && (
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block font-medium text-gray-900 mb-2">
+                                    Completion Notes
+                                </label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Describe the work completed, any issues found, etc..."
+                                    rows={4}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-none"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block font-medium text-gray-900 mb-2">
+                                    Recommendations (Optional)
+                                </label>
+                                <textarea
+                                    value={recommendations}
+                                    onChange={(e) => setRecommendations(e.target.value)}
+                                    placeholder="Any recommendations for the homeowner? Future maintenance, upgrades to consider, etc..."
+                                    rows={3}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-none"
+                                />
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* REVIEW SECTION */}
+                    {activeSection === 'review' && (
+                        <div className="space-y-6">
+                            <h3 className="font-semibold text-gray-900">Review & Submit</h3>
+                            
+                            {/* Summary */}
+                            <div className="space-y-4">
+                                {/* Photos Summary */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            photos.length > 0 ? 'bg-green-100' : 'bg-red-100'
+                                        }`}>
+                                            <Camera className={`w-5 h-5 ${
+                                                photos.length > 0 ? 'text-green-600' : 'text-red-600'
+                                            }`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Photos</p>
+                                            <p className="text-sm text-gray-500">
+                                                {photos.length} photo{photos.length !== 1 ? 's' : ''} uploaded
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {photos.length === 0 && (
+                                        <span className="text-red-500 text-sm font-medium">Required</span>
+                                    )}
+                                </div>
+                                
+                                {/* Invoice Summary */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            invoice ? 'bg-green-100' : 'bg-gray-100'
+                                        }`}>
+                                            <FileText className={`w-5 h-5 ${
+                                                invoice ? 'text-green-600' : 'text-gray-400'
+                                            }`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Invoice</p>
+                                            <p className="text-sm text-gray-500">
+                                                {invoice ? invoice.fileName : 'Not uploaded'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="text-gray-400 text-sm">Optional</span>
+                                </div>
+                                
+                                {/* Items Summary */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            items.length > 0 ? 'bg-green-100' : 'bg-gray-100'
+                                        }`}>
+                                            <Wrench className={`w-5 h-5 ${
+                                                items.length > 0 ? 'text-green-600' : 'text-gray-400'
+                                            }`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Items Installed</p>
+                                            <p className="text-sm text-gray-500">
+                                                {items.length} item{items.length !== 1 ? 's' : ''} to add to inventory
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="text-gray-400 text-sm">Optional</span>
+                                </div>
+                                
+                                {/* Notes Summary */}
+                                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                            notes ? 'bg-green-100' : 'bg-gray-100'
+                                        }`}>
+                                            <MessageSquare className={`w-5 h-5 ${
+                                                notes ? 'text-green-600' : 'text-gray-400'
+                                            }`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Notes</p>
+                                            <p className="text-sm text-gray-500">
+                                                {notes ? `${notes.substring(0, 50)}...` : 'No notes added'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span className="text-gray-400 text-sm">Optional</span>
+                                </div>
+                            </div>
+                            
+                            {/* What Happens Next */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                                <h4 className="font-medium text-blue-900 mb-2">What happens next?</h4>
+                                <ul className="text-sm text-blue-800 space-y-1">
+                                    <li>• The customer will be notified to review your completion</li>
+                                    <li>• They can approve or request changes</li>
+                                    <li>• Items you added will be imported to their home inventory</li>
+                                    <li>• If no response in 7 days, it auto-completes</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Footer */}
+                <div className="px-6 py-4 bg-gray-50 border-t flex items-center justify-between">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                    >
+                        Cancel
+                    </button>
+                    
+                    <div className="flex items-center gap-3">
+                        {activeSection !== 'review' ? (
+                            <button
+                                onClick={() => {
+                                    const sections = ['photos', 'items', 'notes', 'review'];
+                                    const currentIdx = sections.indexOf(activeSection);
+                                    if (currentIdx < sections.length - 1) {
+                                        setActiveSection(sections[currentIdx + 1]);
+                                    }
+                                }}
+                                className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors"
+                            >
+                                Continue
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSubmitting || photos.length === 0}
+                                className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Submitting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle className="w-4 h-4" />
+                                        Submit Completion
+                                    </>
+                                )}
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// ITEM CARD COMPONENT
+// ============================================
+const ItemCard = ({ item, onRemove }) => {
+    const [expanded, setExpanded] = useState(false);
+    
+    return (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+            <div 
+                className="flex items-center justify-between p-4 bg-white cursor-pointer"
+                onClick={() => setExpanded(!expanded)}
+            >
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <Wrench className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div>
+                        <p className="font-medium text-gray-900">{item.item}</p>
+                        <p className="text-sm text-gray-500">
+                            {item.brand} {item.model && `• ${item.model}`}
                         </p>
                     </div>
                 </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                    {expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                </div>
+            </div>
+            
+            {expanded && (
+                <div className="px-4 pb-4 pt-2 border-t bg-gray-50 grid grid-cols-2 gap-3 text-sm">
+                    {item.serialNumber && (
+                        <div>
+                            <span className="text-gray-500">Serial #:</span>
+                            <span className="ml-2 text-gray-900">{item.serialNumber}</span>
+                        </div>
+                    )}
+                    {item.category && (
+                        <div>
+                            <span className="text-gray-500">Category:</span>
+                            <span className="ml-2 text-gray-900">{item.category}</span>
+                        </div>
+                    )}
+                    {item.cost && (
+                        <div>
+                            <span className="text-gray-500">Cost:</span>
+                            <span className="ml-2 text-gray-900">${item.cost}</span>
+                        </div>
+                    )}
+                    {item.warranty && (
+                        <div>
+                            <span className="text-gray-500">Warranty:</span>
+                            <span className="ml-2 text-gray-900">{item.warranty}</span>
+                        </div>
+                    )}
+                </div>
             )}
+        </div>
+    );
+};
+
+// ============================================
+// ADD ITEM FORM COMPONENT
+// ============================================
+const AddItemForm = ({ onAdd, onCancel }) => {
+    const [formData, setFormData] = useState({
+        item: '',
+        brand: '',
+        model: '',
+        serialNumber: '',
+        category: 'HVAC & Systems',
+        area: '',
+        cost: '',
+        warranty: '',
+        maintenanceFrequency: 'none'
+    });
+    
+    const handleSubmit = () => {
+        if (!formData.item.trim()) {
+            toast.error('Please enter an item name');
+            return;
+        }
+        onAdd({
+            ...formData,
+            cost: formData.cost ? parseFloat(formData.cost) : null,
+            dateInstalled: new Date().toISOString().split('T')[0]
+        });
+    };
+    
+    return (
+        <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/50">
+            <h4 className="font-medium text-gray-900 mb-4">Add Item</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Item Name *
+                    </label>
+                    <input
+                        type="text"
+                        value={formData.item}
+                        onChange={(e) => setFormData(prev => ({ ...prev, item: e.target.value }))}
+                        placeholder="e.g., Carrier AC Unit"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+                    <input
+                        type="text"
+                        value={formData.brand}
+                        onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                        placeholder="e.g., Carrier"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                    <input
+                        type="text"
+                        value={formData.model}
+                        onChange={(e) => setFormData(prev => ({ ...prev, model: e.target.value }))}
+                        placeholder="e.g., 24ACC636A003"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                    <input
+                        type="text"
+                        value={formData.serialNumber}
+                        onChange={(e) => setFormData(prev => ({ ...prev, serialNumber: e.target.value }))}
+                        placeholder="Enter serial number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                        value={formData.category}
+                        onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
+                        {CATEGORIES.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                    </select>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cost ($)</label>
+                    <input
+                        type="number"
+                        value={formData.cost}
+                        onChange={(e) => setFormData(prev => ({ ...prev, cost: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Warranty</label>
+                    <input
+                        type="text"
+                        value={formData.warranty}
+                        onChange={(e) => setFormData(prev => ({ ...prev, warranty: e.target.value }))}
+                        placeholder="e.g., 5 year parts, 1 year labor"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    />
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance</label>
+                    <select
+                        value={formData.maintenanceFrequency}
+                        onChange={(e) => setFormData(prev => ({ ...prev, maintenanceFrequency: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    >
+                        {MAINTENANCE_FREQUENCIES.map(freq => (
+                            <option key={freq.value} value={freq.value}>{freq.label}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-4">
+                <button
+                    onClick={onCancel}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium"
+                >
+                    Cancel
+                </button>
+                <button
+                    onClick={handleSubmit}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors"
+                >
+                    Add Item
+                </button>
+            </div>
         </div>
     );
 };
