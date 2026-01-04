@@ -1,6 +1,6 @@
 // src/App.jsx
-import React, { useMemo, useEffect } from 'react';
-import { signOut, GoogleAuthProvider, OAuthProvider, signInWithPopup, signInAnonymously } from 'firebase/auth';
+import React, { useMemo, useEffect, useState } from 'react'; // Added useState
+import { signOut } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore'; 
 import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home, MapPin } from 'lucide-react'; 
 import toast, { Toaster } from 'react-hot-toast';
@@ -104,17 +104,22 @@ const AppContent = () => {
     const proParam = urlParams.get('pro');
     const quoteToken = urlParams.get('quote');
     
-    // NEW: Check if user came from quote claim flow
-    const comingFromQuote = urlParams.get('from') === 'quote';
+    // FIX: Use STATE to track "from=quote" so it persists even if URL is cleaned
+    const [comingFromQuote] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('from') === 'quote';
+    });
 
-    // NEW: Clear "from=quote" param after loading to prevent issues on refresh
+    // Clean up the URL param for aesthetics, but rely on state for logic
     useEffect(() => {
-        if (comingFromQuote && app.activeTab === 'Dashboard') {
+        if (comingFromQuote) {
             const newUrl = new URL(window.location.href);
-            newUrl.searchParams.delete('from');
-            window.history.replaceState({}, '', newUrl.toString());
+            if (newUrl.searchParams.has('from')) {
+                newUrl.searchParams.delete('from');
+                window.history.replaceState({}, '', newUrl.toString());
+            }
         }
-    }, [comingFromQuote, app.activeTab]);
+    }, [comingFromQuote]);
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
