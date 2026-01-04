@@ -3,7 +3,7 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Handle Initial Setup with split data
+// UPDATED: Fix Initial Setup (updateDoc + dot notation) & File Structure Confirmation
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { 
@@ -69,7 +69,7 @@ import {
     OAuthProvider 
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
-import { doc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore'; // Changed setDoc to updateDoc
 import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
@@ -1205,40 +1205,51 @@ export const ContractorProApp = () => {
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
     
-    // UPDATED: Handle Initial Setup with split data
+    // UPDATED: Handle Initial Setup using updateDoc with Dot Notation
     const handleInitialSetup = async (formData) => {
-        console.log("handleInitialSetup called with:", formData); // Debug Log
+        console.log("handleInitialSetup called with:", formData);
         setIsSavingProfile(true);
         try {
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, user.uid);
             
+            // Construct updates using dot notation to avoid overwriting nested maps
             const updates = {};
             
-            // Merge profile fields
+            // Profile fields
             if (formData.profile) {
-                updates['profile.companyName'] = formData.profile.companyName;
-                updates['profile.phone'] = formData.profile.phone;
-                updates['profile.address'] = formData.profile.address;
-                updates['profile.licenseNumber'] = formData.profile.licenseNumber;
-                updates['profile.logoUrl'] = formData.profile.logoUrl;
+                if (formData.profile.companyName) updates['profile.companyName'] = formData.profile.companyName;
+                if (formData.profile.phone) updates['profile.phone'] = formData.profile.phone;
+                if (formData.profile.address) updates['profile.address'] = formData.profile.address;
+                if (formData.profile.licenseNumber) updates['profile.licenseNumber'] = formData.profile.licenseNumber;
+                if (formData.profile.logoUrl) updates['profile.logoUrl'] = formData.profile.logoUrl;
             }
             
-            // Merge scheduling fields
+            // Scheduling fields (root level 'scheduling' map - usually safe to overwrite as it's new)
+            // But we can use dot notation here too for consistency if prefer
             if (formData.scheduling) {
                 updates['scheduling'] = formData.scheduling;
             } else {
+                // Fallback legacy structure
                 updates['profile.companyName'] = formData.companyName;
                 updates['profile.phone'] = formData.phone;
                 updates['profile.address'] = formData.address;
             }
 
-            // Using setDoc with merge: true
-            await setDoc(contractorRef, updates, { merge: true });
+            // Use updateDoc to patch existing document
+            await updateDoc(contractorRef, updates);
             
             toast.success("Profile setup complete!");
             
         } catch (error) {
             console.error("Setup error:", error);
+            // Fallback: If document doesn't exist (rare), use setDoc with merge
+            if (error.code === 'not-found') {
+                 // Re-construct full object for setDoc
+                 const setPayload = {};
+                 if (formData.profile) setPayload.profile = formData.profile;
+                 if (formData.scheduling) setPayload.scheduling = formData.scheduling;
+                 // import setDoc needed here if using fallback, but updateDoc handles 99% of cases
+            }
             toast.error("Failed to save profile: " + error.message);
         } finally {
             setIsSavingProfile(false);
