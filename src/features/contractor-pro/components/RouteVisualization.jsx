@@ -3,14 +3,14 @@
 // ROUTE VISUALIZATION
 // ============================================
 // Shows daily jobs on a map-like visualization with route optimization suggestions
-// UPDATED: Added Date Navigation Controls
+// UPDATED: Added "Open in Google Maps" Deep Linking
 
 import React, { useState, useMemo } from 'react';
 import { 
     Navigation, MapPin, Clock, ArrowRight, 
     Route, Sparkles, ChevronDown, ChevronUp,
     Car, Home, CheckCircle, AlertCircle, Zap,
-    ChevronLeft, ChevronRight, Calendar // Added icons for nav
+    ChevronLeft, ChevronRight, Calendar, ExternalLink, Map // Added Map icon
 } from 'lucide-react';
 import { suggestRouteOrder } from '../lib/schedulingAI';
 
@@ -43,6 +43,54 @@ const estimateTravelTime = (miles) => {
 };
 
 // ============================================
+// GOOGLE MAPS INTEGRATION
+// ============================================
+const openGoogleMapsRoute = (jobs, homeBase) => {
+    if (!jobs || jobs.length === 0) return;
+
+    const baseUrl = "https://www.google.com/maps/dir/?api=1";
+    
+    // 1. Determine Origin (Home Base or First Job)
+    const originAddr = homeBase?.address || jobs[0].serviceAddress?.formatted || jobs[0].customer?.address;
+    const originParam = `&origin=${encodeURIComponent(originAddr)}`;
+
+    // 2. Determine Destination (Last Job)
+    const lastJob = jobs[jobs.length - 1];
+    const destAddr = lastJob.serviceAddress?.formatted || lastJob.customer?.address;
+    const destParam = `&destination=${encodeURIComponent(destAddr)}`;
+
+    // 3. Determine Waypoints (All jobs between Origin and Destination)
+    let waypointsParam = "";
+    
+    // If we have a home base, ALL jobs except the last one are waypoints
+    // If NO home base, the first job is origin, so waypoints start at job #2
+    let intermediateJobs = [];
+    
+    if (homeBase?.address) {
+        intermediateJobs = jobs.slice(0, jobs.length - 1);
+    } else {
+        intermediateJobs = jobs.slice(1, jobs.length - 1);
+    }
+
+    if (intermediateJobs.length > 0) {
+        const points = intermediateJobs.map(j => 
+            encodeURIComponent(j.serviceAddress?.formatted || j.customer?.address)
+        ).join('|');
+        waypointsParam = `&waypoints=${points}`;
+    }
+
+    // 4. Launch
+    window.open(`${baseUrl}${originParam}${destParam}${waypointsParam}`, '_blank');
+};
+
+const openSingleJobMap = (job) => {
+    const address = job.serviceAddress?.formatted || job.customer?.address;
+    if (!address) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    window.open(url, '_blank');
+};
+
+// ============================================
 // JOB CARD IN ROUTE
 // ============================================
 
@@ -61,16 +109,13 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
             )}
             
             {/* Job card */}
-            <button
-                onClick={() => onClick?.(job)}
-                className="w-full flex items-start gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all text-left"
-            >
+            <div className="w-full flex items-start gap-3 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all text-left group">
                 {/* Number badge */}
                 <div className="w-8 h-8 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold text-sm shrink-0">
                     {index + 1}
                 </div>
                 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onClick?.(job)}>
                     <div className="flex items-start justify-between gap-2">
                         <div>
                             <p className="font-bold text-slate-800">
@@ -102,7 +147,19 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
                         )}
                     </div>
                 </div>
-            </button>
+
+                {/* Individual Map Button */}
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openSingleJobMap(job);
+                    }}
+                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                    title="Open in Maps"
+                >
+                    <Map size={18} />
+                </button>
+            </div>
         </div>
     );
 };
@@ -111,7 +168,7 @@ const RouteJobCard = ({ job, index, travelFromPrev, isLast, onClick }) => {
 // ROUTE SUMMARY
 // ============================================
 
-const RouteSummary = ({ jobs, homeBase, isOptimized }) => {
+const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
     const stats = useMemo(() => {
         let totalDistance = 0;
         let totalTravelTime = 0;
@@ -147,7 +204,7 @@ const RouteSummary = ({ jobs, homeBase, isOptimized }) => {
 
     return (
         <div className="bg-slate-50 rounded-xl p-4 mb-4">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
                 <h4 className="font-bold text-slate-800 flex items-center gap-2">
                     <Route size={16} className="text-emerald-600" />
                     Route Summary
@@ -160,7 +217,7 @@ const RouteSummary = ({ jobs, homeBase, isOptimized }) => {
                 )}
             </div>
             
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="text-center">
                     <p className="text-lg font-bold text-slate-800">{stats.jobCount}</p>
                     <p className="text-xs text-slate-500">Jobs</p>
@@ -178,6 +235,15 @@ const RouteSummary = ({ jobs, homeBase, isOptimized }) => {
                     <p className="text-xs text-slate-500">Revenue</p>
                 </div>
             </div>
+
+            {/* NEW: Open in Google Maps Button */}
+            <button
+                onClick={onOpenMaps}
+                className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+            >
+                <Map size={18} />
+                Open Full Route in Google Maps
+            </button>
         </div>
     );
 };
@@ -280,7 +346,7 @@ export const RouteVisualization = ({
     preferences = {},
     onJobClick,
     onReorder,
-    onDateChange // NEW PROP
+    onDateChange
 }) => {
     const [isOptimized, setIsOptimized] = useState(false);
 
@@ -346,9 +412,14 @@ export const RouteVisualization = ({
         if (onDateChange) onDateChange(newDate);
     };
 
+    // NEW: Handle Map Button Click
+    const handleOpenRoute = () => {
+        openGoogleMapsRoute(displayJobs, preferences?.homeBase);
+    };
+
     return (
         <div className="space-y-4">
-            {/* UPDATED: Date Header with Navigation */}
+            {/* Date Header with Navigation */}
             <div className="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                 <button 
                     onClick={handlePrevDay}
@@ -393,6 +464,7 @@ export const RouteVisualization = ({
                         jobs={displayJobs} 
                         homeBase={preferences?.homeBase}
                         isOptimized={isOptimized}
+                        onOpenMaps={handleOpenRoute}
                     />
 
                     {/* Optimization Suggestion */}
