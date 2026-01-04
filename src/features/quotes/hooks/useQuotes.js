@@ -4,7 +4,6 @@
 // ============================================
 // React hooks for managing quote state and operations
 // FIXED: Bulletproof handling of undefined contractorId
-console.log('✅ useQuotes.js LOADED - NEW VERSION');
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
@@ -23,6 +22,8 @@ import {
 // ============================================
 // QUOTES LIST HOOK
 // ============================================
+
+console.log('✅ useQuotes.js LOADED - NEW VERSION');
 
 /**
  * Hook for managing the quotes list with real-time updates
