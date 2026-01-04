@@ -10,7 +10,7 @@ import {
     Building2, Calendar, CheckCircle, XCircle, 
     Loader2, AlertTriangle, Mail, Phone, MapPin,
     FileText, Clock, UserPlus, Save, ArrowLeft, Shield, Users,
-    Sparkles, Home, Plus // NEW IMPORTS
+    Sparkles, Home, Plus // Imports for Property Modal & New UI
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -21,7 +21,6 @@ import {
     claimQuote
 } from '../lib/quoteService';
 import { AuthScreen } from '../../auth/AuthScreen';
-// UPDATED IMPORTS: Added collection, getDocs
 import { waitForPendingWrites, doc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
@@ -132,7 +131,7 @@ const SuccessState = ({ quote, contractor }) => {
 };
 
 // ============================================
-// PROPERTY SELECTION MODAL (NEW)
+// PROPERTY SELECTION MODAL (Restored Workstream 2)
 // ============================================
 const PropertySelectionModal = ({ 
     isOpen, 
@@ -143,7 +142,6 @@ const PropertySelectionModal = ({
     onCreateNew 
 }) => {
     const [selectedId, setSelectedId] = useState(null);
-    const [showCreateNew, setShowCreateNew] = useState(false);
     
     // Try to auto-match property by address
     useEffect(() => {
@@ -161,7 +159,7 @@ const PropertySelectionModal = ({
     if (!isOpen) return null;
     
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="p-6 border-b border-slate-100">
@@ -358,13 +356,13 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                             <div className="flex items-center gap-2">
                                 <Sparkles size={16} className="text-emerald-300" />
                                 <p className="font-bold">
-                                    {user ? 'Add to Your Account' : 'Save this Quote to Krib'}
+                                    {user ? 'Add to Your Krib' : 'Save this Quote to Krib'}
                                 </p>
                             </div>
                             <p className="text-emerald-200 text-sm mt-1">
                                 {user 
                                     ? 'Track this project alongside your other home records'
-                                    : 'Create a free account to track this project, manage receipts, and organize your home.'
+                                    : 'Create a free account to track this project and organize your home.'
                                 }
                             </p>
                         </div>
@@ -375,7 +373,7 @@ const QuoteContent = ({ quote, contractor, contractorId, user, onAccept, onDecli
                                        hover:bg-emerald-50 transition-colors flex items-center gap-2 whitespace-nowrap shadow-sm"
                         >
                             {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                            {user ? 'Add to Account' : 'Create Free Account'}
+                            {user ? 'Add to My Krib' : 'Save to Krib'}
                         </button>
                     </div>
                 )}
@@ -617,7 +615,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [data, setData] = useState(null);
     const [accepted, setAccepted] = useState(false);
     
-    // NEW: Auth Modal & Property Selection State
+    // Auth Modal & Claim State
     const [showAuth, setShowAuth] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
     const [isClaiming, setIsClaiming] = useState(false);
@@ -640,11 +638,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         const loadQuote = async () => {
             try {
+                console.log("Loading quote for token:", shareToken);
                 const result = await getQuoteByShareToken(shareToken);
                 
                 if (!isMounted) return;
 
                 if (!result || !result.quote) {
+                    console.error("Quote not found in DB");
                     setError('This quote could not be found. It may have been deleted.');
                     setLoading(false);
                     hasSetLoading = true;
@@ -652,7 +652,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 }
                 
                 setData(result);
-                setLoading(false);
+                setLoading(false); 
                 hasSetLoading = true;
                 
                 if (result.quote.status === 'sent') {
@@ -687,8 +687,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const executeClaim = async (propertyId = null) => {
         setIsClaiming(true);
         try {
-            // If propertyId is provided, we might need to pass it to claimQuote
-            // Assuming claimQuote now accepts propertyId as 4th arg based on plan
             await claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
             
             // Mark welcome seen
@@ -720,15 +718,18 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     };
 
+    // Handle Save/Claim
     const handleSaveQuote = async () => {
-        // 1. Auth check
         if (!user) {
             setPendingSave(true);
             setShowAuth(true);
+            
             if (data?.quote?.customer?.address) {
                 try {
                     localStorage.setItem('pendingQuoteAddress', data.quote.customer.address);
-                } catch (e) {}
+                } catch (e) {
+                    console.warn('Failed to save pending quote address', e);
+                }
             }
             return;
         }
@@ -741,7 +742,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         if (isClaiming) return;
 
-        // 2. Fetch User Properties to check count
+        // Check user properties
         try {
             const propertiesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'properties');
             const snapshot = await getDocs(propertiesRef);
@@ -749,17 +750,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             setUserProperties(properties);
 
             if (properties.length > 1) {
-                // Show modal for selection
                 setShowPropertySelection(true);
             } else {
-                // 0 or 1 property - Default behavior
-                // Pass the single property ID if available, otherwise null
                 const propertyId = properties[0]?.id || null;
                 await executeClaim(propertyId);
             }
         } catch (err) {
             console.error('Error checking properties:', err);
-            // Fallback to direct claim if property check fails
             await executeClaim(null);
         }
     };
@@ -810,7 +807,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     
     return (
         <>
-            {/* Login Modal Overlay */}
             {showAuth && (
                 <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
                     <div className="absolute top-4 right-4 z-50">
@@ -822,14 +818,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 </div>
             )}
 
-            {/* Property Selection Modal */}
             <PropertySelectionModal
                 isOpen={showPropertySelection}
                 onClose={() => setShowPropertySelection(false)}
                 properties={userProperties}
                 quoteAddress={data.quote.customer?.address}
                 onSelect={(propId) => executeClaim(propId)}
-                onCreateNew={() => executeClaim(null)} // Pass null to trigger new property flow in claimQuote (if supported) or just claim without assigning
+                onCreateNew={() => executeClaim(null)}
             />
 
             <QuoteContent
