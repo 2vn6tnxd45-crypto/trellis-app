@@ -613,6 +613,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     // Auth Modal & Claim State
     const [showAuth, setShowAuth] = useState(false);
     const [pendingSave, setPendingSave] = useState(false);
+    const [pendingAccept, setPendingAccept] = useState(false); // NEW: Track if user wanted to accept
     const [isClaiming, setIsClaiming] = useState(false);
     const [alreadyClaimed, setAlreadyClaimed] = useState(false);
     
@@ -756,16 +757,34 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     };
 
-    // Trigger save after login if pending
+    // Trigger save or accept after login if pending
     useEffect(() => {
-        if (user && pendingSave && data && !isClaiming) {
-            setPendingSave(false);
-            setShowAuth(false);
-            handleSaveQuote();
+        if (user && data && !isClaiming) {
+            // Handle pending accept (user wanted to accept quote)
+            if (pendingAccept) {
+                setPendingAccept(false);
+                setShowAuth(false);
+                handleAccept();
+                return;
+            }
+            
+            // Handle pending save (user wanted to save to Krib)
+            if (pendingSave) {
+                setPendingSave(false);
+                setShowAuth(false);
+                handleSaveQuote();
+            }
         }
-    }, [user, pendingSave, data, isClaiming]);
+    }, [user, pendingSave, pendingAccept, data, isClaiming]);
     
     const handleAccept = async () => {
+        // NEW: Require auth before accepting
+        if (!user) {
+            setPendingAccept(true);
+            setShowAuth(true);
+            return;
+        }
+        
         try {
             const result = await acceptQuote(data.contractorId, data.quote.id);
             setAccepted(true);
@@ -808,12 +827,14 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                     <QuoteAuthScreen
                         quote={data.quote}
                         contractor={data.contractor}
+                        action={pendingAccept ? 'accept' : 'save'}
                         onSuccess={() => {
-                            // Auth success - useEffect will handle the save
+                            // Auth success - useEffect will handle the save/accept
                         }}
                         onClose={() => {
                             setShowAuth(false);
                             setPendingSave(false);
+                            setPendingAccept(false);
                         }}
                     />
                 </div>
