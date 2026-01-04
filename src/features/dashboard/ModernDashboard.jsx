@@ -31,7 +31,9 @@ import { unclaimQuote } from '../quotes/lib/quoteService';
 import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
-// Optional: import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
+
+// NEW: Job Completion Review
+import { JobCompletionReview } from '../jobs/components/completion';
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
@@ -99,30 +101,18 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
-// --- ACTIVE PROJECTS SECTION (DEBUGGING VERSION) ---
+// --- ACTIVE PROJECTS SECTION ---
 
 // ============================================
-// UPDATED: ActiveProjectsSection with Phase 1 Features
+// UPDATED: ActiveProjectsSection with Job Completion Review
 // ============================================
-// 
-// This is the complete replacement for ActiveProjectsSection in ModernDashboard.jsx
-// It includes:
-// - Dual query (createdBy + customerId) for data model fix
-// - HomeownerJobCard with proper display
-// - Cancel job functionality
-// - Request different times functionality
-// - Improved modal with real-time data
-//
-// REQUIRED IMPORTS (add to top of ModernDashboard.jsx):
-// import { CancelJobModal } from '../jobs/CancelJobModal';
-// import { RequestTimesModal } from '../jobs/RequestTimesModal';
-// import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [cancellingJob, setCancellingJob] = useState(null);
     const [requestingTimesJob, setRequestingTimesJob] = useState(null);
+    const [reviewingJob, setReviewingJob] = useState(null);  // NEW: For completion review
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -159,10 +149,11 @@ const ActiveProjectsSection = ({ userId }) => {
             const allJobs = Array.from(merged.values());
             
             // Filter for active/negotiating jobs (exclude cancelled and completed)
+            // UPDATED: Added pending_completion and revision_requested statuses
             const active = allJobs.filter(r => 
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
                 (
-                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
+                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested'].includes(r.status) || 
                     (r.status === 'quoted' && r.estimate?.status === 'approved')
                 )
             );
@@ -204,9 +195,14 @@ const ActiveProjectsSection = ({ userId }) => {
         };
     }, [userId]);
 
-    // Handle job selection - open scheduler modal
+    // Handle job selection - open scheduler modal OR completion review
     const handleSelectJob = (job) => {
-        setSelectedJob(job);
+        // NEW: If job needs completion review, open that instead of scheduler
+        if (job.status === 'pending_completion') {
+            setReviewingJob(job);
+        } else {
+            setSelectedJob(job);
+        }
     };
 
     // Handle cancel job
@@ -220,9 +216,11 @@ const ActiveProjectsSection = ({ userId }) => {
     };
 
     // Get status badge config (for summary display)
+    // UPDATED: Added pending_completion to needsAction count
     const getStatusSummary = () => {
         const needsAction = projects.filter(j => 
             j.status === 'slots_offered' || 
+            j.status === 'pending_completion' ||
             (j.status === 'scheduling' && j.proposedTimes?.some(p => p.proposedBy === 'contractor'))
         ).length;
         
@@ -352,6 +350,28 @@ const ActiveProjectsSection = ({ userId }) => {
                     onSuccess={() => setRequestingTimesJob(null)}
                 />
             )}
+
+            {/* NEW: Job Completion Review Modal */}
+            {reviewingJob && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center">
+                    <div 
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+                        onClick={() => setReviewingJob(null)} 
+                    />
+                    <div className="relative w-full h-full md:h-auto md:max-h-[90vh] max-w-2xl overflow-auto bg-white md:rounded-2xl md:m-4">
+                        <JobCompletionReview
+                            job={projects.find(p => p.id === reviewingJob.id) || reviewingJob}
+                            userId={userId}
+                            propertyId={reviewingJob.propertyId}
+                            onSuccess={() => {
+                                setReviewingJob(null);
+                                toast.success('Job completed! Items added to your inventory.');
+                            }}
+                            onClose={() => setReviewingJob(null)}
+                        />
+                    </div>
+                </div>
+            )}
         </>
     );
 };
@@ -388,7 +408,7 @@ const ActiveProjectsSectionInline = ({ userId }) => {
             const allJobs = Array.from(merged.values());
             const active = allJobs.filter(r => 
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
-                (['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress'].includes(r.status) || 
+                (['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested'].includes(r.status) || 
                 (r.status === 'quoted' && r.estimate?.status === 'approved'))
             );
             setProjects(active);
@@ -407,7 +427,9 @@ const ActiveProjectsSectionInline = ({ userId }) => {
             scheduling: { label: 'Needs Scheduling', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock },
             quoted: { label: 'Ready to Schedule', bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle },
             in_progress: { label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700', icon: Wrench },
-            pending_schedule: { label: 'Pending', bg: 'bg-slate-100', text: 'text-slate-600', icon: Clock }
+            pending_schedule: { label: 'Pending', bg: 'bg-slate-100', text: 'text-slate-600', icon: Clock },
+            pending_completion: { label: 'Review Required', bg: 'bg-purple-100', text: 'text-purple-700', icon: CheckCircle2 },
+            revision_requested: { label: 'Revision Requested', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock }
         };
         return configs[status] || configs.pending_schedule;
     };
