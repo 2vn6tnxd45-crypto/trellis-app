@@ -3,10 +3,9 @@
 // CONTRACTOR PRO APP
 // ============================================
 // Main application wrapper for contractor dashboard with routing
-// UPDATED: Fix Initial Setup (updateDoc + dot notation) & File Structure Confirmation
-// UPDATED: Added Job Completion Flow
+// UPDATED: Added Chat/Messages functionality
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { 
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
@@ -16,7 +15,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck  // NEW: Added for completion status
+    ClipboardCheck
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -35,6 +34,10 @@ import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
 import { LogoUpload } from './components/LogoUpload';
 
+// NEW: Chat Components
+import { ContractorMessagesView } from './components/ContractorMessagesView';
+import { RecentMessagesWidget } from './components/RecentMessagesWidget';
+
 // Quote Components
 import { 
     QuotesListView, 
@@ -48,9 +51,8 @@ import { JobScheduler } from '../jobs/JobScheduler';
 // NEW: Job Completion Components
 import { JobCompletionForm } from '../jobs/components/completion';
 
-// NEW: Rating Components
-// NOTE: Uncomment this import once the ratings components are created:
-// import { RateHomeownerModal } from '../ratings';
+// NEW: Chat Service
+import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
@@ -106,7 +108,7 @@ import {
     OAuthProvider 
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore'; // Changed setDoc to updateDoc
+import { doc, updateDoc } from 'firebase/firestore';
 import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
@@ -144,7 +146,7 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
 );
 
 // ============================================
-// SIDEBAR NAV
+// SIDEBAR NAV - UPDATED with Messages
 // ============================================
 const SidebarNav = ({ 
     profile, 
@@ -154,7 +156,8 @@ const SidebarNav = ({
     pendingCount,
     pendingQuotesCount,
     activeJobsCount,
-    unscheduledJobsCount
+    unscheduledJobsCount,
+    unreadMessageCount // NEW
 }) => {
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor';
     const email = profile?.profile?.email || '';
@@ -194,6 +197,14 @@ const SidebarNav = ({
                     active={activeView === 'jobs'}
                     onClick={() => onNavigate('jobs')}
                     badge={activeJobsCount}
+                />
+                {/* NEW: Messages Nav Item */}
+                <NavItem 
+                    icon={MessageSquare}
+                    label="Messages"
+                    active={activeView === 'messages'}
+                    onClick={() => onNavigate('messages')}
+                    badge={unreadMessageCount}
                 />
                 <NavItem 
                     icon={Calendar} 
@@ -257,15 +268,23 @@ const SidebarNav = ({
 };
 
 // ============================================
-// MOBILE NAV
+// MOBILE NAV - UPDATED with Messages
 // ============================================
-const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount }) => (
+const MobileNav = ({ 
+    activeView, 
+    onNavigate, 
+    pendingCount, 
+    pendingQuotesCount, 
+    activeJobsCount, 
+    unscheduledJobsCount,
+    unreadMessageCount // NEW
+}) => (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-50 safe-area-bottom">
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
                 { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: activeJobsCount },
-                { id: 'schedule', icon: Calendar, label: 'Schedule', badge: unscheduledJobsCount },
+                { id: 'messages', icon: MessageSquare, label: 'Chat', badge: unreadMessageCount }, // NEW: Replaced Schedule with Messages on mobile
                 { id: 'quotes', icon: Receipt, label: 'Quotes', badge: pendingQuotesCount },
                 { id: 'profile', icon: User, label: 'Profile' },
             ].map(item => (
@@ -331,13 +350,11 @@ const JOB_STATUS_CONFIG = {
         color: 'bg-purple-100 text-purple-700',
         icon: Briefcase
     },
-    // NEW: Pending completion status
     pending_completion: {
         label: 'Awaiting Review',
         color: 'bg-purple-100 text-purple-700',
         icon: ClipboardCheck
     },
-    // NEW: Revision requested status
     revision_requested: {
         label: 'Revision Requested',
         color: 'bg-amber-100 text-amber-700',
@@ -415,7 +432,6 @@ const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
         return JOB_STATUS_CONFIG[status] || JOB_STATUS_CONFIG.pending;
     };
 
-    // NEW: Helper to determine if job can be completed
     const canCompleteJob = (job) => {
         return ['scheduled', 'in_progress'].includes(job.status);
     };
@@ -584,7 +600,6 @@ const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
                                         </a>
                                     )}
                                     
-                                    {/* NEW: Complete Job Button */}
                                     {canCompleteJob(job) && (
                                         <button
                                             onClick={(e) => {
@@ -598,7 +613,6 @@ const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
                                         </button>
                                     )}
                                     
-                                    {/* NEW: Awaiting Review Status */}
                                     {job.status === 'pending_completion' && (
                                         <span className="ml-auto px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-xs font-medium flex items-center gap-1.5">
                                             <ClipboardCheck size={12} />
@@ -606,7 +620,6 @@ const JobsView = ({ jobs, loading, onSelectJob, onCompleteJob }) => {
                                         </span>
                                     )}
                                     
-                                    {/* NEW: Revision Requested - Resubmit Button */}
                                     {job.status === 'revision_requested' && (
                                         <button
                                             onClick={(e) => {
@@ -855,7 +868,6 @@ const CustomersView = ({ customers, loading, onSelectCustomer }) => {
 
 // --- PROFILE VIEW ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
-    // Determine contractorId from profile
     const contractorId = profile?.id || profile?.uid;
 
     const [formData, setFormData] = useState({
@@ -866,7 +878,7 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
         address: profile?.profile?.address || '',
         licenseNumber: profile?.profile?.licenseNumber || '',
         specialty: profile?.profile?.specialty || '',
-        logoUrl: profile?.profile?.logoUrl || null // NEW: Track logo URL
+        logoUrl: profile?.profile?.logoUrl || null
     });
     const [saving, setSaving] = useState(false);
 
@@ -891,7 +903,6 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
 
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
                 
-                {/* NEW: Logo Upload in Profile View */}
                 <div className="pb-4 border-b border-slate-100">
                     <LogoUpload 
                         currentLogo={formData.logoUrl}
@@ -949,7 +960,6 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState('');
 
-    // Check providers
     const isGoogleUser = user?.providerData?.some(p => p.providerId === 'google.com');
     const isEmailUser = user?.providerData?.some(p => p.providerId === 'password');
 
@@ -986,10 +996,8 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
         setError('');
         
         try {
-            // 1. Delete contractor specific data
             await deleteContractorAccount(contractorId);
             
-            // 2. Delete Firebase Auth user
             if (auth.currentUser) {
                 await deleteUser(auth.currentUser);
             }
@@ -1240,9 +1248,12 @@ export const ContractorProApp = () => {
     const [scheduleView, setScheduleView] = useState('calendar'); 
     const [selectedDate, setSelectedDate] = useState(new Date()); 
     
-    // NEW: Job completion state
+    // Job completion state
     const [completingJob, setCompletingJob] = useState(null);
     const [ratingHomeowner, setRatingHomeowner] = useState(null);
+
+    // NEW: Unread message count state
+    const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
     const {
         user,
@@ -1291,7 +1302,6 @@ export const ContractorProApp = () => {
         j.status !== 'completed' && j.status !== 'cancelled'
     ).length || 0;
 
-    // Count unscheduled jobs correctly for Schedule badge
     const unscheduledJobsCount = useMemo(() => {
         return jobs?.filter(job => 
             !job.scheduledTime && 
@@ -1301,18 +1311,30 @@ export const ContractorProApp = () => {
     }, [jobs]);
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
+
+    // NEW: Subscribe to unread message count
+    useEffect(() => {
+        if (!user?.uid) {
+            setUnreadMessageCount(0);
+            return;
+        }
+        
+        const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
+            setUnreadMessageCount(count);
+        });
+        
+        return () => unsubscribe();
+    }, [user?.uid]);
     
-    // UPDATED: Handle Initial Setup using updateDoc with Dot Notation
+    // Handle Initial Setup using updateDoc with Dot Notation
     const handleInitialSetup = async (formData) => {
         console.log("handleInitialSetup called with:", formData);
         setIsSavingProfile(true);
         try {
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, user.uid);
             
-            // Construct updates using dot notation to avoid overwriting nested maps
             const updates = {};
             
-            // Profile fields
             if (formData.profile) {
                 if (formData.profile.companyName) updates['profile.companyName'] = formData.profile.companyName;
                 if (formData.profile.phone) updates['profile.phone'] = formData.profile.phone;
@@ -1321,32 +1343,20 @@ export const ContractorProApp = () => {
                 if (formData.profile.logoUrl) updates['profile.logoUrl'] = formData.profile.logoUrl;
             }
             
-            // Scheduling fields (root level 'scheduling' map - usually safe to overwrite as it's new)
-            // But we can use dot notation here too for consistency if prefer
             if (formData.scheduling) {
                 updates['scheduling'] = formData.scheduling;
             } else {
-                // Fallback legacy structure
                 updates['profile.companyName'] = formData.companyName;
                 updates['profile.phone'] = formData.phone;
                 updates['profile.address'] = formData.address;
             }
 
-            // Use updateDoc to patch existing document
             await updateDoc(contractorRef, updates);
             
             toast.success("Profile setup complete!");
             
         } catch (error) {
             console.error("Setup error:", error);
-            // Fallback: If document doesn't exist (rare), use setDoc with merge
-            if (error.code === 'not-found') {
-                 // Re-construct full object for setDoc
-                 const setPayload = {};
-                 if (formData.profile) setPayload.profile = formData.profile;
-                 if (formData.scheduling) setPayload.scheduling = formData.scheduling;
-                 // import setDoc needed here if using fallback, but updateDoc handles 99% of cases
-            }
             toast.error("Failed to save profile: " + error.message);
         } finally {
             setIsSavingProfile(false);
@@ -1443,23 +1453,18 @@ export const ContractorProApp = () => {
         if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
             setOfferingTimesJob(job);
         } else if (job.status === 'scheduled') {
-            // For already scheduled jobs, show the job details modal (existing behavior)
             setSelectedJob(job);
         } else {
-            // Fallback for other statuses
             setSelectedJob(job);
         }
     }, []);
 
-    // NEW: Handle complete job button click
     const handleCompleteJob = useCallback((job) => {
         setCompletingJob(job);
     }, []);
 
-    // NEW: Handle completion success - optionally prompt for rating
     const handleCompletionSuccess = useCallback((job) => {
         setCompletingJob(null);
-        // Optionally prompt to rate the homeowner
         setRatingHomeowner(job);
     }, []);
     
@@ -1467,6 +1472,7 @@ export const ContractorProApp = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
             case 'jobs': return 'My Jobs'; 
+            case 'messages': return 'Messages'; // NEW
             case 'schedule': return 'Schedule'; 
             case 'quotes': return 'Quotes'; 
             case 'create-quote': return 'New Quote'; 
@@ -1510,6 +1516,7 @@ export const ContractorProApp = () => {
                 pendingQuotesCount={pendingQuotes?.length || 0}
                 activeJobsCount={activeJobsCount}
                 unscheduledJobsCount={unscheduledJobsCount}
+                unreadMessageCount={unreadMessageCount} // NEW
             />
             
             <div className="flex-1 flex flex-col min-h-screen">
@@ -1534,7 +1541,15 @@ export const ContractorProApp = () => {
                             jobs={jobs} 
                             loading={jobsLoading} 
                             onSelectJob={handleJobClick}
-                            onCompleteJob={handleCompleteJob}  // NEW: Pass completion handler
+                            onCompleteJob={handleCompleteJob}
+                        />
+                    )}
+
+                    {/* NEW: Messages View */}
+                    {activeView === 'messages' && (
+                        <ContractorMessagesView 
+                            contractorId={user.uid}
+                            contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
                         />
                     )}
                     
@@ -1594,16 +1609,16 @@ export const ContractorProApp = () => {
                                 />
                             )}
                             {scheduleView === 'route' && (
-    <RouteVisualization 
-        jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
-        date={selectedDate}
-        preferences={profile?.scheduling}
-        teamMembers={profile?.scheduling?.teamMembers || []} // <--- ADD THIS LINE
-        onJobClick={handleJobClick}
-        onReorder={() => {}}
-        onDateChange={(date) => setSelectedDate(date)}
-    />
-)}
+                                <RouteVisualization 
+                                    jobs={jobs?.filter(j => isSameDay(j.scheduledTime, selectedDate)) || []}
+                                    date={selectedDate}
+                                    preferences={profile?.scheduling}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    onJobClick={handleJobClick}
+                                    onReorder={() => {}}
+                                    onDateChange={(date) => setSelectedDate(date)}
+                                />
+                            )}
                             {scheduleView === 'team' && (
                                 <TechAssignmentPanel 
                                     jobs={jobs}
@@ -1695,6 +1710,7 @@ export const ContractorProApp = () => {
                     pendingQuotesCount={pendingQuotes?.length || 0}
                     activeJobsCount={activeJobsCount}
                     unscheduledJobsCount={unscheduledJobsCount}
+                    unreadMessageCount={unreadMessageCount} // NEW
                 />
             </div>
 
@@ -1726,15 +1742,13 @@ export const ContractorProApp = () => {
             {offeringTimesJob && (
                 <OfferTimeSlotsModal
                     job={offeringTimesJob}
-                    allJobs={jobs} // PASSED ALL JOBS FOR CONFLICT CHECK
+                    allJobs={jobs}
                     schedulingPreferences={profile?.scheduling}
                     onClose={() => setOfferingTimesJob(null)}
                     onSuccess={() => setOfferingTimesJob(null)}
                 />
             )}
 
-            {/* NEW: Job Completion Form Modal */}
-            {/* Job Completion Modal - Component handles its own modal styling */}
             {completingJob && (
                 <JobCompletionForm
                     job={jobs.find(j => j.id === completingJob.id) || completingJob}
@@ -1744,7 +1758,6 @@ export const ContractorProApp = () => {
                 />
             )}
 
-            {/* NEW: Rate Homeowner Modal (optional, after completion) */}
             {ratingHomeowner && (
                 <RateHomeownerModal
                     job={ratingHomeowner}
