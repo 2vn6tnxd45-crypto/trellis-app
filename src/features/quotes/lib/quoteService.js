@@ -24,7 +24,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
-import { createProConnection } from '../../pros/lib/proService';
+
+// Optional: Pro connection service (comment out if not available)
+// import { createProConnection } from '../../pros/lib/proService';
 
 // Collection paths
 const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
@@ -875,18 +877,18 @@ export const claimQuote = async (contractorId, quoteId, userId, propertyId = nul
         
         await updateDoc(quoteRef, updateData);
         
-        // Create/Update Pro connection
-        await createProConnection(userId, {
-            contractorId,
-            name: contractorProfile.companyName || 'Contractor',
-            phone: contractorProfile.phone || null,
-            email: contractorProfile.email || null,
-            address: contractorProfile.address || null,
-            logoUrl: contractorProfile.logoUrl || null,
-            isOnPlatform: true,
-            connectedVia: 'quote',
-            connectedAt: serverTimestamp()
-        });
+        // Optional: Create/Update Pro connection (uncomment if proService exists)
+        // await createProConnection(userId, {
+        //     contractorId,
+        //     name: contractorProfile.companyName || 'Contractor',
+        //     phone: contractorProfile.phone || null,
+        //     email: contractorProfile.email || null,
+        //     address: contractorProfile.address || null,
+        //     logoUrl: contractorProfile.logoUrl || null,
+        //     isOnPlatform: true,
+        //     connectedVia: 'quote',
+        //     connectedAt: serverTimestamp()
+        // });
         
         return { success: true };
     } catch (error) {
