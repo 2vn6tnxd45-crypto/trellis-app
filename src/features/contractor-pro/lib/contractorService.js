@@ -695,9 +695,10 @@ export const subscribeToContractorInvoices = (contractorId, callback) => {
 // ============================================
 // ALIAS EXPORTS (for backwards compatibility)
 // ============================================
-// These aliases match what useContractorData.js imports
+// These aliases match what useContractorData.js and index.js import
 export const subscribeToInvitations = subscribeToContractorInvitations;
 export const subscribeToCustomers = subscribeToContractorCustomers;
+export const upsertCustomer = saveContractorCustomer;
 
 export default {
     getContractorProfile,
