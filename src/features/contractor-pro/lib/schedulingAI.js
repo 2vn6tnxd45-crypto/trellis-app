@@ -195,7 +195,8 @@ const findNearbyJobs = (targetJob, allJobs, date) => {
  * Check if a slot matches customer preferences
  */
 const matchesCustomerPreferences = (slot, preferences) => {
-    if (!preferences) return { matches: true, score: 50 };
+    // FIX: Added reasons: [] to prevent crash when preferences is null
+    if (!preferences) return { matches: true, score: 50, reasons: [] };
     
     let score = 50; // Base score
     const reasons = [];
@@ -267,8 +268,7 @@ const calculateDayWorkload = (date, jobs, preferences) => {
 
 /**
  * Generate scheduling suggestions for a job
- * 
- * @param {Object} targetJob - The job to schedule
+ * * @param {Object} targetJob - The job to schedule
  * @param {Array} allJobs - All jobs (scheduled and unscheduled)
  * @param {Object} preferences - Contractor's scheduling preferences
  * @param {Object} customerPrefs - Customer's scheduling preferences (if any)
@@ -357,7 +357,10 @@ export const generateSchedulingSuggestions = (
             );
             if (prefMatch.matches) {
                 score += prefMatch.score - 50;
-                reasons.push(...prefMatch.reasons);
+                // FIX: This was the source of the spread error if prefMatch.reasons was missing
+                if (prefMatch.reasons && prefMatch.reasons.length > 0) {
+                    reasons.push(...prefMatch.reasons);
+                }
             }
             
             // Prefer earlier in the week for responsiveness
