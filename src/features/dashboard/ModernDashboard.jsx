@@ -33,7 +33,45 @@ import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
 // NEW: Job Completion Review
-import { JobCompletionReview } from '../jobs/components/completion';
+// NOTE: Uncomment this import once the completion components are created:
+// import { JobCompletionReview } from '../jobs/components/completion';
+
+// Placeholder until component exists - remove this when importing the real component
+const JobCompletionReview = ({ job, userId, propertyId, onSuccess, onClose }) => (
+    <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-slate-800">Review Job Completion</h2>
+            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full">
+                <X size={20} className="text-slate-400" />
+            </button>
+        </div>
+        <p className="text-slate-600 mb-4">
+            {job?.contractorName || 'The contractor'} has submitted this job for completion.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+            <p className="text-amber-800 text-sm">
+                <strong>Note:</strong> The JobCompletionReview component needs to be created at:
+                <code className="block mt-1 bg-amber-100 px-2 py-1 rounded text-xs">
+                    src/features/jobs/components/completion/JobCompletionReview.jsx
+                </code>
+            </p>
+        </div>
+        <div className="flex gap-2">
+            <button 
+                onClick={onClose}
+                className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
+            >
+                Close
+            </button>
+            <button 
+                onClick={() => { onSuccess?.(); }}
+                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
+            >
+                Mark as Complete (Placeholder)
+            </button>
+        </div>
+    </div>
+);
 
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
