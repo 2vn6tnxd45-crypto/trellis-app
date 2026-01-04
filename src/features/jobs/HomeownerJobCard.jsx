@@ -8,7 +8,8 @@ import React, { useState } from 'react';
 import { 
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
-    AlertTriangle, Wrench, Info, MessageSquare
+    AlertTriangle, Wrench, Info, MessageSquare,
+    ClipboardCheck  // NEW: Added for completion review
 } from 'lucide-react';
 
 // Status configuration
@@ -48,6 +49,22 @@ const STATUS_CONFIG = {
         text: 'text-blue-700',
         icon: Wrench
     },
+    // NEW: Pending completion status
+    pending_completion: {
+        label: 'Review Required',
+        description: 'Contractor submitted - needs your review',
+        bg: 'bg-purple-100',
+        text: 'text-purple-700',
+        icon: ClipboardCheck
+    },
+    // NEW: Revision requested status
+    revision_requested: {
+        label: 'Revision Requested',
+        description: 'Waiting for contractor to update',
+        bg: 'bg-amber-100',
+        text: 'text-amber-700',
+        icon: Clock
+    },
     completed: {
         label: 'Completed',
         description: 'Job finished',
@@ -82,6 +99,15 @@ export const HomeownerJobCard = ({
 
     // Determine effective status
     const getEffectiveStatus = () => {
+        // NEW: Handle completion statuses first
+        if (job.status === 'pending_completion') {
+            return 'pending_completion';
+        }
+        if (job.status === 'revision_requested') {
+            return 'revision_requested';
+        }
+        
+        // Existing logic
         if (job.status === 'quoted' && job.estimate?.status === 'approved') {
             return 'pending_schedule';
         }
@@ -145,8 +171,8 @@ export const HomeownerJobCard = ({
         return `${formatTime(start)} - ${formatTime(end)}`;
     };
 
-    // Can show actions based on status
-    const canCancel = !['completed', 'cancelled', 'in_progress'].includes(job.status);
+    // Can show actions based on status - UPDATED: exclude pending_completion from cancel
+    const canCancel = !['completed', 'cancelled', 'in_progress', 'pending_completion'].includes(job.status);
     const canRequestNewTimes = ['scheduling', 'slots_offered', 'pending_schedule'].includes(effectiveStatus);
 
     return (
@@ -308,13 +334,29 @@ export const HomeownerJobCard = ({
                         </div>
                     )}
 
-                    {/* No scheduling activity */}
-                    {!job.scheduledTime && !offeredSlots.length && !latestProposal && !hasNewTimeRequest && (
+                    {/* No scheduling activity - UPDATED: exclude completion statuses */}
+                    {!job.scheduledTime && !offeredSlots.length && !latestProposal && !hasNewTimeRequest && effectiveStatus !== 'pending_completion' && effectiveStatus !== 'revision_requested' && (
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-500">Scheduling:</span>
                             <span className="text-amber-600 font-medium text-sm flex items-center gap-1">
                                 Awaiting times <ChevronRight size={14} />
                             </span>
+                        </div>
+                    )}
+
+                    {/* NEW: Pending Completion Info */}
+                    {effectiveStatus === 'pending_completion' && (
+                        <div className="flex items-center gap-2 text-purple-600 bg-purple-50 px-3 py-2 rounded-lg">
+                            <ClipboardCheck size={14} />
+                            <span className="text-sm font-medium">Contractor submitted completion - review required</span>
+                        </div>
+                    )}
+
+                    {/* NEW: Revision Requested Info */}
+                    {effectiveStatus === 'revision_requested' && (
+                        <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                            <Clock size={14} />
+                            <span className="text-sm font-medium">Waiting for contractor to update</span>
                         </div>
                     )}
                 </div>
@@ -351,6 +393,19 @@ export const HomeownerJobCard = ({
                     >
                         <CheckCircle size={16} />
                         Review & Confirm
+                    </button>
+                </div>
+            )}
+
+            {/* NEW: Review Completion Action */}
+            {effectiveStatus === 'pending_completion' && (
+                <div className="px-4 py-3 bg-purple-50 border-t border-purple-100">
+                    <button
+                        onClick={() => onSelect?.(job)}
+                        className="w-full py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <ClipboardCheck size={16} />
+                        Review Completion
                     </button>
                 </div>
             )}
