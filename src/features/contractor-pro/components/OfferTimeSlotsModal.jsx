@@ -53,12 +53,11 @@ const getScheduledDates = (jobs) => {
         .map(job => new Date(job.scheduledTime || job.scheduledDate));
 };
 
-// NEW HELPER: Check for resource conflicts (Fix 5b)
+// Check for resource conflicts (Fix 5b)
 const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
     if (!selectedSlot.date || !selectedSlot.startTime) return null;
     
     const selectedDate = new Date(selectedSlot.date);
-    // Add time component for accurate comparison if needed, currently checking date overlap
     const selectedStart = selectedSlot.startTime;
     const selectedEnd = selectedSlot.endTime;
     
@@ -66,27 +65,17 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
     const sameDateJobs = allJobs.filter(job => {
         if (!job.scheduledTime && !job.scheduledDate) return false;
         const jobDate = job.scheduledTime 
-            ? new Date(job.scheduledTime) // ISO string or timestamp
-            : new Date(job.scheduledDate);
+            ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
+            : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
         
-        // Handle Firestore timestamp if needed (though we standardized on ISO)
-        const dateObj = jobDate.seconds ? new Date(jobDate.seconds * 1000) : jobDate;
-        
-        // Simple date comparison ignoring time for filtering
-        return dateObj.getDate() === selectedDate.getDate() &&
-               dateObj.getMonth() === selectedDate.getMonth() &&
-               dateObj.getFullYear() === selectedDate.getFullYear();
+        return jobDate.getDate() === selectedDate.getDate() &&
+               jobDate.getMonth() === selectedDate.getMonth() &&
+               jobDate.getFullYear() === selectedDate.getFullYear();
     });
     
     // Check for time overlaps
     const overlappingJobs = sameDateJobs.filter(job => {
-        // If your job object has explicit start/end times, use them. 
-        // Otherwise, assuming standard blocks for conflict check logic placeholder:
-        // Ideally we'd parse job.scheduledTime (ISO) to HH:MM for start
-        // and calculate end based on duration.
-        
-        // For strict safety in this fix, we flag ANY job on the same day if we can't determine exact hours,
-        // effectively warning the user to check their schedule.
+        // For strict safety, flag ANY job on the same day if we can't determine exact hours
         return true; 
     });
     
@@ -95,12 +84,13 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
     // Get resource capacity from preferences
     const vehicles = preferences?.vehicles || 1;
     const teamSize = preferences?.teamSize || 1;
-    // Rough logic: Max concurrent jobs = max(vehicles, 1) - can be tuned
     const maxConcurrent = Math.max(1, vehicles); 
     
     // Count how many resources are already committed
     const resourcesInUse = overlappingJobs.length;
-    const availableResources = maxConcurrent - resourcesInUse;
+    
+    // FIX: Changed from const to let to allow reassignment
+    let availableResources = maxConcurrent - resourcesInUse;
     
     if (availableResources < 0) availableResources = 0; // Safety
     
@@ -113,7 +103,7 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
         resourcesInUse,
         maxConcurrent,
         availableResources,
-        canProceed: false, // Strict block or warning
+        canProceed: false,
         message: `All ${maxConcurrent} crews/vehicles are booked on this day.`
     };
 };
@@ -128,86 +118,75 @@ const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
         },
         {
             label: 'Home Base Location',
-            passed: !!preferences?.homeBase?.address,
-            fix: 'Go to Settings → Home Base Location'
-        },
-        {
-            label: 'Buffer Time Configured',
-            passed: preferences?.bufferMinutes !== undefined,
-            fix: 'Go to Settings → Scheduling Preferences'
+            passed: !!preferences?.homeBase || !!preferences?.address,
+            fix: 'Go to Settings → Business Address'
         }
     ];
     
-    const failedChecks = checks.filter(c => !c.passed);
+    const allPassed = checks.every(c => c.passed);
     
-    if (failedChecks.length === 0) return null;
+    if (allPassed) return null;
     
     return (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-            <p className="font-bold text-amber-800 mb-2">
-                AI needs more info to make suggestions:
-            </p>
-            <ul className="space-y-1">
-                {failedChecks.map((check, i) => (
-                    <li key={i} className="text-sm text-amber-700 flex items-center gap-2">
-                        <AlertCircle size={14} />
-                        {check.fix}
-                    </li>
-                ))}
-            </ul>
+        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="flex items-start gap-2">
+                <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                    <p className="font-medium text-amber-800 mb-1">AI suggestions work better with:</p>
+                    <ul className="text-amber-700 space-y-0.5">
+                        {checks.filter(c => !c.passed).map((check, idx) => (
+                            <li key={idx} className="text-xs">• {check.label} - {check.fix}</li>
+                        ))}
+                    </ul>
+                </div>
+            </div>
         </div>
     );
 };
 
-// --- Slot Validation Indicator ---
-const SlotValidationIndicator = ({ validation }) => {
-    if (validation.valid) {
-        return <CheckCircle size={16} className="text-emerald-500" />;
-    }
-    return (
-        <div className="flex items-center gap-1 text-amber-600">
-            <AlertCircle size={16} />
-            <span className="text-xs">{validation.error}</span>
-        </div>
-    );
-};
+// ============================================
+// MAIN COMPONENT
+// ============================================
 
 export const OfferTimeSlotsModal = ({ 
     job, 
     allJobs = [],
-    schedulingPreferences,
+    schedulingPreferences = {},
     onClose, 
     onSuccess 
 }) => {
     const [slots, setSlots] = useState([
         { id: 'slot_1', date: '', startTime: '09:00', endTime: '12:00', showCalendar: false }
     ]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [showAISuggestions, setShowAISuggestions] = useState(true);
     const [showManualEntry, setShowManualEntry] = useState(false);
-    const [slotConflicts, setSlotConflicts] = useState({}); // New State for Fix 5b
+    const [slotConflicts, setSlotConflicts] = useState({});
 
-    // Get dates that already have jobs scheduled
-    const scheduledDates = useMemo(() => getScheduledDates(allJobs), [allJobs]);
-    
-    // Get customer preferences from last scheduling request
+    // Customer preferences from job
     const customerPrefs = useMemo(() => {
-        const requests = job.schedulingRequests || [];
-        return requests.length > 0 ? requests[requests.length - 1] : null;
+        return job?.schedulingPreferences || job?.customerPreferences || null;
     }, [job]);
 
-    // Get disabled days from preferences (days contractor doesn't work)
+    // Get scheduled dates for calendar highlighting
+    const scheduledDates = useMemo(() => {
+        return getScheduledDates(allJobs);
+    }, [allJobs]);
+
+    // Get disabled days based on working hours
     const disabledDays = useMemo(() => {
-        const workingHours = schedulingPreferences?.workingHours || {};
-        const disabled = [];
+        const workingHours = schedulingPreferences?.workingHours;
+        if (!workingHours) return [0]; // Default: Sunday off
+        
         const dayMap = {
             sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
             thursday: 4, friday: 5, saturday: 6
         };
         
+        const disabled = [];
         Object.entries(workingHours).forEach(([day, config]) => {
-            if (!config?.enabled) {
+            if (!config?.enabled && dayMap[day] !== undefined) {
                 disabled.push(dayMap[day]);
             }
         });
@@ -346,7 +325,7 @@ export const OfferTimeSlotsModal = ({
         
         // Check for conflicts with existing scheduled jobs (Original logic preserved)
         if (checkForConflicts) {
-             const conflicts = checkForConflicts(
+            const conflicts = checkForConflicts(
                 startDateTime.toISOString(),
                 endDateTime.toISOString(),
                 allJobs,
@@ -387,44 +366,28 @@ export const OfferTimeSlotsModal = ({
     // Submit slots
     const handleSubmit = async () => {
         if (!validateAllSlots()) return;
-
+        
         setIsSubmitting(true);
         try {
             const filledSlots = slots.filter(s => s.date);
             
-            // Build the offered slots array
-            const offeredSlots = filledSlots.map(slot => {
-                const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`);
-                const endDateTime = new Date(`${slot.date}T${slot.endTime}:00`);
-                
-                return {
-                    id: slot.id,
-                    start: startDateTime.toISOString(),
-                    end: endDateTime.toISOString(),
-                    status: 'offered',
-                    offeredAt: new Date().toISOString()
-                };
-            });
-
-            // Update the job
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
-                'scheduling.offeredSlots': offeredSlots,
-                'scheduling.offeredAt': serverTimestamp(),
-                'scheduling.offeredMessage': message || null,
-                'scheduling.requestedNewTimes': false,
+            const timeSlots = filledSlots.map(slot => ({
+                date: slot.date,
+                startTime: slot.startTime,
+                endTime: slot.endTime,
+                status: 'offered'
+            }));
+            
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+            await updateDoc(jobRef, {
+                offeredTimeSlots: timeSlots,
                 status: 'slots_offered',
-                schedulingStatus: 'slots_offered',
-                proposedTimes: arrayUnion({
-                    date: offeredSlots[0].start,
-                    proposedBy: 'contractor',
-                    createdAt: new Date().toISOString(),
-                    type: 'multi_slot',
-                    slotCount: offeredSlots.length
-                }),
+                contractorMessage: message || null,
+                slotsOfferedAt: serverTimestamp(),
                 lastActivity: serverTimestamp()
             });
-
-            toast.success(`Sent ${offeredSlots.length} time option${offeredSlots.length > 1 ? 's' : ''} to customer`);
+            
+            toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
@@ -466,39 +429,39 @@ export const OfferTimeSlotsModal = ({
                     {/* Job Summary */}
                     <div className="bg-slate-50 rounded-xl p-4 mb-5">
                         <h4 className="font-bold text-slate-800 mb-1">
-                            {job.title || job.description || 'Service Request'}
+                            {job?.title || job?.serviceType || 'Service Request'}
                         </h4>
-                        <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-                            <span className="flex items-center gap-1">
-                                <User size={12} />
-                                {job.customer?.name || 'Customer'}
-                            </span>
-                            {job.customer?.address && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
+                            {job?.customer?.name && (
                                 <span className="flex items-center gap-1">
-                                    <MapPin size={12} />
-                                    {job.customer.address.split(',')[0]}
+                                    <User size={12} />
+                                    {job.customer.name}
                                 </span>
                             )}
-                            {job.total > 0 && (
-                                <span className="flex items-center gap-1 text-emerald-600 font-bold">
-                                    <DollarSign size={12} />
-                                    {job.total.toLocaleString()}
+                            {(job?.customer?.address || job?.serviceAddress) && (
+                                <span className="flex items-center gap-1">
+                                    <MapPin size={12} />
+                                    {(job.customer?.address || job.serviceAddress)?.split(',')[0]}
+                                </span>
+                            )}
+                            {job?.estimatedDuration && (
+                                <span className="flex items-center gap-1">
+                                    <Clock size={12} />
+                                    {job.estimatedDuration}
                                 </span>
                             )}
                         </div>
                     </div>
 
-                    {/* Customer Preferences */}
+                    {/* Customer Preferences (if any) */}
                     {customerPrefs && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+                        <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
                             <div className="flex items-start gap-2">
-                                <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                                <User size={16} className="text-amber-600 mt-0.5 shrink-0" />
                                 <div className="text-sm">
-                                    <p className="font-bold text-amber-800 mb-1">Customer Preferences:</p>
-                                    {customerPrefs.timeOfDay?.length > 0 && (
-                                        <p className="text-amber-700">
-                                            Prefers: {customerPrefs.timeOfDay.join(', ')}
-                                        </p>
+                                    <p className="font-medium text-amber-800 mb-1">Customer Preferences:</p>
+                                    {customerPrefs.timePreference && (
+                                        <p className="text-amber-700">Time: {customerPrefs.timePreference}</p>
                                     )}
                                     {customerPrefs.dayPreference && (
                                         <p className="text-amber-700">Days: {customerPrefs.dayPreference}</p>
@@ -530,7 +493,11 @@ export const OfferTimeSlotsModal = ({
                                 </div>
                                 <span className="font-bold text-violet-800">AI Suggestions</span>
                             </div>
-                            {showAISuggestions ? <ChevronUp size={18} className="text-violet-500" /> : <ChevronDown size={18} className="text-violet-500" />}
+                            {showAISuggestions ? (
+                                <ChevronUp size={18} className="text-violet-600" />
+                            ) : (
+                                <ChevronDown size={18} className="text-violet-600" />
+                            )}
                         </button>
                         
                         {showAISuggestions && (
@@ -541,23 +508,17 @@ export const OfferTimeSlotsModal = ({
                                     preferences={schedulingPreferences}
                                     customerPreferences={customerPrefs}
                                     onSelectSuggestion={applyAISuggestion}
-                                    selectedSuggestion={null}
                                     compact={true}
                                 />
                             </div>
                         )}
                     </div>
 
-                    {/* Selected Slots */}
+                    {/* Selected Slots Section */}
                     <div className="mb-5">
                         <div className="flex items-center justify-between mb-3">
-                            <p className="text-sm font-bold text-slate-700 flex items-center gap-2">
-                                Selected Times
-                                {filledSlotsCount > 0 && (
-                                    <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full">
-                                        {filledSlotsCount}
-                                    </span>
-                                )}
+                            <p className="text-xs font-bold text-slate-500 uppercase">
+                                Selected Times ({filledSlotsCount}/5)
                             </p>
                             <button
                                 onClick={() => setShowManualEntry(!showManualEntry)}
@@ -590,27 +551,25 @@ export const OfferTimeSlotsModal = ({
                                             <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <p className="font-bold text-emerald-800 text-sm">{dateLabel}</p>
-                                                        {!validation.valid && (
-                                                             <span className="text-xs text-red-500 font-bold bg-red-50 px-1 rounded border border-red-200">
-                                                                Conflict
-                                                             </span>
-                                                        )}
+                                                        <CheckCircle size={14} className="text-emerald-600" />
+                                                        <span className="font-medium text-slate-800">{dateLabel}</span>
                                                     </div>
-                                                    <p className="text-xs text-emerald-600">{startLabel} - {endLabel}</p>
+                                                    <p className="text-sm text-slate-500 ml-6">
+                                                        {startLabel} - {endLabel}
+                                                    </p>
                                                 </div>
                                                 <button
                                                     onClick={() => removeSlot(slot.id)}
-                                                    className="p-1.5 text-emerald-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                     type="button"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
                                             
-                                            {/* NEW: Capacity Conflict Warning (Fix 5b) */}
+                                            {/* Show resource conflict warning */}
                                             {slotConflicts[slot.id] && (
-                                                <div className={`mt-2 p-2 rounded-lg text-xs flex items-center gap-2 ${
+                                                <div className={`mt-1 p-2 rounded-lg text-xs flex items-center gap-2 ${
                                                     slotConflicts[slot.id].canProceed 
                                                         ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                         : 'bg-red-50 text-red-700 border border-red-200'
@@ -653,9 +612,11 @@ export const OfferTimeSlotsModal = ({
                                                     Option {idx + 1}
                                                 </span>
                                                 {/* Validation Indicator */}
-                                                {slot.date && <SlotValidationIndicator validation={validateSlot(slot)} />}
+                                                {slot.date && (
+                                                    <CheckCircle size={12} className="text-emerald-500" />
+                                                )}
                                             </div>
-                                            {(slots.length > 1 || slot.date) && (
+                                            {slots.length > 1 && (
                                                 <button
                                                     onClick={() => removeSlot(slot.id)}
                                                     className="p-1 text-slate-400 hover:text-red-500"
@@ -665,33 +626,33 @@ export const OfferTimeSlotsModal = ({
                                                 </button>
                                             )}
                                         </div>
-                                        
+
                                         {/* Date Selection */}
                                         <div className="mb-3">
-                                            <label className="block text-xs font-medium text-slate-600 mb-1.5">
-                                                Select Date
-                                            </label>
-                                            
-                                            {slot.date ? (
+                                            {!slot.date ? (
                                                 <button
                                                     onClick={() => toggleCalendar(slot.id)}
-                                                    className="w-full px-3 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-left text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
-                                                    type="button"
-                                                >
-                                                    {new Date(slot.date + 'T00:00:00').toLocaleDateString('en-US', { 
-                                                        weekday: 'long', 
-                                                        month: 'long', 
-                                                        day: 'numeric' 
-                                                    })}
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => toggleCalendar(slot.id)}
-                                                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-left text-sm text-slate-400 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                                                    className="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-sm text-slate-500 hover:border-emerald-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
                                                     type="button"
                                                 >
                                                     <Calendar size={16} />
                                                     Click to select date...
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => toggleCalendar(slot.id)}
+                                                    className="w-full py-2 px-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700 font-medium flex items-center justify-between"
+                                                    type="button"
+                                                >
+                                                    <span className="flex items-center gap-2">
+                                                        <Calendar size={14} />
+                                                        {new Date(slot.date + 'T00:00:00').toLocaleDateString('en-US', {
+                                                            weekday: 'short',
+                                                            month: 'short',
+                                                            day: 'numeric'
+                                                        })}
+                                                    </span>
+                                                    <span className="text-xs text-emerald-500">Change</span>
                                                 </button>
                                             )}
                                             
@@ -744,8 +705,8 @@ export const OfferTimeSlotsModal = ({
                                                             onChange={(e) => updateSlot(slot.id, 'startTime', e.target.value)}
                                                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                                                         >
-                                                            {TIME_OPTIONS.map(t => (
-                                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                                            {TIME_OPTIONS.map(opt => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
                                                             ))}
                                                         </select>
                                                     </div>
@@ -756,8 +717,8 @@ export const OfferTimeSlotsModal = ({
                                                             onChange={(e) => updateSlot(slot.id, 'endTime', e.target.value)}
                                                             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                                                         >
-                                                            {TIME_OPTIONS.map(t => (
-                                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                                            {TIME_OPTIONS.map(opt => (
+                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
                                                             ))}
                                                         </select>
                                                     </div>
