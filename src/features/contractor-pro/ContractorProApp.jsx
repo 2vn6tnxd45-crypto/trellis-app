@@ -34,9 +34,13 @@ import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
 import { LogoUpload } from './components/LogoUpload';
 
-// NEW: Chat Components
-import { ContractorMessagesView } from './components/ContractorMessagesView';
-import { RecentMessagesWidget } from './components/RecentMessagesWidget';
+// NEW: Dispatch Board and Team Management
+import { DispatchBoard } from './components/DispatchBoard';
+import { TeamManagement } from './components/TeamManagement';
+
+// Chat Components - uncomment if available in your project
+// import { ContractorMessagesView } from './components/ContractorMessagesView';
+// import { RecentMessagesWidget } from './components/RecentMessagesWidget';
 
 // Quote Components
 import { 
@@ -48,11 +52,11 @@ import {
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
 
-// NEW: Job Completion Components
-import { JobCompletionForm } from '../jobs/components/completion';
+// Job Completion Components - uncomment if available
+// import { JobCompletionForm } from '../jobs/components/completion';
 
-// NEW: Chat Service
-import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
+// Chat Service - uncomment if available
+// import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
@@ -1217,19 +1221,19 @@ export const ContractorProApp = () => {
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
 
-    // NEW: Subscribe to unread message count
-    useEffect(() => {
-        if (!user?.uid) {
-            setUnreadMessageCount(0);
-            return;
-        }
-        
-        const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
-            setUnreadMessageCount(count);
-        });
-        
-        return () => unsubscribe();
-    }, [user?.uid]);
+    // Chat subscription - uncomment if chatService is available
+    // useEffect(() => {
+    //     if (!user?.uid || !subscribeToGlobalUnreadCount) {
+    //         setUnreadMessageCount(0);
+    //         return;
+    //     }
+    //     
+    //     const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
+    //         setUnreadMessageCount(count);
+    //     });
+    //     
+    //     return () => unsubscribe();
+    // }, [user?.uid]);
     
     // Handle Initial Setup using updateDoc with Dot Notation
     const handleInitialSetup = async (formData) => {
@@ -1484,7 +1488,17 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'messages' && (
-                        <ContractorMessagesView contractorId={contractorId} />
+                        <div className="space-y-6">
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-800">Messages</h1>
+                                <p className="text-slate-500">Chat with your customers</p>
+                            </div>
+                            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                                <MessageSquare className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                                <h3 className="font-bold text-slate-800 text-lg mb-2">Messages Coming Soon</h3>
+                                <p className="text-slate-500">Chat functionality will be available shortly.</p>
+                            </div>
+                        </div>
                     )}
 
                     {activeView === 'schedule' && (
@@ -1510,6 +1524,16 @@ export const ContractorProApp = () => {
                                             Calendar
                                         </button>
                                         <button
+                                            onClick={() => setScheduleView('dispatch')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                scheduleView === 'dispatch' 
+                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            Dispatch
+                                        </button>
+                                        <button
                                             onClick={() => setScheduleView('team')}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                                                 scheduleView === 'team' 
@@ -1523,7 +1547,19 @@ export const ContractorProApp = () => {
                                 )}
                             </div>
 
-                            {scheduleView === 'calendar' && (
+                            {/* Solo contractor - simple calendar */}
+                            {!hasTeam && (
+                                <DragDropCalendar 
+                                    jobs={scheduledJobs}
+                                    selectedDate={selectedDate}
+                                    onDateChange={setSelectedDate}
+                                    onJobClick={handleJobClick}
+                                    teamMembers={[]}
+                                />
+                            )}
+
+                            {/* Team - Calendar View */}
+                            {hasTeam && scheduleView === 'calendar' && (
                                 <DragDropCalendar 
                                     jobs={scheduledJobs}
                                     selectedDate={selectedDate}
@@ -1532,7 +1568,21 @@ export const ContractorProApp = () => {
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                 />
                             )}
-                            {scheduleView === 'team' && (
+                            
+                            {/* Team - Dispatch Board */}
+                            {hasTeam && scheduleView === 'dispatch' && (
+                                <DispatchBoard 
+                                    jobs={jobs}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    initialDate={selectedDate}
+                                    onJobUpdate={() => {
+                                        // Jobs will auto-refresh via subscription
+                                    }}
+                                />
+                            )}
+                            
+                            {/* Team - Team View */}
+                            {hasTeam && scheduleView === 'team' && (
                                 <TechAssignmentPanel 
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
@@ -1604,6 +1654,20 @@ export const ContractorProApp = () => {
                                 profile={profile}
                                 onUpdate={(settings) => console.log('Settings updated:', settings)}
                             />
+                            
+                            {/* Team Management - only show if team type is selected */}
+                            {profile?.scheduling?.teamType === 'team' && (
+                                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                    <TeamManagement
+                                        contractorId={contractorId}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
+                                        onUpdate={(members) => {
+                                            console.log('Team updated:', members);
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            
                             <div className="pt-8 border-t border-slate-200">
                                 <SettingsView 
                                     user={user}
@@ -1663,8 +1727,8 @@ export const ContractorProApp = () => {
                 />
             )}
 
-            {/* Job Completion Modal */}
-            {completingJob && (
+            {/* Job Completion Modal - uncomment when JobCompletionForm is available */}
+            {/* completingJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCompletingJob(null)} />
                     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
@@ -1676,7 +1740,7 @@ export const ContractorProApp = () => {
                         />
                     </div>
                 </div>
-            )}
+            ) */}
 
             {/* Rate Homeowner Modal */}
             {ratingHomeowner && (
