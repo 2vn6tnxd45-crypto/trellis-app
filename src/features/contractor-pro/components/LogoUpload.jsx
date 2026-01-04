@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, Loader2, AlertCircle } from 'lucide-react';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../../config/firebase';
-import { compressImage } from '../../../lib/images';
+// import { compressImage } from '../../../lib/images'; // Commented out for debugging
 import toast from 'react-hot-toast';
 
 export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
@@ -36,10 +36,11 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
         setImageError(false);
         
         try {
-            // Compress if not SVG
-            const processedFile = file.type === 'image/svg+xml' 
-                ? file 
-                : await compressImage(file, 400, 0.8);
+            // FIX 1: Skip compression to ensure file integrity
+            // const processedFile = file.type === 'image/svg+xml' 
+            //     ? file 
+            //     : await compressImage(file, 400, 0.8);
+            const processedFile = file;
             
             // Ensure we have a valid contractor ID
             const pathId = contractorId;
@@ -50,7 +51,12 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
             console.log('[LogoUpload] Uploading to path:', `contractors/${pathId}/logo_${Date.now()}`);
             const logoRef = ref(storage, `contractors/${pathId}/logo_${Date.now()}`);
             
-            await uploadBytes(logoRef, processedFile);
+            // FIX 2: Explicitly set content type metadata
+            const metadata = {
+                contentType: file.type,
+            };
+            
+            await uploadBytes(logoRef, processedFile, metadata);
             const logoUrl = await getDownloadURL(logoRef);
             
             console.log('[LogoUpload] Upload successful, URL:', logoUrl);
@@ -65,9 +71,12 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
     };
     
     const handleImageError = (e) => {
-        console.error('[LogoUpload] Failed to load image URL:', currentLogo);
-        console.error('[LogoUpload] Browser error event:', e);
-        setImageError(true);
+        // Only log if we actually have a URL we're trying to load
+        if (currentLogo) {
+            console.error('[LogoUpload] Failed to load image URL:', currentLogo);
+            console.error('[LogoUpload] Browser error event:', e);
+            setImageError(true);
+        }
     };
     
     return (
@@ -83,7 +92,7 @@ export const LogoUpload = ({ currentLogo, onUpload, contractorId }) => {
                             alt="Company Logo" 
                             className="w-20 h-20 rounded-xl object-contain bg-slate-50 border border-slate-200"
                             onError={handleImageError}
-                            // REMOVED crossOrigin="anonymous" to prevent CORS blocks
+                            // CrossOrigin removed to prevent CORS issues
                         />
                         <button
                             type="button"
