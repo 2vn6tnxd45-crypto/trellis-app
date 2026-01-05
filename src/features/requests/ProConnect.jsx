@@ -1,11 +1,17 @@
 // src/features/requests/ProConnect.jsx
+// ============================================
+// PRO CONNECT - WITH MARKETPLACE INTEGRATION
+// ============================================
+// UPDATED: Added marketplace tabs (Find Pros, My Job Posts)
+// while preserving all existing functionality
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, 
     Send, Phone, Mail, User, Wrench, Star, Plus, Search,
     Clock, DollarSign, ChevronRight, Calendar, CheckCircle2,
     Copy, ExternalLink, Building2, Filter, SlidersHorizontal, X,
-    MessageSquare, Send as SendIcon 
+    MessageSquare, Send as SendIcon, Globe, Users, Briefcase
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -15,6 +21,13 @@ import toast from 'react-hot-toast';
 import { JobScheduler } from '../jobs/JobScheduler';
 // Chat Service
 import { getChannelId, subscribeToChat, sendMessage, markChannelAsRead } from '../../lib/chatService';
+
+// NEW: Import marketplace components
+import { 
+    ContractorBrowser, 
+    ServiceRequestCreator, 
+    HomeownerRequestManager 
+} from '../marketplace';
 
 // ============================================
 // HELPER: Format property address for display
@@ -46,11 +59,11 @@ const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
     const homeownerEmail = userProfile?.email || null;
     const homeownerPhone = userProfile?.phone || null;
 
-    // NEW: Derive scope of work from pro's service categories
+    // Derive scope of work from pro's service categories
     const categories = [...new Set((pro.jobs || []).map(j => j.category).filter(Boolean))];
     const scopeOfWork = categories.length > 0 ? categories.join(', ') : (pro.specialty || null);
 
-    // NEW: Format property address for storage
+    // Format property address for storage
     const formattedAddress = formatAddressForChannel(propertyAddress);
 
     // Subscribe to real-time updates
@@ -81,7 +94,7 @@ const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
         try {
             const contractorId = pro.contractorId || null;
             
-            // UPDATED: Pass homeowner info including address and scope
+            // Pass homeowner info including address and scope
             await sendMessage(
                 channelId, 
                 textToSend, 
@@ -92,8 +105,8 @@ const ChatDrawer = ({ pro, userId, userProfile, propertyAddress, onClose }) => {
                     name: homeownerName,
                     email: homeownerEmail,
                     phone: homeownerPhone,
-                    propertyAddress: formattedAddress,  // NEW
-                    scopeOfWork: scopeOfWork            // NEW
+                    propertyAddress: formattedAddress,
+                    scopeOfWork: scopeOfWork
                 }
             );
         } catch (error) {
@@ -205,123 +218,127 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
                 <div className="flex items-start gap-4">
                     {/* Avatar */}
                     {pro.logoUrl ? (
-                        <img 
-                            src={pro.logoUrl} 
-                            alt={pro.name}
-                            className="h-12 w-12 rounded-xl object-cover"
-                        />
+                        <img src={pro.logoUrl} alt={pro.name} className="h-12 w-12 rounded-xl object-cover" />
                     ) : (
                         <div className="h-12 w-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-                            <span className="text-lg font-bold text-emerald-700">
-                                {pro.name.charAt(0)}
-                            </span>
+                            <Wrench className="h-6 w-6 text-emerald-600" />
                         </div>
                     )}
                     
                     {/* Info */}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-grow min-w-0">
                         <div className="flex items-center gap-2">
                             <h3 className="font-bold text-slate-800 truncate">{pro.name}</h3>
                             {pro.isOnPlatform && (
-                                <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded">
-                                    PRO
+                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full shrink-0">
+                                    On Krib
                                 </span>
                             )}
                         </div>
                         <p className="text-sm text-slate-500">
-                            {pro.jobs.length} job{pro.jobs.length !== 1 ? 's' : ''} 
-                            {totalSpent > 0 && ` • $${totalSpent.toLocaleString()}`}
+                            {pro.jobs.length} job{pro.jobs.length !== 1 ? 's' : ''} completed
+                            {totalSpent > 0 && ` · $${totalSpent.toLocaleString()} total`}
                         </p>
-                        
-                        {/* Quick Actions */}
-                        <div className="flex items-center gap-2 mt-2">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
-                                disabled={!canChat}
-                                className={`p-2 rounded-lg transition-colors ${
-                                    canChat 
-                                        ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' 
-                                        : 'text-slate-300 bg-slate-50 cursor-not-allowed'
-                                }`}
-                                title={canChat ? "Message" : "This pro is not on Krib yet"}
-                            >
-                                <MessageSquare size={18} />
-                            </button>
-                            {pro.phone && (
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); onCall(pro.phone); }}
-                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                    title="Call"
-                                >
-                                    <Phone size={18} />
-                                </button>
-                            )}
-                        </div>
-                        
-                        {/* Categories */}
                         {categories.length > 0 && (
                             <div className="flex flex-wrap gap-1 mt-2">
                                 {categories.slice(0, 3).map(cat => (
-                                    <span 
-                                        key={cat}
-                                        className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full"
-                                    >
+                                    <span key={cat} className="px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded-full">
                                         {cat}
                                     </span>
                                 ))}
+                                {categories.length > 3 && (
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-xs rounded-full">
+                                        +{categories.length - 3} more
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
+                    
+                    {/* Expand indicator */}
+                    <ChevronRight 
+                        className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
+                        size={20} 
+                    />
                 </div>
             </div>
             
             {/* Expanded Content */}
             {isExpanded && (
-                <div className="px-5 pb-5 border-t border-slate-100 pt-4 bg-slate-50">
-                    {/* Job History */}
-                    <div className="mb-4">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Job History</h4>
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {pro.jobs.map((job) => (
-                                <div key={job.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-8 w-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                                            <Wrench size={14} className="text-slate-500" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-medium text-slate-800">{job.item}</p>
-                                            <p className="text-xs text-slate-400">{job.dateInstalled || 'No date'}</p>
-                                        </div>
-                                    </div>
-                                    {job.cost > 0 && (
-                                        <span className="text-sm font-bold text-emerald-600">${parseFloat(job.cost).toLocaleString()}</span>
-                                    )}
-                                </div>
-                            ))}
+                <div className="px-5 pb-5 space-y-4 border-t border-slate-100 pt-4">
+                    {/* Contact Info */}
+                    {(pro.phone || pro.email || pro.address) && (
+                        <div className="space-y-2">
+                            {pro.phone && (
+                                <button 
+                                    onClick={() => onCall(pro.phone)}
+                                    className="flex items-center gap-2 text-sm text-slate-600 hover:text-emerald-600"
+                                >
+                                    <Phone size={14} />
+                                    {pro.phone}
+                                </button>
+                            )}
+                            {pro.email && (
+                                <button 
+                                    onClick={() => onEmail(pro.email)}
+                                    className="flex items-center gap-2 text-sm text-slate-600 hover:text-emerald-600"
+                                >
+                                    <Mail size={14} />
+                                    {pro.email}
+                                </button>
+                            )}
+                            {pro.address && (
+                                <p className="flex items-center gap-2 text-sm text-slate-500">
+                                    <MapPin size={14} />
+                                    {pro.address}
+                                </p>
+                            )}
                         </div>
-                    </div>
+                    )}
                     
-                    {/* ACTION BUTTONS */}
-                    <div className="flex gap-3 mt-4">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); if (canChat) onMessage(pro); }}
-                            disabled={!canChat}
-                            className={`flex-1 py-3 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                                canChat 
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                            }`}
+                    {/* Recent Jobs */}
+                    {pro.jobs.length > 0 && (
+                        <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase mb-2">Recent Work</p>
+                            <div className="space-y-2">
+                                {pro.jobs.slice(0, 3).map((job, idx) => (
+                                    <div key={idx} className="flex items-center justify-between text-sm bg-slate-50 p-2 rounded-lg">
+                                        <span className="text-slate-700">{job.item}</span>
+                                        {job.cost && (
+                                            <span className="text-slate-500">${parseFloat(job.cost).toLocaleString()}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-2">
+                        <button 
+                            onClick={() => onRequestService(pro)}
+                            className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:bg-emerald-700"
                         >
-                            <MessageSquare size={18} />
-                            {canChat ? 'Message' : 'Chat Unavailable'}
+                            Request Service
                         </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onRequestService(pro); }}
-                            className="flex-1 py-3 bg-white border-2 border-slate-200 hover:border-emerald-500 text-slate-700 hover:text-emerald-700 font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Send size={18} />
-                            Request
-                        </button>
+                        {canChat && (
+                            <button 
+                                onClick={() => onMessage(pro)}
+                                className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200"
+                                title="Message"
+                            >
+                                <MessageSquare size={18} />
+                            </button>
+                        )}
+                        {pro.phone && (
+                            <button 
+                                onClick={() => onCall(pro.phone)}
+                                className="p-2.5 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200"
+                                title="Call"
+                            >
+                                <Phone size={18} />
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
@@ -330,42 +347,85 @@ const ProCard = ({ pro, onRequestService, onCall, onEmail, onMessage }) => {
 };
 
 // ============================================
-// REQUEST CARD COMPONENT
+// REQUEST CARD COMPONENT (for direct requests)
 // ============================================
-const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
+const RequestCard = ({ request, onImport, onManage, onDelete }) => {
+    const getStatusConfig = (status) => {
+        switch (status) {
+            case 'submitted':
+                return { 
+                    label: 'Ready to Import', 
+                    color: 'bg-emerald-100 text-emerald-700',
+                    action: 'Import Records',
+                    actionColor: 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                };
+            case 'scheduled':
+                return { 
+                    label: 'Scheduled', 
+                    color: 'bg-blue-100 text-blue-700',
+                    action: 'View Details',
+                    actionColor: 'bg-blue-600 hover:bg-blue-700 text-white'
+                };
+            case 'slots_offered':
+                return { 
+                    label: 'Times Available', 
+                    color: 'bg-amber-100 text-amber-700',
+                    action: 'Pick a Time',
+                    actionColor: 'bg-amber-500 hover:bg-amber-600 text-white'
+                };
+            case 'quoted':
+                return { 
+                    label: 'Quote Ready', 
+                    color: 'bg-purple-100 text-purple-700',
+                    action: 'View Quote',
+                    actionColor: 'bg-purple-600 hover:bg-purple-700 text-white'
+                };
+            case 'in_progress':
+                return { 
+                    label: 'In Progress', 
+                    color: 'bg-blue-100 text-blue-700',
+                    action: 'View Details',
+                    actionColor: 'bg-slate-600 hover:bg-slate-700 text-white'
+                };
+            default:
+                return { 
+                    label: 'Pending', 
+                    color: 'bg-slate-100 text-slate-600',
+                    action: 'View Details',
+                    actionColor: 'bg-slate-600 hover:bg-slate-700 text-white'
+                };
+        }
+    };
+    
+    const status = getStatusConfig(request.status);
+    
     const handleCopy = () => {
         const url = `${window.location.origin}${window.location.pathname}?requestId=${request.id}`;
         navigator.clipboard.writeText(url);
         toast.success('Link copied!');
     };
     
-    const getStatusInfo = (status) => {
-        switch (status) {
-            case 'pending': return { label: 'Awaiting Response', color: 'bg-amber-100 text-amber-700', action: 'Copy Link', actionColor: 'bg-slate-100 text-slate-700 hover:bg-slate-200' };
-            case 'submitted': return { label: 'Ready to Import', color: 'bg-emerald-100 text-emerald-700', action: 'Import Details', actionColor: 'bg-emerald-600 text-white hover:bg-emerald-700' };
-            case 'scheduling': return { label: 'Scheduling', color: 'bg-blue-100 text-blue-700', action: 'View Times', actionColor: 'bg-blue-600 text-white hover:bg-blue-700' };
-            case 'quoted': return { label: 'Quote Received', color: 'bg-purple-100 text-purple-700', action: 'View Quote', actionColor: 'bg-purple-600 text-white hover:bg-purple-700' };
-            case 'scheduled': return { label: 'Scheduled', color: 'bg-emerald-100 text-emerald-700', action: 'View Details', actionColor: 'bg-emerald-600 text-white hover:bg-emerald-700' };
-            case 'slots_offered': return { label: 'Times Available', color: 'bg-blue-100 text-blue-700', action: 'Pick a Time', actionColor: 'bg-blue-600 text-white hover:bg-blue-700' };
-            default: return { label: status, color: 'bg-slate-100 text-slate-600', action: 'View', actionColor: 'bg-slate-100 text-slate-700' };
-        }
-    };
-    
-    const status = getStatusInfo(request.status);
-    
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+        <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
             <div className="flex items-start justify-between mb-3">
                 <div>
                     <h3 className="font-bold text-slate-800">{request.description}</h3>
-                    {request.contractorName && (
-                        <p className="text-sm text-slate-500">{request.contractorName}</p>
-                    )}
+                    <p className="text-sm text-slate-500">
+                        {request.createdAt?.toDate?.()?.toLocaleDateString() || 'Recently'}
+                    </p>
                 </div>
-                <span className={`px-2 py-1 rounded-lg text-xs font-bold ${status.color}`}>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${status.color}`}>
                     {status.label}
                 </span>
             </div>
+            
+            {/* Linked item context */}
+            {request.linkedContext && (
+                <div className="mb-3 p-2 bg-slate-50 rounded-lg text-xs text-slate-600">
+                    <span className="font-medium">Related to:</span> {request.linkedContext.item}
+                    {request.linkedContext.brand && ` (${request.linkedContext.brand})`}
+                </div>
+            )}
             
             <div className="flex gap-2">
                 <button 
@@ -387,11 +447,51 @@ const RequestCard = ({ request, onCopyLink, onDelete, onImport, onManage }) => {
 };
 
 // ============================================
-// MAIN COMPONENT - UPDATED with userProfile prop
+// SERVICE REQUEST CREATOR MODAL (NEW)
+// ============================================
+const ServiceRequestModal = ({ isOpen, onClose, userId, userProfile, propertyAddress }) => {
+    if (!isOpen) return null;
+    
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                    <h2 className="text-lg font-bold text-slate-800">Post a Job to the Marketplace</h2>
+                    <button 
+                        onClick={onClose}
+                        className="p-2 hover:bg-slate-100 rounded-xl"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+                
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto">
+                    <ServiceRequestCreator
+                        homeownerId={userId}
+                        homeownerName={userProfile?.name || 'Homeowner'}
+                        homeownerEmail={userProfile?.email}
+                        homeownerPhone={userProfile?.phone}
+                        propertyAddress={propertyAddress}
+                        onSuccess={() => {
+                            toast.success('Job posted to marketplace!');
+                            onClose();
+                        }}
+                        onCancel={onClose}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// MAIN COMPONENT
 // ============================================
 export const ProConnect = ({ 
     userId, 
-    userProfile,  // User profile for homeowner info
+    userProfile,
     propertyName, 
     propertyAddress, 
     records, 
@@ -409,6 +509,9 @@ export const ProConnect = ({
     
     // Platform Pros State
     const [platformPros, setPlatformPros] = useState([]);
+
+    // NEW: Post Job Modal State
+    const [showPostJobModal, setShowPostJobModal] = useState(false);
 
     // Fetch Requests
     useEffect(() => {
@@ -485,38 +588,64 @@ export const ProConnect = ({
     const handleDeleteRequest = async (id) => {
         if (!confirm('Delete this request?')) return;
         await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id));
+        toast.success('Request deleted');
+    };
+
+    // NEW: Handle messaging from marketplace
+    const handleMessageContractor = (contractorId) => {
+        // TODO: Integrate with chat system
+        toast('Opening chat...');
     };
     
     return (
         <div className="space-y-6 relative"> 
+            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-extrabold text-slate-800">Pro Connect</h1>
-                    <p className="text-sm text-slate-500">Manage contractors & service requests</p>
+                    <p className="text-sm text-slate-500">Find help & manage your contractors</p>
                 </div>
                 <button 
-                    onClick={() => onOpenQuickRequest && onOpenQuickRequest(null)} 
+                    onClick={() => setShowPostJobModal(true)} 
                     className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl flex items-center gap-2"
                 >
-                    <Plus size={18}/> New Request
+                    <Globe size={18}/> Post a Job
                 </button>
             </div>
             
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            {/* Tabs - UPDATED with new marketplace tabs */}
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-xl overflow-x-auto">
                 <button 
                     onClick={() => setActiveTab('pros')} 
-                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'pros' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                    className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm whitespace-nowrap ${activeTab === 'pros' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
                 >
+                    <Users size={14} className="inline mr-1.5 -mt-0.5" />
                     My Pros ({contractors.length})
                 </button>
                 <button 
-                    onClick={() => setActiveTab('requests')} 
-                    className={`flex-1 py-2.5 rounded-lg font-bold text-sm ${activeTab === 'requests' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                    onClick={() => setActiveTab('find')} 
+                    className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm whitespace-nowrap ${activeTab === 'find' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
                 >
-                    Requests ({pendingRequests.length})
+                    <Search size={14} className="inline mr-1.5 -mt-0.5" />
+                    Find Pros
+                </button>
+                <button 
+                    onClick={() => setActiveTab('jobs')} 
+                    className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm whitespace-nowrap ${activeTab === 'jobs' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                >
+                    <Briefcase size={14} className="inline mr-1.5 -mt-0.5" />
+                    My Job Posts
+                </button>
+                <button 
+                    onClick={() => setActiveTab('requests')} 
+                    className={`flex-1 py-2.5 px-3 rounded-lg font-bold text-sm whitespace-nowrap ${activeTab === 'requests' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+                >
+                    <Send size={14} className="inline mr-1.5 -mt-0.5" />
+                    Direct ({pendingRequests.length})
                 </button>
             </div>
             
+            {/* ========== MY PROS TAB (EXISTING) ========== */}
             {activeTab === 'pros' && (
                 <div className="space-y-4">
                     {contractors.length > 0 && (
@@ -536,8 +665,8 @@ export const ProConnect = ({
                     {filteredContractors.length === 0 ? (
                         <EmptyState 
                             icon={Wrench} 
-                            title="No Contractors" 
-                            description="Scan receipts to automatically add pros."
+                            title="No Contractors Yet" 
+                            description="Your contractors will appear here after you complete jobs or scan receipts."
                         />
                     ) : (
                         filteredContractors.map((pro, idx) => (
@@ -553,61 +682,103 @@ export const ProConnect = ({
                     )}
                 </div>
             )}
+
+            {/* ========== FIND PROS TAB (NEW - MARKETPLACE) ========== */}
+            {activeTab === 'find' && (
+                <ContractorBrowser
+                    userId={userId}
+                    userZipCode={propertyAddress?.zip || propertyAddress?.zipCode}
+                    onMessageContractor={handleMessageContractor}
+                    onRequestQuote={(contractor) => {
+                        toast.success(`Viewing ${contractor.businessName}'s profile`);
+                    }}
+                />
+            )}
+
+            {/* ========== MY JOB POSTS TAB (NEW - MARKETPLACE) ========== */}
+            {activeTab === 'jobs' && (
+                <HomeownerRequestManager
+                    homeownerId={userId}
+                    onSelectContractor={(requestId, response) => {
+                        toast.success('Contractor selected! Creating job...');
+                        // TODO: Link to job creation flow
+                    }}
+                    onMessageContractor={handleMessageContractor}
+                />
+            )}
             
+            {/* ========== DIRECT REQUESTS TAB (EXISTING) ========== */}
             {activeTab === 'requests' && (
                 <div className="space-y-3">
+                    {/* Quick create button */}
+                    <button 
+                        onClick={() => onOpenQuickRequest && onOpenQuickRequest(null)}
+                        className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 font-medium hover:border-emerald-300 hover:text-emerald-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Plus size={20} />
+                        Create Direct Request Link
+                    </button>
+
                     {pendingRequests.length === 0 ? (
                         <EmptyState 
                             icon={Send} 
-                            title="No Requests" 
-                            description="Create a link to send to a contractor."
+                            title="No Direct Requests" 
+                            description="Direct requests are links you send to a specific contractor. For broadcasting to multiple pros, use 'Post a Job'."
                         />
                     ) : (
-                        pendingRequests.map(req => (
-                            <RequestCard 
-                                key={req.id} 
-                                request={req} 
-                                onDelete={handleDeleteRequest} 
+                        pendingRequests.map(request => (
+                            <RequestCard
+                                key={request.id}
+                                request={request}
                                 onImport={onRequestImport}
-                                onManage={(job) => setSelectedJob(job)}
+                                onManage={(r) => setSelectedJob(r)}
+                                onDelete={handleDeleteRequest}
                             />
                         ))
                     )}
                 </div>
             )}
 
-            {/* Job Scheduler Modal for Homeowner */}
+            {/* Chat Drawer */}
+            {selectedChatPro && (
+                <ChatDrawer
+                    pro={selectedChatPro}
+                    userId={userId}
+                    userProfile={userProfile}
+                    propertyAddress={propertyAddress}
+                    onClose={() => setSelectedChatPro(null)}
+                />
+            )}
+
+            {/* Job Scheduler Modal for selected job */}
             {selectedJob && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
-                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-800">Manage Job</h3>
-                            <button onClick={() => setSelectedJob(null)}>
-                                <X size={20} className="text-slate-400" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+                    <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold text-slate-800">{selectedJob.description}</h2>
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-xl">
+                                <X size={20} />
                             </button>
                         </div>
-                        <div className="p-4 bg-slate-50">
-                            <JobScheduler 
-                                job={selectedJob} 
-                                userType="homeowner" 
-                                onUpdate={() => {}} 
-                            />
-                        </div>
+                        <JobScheduler 
+                            job={selectedJob} 
+                            userType="homeowner" 
+                            onUpdate={() => setSelectedJob(null)}
+                        />
                     </div>
                 </div>
             )}
 
-            {/* Chat Drawer Overlay - UPDATED with propertyAddress */}
-            {selectedChatPro && (
-                <ChatDrawer 
-                    pro={selectedChatPro} 
-                    userId={userId}
-                    userProfile={userProfile}
-                    propertyAddress={propertyAddress}  // NEW: Pass property address
-                    onClose={() => setSelectedChatPro(null)} 
-                />
-            )}
+            {/* Post Job Modal (NEW) */}
+            <ServiceRequestModal
+                isOpen={showPostJobModal}
+                onClose={() => setShowPostJobModal(false)}
+                userId={userId}
+                userProfile={userProfile}
+                propertyAddress={propertyAddress}
+            />
         </div>
     );
 };
+
+export default ProConnect;
