@@ -6,6 +6,7 @@
 // Services
 export * from './lib/serviceRequestService';
 export * from './lib/contractorMarketplaceService';
+export * from './lib/marketplaceIntegration';
 
 // Components (these use default exports, so we import and re-export as named)
 export { default as ServiceRequestCreator } from './components/ServiceRequestCreator';
