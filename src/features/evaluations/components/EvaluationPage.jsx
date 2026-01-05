@@ -36,6 +36,7 @@ export const EvaluationPage = () => {
                 const evalRef = doc(
                     db, 
                     'artifacts', appId, 
+                    'public', 'data',
                     'contractors', contractorId, 
                     'evaluations', evaluationId
                 );
@@ -51,7 +52,7 @@ export const EvaluationPage = () => {
                 setEvaluation(evalData);
 
                 // Fetch contractor profile for display
-                const contractorRef = doc(db, 'artifacts', appId, 'contractors', contractorId);
+                const contractorRef = doc(db, 'artifacts', appId, 'public', 'data', 'contractors', contractorId);
                 const contractorSnap = await getDoc(contractorRef);
                 
                 if (contractorSnap.exists()) {
