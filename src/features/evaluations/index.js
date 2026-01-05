@@ -10,6 +10,7 @@ export { CreateEvaluationRequest } from './components/CreateEvaluationRequest';
 export { EvaluationSubmission } from './components/EvaluationSubmission';
 export { EvaluationReview } from './components/EvaluationReview';
 export { EvaluationsListView } from './components/EvaluationsListView';
+export { EvaluationPage } from './components/EvaluationPage';
 
 // ----------------------------------------
 // Hooks
