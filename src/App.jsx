@@ -56,6 +56,7 @@ import { PropertyProvider } from './contexts/PropertyContext';
 import { ContractorProApp } from './features/contractor-pro';
 import './features/report/report-print.css';
 import { PublicQuoteView } from './features/quotes';
+import { EvaluationPage } from './features/evaluations';
 
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { hasError: false, error: null }; }
@@ -103,6 +104,7 @@ const AppContent = () => {
     const inviteToken = urlParams.get('invite');
     const proParam = urlParams.get('pro');
     const quoteToken = urlParams.get('quote');
+  const evaluateParam = urlParams.get('evaluate');
     
     // FIX: Use STATE to track "from=quote" so it persists even if URL is cleaned
     const [comingFromQuote] = useState(() => {
@@ -308,6 +310,11 @@ const AppContent = () => {
     if (proParam === 'invite') {
         return <ContractorInviteCreator />;
     }
+
+  // Evaluation submission page (public homeowner access)
+if (evaluateParam) {
+    return <EvaluationPage />;
+}
     
     // Customer claiming invitation (?invite=<token>)
     if (inviteToken) {
