@@ -13,7 +13,7 @@ import {
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
     Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2,
-    ClipboardCheck  // NEW: Added for completion review
+    ClipboardCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,28 +21,27 @@ import toast from 'react-hot-toast';
 import { ModernDashboard } from './ModernDashboard';
 import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { ReportTeaser } from './ReportTeaser';
-// Note: PedigreeReportTeaser import removed as it's now integrated
 
-// NEW: Property data hook for getting started view
+// Property data hook for getting started view
 import usePropertyData from '../../hooks/usePropertyData';
-// NEW: Quotes hook and service
+// Quotes hook and service
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 import { unclaimQuote } from '../quotes/lib/quoteService';
 
-// NEW: Firebase imports for Active Projects
+// Firebase imports for Active Projects
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 
-// NEW: Job Scheduler for Homeowner
+// Job Scheduler for Homeowner
 import { JobScheduler } from '../jobs/JobScheduler';
-// NEW: Job management components
+// Job management components
 import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 
-// NEW: Job Completion Review
+// Job Completion Review
 import { JobCompletionReview } from '../jobs/components/completion';
 
 // ============================================
@@ -53,14 +52,13 @@ const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
 
 // ============================================
 // ACTIVE PROJECTS SECTION (Progressive Style)
-// UPDATED: Added completion review support
 // ============================================
 const ActiveProjectsSection = ({ userId }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [cancellingJob, setCancellingJob] = useState(null);
     const [requestingTimesJob, setRequestingTimesJob] = useState(null);
-    const [reviewingJob, setReviewingJob] = useState(null);  // NEW: For completion review
+    const [reviewingJob, setReviewingJob] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -97,7 +95,6 @@ const ActiveProjectsSection = ({ userId }) => {
             const allJobs = Array.from(merged.values());
             
             // Filter for active/negotiating jobs (exclude cancelled and completed)
-            // UPDATED: Added pending_completion and revision_requested statuses
             const active = allJobs.filter(r => 
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
                 (
@@ -117,22 +114,22 @@ const ActiveProjectsSection = ({ userId }) => {
             setLoading(false);
         };
         
-        const unsub1 = onSnapshot(q1, (snapshot) => {
-            results1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const unsub1 = onSnapshot(q1, (snap) => {
+            results1 = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             loaded1 = true;
             mergeAndUpdate();
-        }, (error) => {
-            console.error("Query 1 Error:", error);
+        }, (err) => {
+            console.error('Projects query 1 error:', err);
             loaded1 = true;
             mergeAndUpdate();
         });
         
-        const unsub2 = onSnapshot(q2, (snapshot) => {
-            results2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const unsub2 = onSnapshot(q2, (snap) => {
+            results2 = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             loaded2 = true;
             mergeAndUpdate();
-        }, (error) => {
-            console.error("Query 2 Error:", error);
+        }, (err) => {
+            console.error('Projects query 2 error:', err);
             loaded2 = true;
             mergeAndUpdate();
         });
@@ -143,37 +140,15 @@ const ActiveProjectsSection = ({ userId }) => {
         };
     }, [userId]);
 
-    // Handle job selection - open scheduler modal OR completion review
-    // UPDATED: Check for pending_completion status
-    const handleSelectJob = (job) => {
-        if (job.status === 'pending_completion') {
-            setReviewingJob(job);
-        } else {
-            setSelectedJob(job);
-        }
-    };
-
-    // Handle cancel job
-    const handleCancelJob = (job) => {
-        setCancellingJob(job);
-    };
-
-    // Handle request new times
-    const handleRequestNewTimes = (job) => {
-        setRequestingTimesJob(job);
-    };
-
-    // Get status badge config (for summary display)
-    // UPDATED: Added pending_completion to needsAction count
+    // Helper to determine summary text
     const getStatusSummary = () => {
-        const needsAction = projects.filter(j => 
-            j.status === 'slots_offered' || 
-            j.status === 'pending_completion' ||
-            (j.status === 'scheduling' && j.proposedTimes?.some(p => p.proposedBy === 'contractor'))
+        const needsAction = projects.filter(p => 
+            p.status === 'slots_offered' || 
+            p.status === 'pending_completion' ||
+            p.status === 'revision_requested'
         ).length;
-        
-        const scheduled = projects.filter(j => j.status === 'scheduled').length;
-        const inProgress = projects.filter(j => j.status === 'in_progress').length;
+        const scheduled = projects.filter(p => p.status === 'scheduled').length;
+        const inProgress = projects.filter(p => p.status === 'in_progress').length;
         
         if (needsAction > 0) {
             return <span className="text-xs text-amber-600 font-bold">{needsAction} need{needsAction === 1 ? 's' : ''} action</span>;
@@ -219,54 +194,32 @@ const ActiveProjectsSection = ({ userId }) => {
                         <HomeownerJobCard
                             key={job.id}
                             job={job}
-                            onSelect={handleSelectJob}
-                            onCancel={handleCancelJob}
-                            onRequestNewTimes={handleRequestNewTimes}
+                            onClick={() => setSelectedJob(job)}
+                            onRequestTimes={() => setRequestingTimesJob(job)}
+                            onReviewCompletion={() => setReviewingJob(job)}
                         />
                     ))}
                 </div>
             </DashboardSection>
 
-            {/* Job Scheduler Modal */}
+            {/* Job Detail Modal */}
             {selectedJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
                     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
                             <div>
-                                <h3 className="font-bold text-slate-800">
-                                    {selectedJob.title || selectedJob.description || 'Manage Project'}
-                                </h3>
-                                <p className="text-xs text-slate-500">
-                                    {selectedJob.contractorName || selectedJob.contractorCompany || 'Contractor'}
-                                </p>
+                                <h3 className="font-bold text-slate-800">{selectedJob.title || selectedJob.description || 'Manage Project'}</h3>
+                                <p className="text-xs text-slate-500">{selectedJob.contractorName || 'Contractor'}</p>
                             </div>
-                            <button 
-                                onClick={() => setSelectedJob(null)} 
-                                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                            >
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                                 <X size={20} className="text-slate-400" />
                             </button>
                         </div>
                         <div className="flex-grow overflow-hidden bg-slate-50">
-                            {/* Use real-time project data */}
-                            <JobScheduler 
-                                job={projects.find(p => p.id === selectedJob.id) || selectedJob} 
-                                userType="homeowner" 
-                                onUpdate={() => {}} 
-                            />
+                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => {}} />
                         </div>
-                        {/* Modal Footer with Actions */}
-                        <div className="p-4 border-t border-slate-100 bg-white flex gap-2 shrink-0">
-                            <button
-                                onClick={() => {
-                                    setSelectedJob(null);
-                                    setRequestingTimesJob(selectedJob);
-                                }}
-                                className="flex-1 px-4 py-2.5 text-slate-600 font-medium rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-sm"
-                            >
-                                Request Different Times
-                            </button>
+                        <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-white shrink-0">
                             <button
                                 onClick={() => {
                                     setSelectedJob(null);
@@ -299,7 +252,7 @@ const ActiveProjectsSection = ({ userId }) => {
                 />
             )}
 
-            {/* Job Completion Review Modal - Component handles its own modal styling */}
+            {/* Job Completion Review Modal */}
             {reviewingJob && (
                 <JobCompletionReview
                     job={projects.find(p => p.id === reviewingJob.id) || reviewingJob}
@@ -353,6 +306,7 @@ const MyQuotesSection = ({ userId }) => {
                     <div>
                         <p className="font-bold">Setup Required (Developer Only)</p>
                         <p>A "Collection Group Index" is required to view these quotes.</p>
+                        <p className="mt-1">Check the browser console for the creation link.</p>
                     </div>
                 </div>
             ) : (
@@ -363,6 +317,15 @@ const MyQuotesSection = ({ userId }) => {
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}
                             className="block bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all group relative"
                         >
+                            {/* Delete button */}
+                            <button 
+                                onClick={(e) => handleDelete(e, quote)}
+                                className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                title="Remove from profile"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+
                             {/* Header Row */}
                             <div className="flex justify-between items-start mb-3">
                                 <div className="flex-1 min-w-0 pr-8">
@@ -377,35 +340,32 @@ const MyQuotesSection = ({ userId }) => {
                                     ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
                                       quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 
                                       quote.status === 'viewed' ? 'bg-purple-100 text-purple-700' :
-                                      'bg-slate-100 text-slate-600'}
-                                `}>
+                                      'bg-slate-100 text-slate-700'}`}
+                                >
                                     {quote.status === 'accepted' && <CheckCircle2 size={12} />}
                                     {quote.status}
                                 </span>
-                                
-                                <button 
-                                    onClick={(e) => handleDelete(e, quote)}
-                                    className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                    title="Remove from profile"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
                             </div>
-                            
-                            <div className="flex justify-between items-center pt-3 border-t border-slate-100">
-                                <span className="text-sm text-slate-500">Total:</span>
-                                <span className="font-bold text-slate-800 text-lg">
-                                    ${(quote.total || 0).toLocaleString()}
-                                </span>
-                            </div>
-                            
-                            {quote.status !== 'accepted' && (
-                                <div className="mt-3 pt-3 border-t border-slate-100">
-                                    <span className="text-emerald-600 font-medium text-sm flex items-center gap-1">
-                                        Review Quote <ChevronRight size={14} />
-                                    </span>
+
+                            {/* Address if available */}
+                            {quote.customer?.address && (
+                                <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
+                                    <MapPin size={12} />
+                                    <span className="truncate">{quote.customer.address}</span>
                                 </div>
                             )}
+
+                            {/* Footer */}
+                            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                                <span className="text-lg font-bold text-slate-800">
+                                    {formatCurrency(quote.total)}
+                                </span>
+                                {quote.status !== 'accepted' && (
+                                    <span className="text-xs text-emerald-600 font-medium flex items-center gap-1 group-hover:gap-2 transition-all">
+                                        Review Quote <ChevronRight size={14} />
+                                    </span>
+                                )}
+                            </div>
                         </a>
                     ))}
                 </div>
@@ -486,9 +446,8 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
                 </div>
 
                 {/* Locked/Unlocked: Financial History & Pedigree Report */}
-                {/* Locked/Unlocked: Financial History & Pedigree Report */}
-<div className="relative overflow-hidden rounded-xl">
-    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
+                <div className="relative overflow-hidden rounded-xl">
+                    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
                         <div className="flex items-center justify-between mb-4">
                             <p className={`text-xs font-bold uppercase tracking-wider ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
                                 Financial History
@@ -542,97 +501,6 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
                         </div>
                     )}
                 </div>
-            </div>
-        </div>
-    );
-};
-
-// ============================================
-// EMPTY STATE (0 items)
-// ============================================
-const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink, recordCount }) => {
-    const { address, coordinates } = activeProperty || {};
-    const {
-        propertyData,
-        loading: propertyLoading,
-    } = usePropertyData(address, coordinates);
-
-    return (
-        <div className="flex flex-col items-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
-                <Home size={40} className="text-emerald-700" />
-            </div>
-            
-            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
-                Welcome to {propertyName || 'Your Home'}
-            </h1>
-            
-            {activeProperty?.address && (
-                <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full mb-6">
-                    <MapPin size={12} className="text-emerald-600 mr-1.5" />
-                    <p className="text-slate-600 text-xs font-medium">
-                        {typeof activeProperty.address === 'string' 
-                            ? activeProperty.address 
-                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
-                        }
-                    </p>
-                </div>
-            )}
-
-            {/* Property Intelligence & Pedigree Report (INTEGRATED) */}
-            {activeProperty?.address && (
-                <div className="w-full max-w-lg mb-6">
-                    <PropertyIntelTeaser 
-                        activeProperty={activeProperty} 
-                        recordCount={recordCount}
-                        unlockThreshold={5}
-                        onAddItem={onAddItem}
-                    />
-                </div>
-            )}
-
-            {/* ACTIVE PROJECTS & QUOTES */}
-            <div className="w-full max-w-lg text-left mb-6">
-                <ActiveProjectsSection userId={userId} />
-                <div className="mt-4">
-                    <MyQuotesSection userId={userId} />
-                </div>
-            </div>
-            
-            <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
-                Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
-            </p>
-            
-            <div className="w-full max-w-sm space-y-4">
-                <button 
-                    onClick={onScanReceipt}
-                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
-                >
-                    <Camera size={24} />
-                    Scan a Receipt
-                    <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
-                        <Sparkles size={10} />
-                        AI
-                    </span>
-                </button>
-                
-                {onCreateContractorLink && (
-                    <button 
-                        onClick={onCreateContractorLink}
-                        className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
-                    >
-                        <Wrench size={20} />
-                        Have Contractor Add It
-                        <Send size={16} className="text-amber-600" />
-                    </button>
-                )}
-                
-                <button 
-                    onClick={onAddItem}
-                    className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
-                >
-                    or add details manually
-                </button>
             </div>
         </div>
     );
@@ -751,32 +619,22 @@ const GettingStartedDashboard = ({
                 </button>
             </div>
 
-            {/* Maintenance Schedule */}
-            <MaintenanceDashboard 
-                title="Maintenance Schedule"
-                records={records}
-                onAddRecord={onAddItem}
-                onBookService={onBookService}
-                onMarkTaskDone={onMarkTaskDone}
-                onNavigateToRecords={onNavigateToItems}
-                onDeleteHistoryItem={onDeleteHistoryItem}
-                onRestoreHistoryItem={onRestoreHistoryItem}
-                onDeleteTask={onDeleteTask}
-                onScheduleTask={onScheduleTask}
-                onSnoozeTask={onSnoozeTask}
-            />
-
-            {/* Recent Items List (Mini) */}
+            {/* Recent Items Preview */}
             {records.length > 0 && (
-                <div>
-                    <div className="flex items-center justify-between mb-4 px-1">
-                        <h3 className="font-bold text-slate-800">Recent Additions</h3>
-                        <button onClick={onNavigateToItems} className="text-sm font-bold text-emerald-600 hover:text-emerald-700">View All</button>
+                <div className="bg-white rounded-2xl border border-slate-100 p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-slate-800">Recent Items</h3>
+                        <button 
+                            onClick={onNavigateToItems}
+                            className="text-sm text-emerald-600 font-medium hover:text-emerald-700"
+                        >
+                            View All →
+                        </button>
                     </div>
                     <div className="space-y-3">
-                        {records.slice(0, 3).map(record => (
-                            <div key={record.id} className="bg-white p-4 rounded-xl border border-slate-100 flex items-center gap-4 shadow-sm">
-                                <div className="h-10 w-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
+                        {records.slice(0, 3).map((record, i) => (
+                            <div key={record.id || i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                                <div className="bg-white p-2 rounded-lg border border-slate-200 text-slate-500">
                                     <Package size={20} />
                                 </div>
                                 <div>
@@ -788,6 +646,97 @@ const GettingStartedDashboard = ({
                     </div>
                 </div>
             )}
+        </div>
+    );
+};
+
+// ============================================
+// EMPTY STATE (0 items)
+// ============================================
+const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink, recordCount }) => {
+    const { address, coordinates } = activeProperty || {};
+    const {
+        propertyData,
+        loading: propertyLoading,
+    } = usePropertyData(address, coordinates);
+
+    return (
+        <div className="flex flex-col items-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
+                <Home size={40} className="text-emerald-700" />
+            </div>
+            
+            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
+                Welcome to {propertyName || 'My Home'}
+            </h1>
+            
+            {activeProperty?.address && (
+                <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full mb-6">
+                    <MapPin size={12} className="text-emerald-600 mr-1.5" />
+                    <p className="text-slate-600 text-xs font-medium">
+                        {typeof activeProperty.address === 'string' 
+                            ? activeProperty.address 
+                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                        }
+                    </p>
+                </div>
+            )}
+
+            {/* Property Intelligence & Pedigree Report (INTEGRATED) */}
+            {activeProperty?.address && (
+                <div className="w-full max-w-lg mb-6">
+                    <PropertyIntelTeaser 
+                        activeProperty={activeProperty} 
+                        recordCount={recordCount}
+                        unlockThreshold={5}
+                        onAddItem={onAddItem}
+                    />
+                </div>
+            )}
+
+            {/* ACTIVE PROJECTS & QUOTES */}
+            <div className="w-full max-w-lg text-left mb-6">
+                <ActiveProjectsSection userId={userId} />
+                <div className="mt-4">
+                    <MyQuotesSection userId={userId} />
+                </div>
+            </div>
+            
+            <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
+                Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
+            </p>
+            
+            <div className="w-full max-w-sm space-y-4">
+                <button 
+                    onClick={onScanReceipt}
+                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
+                >
+                    <Camera size={24} />
+                    Scan a Receipt
+                    <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
+                        <Sparkles size={10} />
+                        AI
+                    </span>
+                </button>
+                
+                {onCreateContractorLink && (
+                    <button 
+                        onClick={onCreateContractorLink}
+                        className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
+                    >
+                        <Wrench size={20} />
+                        Have Contractor Add It
+                        <Send size={16} className="text-amber-600" />
+                    </button>
+                )}
+                
+                <button 
+                    onClick={onAddItem}
+                    className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
+                >
+                    or add details manually
+                </button>
+            </div>
         </div>
     );
 };
