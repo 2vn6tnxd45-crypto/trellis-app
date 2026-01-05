@@ -47,7 +47,7 @@ export const DEFAULT_EXPIRATION_DAYS = 7;
 // ============================================
 
 const getEvaluationsPath = (contractorId) => 
-    `artifacts/${appId}/contractors/${contractorId}/evaluations`;
+    `artifacts/${appId}/public/data/contractors/${contractorId}/evaluations`;
 
 // ============================================
 // CREATE EVALUATION REQUEST
