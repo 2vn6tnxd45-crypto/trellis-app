@@ -720,18 +720,32 @@ const QuoteContent = ({
                         </div>
                     </div>
                     
-                    {/* Line Items */}
+                    {/* Line Items - FIX #3: Added brand, model, warranty display */}
                     <div className="p-6 border-b border-slate-100">
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">
                             Quote Details
                         </h3>
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {(quote.lineItems || []).map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-start">
+                                <div key={idx} className="flex justify-between items-start py-2 border-b border-slate-100 last:border-0">
                                     <div className="flex-1">
                                         <p className="font-medium text-slate-800">{item.description}</p>
+                                        {/* Brand and Model */}
+                                        {(item.brand || item.model) && (
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                {item.brand}{item.brand && item.model && ' • '}{item.model}
+                                            </p>
+                                        )}
+                                        {/* Item-specific Warranty */}
+                                        {item.warranty && (
+                                            <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                                                <Shield size={12} />
+                                                {item.warranty}
+                                            </p>
+                                        )}
+                                        {/* Quantity */}
                                         {item.quantity > 1 && (
-                                            <p className="text-sm text-slate-500">
+                                            <p className="text-sm text-slate-500 mt-1">
                                                 {item.quantity} × {formatCurrency(item.unitPrice)}
                                             </p>
                                         )}
@@ -839,33 +853,36 @@ const QuoteContent = ({
                 )}
             </div>
             
-            {/* Fixed Bottom Actions */}
+            {/* Fixed Bottom Actions - FIX #1: Always show decline option when canAccept */}
             {canAccept && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
                     <div className="max-w-2xl mx-auto">
-                        {!user ? (
+                        <div className="flex gap-3">
+                            {/* Decline button - always visible */}
                             <button
-                                onClick={onSave}
-                                disabled={isSaving}
-                                className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                onClick={() => setShowDeclineModal(true)}
+                                className="flex-1 py-4 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
                             >
-                                {isSaving ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        <CheckCircle size={20} />
-                                        Save to Krib & Accept
-                                    </>
-                                )}
+                                Decline
                             </button>
-                        ) : alreadyClaimed ? (
-                            <div className="flex gap-3">
+                            
+                            {/* Primary action button - changes based on state */}
+                            {!user ? (
                                 <button
-                                    onClick={() => setShowDeclineModal(true)}
-                                    className="flex-1 py-4 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                    onClick={onSave}
+                                    disabled={isSaving}
+                                    className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                                 >
-                                    Decline
+                                    {isSaving ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle size={20} />
+                                            Save & Accept
+                                        </>
+                                    )}
                                 </button>
+                            ) : alreadyClaimed ? (
                                 <button
                                     onClick={onAccept}
                                     className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
@@ -873,23 +890,23 @@ const QuoteContent = ({
                                     <CheckCircle size={20} />
                                     Accept Quote
                                 </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={onSave}
-                                disabled={isSaving}
-                                className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isSaving ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        <CheckCircle size={20} />
-                                        Save Quote to My Account
-                                    </>
-                                )}
-                            </button>
-                        )}
+                            ) : (
+                                <button
+                                    onClick={onSave}
+                                    disabled={isSaving}
+                                    className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isSaving ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle size={20} />
+                                            Save Quote
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                        </div>
                         
                         <p className="text-center text-xs text-slate-400 mt-3">
                             Powered by <a href="/" className="text-emerald-600 hover:underline">Krib</a>
@@ -935,15 +952,19 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     }, [user, data]);
 
-    // Load quote
+    // FIX #2: Load quote with proper timeout handling (no stale closure)
     useEffect(() => {
         let isMounted = true;
+        let timeoutId = null;
 
         const loadQuote = async () => {
             try {
                 const result = await getQuoteByShareToken(shareToken);
                 
                 if (!isMounted) return;
+                
+                // Clear timeout on successful load
+                if (timeoutId) clearTimeout(timeoutId);
 
                 if (!result || !result.quote) {
                     setError('This quote could not be found.');
@@ -960,6 +981,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 }
             } catch (err) {
                 if (!isMounted) return;
+                // Clear timeout on error too
+                if (timeoutId) clearTimeout(timeoutId);
                 console.error('Error loading quote:', err);
                 setError('Unable to load this quote.');
                 setLoading(false);
@@ -968,8 +991,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         
         loadQuote();
 
-        const timeout = setTimeout(() => {
-            if (isMounted && loading) {
+        timeoutId = setTimeout(() => {
+            if (isMounted) {
                 setLoading(false);
                 setError('Request timed out. Please refresh.');
             }
@@ -977,7 +1000,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         return () => {
             isMounted = false;
-            clearTimeout(timeout);
+            if (timeoutId) clearTimeout(timeoutId);
         };
     }, [shareToken]);
 
