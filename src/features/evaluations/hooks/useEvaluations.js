@@ -8,7 +8,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
     collection, doc, onSnapshot, query, where, orderBy 
 } from 'firebase/firestore';
-import { db, appId } from '../../../config/firebase';
+import { db } from '../../../config/firebase';
+import { appId } from '../../../config/constants';
 import {
     createEvaluationRequest,
     submitEvaluationMedia,
