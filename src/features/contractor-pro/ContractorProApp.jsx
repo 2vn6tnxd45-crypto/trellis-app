@@ -4,6 +4,7 @@
 // ============================================
 // Main application wrapper for contractor dashboard with routing
 // UPDATED: Added Chat/Messages functionality and Profile Credentials
+// UPDATED: Added Evaluations feature for pre-quote assessments
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { 
@@ -15,7 +16,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck
+    ClipboardCheck, Camera
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -48,6 +49,15 @@ import {
     QuoteBuilder, 
     QuoteDetailView 
 } from '../quotes';
+
+// Evaluation Components
+import { 
+    useEvaluations,
+    CreateEvaluationRequest,
+    EvaluationReview,
+    EvaluationsListView,
+    prepareQuoteFromEvaluation
+} from '../evaluations';
 
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
@@ -164,7 +174,7 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
 // ============================================
 // SIDEBAR
 // ============================================
-const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount }) => (
+const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount, completedEvalsCount }) => (
     <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0">
         {/* Logo */}
         <div className="p-6 border-b border-slate-100">
@@ -190,6 +200,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
             <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
             <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
             <NavItem icon={FileText} label="Quotes" active={['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView)} onClick={() => onNavigate('quotes')} badge={pendingQuotesCount} />
+            <NavItem icon={Camera} label="Evaluations" active={['evaluations', 'evaluation-detail', 'create-evaluation'].includes(activeView)} onClick={() => onNavigate('evaluations')} badge={completedEvalsCount} />
             <NavItem icon={ScrollIcon} label="Invoices" active={['invoices', 'create-invoice'].includes(activeView)} onClick={() => onNavigate('invoices')} />
             
             <div className="pt-4 mt-4 border-t border-slate-100">
@@ -1156,6 +1167,9 @@ export const ContractorProApp = () => {
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
+    // NEW: Evaluation state
+    const [selectedEvaluation, setSelectedEvaluation] = useState(null);
+
     const {
         user,
         profile,
@@ -1191,6 +1205,21 @@ export const ContractorProApp = () => {
 
 
     const contractorId = user?.uid;
+
+    // Evaluation hooks
+    const {
+        evaluations,
+        pendingEvaluations,
+        completedEvaluations,
+        stats: evalStats,
+        loading: evalsLoading,
+        createEvaluation,
+        requestMoreInfo,
+        complete: completeEvaluationFn,
+        cancel: cancelEvaluationFn,
+        prepareQuote: prepareQuoteFromEval,
+        linkQuote
+    } = useEvaluations(contractorId);
 
     // Derived data
     const pendingQuotes = useMemo(() => {
@@ -1283,6 +1312,9 @@ export const ContractorProApp = () => {
         if (!['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(view)) {
             setSelectedQuote(null);
         }
+        if (!['evaluations', 'evaluation-detail', 'create-evaluation'].includes(view)) {
+            setSelectedEvaluation(null);
+        }
         setActiveView(view);
     }, []);
     
@@ -1365,6 +1397,30 @@ export const ContractorProApp = () => {
         }
     }, [activeView]);
 
+    // Evaluation Handlers
+    const handleCreateEvaluation = useCallback(() => {
+        setSelectedEvaluation(null);
+        setActiveView('create-evaluation');
+    }, []);
+
+    const handleSelectEvaluation = useCallback((evaluation) => {
+        setSelectedEvaluation(evaluation);
+        setActiveView('evaluation-detail');
+    }, []);
+
+    const handleEvaluationBack = useCallback(() => {
+        setSelectedEvaluation(null);
+        setActiveView('evaluations');
+    }, []);
+
+    const handleConvertToQuote = useCallback((evaluation) => {
+        // Prepare quote data from evaluation
+        const quoteData = prepareQuoteFromEvaluation(evaluation);
+        // Store it and navigate to quote creation
+        setSelectedQuote({ ...quoteData, fromEvaluation: true, evaluationId: evaluation.id });
+        setActiveView('create-quote');
+    }, []);
+
     const handleJobClick = useCallback((job) => {
         if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
             setOfferingTimesJob(job);
@@ -1394,6 +1450,9 @@ export const ContractorProApp = () => {
             case 'create-quote': return 'New Quote'; 
             case 'quote-detail': return 'Quote Details'; 
             case 'edit-quote': return 'Edit Quote';
+            case 'evaluations': return 'Evaluations';
+            case 'evaluation-detail': return 'Evaluation Details';
+            case 'create-evaluation': return 'Request Evaluation';
             case 'invoices': return 'Invoices';
             case 'create-invoice': return 'New Invoice';
             case 'invitations': return 'Invitations';
@@ -1440,6 +1499,7 @@ export const ContractorProApp = () => {
                 activeJobsCount={activeJobsCount}
                 unscheduledJobsCount={unscheduledJobsCount}
                 unreadMessageCount={unreadMessageCount}
+                completedEvalsCount={completedEvaluations?.length || 0}
             />
             
             <div className="flex-1 flex flex-col min-h-screen pb-20 lg:pb-0">
@@ -1604,7 +1664,7 @@ export const ContractorProApp = () => {
                     
                     {activeView === 'create-quote' && (
                         <QuoteBuilder
-                            quote={null}
+                            quote={selectedQuote}
                             customers={customers}
                             templates={quoteTemplates}
                             contractorProfile={profile}
@@ -1639,6 +1699,45 @@ export const ContractorProApp = () => {
                             isSaving={isUpdatingQuote}
                             isSending={isSendingQuote}
                         />
+                    )}
+
+                    {/* Evaluation Views */}
+                    {activeView === 'evaluations' && (
+                        <EvaluationsListView 
+                            evaluations={evaluations}
+                            pendingEvaluations={pendingEvaluations}
+                            completedEvaluations={completedEvaluations}
+                            loading={evalsLoading}
+                            onCreateEvaluation={handleCreateEvaluation}
+                            onSelectEvaluation={handleSelectEvaluation}
+                        />
+                    )}
+
+                    {activeView === 'create-evaluation' && (
+                        <div className="flex items-center justify-center min-h-[60vh]">
+                            <CreateEvaluationRequest
+                                contractorId={contractorId}
+                                onSubmit={async (data) => {
+                                    await createEvaluation(data);
+                                    toast.success('Evaluation request created!');
+                                    setActiveView('evaluations');
+                                }}
+                                onCancel={() => setActiveView('evaluations')}
+                            />
+                        </div>
+                    )}
+
+                    {activeView === 'evaluation-detail' && selectedEvaluation && (
+                        <div className="flex items-center justify-center min-h-[60vh]">
+                            <EvaluationReview
+                                evaluation={selectedEvaluation}
+                                onRequestMoreInfo={requestMoreInfo}
+                                onComplete={completeEvaluationFn}
+                                onConvertToQuote={handleConvertToQuote}
+                                onCancel={cancelEvaluationFn}
+                                onBack={handleEvaluationBack}
+                            />
+                        </div>
                     )}
                     
                     {activeView === 'invoices' && <InvoicesView onCreateInvoice={() => setActiveView('create-invoice')} />}
