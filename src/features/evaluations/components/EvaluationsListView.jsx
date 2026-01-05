@@ -321,7 +321,7 @@ const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false,
     const handleCopyLink = (e) => {
         e.stopPropagation();
         const baseUrl = window.location.origin;
-        const link = `${baseUrl}?evaluate=${evaluation.id}&contractor=${contractorId}`;
+        const link = `${baseUrl}/app?evaluate=${evaluation.id}&contractor=${contractorId}`;
         navigator.clipboard.writeText(link).then(() => {
             toast.success('Link copied to clipboard!');
         }).catch(() => {
