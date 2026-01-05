@@ -8,8 +8,9 @@ import React, { useState } from 'react';
 import {
     Plus, Clock, CheckCircle, Camera, Home, AlertTriangle,
     ChevronRight, Loader2, Search, Filter, MessageSquare,
-    FileText, Calendar, User, X
+    FileText, Calendar, User, X, Link2, Copy
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { EVALUATION_STATUS, EVALUATION_TYPES, getTimeRemaining } from '../lib/evaluationService';
 import { CATEGORY_LABELS } from '../lib/evaluationTemplates';
 
@@ -22,6 +23,7 @@ export const EvaluationsListView = ({
     pendingEvaluations = [],
     completedEvaluations = [],
     loading = false,
+    contractorId,
     onCreateEvaluation,
     onSelectEvaluation
 }) => {
@@ -167,6 +169,7 @@ export const EvaluationsListView = ({
                             <EvaluationCard
                                 key={evaluation.id}
                                 evaluation={evaluation}
+                                contractorId={contractorId}
                                 onClick={() => onSelectEvaluation(evaluation)}
                                 highlight
                             />
@@ -187,6 +190,7 @@ export const EvaluationsListView = ({
                             <EvaluationCard
                                 key={evaluation.id}
                                 evaluation={evaluation}
+                                contractorId={contractorId}
                                 onClick={() => onSelectEvaluation(evaluation)}
                             />
                         ))}
@@ -206,6 +210,7 @@ export const EvaluationsListView = ({
                             <EvaluationCard
                                 key={evaluation.id}
                                 evaluation={evaluation}
+                                contractorId={contractorId}
                                 onClick={() => onSelectEvaluation(evaluation)}
                             />
                         ))}
@@ -225,6 +230,7 @@ export const EvaluationsListView = ({
                             <EvaluationCard
                                 key={evaluation.id}
                                 evaluation={evaluation}
+                                contractorId={contractorId}
                                 onClick={() => onSelectEvaluation(evaluation)}
                                 faded
                             />
@@ -286,7 +292,7 @@ const StatCard = ({ label, value, icon: Icon, color, onClick, active }) => (
 // EVALUATION CARD
 // ============================================
 
-const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false }) => {
+const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false, contractorId }) => {
     const timeRemaining = getTimeRemaining(evaluation.expiresAt);
     
     const getStatusBadge = () => {
@@ -312,8 +318,20 @@ const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false 
         }
     };
 
+    const handleCopyLink = (e) => {
+        e.stopPropagation();
+        const baseUrl = window.location.origin;
+        const link = `${baseUrl}?evaluate=${evaluation.id}&contractor=${contractorId}`;
+        navigator.clipboard.writeText(link).then(() => {
+            toast.success('Link copied to clipboard!');
+        }).catch(() => {
+            toast.error('Failed to copy link');
+        });
+    };
+
     const status = getStatusBadge();
     const photoCount = evaluation.submissions?.photos?.length || 0;
+    const canCopyLink = contractorId && evaluation.status !== EVALUATION_STATUS.EXPIRED && evaluation.status !== EVALUATION_STATUS.CANCELLED;
 
     return (
         <div
@@ -369,7 +387,19 @@ const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false 
                     )}
                 </div>
 
-                <ChevronRight className="text-slate-300 flex-shrink-0" size={20} />
+                <div className="flex items-center gap-2 flex-shrink-0">
+                    {/* Copy Link Button */}
+                    {canCopyLink && (
+                        <button
+                            onClick={handleCopyLink}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Copy customer link"
+                        >
+                            <Link2 size={18} />
+                        </button>
+                    )}
+                    <ChevronRight className="text-slate-300" size={20} />
+                </div>
             </div>
         </div>
     );
