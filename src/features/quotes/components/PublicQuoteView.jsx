@@ -13,7 +13,7 @@ import {
     FileText, CheckCircle, XCircle, Clock, Eye, Send,
     User, Phone, Mail, MapPin, Calendar, DollarSign,
     ArrowLeft, Building2, Shield, AlertTriangle, Loader2,
-    Home, Plus, ChevronRight, Info
+    Home, Plus, ChevronRight, Info, Package, Wrench, Users, Timer, BookmarkPlus
 } from 'lucide-react';
 import { 
     doc, 
@@ -34,7 +34,7 @@ import {
     declineQuote,
     claimQuote 
 } from '../lib/quoteService';
-import { AuthScreen } from '../../auth/AuthScreen';
+import { QuoteAuthScreen } from './QuoteAuthScreen';
 import toast from 'react-hot-toast';
 
 // ============================================
@@ -615,6 +615,26 @@ const DeclineModal = ({ isOpen, onClose, onConfirm, isSubmitting }) => {
 };
 
 // ============================================
+// LINE ITEM TYPE BADGE
+// ============================================
+const LineItemTypeBadge = ({ type }) => {
+    if (type === 'labor') {
+        return (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                <Wrench size={10} />
+                Labor
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+            <Package size={10} />
+            Material
+        </span>
+    );
+};
+
+// ============================================
 // QUOTE CONTENT
 // ============================================
 const QuoteContent = ({ 
@@ -624,8 +644,9 @@ const QuoteContent = ({
     user,
     onAccept, 
     onDecline,
-    onSave,
+    onSaveToKrib,
     isSaving,
+    isAccepting,
     alreadyClaimed
 }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
@@ -655,7 +676,7 @@ const QuoteContent = ({
     const isAccepted = quote.status === 'accepted';
     
     return (
-        <div className="min-h-screen bg-slate-50 pb-32">
+        <div className="min-h-screen bg-slate-50 pb-40">
             {/* Header */}
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white px-4 py-8">
                 <div className="max-w-2xl mx-auto">
@@ -694,8 +715,14 @@ const QuoteContent = ({
                     {/* Quote Title */}
                     <div className="p-6 border-b border-slate-100">
                         <h2 className="text-xl font-bold text-slate-800">{quote.title || 'Service Quote'}</h2>
+                        {quote.estimatedDuration && (
+                            <div className="flex items-center gap-2 mt-2 text-sm text-slate-600">
+                                <Timer size={16} className="text-slate-400" />
+                                <span>Estimated Duration: {quote.estimatedDuration}</span>
+                            </div>
+                        )}
                         {quote.notes && (
-                            <p className="text-slate-600 mt-2">{quote.notes}</p>
+                            <p className="text-slate-600 mt-3">{quote.notes}</p>
                         )}
                     </div>
                     
@@ -720,39 +747,58 @@ const QuoteContent = ({
                         </div>
                     </div>
                     
-                    {/* Line Items - FIX #3: Added brand, model, warranty display */}
+                    {/* Line Items - FULL DETAILS */}
                     <div className="p-6 border-b border-slate-100">
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-4">
                             Quote Details
                         </h3>
                         <div className="space-y-4">
                             {(quote.lineItems || []).map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-start py-2 border-b border-slate-100 last:border-0">
-                                    <div className="flex-1">
-                                        <p className="font-medium text-slate-800">{item.description}</p>
-                                        {/* Brand and Model */}
-                                        {(item.brand || item.model) && (
-                                            <p className="text-sm text-slate-500 mt-1">
-                                                {item.brand}{item.brand && item.model && ' • '}{item.model}
-                                            </p>
-                                        )}
-                                        {/* Item-specific Warranty */}
-                                        {item.warranty && (
-                                            <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
-                                                <Shield size={12} />
-                                                {item.warranty}
-                                            </p>
-                                        )}
-                                        {/* Quantity */}
-                                        {item.quantity > 1 && (
-                                            <p className="text-sm text-slate-500 mt-1">
-                                                {item.quantity} × {formatCurrency(item.unitPrice)}
-                                            </p>
-                                        )}
+                                <div key={idx} className="py-3 border-b border-slate-100 last:border-0">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex-1">
+                                            {/* Type Badge */}
+                                            <div className="mb-1">
+                                                <LineItemTypeBadge type={item.type} />
+                                            </div>
+                                            
+                                            {/* Description */}
+                                            <p className="font-medium text-slate-800">{item.description}</p>
+                                            
+                                            {/* Brand and Model (for materials) */}
+                                            {item.type === 'material' && (item.brand || item.model) && (
+                                                <p className="text-sm text-slate-500 mt-1">
+                                                    {item.brand}{item.brand && item.model && ' • '}{item.model}
+                                                </p>
+                                            )}
+                                            
+                                            {/* Crew Size (for labor) */}
+                                            {item.type === 'labor' && item.crewSize && (
+                                                <p className="text-sm text-slate-500 mt-1 flex items-center gap-1">
+                                                    <Users size={12} />
+                                                    {item.crewSize} technician{item.crewSize > 1 ? 's' : ''}
+                                                </p>
+                                            )}
+                                            
+                                            {/* Item-specific Warranty */}
+                                            {item.warranty && (
+                                                <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+                                                    <Shield size={12} />
+                                                    {item.warranty}
+                                                </p>
+                                            )}
+                                            
+                                            {/* Quantity */}
+                                            {item.quantity > 1 && (
+                                                <p className="text-sm text-slate-500 mt-1">
+                                                    {item.quantity} × {formatCurrency(item.unitPrice)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <p className="font-semibold text-slate-800">
+                                            {formatCurrency((item.quantity || 1) * (item.unitPrice || 0))}
+                                        </p>
                                     </div>
-                                    <p className="font-semibold text-slate-800">
-                                        {formatCurrency(item.quantity * item.unitPrice)}
-                                    </p>
                                 </div>
                             ))}
                         </div>
@@ -787,6 +833,17 @@ const QuoteContent = ({
                     </div>
                 </div>
                 
+                {/* Exclusions */}
+                {quote.exclusions && (
+                    <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+                            <AlertTriangle size={14} className="text-amber-500" />
+                            Not Included
+                        </h3>
+                        <p className="text-slate-600 text-sm">{quote.exclusions}</p>
+                    </div>
+                )}
+                
                 {/* Terms & Warranty */}
                 {(quote.terms || quote.clientWarranty) && (
                     <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
@@ -801,8 +858,8 @@ const QuoteContent = ({
                         {quote.clientWarranty && (
                             <div>
                                 <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-2">
-                                    <Shield size={14} />
-                                    Warranty
+                                    <Shield size={14} className="text-emerald-600" />
+                                    Labor/Workmanship Warranty
                                 </h3>
                                 <p className="text-slate-600 text-sm">{quote.clientWarranty}</p>
                             </div>
@@ -853,62 +910,56 @@ const QuoteContent = ({
                 )}
             </div>
             
-            {/* Fixed Bottom Actions - FIX #1: Always show decline option when canAccept */}
+            {/* Fixed Bottom Actions - THREE SEPARATE OPTIONS */}
             {canAccept && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
                     <div className="max-w-2xl mx-auto">
-                        <div className="flex gap-3">
-                            {/* Decline button - always visible */}
+                        {/* Three action buttons */}
+                        <div className="flex gap-3 mb-3">
+                            {/* Decline */}
                             <button
                                 onClick={() => setShowDeclineModal(true)}
-                                className="flex-1 py-4 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                className="flex-1 py-3 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
                             >
                                 Decline
                             </button>
                             
-                            {/* Primary action button - changes based on state */}
-                            {!user ? (
-                                <button
-                                    onClick={onSave}
-                                    disabled={isSaving}
-                                    className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isSaving ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            <CheckCircle size={20} />
-                                            Save & Accept
-                                        </>
-                                    )}
-                                </button>
-                            ) : alreadyClaimed ? (
-                                <button
-                                    onClick={onAccept}
-                                    className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <CheckCircle size={20} />
-                                    Accept Quote
-                                </button>
-                            ) : (
-                                <button
-                                    onClick={onSave}
-                                    disabled={isSaving}
-                                    className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                                >
-                                    {isSaving ? (
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                    ) : (
-                                        <>
-                                            <CheckCircle size={20} />
-                                            Save Quote
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                            {/* Accept */}
+                            <button
+                                onClick={onAccept}
+                                disabled={isAccepting}
+                                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isAccepting ? (
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        <CheckCircle size={18} />
+                                        Accept
+                                    </>
+                                )}
+                            </button>
                         </div>
                         
-                        <p className="text-center text-xs text-slate-400 mt-3">
+                        {/* Save to Krib - secondary action */}
+                        {!alreadyClaimed && (
+                            <button
+                                onClick={onSaveToKrib}
+                                disabled={isSaving}
+                                className="w-full py-2.5 text-emerald-600 font-medium rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isSaving ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <>
+                                        <BookmarkPlus size={16} />
+                                        Save to Krib
+                                    </>
+                                )}
+                            </button>
+                        )}
+                        
+                        <p className="text-center text-xs text-slate-400 mt-2">
                             Powered by <a href="/" className="text-emerald-600 hover:underline">Krib</a>
                         </p>
                     </div>
@@ -934,10 +985,12 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [data, setData] = useState(null);
     const [accepted, setAccepted] = useState(false);
     
-    // Auth & Claim State
+    // Auth & Action State
     const [showAuth, setShowAuth] = useState(false);
-    const [pendingSave, setPendingSave] = useState(false);
+    const [authAction, setAuthAction] = useState('save'); // 'save' | 'accept'
+    const [pendingAction, setPendingAction] = useState(null); // 'save' | 'accept'
     const [isClaiming, setIsClaiming] = useState(false);
+    const [isAccepting, setIsAccepting] = useState(false);
     const [alreadyClaimed, setAlreadyClaimed] = useState(false);
     
     // Property State
@@ -952,7 +1005,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     }, [user, data]);
 
-    // FIX #2: Load quote with proper timeout handling (no stale closure)
+    // Load quote with proper timeout handling
     useEffect(() => {
         let isMounted = true;
         let timeoutId = null;
@@ -981,7 +1034,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 }
             } catch (err) {
                 if (!isMounted) return;
-                // Clear timeout on error too
                 if (timeoutId) clearTimeout(timeoutId);
                 console.error('Error loading quote:', err);
                 setError('Unable to load this quote.');
@@ -1010,7 +1062,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         
         const loadUserData = async () => {
             try {
-                // Load profile
                 const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
                 const profileSnap = await getDoc(profileRef);
                 
@@ -1018,10 +1069,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                     const profileData = profileSnap.data();
                     setUserProfile(profileData);
                     
-                    // Get properties from profile
                     const props = profileData.properties || [];
                     
-                    // Handle legacy single-property format
                     if (props.length === 0 && profileData.address) {
                         props.push({
                             id: 'legacy',
@@ -1041,14 +1090,18 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         loadUserData();
     }, [user]);
 
-    // Trigger save after login if pending
-    useEffect(() => {
-        if (user && pendingSave && data && !isClaiming) {
-            setPendingSave(false);
-            setShowAuth(false);
-            handleSaveQuote();
+    // Handle auth success - continue pending action
+    const handleAuthSuccess = () => {
+        setShowAuth(false);
+        
+        if (pendingAction === 'accept') {
+            handleAccept();
+        } else if (pendingAction === 'save') {
+            handleSaveToKrib();
         }
-    }, [user, pendingSave, data, isClaiming]);
+        
+        setPendingAction(null);
+    };
 
     // Create property and claim quote
     const handleCreateProperty = async (propertyData) => {
@@ -1070,7 +1123,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             const existingProperties = existingProfile.properties || [];
             const updatedProperties = [...existingProperties, newProperty];
             
-            // Save property to profile
             await setDoc(profileRef, {
                 ...existingProfile,
                 properties: updatedProperties,
@@ -1079,11 +1131,11 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 updatedAt: serverTimestamp()
             }, { merge: true });
             
-            // Now claim the quote with the new property
             await claimQuote(data.contractorId, data.quote.id, user.uid, newPropertyId);
             
-            toast.success('Property created and quote saved!');
+            toast.success('Quote saved to your account!');
             setShowPropertyModal(false);
+            setAlreadyClaimed(true);
             
             await waitForPendingWrites(db).catch(() => {});
             await new Promise(r => setTimeout(r, 300));
@@ -1104,7 +1156,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         try {
             await claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
             
-            // Mark welcome seen
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
             await updateDoc(profileRef, { 
                 hasSeenWelcome: true,
@@ -1113,6 +1164,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             
             toast.success('Quote saved to your account!');
             setShowPropertyModal(false);
+            setAlreadyClaimed(true);
             
             await waitForPendingWrites(db).catch(() => {});
             await new Promise(r => setTimeout(r, 300));
@@ -1126,14 +1178,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         }
     };
 
-    // Handle Save/Claim button click
-    const handleSaveQuote = async () => {
-        // If not logged in, show auth
+    // Handle Save to Krib button click
+    const handleSaveToKrib = async () => {
         if (!user) {
-            setPendingSave(true);
+            setPendingAction('save');
+            setAuthAction('save');
             setShowAuth(true);
             
-            // Store quote address for later
             if (data?.quote?.customer?.address) {
                 try {
                     localStorage.setItem('pendingQuoteAddress', data.quote.customer.address);
@@ -1142,7 +1193,6 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             return;
         }
 
-        // If already claimed, just redirect
         if (alreadyClaimed) {
             toast.info('This quote is already in your account');
             window.location.href = window.location.origin + '/app?from=quote';
@@ -1151,12 +1201,20 @@ export const PublicQuoteView = ({ shareToken, user }) => {
 
         if (isClaiming) return;
 
-        // Always show property confirmation modal
         setShowPropertyModal(true);
     };
 
-    // Handle Accept Quote
+    // Handle Accept Quote button click
     const handleAccept = async () => {
+        if (!user) {
+            setPendingAction('accept');
+            setAuthAction('accept');
+            setShowAuth(true);
+            return;
+        }
+
+        setIsAccepting(true);
+        
         try {
             await acceptQuote(data.contractorId, data.quote.id);
             setAccepted(true);
@@ -1164,6 +1222,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         } catch (err) {
             console.error('Error accepting quote:', err);
             toast.error('Failed to accept quote. Please try again.');
+        } finally {
+            setIsAccepting(false);
         }
     };
 
@@ -1189,16 +1249,18 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     
     return (
         <>
-            {/* Auth Modal */}
+            {/* Auth Modal - using QuoteAuthScreen */}
             {showAuth && (
-                <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
-                    <div className="absolute top-4 right-4 z-50">
-                        <button onClick={() => setShowAuth(false)} className="p-2 bg-white rounded-full shadow-sm">
-                            <XCircle size={24} className="text-slate-400" />
-                        </button>
-                    </div>
-                    <AuthScreen isModal={true} /> 
-                </div>
+                <QuoteAuthScreen
+                    quote={data.quote}
+                    contractor={data.contractor}
+                    action={authAction}
+                    onSuccess={handleAuthSuccess}
+                    onClose={() => {
+                        setShowAuth(false);
+                        setPendingAction(null);
+                    }}
+                />
             )}
 
             {/* Property Confirmation Modal */}
@@ -1221,8 +1283,9 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 user={user}
                 onAccept={handleAccept}
                 onDecline={handleDecline}
-                onSave={handleSaveQuote}
+                onSaveToKrib={handleSaveToKrib}
                 isSaving={isClaiming}
+                isAccepting={isAccepting}
                 alreadyClaimed={alreadyClaimed}
             />
         </>
