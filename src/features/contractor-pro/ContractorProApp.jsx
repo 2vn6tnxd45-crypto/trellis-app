@@ -59,6 +59,8 @@ import {
     prepareQuoteFromEvaluation
 } from '../evaluations';
 
+import { ContractorLeadDashboard } from '../marketplace';
+
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
 
@@ -196,6 +198,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
         {/* Nav */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <NavItem icon={Home} label="Dashboard" active={activeView === 'dashboard'} onClick={() => onNavigate('dashboard')} />
+            <NavItem icon={Search} label="Find Work" active={activeView === 'leads'} onClick={() => onNavigate('leads')} />
             <NavItem icon={Briefcase} label="Jobs" active={activeView === 'jobs'} onClick={() => onNavigate('jobs')} badge={unscheduledJobsCount} />
             <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
             <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
@@ -1740,6 +1743,13 @@ export const ContractorProApp = () => {
                             />
                         </div>
                     )}
+
+                    {activeView === 'leads' && (
+    <ContractorLeadDashboard 
+        contractorId={profile?.id || user?.uid}
+        contractorProfile={profile?.profile}
+    />
+)}
                     
                     {activeView === 'invoices' && <InvoicesView onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
