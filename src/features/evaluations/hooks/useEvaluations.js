@@ -30,7 +30,7 @@ import {
 // ============================================
 
 const getEvaluationsPath = (contractorId) => 
-    `artifacts/${appId}/contractors/${contractorId}/evaluations`;
+    `artifacts/${appId}/public/data/contractors/${contractorId}/evaluations`;
 
 // ============================================
 // MAIN HOOK: useEvaluations
