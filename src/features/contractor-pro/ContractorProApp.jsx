@@ -1708,6 +1708,7 @@ export const ContractorProApp = () => {
                             pendingEvaluations={pendingEvaluations}
                             completedEvaluations={completedEvaluations}
                             loading={evalsLoading}
+                            contractorId={contractorId}
                             onCreateEvaluation={handleCreateEvaluation}
                             onSelectEvaluation={handleSelectEvaluation}
                         />
