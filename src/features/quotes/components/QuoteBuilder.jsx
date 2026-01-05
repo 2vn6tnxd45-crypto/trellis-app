@@ -142,7 +142,7 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
     const autocompleteRef = useRef(null);
     
     // Google Maps initialization
-    const { isLoaded: mapsLoaded } = useGoogleMaps();
+    const mapsLoaded = useGoogleMaps();
     
     useEffect(() => {
         if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
@@ -273,11 +273,11 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
                             Service Address
                         </label>
                         <input
-                            ref={addressInputRef}
-                            type="text"
-                            value={customer.address}
-                            onChange={(e) => onChange({ ...customer, address: e.target.value })}
-                            placeholder="123 Main St, City, State"
+    ref={addressInputRef}
+    type="text"
+    defaultValue={customer.address}
+    onBlur={(e) => onChange({ ...customer, address: e.target.value })}
+    placeholder="123 Main St, City, State"
                             className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
