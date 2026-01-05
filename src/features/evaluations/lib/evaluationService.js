@@ -9,7 +9,8 @@ import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, serverTimestamp, writeBatch
 } from 'firebase/firestore';
-import { db, appId } from '../../../config/firebase';
+import { db } from '../../../config/firebase';
+import { appId } from '../../../config/constants';
 
 // ============================================
 // CONSTANTS
