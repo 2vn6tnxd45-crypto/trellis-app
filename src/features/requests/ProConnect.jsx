@@ -3,7 +3,7 @@
 // PRO CONNECT - WITH MARKETPLACE INTEGRATION
 // ============================================
 // UPDATED: Added marketplace tabs (Find Pros, My Job Posts)
-// while preserving all existing functionality
+// UPDATED: Added proper job creation when selecting contractor
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
@@ -28,6 +28,12 @@ import {
     ServiceRequestCreator, 
     HomeownerRequestManager 
 } from '../marketplace';
+
+// NEW: Import marketplace integration service
+import { 
+    createJobFromMarketplaceSelection,
+    createMarketplaceChatChannel 
+} from '../marketplace/lib/marketplaceIntegration';
 
 // ============================================
 // HELPER: Format property address for display
@@ -512,6 +518,9 @@ export const ProConnect = ({
 
     // NEW: Post Job Modal State
     const [showPostJobModal, setShowPostJobModal] = useState(false);
+    
+    // NEW: Loading state for contractor selection
+    const [isSelectingContractor, setIsSelectingContractor] = useState(false);
 
     // Fetch Requests
     useEffect(() => {
@@ -591,10 +600,69 @@ export const ProConnect = ({
         toast.success('Request deleted');
     };
 
+    // ============================================
+    // NEW: Handle contractor selection from marketplace
+    // ============================================
+    const handleSelectContractor = async (serviceRequestId, response, serviceRequest) => {
+        setIsSelectingContractor(true);
+        
+        try {
+            // Create the job and link everything
+            const result = await createJobFromMarketplaceSelection({
+                serviceRequestId,
+                response,
+                serviceRequest,
+                homeownerId: userId,
+                propertyId: null // Could pass active property ID if available
+            });
+            
+            if (result.success) {
+                // Create chat channel so they can communicate
+                await createMarketplaceChatChannel({
+                    homeownerId: userId,
+                    contractorId: response.contractorId,
+                    contractorName: response.contractorName || response.businessName,
+                    homeownerName: userProfile?.name || 'Homeowner',
+                    serviceRequestId,
+                    jobId: result.jobId
+                });
+                
+                toast.success(
+                    `${response.contractorName || 'Contractor'} selected! They'll be in touch soon.`,
+                    { duration: 4000 }
+                );
+                
+                // Switch to the Direct tab to see the new job
+                setActiveTab('requests');
+            } else {
+                toast.error(result.error || 'Failed to select contractor');
+            }
+        } catch (error) {
+            console.error('Error selecting contractor:', error);
+            toast.error('Something went wrong. Please try again.');
+        } finally {
+            setIsSelectingContractor(false);
+        }
+    };
+
+    // ============================================
     // NEW: Handle messaging from marketplace
-    const handleMessageContractor = (contractorId) => {
-        // TODO: Integrate with chat system
-        toast('Opening chat...');
+    // ============================================
+    const handleMessageContractor = (contractorId, contractorName) => {
+        // Find or create a pro object for the chat drawer
+        const existingPro = contractors.find(p => p.contractorId === contractorId);
+        
+        if (existingPro) {
+            setSelectedChatPro(existingPro);
+        } else {
+            // Create a minimal pro object for chat
+            setSelectedChatPro({
+                name: contractorName || 'Contractor',
+                contractorId,
+                isOnPlatform: true,
+                jobs: []
+            });
+        }
     };
     
     return (
@@ -688,8 +756,11 @@ export const ProConnect = ({
                 <ContractorBrowser
                     userId={userId}
                     userZipCode={propertyAddress?.zip || propertyAddress?.zipCode}
-                    onMessageContractor={handleMessageContractor}
+                    onMessageContractor={(contractorId, contractorName) => 
+                        handleMessageContractor(contractorId, contractorName)
+                    }
                     onRequestQuote={(contractor) => {
+                        // Could open post job modal pre-filled for this contractor
                         toast.success(`Viewing ${contractor.businessName}'s profile`);
                     }}
                 />
@@ -699,11 +770,12 @@ export const ProConnect = ({
             {activeTab === 'jobs' && (
                 <HomeownerRequestManager
                     homeownerId={userId}
-                    onSelectContractor={(requestId, response) => {
-                        toast.success('Contractor selected! Creating job...');
-                        // TODO: Link to job creation flow
-                    }}
-                    onMessageContractor={handleMessageContractor}
+                    onSelectContractor={(requestId, response, serviceRequest) => 
+                        handleSelectContractor(requestId, response, serviceRequest)
+                    }
+                    onMessageContractor={(contractorId, contractorName) => 
+                        handleMessageContractor(contractorId, contractorName)
+                    }
                 />
             )}
             
@@ -777,6 +849,16 @@ export const ProConnect = ({
                 userProfile={userProfile}
                 propertyAddress={propertyAddress}
             />
+            
+            {/* Loading overlay for contractor selection */}
+            {isSelectingContractor && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30">
+                    <div className="bg-white rounded-2xl p-6 flex items-center gap-3">
+                        <div className="animate-spin h-5 w-5 border-2 border-emerald-600 border-t-transparent rounded-full" />
+                        <span className="font-medium text-slate-700">Selecting contractor...</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
