@@ -40,5 +40,9 @@ export {
     linkQuoteToJob,
     getQuoteStats,
     getQuoteByShareToken,
-    generateQuoteShareLink
+    generateQuoteShareLink,
+    claimQuote,
+    unclaimQuote,
+    addContractorToProsList,
+    createQuoteChatChannel
 } from './lib/quoteService';
