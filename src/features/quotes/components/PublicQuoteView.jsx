@@ -1190,7 +1190,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         setIsClaiming(true);
         
         try {
-            aawait claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
+            await claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
             
             // Add contractor to homeowner's Pros list for messaging
             await addContractorToProsList(user.uid, {
