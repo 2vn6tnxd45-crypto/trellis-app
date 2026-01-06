@@ -32,7 +32,9 @@ import {
     markQuoteViewed, 
     acceptQuote, 
     declineQuote,
-    claimQuote 
+    claimQuote,
+    addContractorToProsList,
+    createQuoteChatChannel
 } from '../lib/quoteService';
 import { QuoteAuthScreen } from './QuoteAuthScreen';
 import toast from 'react-hot-toast';
@@ -1148,6 +1150,25 @@ export const PublicQuoteView = ({ shareToken, user }) => {
             
             await claimQuote(data.contractorId, data.quote.id, user.uid, newPropertyId);
             
+            // Add contractor to homeowner's Pros list for messaging
+            await addContractorToProsList(user.uid, {
+                contractorId: data.contractorId,
+                companyName: data.contractor?.companyName,
+                email: data.contractor?.email,
+                phone: data.contractor?.phone,
+                logoUrl: data.contractor?.logoUrl
+            }, data.quote?.title);
+            
+            // Create chat channel for quote discussion
+            await createQuoteChatChannel(
+                user.uid,
+                data.contractorId,
+                data.contractor?.companyName || 'Contractor',
+                propertyData.name || 'Homeowner',
+                data.quote.id,
+                data.quote?.title
+            );
+            
             toast.success('Quote saved to your account!');
             setShowPropertyModal(false);
             setAlreadyClaimed(true);
@@ -1169,7 +1190,26 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         setIsClaiming(true);
         
         try {
-            await claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
+            aawait claimQuote(data.contractorId, data.quote.id, user.uid, propertyId);
+            
+            // Add contractor to homeowner's Pros list for messaging
+            await addContractorToProsList(user.uid, {
+                contractorId: data.contractorId,
+                companyName: data.contractor?.companyName,
+                email: data.contractor?.email,
+                phone: data.contractor?.phone,
+                logoUrl: data.contractor?.logoUrl
+            }, data.quote?.title);
+            
+            // Create chat channel for quote discussion
+            await createQuoteChatChannel(
+                user.uid,
+                data.contractorId,
+                data.contractor?.companyName || 'Contractor',
+                userProfile?.name || 'Homeowner',
+                data.quote.id,
+                data.quote?.title
+            );
             
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
             await updateDoc(profileRef, { 
