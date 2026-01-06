@@ -20,11 +20,28 @@ export const usePropertyData = (address, coordinates) => {
     const [error, setError] = useState(null);
 
     // Build address string
+    // Build address string
     const addressString = useMemo(() => {
         if (!address) return null;
         if (typeof address === 'string') return address;
+        
+        // If street contains a full address (common from Google Places), use it directly
+        if (address.street && address.street.includes(',')) {
+            return address.street;
+        }
+        
+        // Otherwise, build from parts (need at least street + city or 3 parts)
         const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
-        return parts.length >= 3 ? parts.join(', ') : null;
+        if (parts.length >= 2) {
+            return parts.join(', ');
+        }
+        
+        // Fallback: if we have any street value at all, try it
+        if (address.street) {
+            return address.street;
+        }
+        
+        return null;
     }, [address]);
 
     // Fetch data
