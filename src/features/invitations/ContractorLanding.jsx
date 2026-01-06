@@ -209,7 +209,7 @@ export const ContractorLanding = () => {
                             >
                                 Start Free Today
                                 <ArrowRight size={20} />
-                            </button>
+                           </button>
                             
                                 href="#features"
                                 className="px-8 py-4 border border-slate-600 text-white font-medium rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
