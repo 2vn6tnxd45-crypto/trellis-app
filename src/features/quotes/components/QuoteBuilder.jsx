@@ -142,7 +142,14 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
     const autocompleteRef = useRef(null);
     
     // Google Maps initialization
+    // Google Maps initialization
     const mapsLoaded = useGoogleMaps();
+    
+    // Use ref to track current customer values (avoids stale closure in autocomplete callback)
+    const customerRef = useRef(customer);
+    useEffect(() => {
+        customerRef.current = customer;
+    }, [customer]);
     
     useEffect(() => {
         if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
@@ -156,7 +163,8 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
             autocompleteRef.current.addListener('place_changed', () => {
                 const place = autocompleteRef.current.getPlace();
                 if (place.formatted_address) {
-                    onChange({ ...customer, address: place.formatted_address });
+                    // Use ref to get CURRENT customer values, not stale closure
+                    onChange({ ...customerRef.current, address: place.formatted_address });
                 }
             });
         } catch (err) {
