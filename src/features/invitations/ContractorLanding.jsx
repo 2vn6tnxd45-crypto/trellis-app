@@ -1,91 +1,136 @@
 // src/features/invitations/ContractorLanding.jsx
 // ============================================
-// CONTRACTOR PORTAL LANDING PAGE
+// KRIB PRO LANDING PAGE
 // ============================================
-// A clean entry point for contractors to access all features:
-// 1. Create customer invitations (onboard new customers)
-// 2. Submit work details (for existing customer requests)
+// Sales page for contractors - positions Krib Pro as the
+// free alternative to Housecall Pro, Jobber, etc.
 
 import React from 'react';
 import { 
-    Gift, FileText, ArrowRight, Sparkles, 
-    Users, CheckCircle, Clock, Shield,
-    Smartphone, Mail, QrCode
+    ArrowRight, CheckCircle, X,
+    FileText, Calendar, Users, Receipt,
+    MessageSquare, ClipboardCheck, Camera, Search,
+    DollarSign, Clock, TrendingUp, Shield,
+    Sparkles, Star, Zap
 } from 'lucide-react';
 import { Logo } from '../../components/common/Logo';
 
 // ============================================
-// FEATURE CARD COMPONENT
+// FEATURE CARD
 // ============================================
-const FeatureCard = ({ 
-    icon: Icon, 
-    title, 
-    description, 
-    benefits, 
-    buttonText, 
-    onClick,
-    highlighted = false 
-}) => (
-    <div className={`rounded-2xl border-2 overflow-hidden transition-all hover:shadow-lg ${
-        highlighted 
-            ? 'border-emerald-500 bg-gradient-to-br from-emerald-50 to-white' 
-            : 'border-slate-200 bg-white hover:border-slate-300'
-    }`}>
-        <div className="p-6">
-            <div className={`inline-flex p-3 rounded-xl mb-4 ${
-                highlighted ? 'bg-emerald-100' : 'bg-slate-100'
-            }`}>
-                <Icon size={24} className={highlighted ? 'text-emerald-600' : 'text-slate-600'} />
+const FeatureCard = ({ icon: Icon, title, description, color = 'emerald' }) => {
+    const colors = {
+        emerald: 'bg-emerald-100 text-emerald-600',
+        blue: 'bg-blue-100 text-blue-600',
+        purple: 'bg-purple-100 text-purple-600',
+        amber: 'bg-amber-100 text-amber-600',
+    };
+    
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:border-emerald-200 transition-all">
+            <div className={`inline-flex p-3 rounded-xl mb-4 ${colors[color]}`}>
+                <Icon size={24} />
             </div>
-            
-            {highlighted && (
-                <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
-                    <Sparkles size={12} className="mr-1" />
-                    Recommended
-                </span>
-            )}
-            
-            <h3 className="text-xl font-bold text-slate-800 mb-2">{title}</h3>
-            <p className="text-slate-500 mb-4">{description}</p>
-            
-            <ul className="space-y-2 mb-6">
-                {benefits.map((benefit, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                        <CheckCircle size={16} className={`shrink-0 mt-0.5 ${
-                            highlighted ? 'text-emerald-500' : 'text-slate-400'
-                        }`} />
-                        {benefit}
-                    </li>
-                ))}
-            </ul>
-            
-            <button
-                onClick={onClick}
-                className={`w-full py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2 ${
-                    highlighted
-                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-            >
-                {buttonText}
-                <ArrowRight size={18} />
-            </button>
-        </div>
-    </div>
-);
-
-// ============================================
-// HOW IT WORKS STEP
-// ============================================
-const Step = ({ number, title, description }) => (
-    <div className="flex gap-4">
-        <div className="shrink-0 w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 font-bold flex items-center justify-center text-sm">
-            {number}
-        </div>
-        <div>
-            <h4 className="font-bold text-slate-800">{title}</h4>
+            <h3 className="font-bold text-slate-800 mb-2">{title}</h3>
             <p className="text-sm text-slate-500">{description}</p>
         </div>
+    );
+};
+
+// ============================================
+// COMPARISON TABLE
+// ============================================
+const ComparisonTable = () => {
+    const features = [
+        { name: 'Monthly Cost', krib: 'Free', housecall: '$79+', jobber: '$39+' },
+        { name: 'Quotes & Estimates', krib: true, housecall: true, jobber: true },
+        { name: 'Job Scheduling', krib: true, housecall: true, jobber: true },
+        { name: 'Invoice Generation', krib: true, housecall: true, jobber: true },
+        { name: 'Customer Management', krib: true, housecall: true, jobber: true },
+        { name: 'Team Dispatch Board', krib: true, housecall: true, jobber: true },
+        { name: 'Photo Evaluations', krib: true, housecall: false, jobber: false },
+        { name: 'Customer Home Records', krib: true, housecall: false, jobber: false },
+        { name: 'Builds Customer Loyalty', krib: true, housecall: false, jobber: false },
+    ];
+    
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full">
+                <thead>
+                    <tr className="border-b-2 border-slate-200">
+                        <th className="text-left py-4 px-4 font-bold text-slate-800">Feature</th>
+                        <th className="text-center py-4 px-4">
+                            <div className="inline-flex flex-col items-center">
+                                <span className="font-bold text-emerald-600">Krib Pro</span>
+                                <span className="text-xs text-emerald-500 font-medium">Free</span>
+                            </div>
+                        </th>
+                        <th className="text-center py-4 px-4">
+                            <div className="inline-flex flex-col items-center">
+                                <span className="font-medium text-slate-600">Housecall Pro</span>
+                                <span className="text-xs text-slate-400">$79/mo</span>
+                            </div>
+                        </th>
+                        <th className="text-center py-4 px-4">
+                            <div className="inline-flex flex-col items-center">
+                                <span className="font-medium text-slate-600">Jobber</span>
+                                <span className="text-xs text-slate-400">$39/mo</span>
+                            </div>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {features.map((feature, idx) => (
+                        <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
+                            <td className="py-3 px-4 text-sm text-slate-700">{feature.name}</td>
+                            <td className="py-3 px-4 text-center">
+                                {typeof feature.krib === 'boolean' ? (
+                                    feature.krib ? (
+                                        <CheckCircle size={20} className="inline text-emerald-500" />
+                                    ) : (
+                                        <X size={20} className="inline text-slate-300" />
+                                    )
+                                ) : (
+                                    <span className="font-bold text-emerald-600">{feature.krib}</span>
+                                )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                                {typeof feature.housecall === 'boolean' ? (
+                                    feature.housecall ? (
+                                        <CheckCircle size={20} className="inline text-slate-400" />
+                                    ) : (
+                                        <X size={20} className="inline text-slate-300" />
+                                    )
+                                ) : (
+                                    <span className="text-slate-600">{feature.housecall}</span>
+                                )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                                {typeof feature.jobber === 'boolean' ? (
+                                    feature.jobber ? (
+                                        <CheckCircle size={20} className="inline text-slate-400" />
+                                    ) : (
+                                        <X size={20} className="inline text-slate-300" />
+                                    )
+                                ) : (
+                                    <span className="text-slate-600">{feature.jobber}</span>
+                                )}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+};
+
+// ============================================
+// FAQ ITEM
+// ============================================
+const FAQItem = ({ question, answer }) => (
+    <div className="border-b border-slate-200 py-6">
+        <h3 className="font-bold text-slate-800 mb-2">{question}</h3>
+        <p className="text-slate-600">{answer}</p>
     </div>
 );
 
@@ -94,218 +139,301 @@ const Step = ({ number, title, description }) => (
 // ============================================
 export const ContractorLanding = () => {
     
-    const handleCreateInvitation = () => {
-        // Navigate to invitation creator
+    const handleGetStarted = () => {
         const url = new URL(window.location.href);
-        url.searchParams.set('pro', 'invite');
+        url.searchParams.set('pro', 'dashboard');
         window.location.href = url.toString();
     };
     
-    const handleHaveRequestLink = () => {
-        // Show prompt for request ID
-        const requestId = prompt('Enter the Request ID from your customer\'s link:');
-        if (requestId && requestId.trim()) {
-            const url = new URL(window.location.href);
-            url.searchParams.delete('pro');
-            url.searchParams.set('requestId', requestId.trim());
-            window.location.href = url.toString();
-        }
+    const handleSignIn = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('pro', 'dashboard');
+        window.location.href = url.toString();
     };
     
-    // DARK MODE FIX: Added 'contractor-page' class to force light mode
     return (
-        <div className="contractor-page min-h-screen bg-slate-50">
+        <div className="contractor-page min-h-screen bg-white">
             {/* Header */}
-            <header className="bg-white border-b border-slate-100">
-                <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+            <header className="bg-white border-b border-slate-100 sticky top-0 z-50">
+                <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="bg-emerald-100 p-2 rounded-xl">
-                            <Logo className="h-8 w-8" />
-                        </div>
+                        <Logo className="h-9 w-9" />
                         <div>
-                            <h1 className="font-bold text-emerald-950">krib</h1>
-                            <p className="text-xs text-slate-500">For Professionals</p>
+                            <span className="font-bold text-slate-800">krib</span>
+                            <span className="ml-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">PRO</span>
                         </div>
                     </div>
-                    <a 
-                        href="/"
-                        className="text-sm text-slate-500 hover:text-slate-700"
-                    >
-                        Homeowner? Sign in →
-                    </a>
+                    <div className="flex items-center gap-4">
+                        <a href="/" className="text-sm text-slate-500 hover:text-slate-700 hidden sm:inline">
+                            For Homeowners
+                        </a>
+                        <button
+                            onClick={handleSignIn}
+                            className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-emerald-600 transition-colors"
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            onClick={handleGetStarted}
+                            className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                            Get Started Free
+                        </button>
+                    </div>
                 </div>
             </header>
             
             {/* Hero Section */}
-            <section className="bg-gradient-to-br from-emerald-600 to-emerald-700 text-white py-16">
+            <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-20 md:py-28">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="max-w-3xl">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-6">
+                            <Sparkles size={14} />
+                            100% Free — No credit card required
+                        </div>
+                        
+                        <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
+                            The free alternative to<br />
+                            <span className="text-emerald-400">Housecall Pro</span>
+                        </h1>
+                        
+                        <p className="text-xl text-slate-300 mb-8 leading-relaxed">
+                            Quotes, scheduling, invoices, and customer management. 
+                            Everything you need to run your business — without the $100/month price tag.
+                        </p>
+                        
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <button
+                                onClick={handleGetStarted}
+                                className="px-8 py-4 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-400 transition-colors flex items-center justify-center gap-2 text-lg shadow-lg shadow-emerald-500/25"
+                            >
+                                Start Free Today
+                                <ArrowRight size={20} />
+                            </button>
+                            
+                                href="#features"
+                                className="px-8 py-4 border border-slate-600 text-white font-medium rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                            >
+                                See Features
+                            </a>
+                        </div>
+                        
+                        <p className="mt-6 text-sm text-slate-400">
+                            Join 500+ contractors already using Krib Pro
+                        </p>
+                    </div>
+                </div>
+            </section>
+            
+            {/* Social Proof Bar */}
+            <section className="bg-slate-50 border-y border-slate-200 py-6">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="flex flex-wrap justify-center gap-8 md:gap-16 text-center">
+                        <div>
+                            <p className="text-2xl font-bold text-slate-800">$0/mo</p>
+                            <p className="text-sm text-slate-500">Forever free</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-slate-800">2 min</p>
+                            <p className="text-sm text-slate-500">Setup time</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-slate-800">$1,200+</p>
+                            <p className="text-sm text-slate-500">Saved per year</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            {/* Features Grid */}
+            <section id="features" className="py-20">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-slate-800 mb-4">
+                            Everything you need. Nothing you don't.
+                        </h2>
+                        <p className="text-slate-500 max-w-2xl mx-auto">
+                            Professional tools built for contractors who want to grow their business without the overhead.
+                        </p>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <FeatureCard
+                            icon={FileText}
+                            title="Professional Quotes"
+                            description="Create and send beautiful quotes in minutes. Track views and get notified when accepted."
+                            color="emerald"
+                        />
+                        <FeatureCard
+                            icon={Calendar}
+                            title="Smart Scheduling"
+                            description="Offer time slots, manage your calendar, and dispatch your team from one place."
+                            color="blue"
+                        />
+                        <FeatureCard
+                            icon={Receipt}
+                            title="Invoice Generation"
+                            description="Convert quotes to invoices instantly. Share via link and track payment status."
+                            color="purple"
+                        />
+                        <FeatureCard
+                            icon={Users}
+                            title="Customer Management"
+                            description="Keep track of every customer, their properties, and complete job history."
+                            color="amber"
+                        />
+                        <FeatureCard
+                            icon={Camera}
+                            title="Photo Evaluations"
+                            description="Request photos before quoting complex jobs. Get the info you need upfront."
+                            color="blue"
+                        />
+                        <FeatureCard
+                            icon={MessageSquare}
+                            title="Customer Messaging"
+                            description="Chat with customers directly. Keep all communication in one place."
+                            color="purple"
+                        />
+                        <FeatureCard
+                            icon={Search}
+                            title="Find Work"
+                            description="Browse service requests from homeowners in your area looking for help."
+                            color="amber"
+                        />
+                        <FeatureCard
+                            icon={ClipboardCheck}
+                            title="Job Completion"
+                            description="Document completed work with photos. Records sync to customer's home profile."
+                            color="emerald"
+                        />
+                    </div>
+                </div>
+            </section>
+            
+            {/* Differentiator Section */}
+            <section className="bg-emerald-600 text-white py-20">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="max-w-3xl mx-auto text-center">
+                        <h2 className="text-3xl font-bold mb-6">
+                            The difference: Every job builds your customer network
+                        </h2>
+                        <p className="text-emerald-100 text-lg mb-8 leading-relaxed">
+                            Other tools just help you manage jobs. Krib Pro creates a lasting connection. 
+                            Every quote you send, every job you complete — it all becomes part of your 
+                            customer's permanent home record. When they need service again, you're already there.
+                        </p>
+                        <div className="grid md:grid-cols-3 gap-8 mt-12">
+                            <div>
+                                <div className="text-4xl font-bold mb-2">3x</div>
+                                <p className="text-emerald-200">More repeat customers</p>
+                            </div>
+                            <div>
+                                <div className="text-4xl font-bold mb-2">1 tap</div>
+                                <p className="text-emerald-200">To contact you again</p>
+                            </div>
+                            <div>
+                                <div className="text-4xl font-bold mb-2">Forever</div>
+                                <p className="text-emerald-200">Your info stays with them</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            {/* Comparison Section */}
+            <section className="py-20 bg-slate-50">
+                <div className="max-w-4xl mx-auto px-4">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-slate-800 mb-4">
+                            See how we compare
+                        </h2>
+                        <p className="text-slate-500">
+                            Same features. Better price. Unique benefits.
+                        </p>
+                    </div>
+                    
+                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <ComparisonTable />
+                    </div>
+                </div>
+            </section>
+            
+            {/* FAQ Section */}
+            <section className="py-20">
+                <div className="max-w-3xl mx-auto px-4">
+                    <div className="text-center mb-12">
+                        <h2 className="text-3xl font-bold text-slate-800 mb-4">
+                            Frequently asked questions
+                        </h2>
+                    </div>
+                    
+                    <div>
+                        <FAQItem
+                            question="Why is Krib Pro free?"
+                            answer="We believe every contractor deserves professional tools, regardless of budget. Krib Pro is free because we make money through optional premium features and partnerships with home service providers — never by charging you a monthly fee for the basics."
+                        />
+                        <FAQItem
+                            question="What's the catch?"
+                            answer="No catch. The core tools — quotes, scheduling, invoicing, customer management — are free forever. We'll eventually offer premium add-ons for larger teams, but the features you see today will always be free."
+                        />
+                        <FAQItem
+                            question="How is this different from other contractor software?"
+                            answer="Most tools focus only on the contractor. Krib Pro connects you to your customers' homes. Every job you complete becomes part of their permanent home record, with your info attached. When they need service again — or when their neighbor asks for a referral — you're already there."
+                        />
+                        <FAQItem
+                            question="Can I switch from Housecall Pro or Jobber?"
+                            answer="Yes! You can start using Krib Pro today alongside your existing tools, or switch completely. Your customer data stays yours, and we're adding import tools to make switching even easier."
+                        />
+                        <FAQItem
+                            question="Is my data secure?"
+                            answer="Absolutely. We use industry-standard encryption and never sell your data. Your customer relationships are your business — we're just here to help you manage them."
+                        />
+                    </div>
+                </div>
+            </section>
+            
+            {/* Final CTA */}
+            <section className="bg-slate-900 text-white py-20">
                 <div className="max-w-4xl mx-auto px-4 text-center">
-                    <h1 className="text-3xl md:text-4xl font-bold mb-4">
-                        Krib for Contractors
-                    </h1>
-                    <p className="text-emerald-100 text-lg max-w-2xl mx-auto">
-                        Help your customers track their home maintenance. 
-                        Create a permanent record of your work that builds trust and drives referrals.
+                    <h2 className="text-3xl md:text-4xl font-bold mb-6">
+                        Ready to stop paying for contractor software?
+                    </h2>
+                    <p className="text-slate-400 text-lg mb-8">
+                        Join hundreds of contractors who've made the switch. Free forever.
+                    </p>
+                    <button
+                        onClick={handleGetStarted}
+                        className="px-10 py-5 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-400 transition-colors text-lg shadow-lg shadow-emerald-500/25"
+                    >
+                        Get Started Free
+                    </button>
+                    <p className="mt-6 text-sm text-slate-500">
+                        No credit card required · Setup in 2 minutes
                     </p>
                 </div>
-            </section>
-            
-            {/* Main Options */}
-            <section className="max-w-4xl mx-auto px-4 -mt-8">
-                <div className="grid md:grid-cols-2 gap-6">
-                    <FeatureCard
-                        icon={Gift}
-                        title="Create Customer Invitation"
-                        description="Finished a job? Create a link with all the work details and send it to your customer."
-                        benefits={[
-                            "Customer gets instant home records",
-                            "Your contact info saved for future work",
-                            "Warranty and maintenance reminders set up",
-                            "No account needed for you"
-                        ]}
-                        buttonText="Create Invitation"
-                        onClick={handleCreateInvitation}
-                        highlighted={true}
-                    />
-                    
-                    <FeatureCard
-                        icon={FileText}
-                        title="Submit Work Details"
-                        description="Did a customer send you a request link? Use it to submit your work details."
-                        benefits={[
-                            "Customer requested specific info",
-                            "Fill in details about work performed",
-                            "Attach photos and invoices",
-                            "Details go directly to their account"
-                        ]}
-                        buttonText="I Have a Request Link"
-                        onClick={handleHaveRequestLink}
-                    />
-                </div>
-            </section>
-            
-            {/* How It Works */}
-            <section className="max-w-4xl mx-auto px-4 py-16">
-                <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
-                    How Customer Invitations Work
-                </h2>
-                
-                <div className="bg-white rounded-2xl border border-slate-200 p-8">
-                    <div className="grid md:grid-cols-3 gap-8">
-                        <Step
-                            number="1"
-                            title="Enter Work Details"
-                            description="Fill in what you installed or repaired—brand, model, cost, warranty info."
-                        />
-                        <Step
-                            number="2"
-                            title="Send the Link"
-                            description="Share via text, email, or print a QR code on your invoice."
-                        />
-                        <Step
-                            number="3"
-                            title="Customer Signs Up"
-                            description="They create a free account and your work is automatically saved."
-                        />
-                    </div>
-                    
-                    {/* Sharing Methods */}
-                    <div className="mt-8 pt-8 border-t border-slate-100">
-                        <p className="text-sm font-medium text-slate-500 text-center mb-4">
-                            Ways to share with customers
-                        </p>
-                        <div className="flex justify-center gap-6">
-                            <div className="flex items-center gap-2 text-slate-600">
-                                <Smartphone size={18} className="text-slate-400" />
-                                <span className="text-sm">Text Message</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-600">
-                                <Mail size={18} className="text-slate-400" />
-                                <span className="text-sm">Email</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-slate-600">
-                                <QrCode size={18} className="text-slate-400" />
-                                <span className="text-sm">QR Code</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            
-            {/* Benefits Section */}
-            <section className="bg-white border-y border-slate-100 py-16">
-                <div className="max-w-4xl mx-auto px-4">
-                    <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">
-                        Why Contractors Love Krib
-                    </h2>
-                    
-                    <div className="grid md:grid-cols-3 gap-8">
-                        <div className="text-center">
-                            <div className="inline-flex p-4 rounded-2xl bg-blue-50 mb-4">
-                                <Users size={28} className="text-blue-600" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 mb-2">Build Relationships</h3>
-                            <p className="text-sm text-slate-500">
-                                Your contact info stays with the customer forever. 
-                                When they need service again, you're one tap away.
-                            </p>
-                        </div>
-                        
-                        <div className="text-center">
-                            <div className="inline-flex p-4 rounded-2xl bg-purple-50 mb-4">
-                                <Shield size={28} className="text-purple-600" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 mb-2">Document Your Work</h3>
-                            <p className="text-sm text-slate-500">
-                                Create a permanent record with photos, warranties, 
-                                and details. Protects both you and the customer.
-                            </p>
-                        </div>
-                        
-                        <div className="text-center">
-                            <div className="inline-flex p-4 rounded-2xl bg-amber-50 mb-4">
-                                <Clock size={28} className="text-amber-600" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 mb-2">Save Time</h3>
-                            <p className="text-sm text-slate-500">
-                                No more phone calls asking "what did you install?" 
-                                Customers have all the details at their fingertips.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            
-            {/* CTA Section */}
-            <section className="max-w-4xl mx-auto px-4 py-16 text-center">
-                <h2 className="text-2xl font-bold text-slate-800 mb-4">
-                    Ready to get started?
-                </h2>
-                <p className="text-slate-500 mb-8">
-                    It's free and takes less than 2 minutes.
-                </p>
-                <button
-                    onClick={handleCreateInvitation}
-                    className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/20"
-                >
-                    <Gift size={20} />
-                    Create Your First Invitation
-                </button>
             </section>
             
             {/* Footer */}
-            <footer className="bg-slate-100 border-t border-slate-200 py-8">
-                <div className="max-w-4xl mx-auto px-4 text-center text-sm text-slate-500">
-                    <p>
-                        <strong className="text-slate-700">Krib</strong> helps homeowners 
-                        keep track of everything in their home.
-                    </p>
-                    <p className="mt-2">
-                        <a href="/" className="text-emerald-600 hover:underline">Learn more</a>
-                        {' · '}
-                        <a href="/privacy_policy.html" className="text-emerald-600 hover:underline">Privacy</a>
-                        {' · '}
-                        <a href="/terms.html" className="text-emerald-600 hover:underline">Terms</a>
-                    </p>
+            <footer className="bg-slate-950 text-slate-400 py-12">
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+                        <div className="flex items-center gap-3">
+                            <Logo className="h-8 w-8" variant="white" />
+                            <div>
+                                <span className="font-bold text-white">krib</span>
+                                <span className="ml-1 text-xs font-bold text-emerald-400">PRO</span>
+                            </div>
+                        </div>
+                        <div className="flex gap-6 text-sm">
+                            <a href="/" className="hover:text-white transition-colors">For Homeowners</a>
+                            <a href="/privacy_policy.html" className="hover:text-white transition-colors">Privacy</a>
+                            <a href="/terms.html" className="hover:text-white transition-colors">Terms</a>
+                            <a href="mailto:support@mykrib.app" className="hover:text-white transition-colors">Support</a>
+                        </div>
+                    </div>
+                    <div className="mt-8 pt-8 border-t border-slate-800 text-center text-sm">
+                        <p>© {new Date().getFullYear()} Krib. All rights reserved.</p>
+                    </div>
                 </div>
             </footer>
         </div>
