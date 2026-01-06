@@ -209,12 +209,12 @@ export const ContractorLanding = () => {
                             >
                                 Start Free Today
                                 <ArrowRight size={20} />
-                           </button>
+                            </button>
                             
-                                <a href="#features"
+                                href="?pro=compare"
                                 className="px-8 py-4 border border-slate-600 text-white font-medium rounded-xl hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
                             >
-                                See Features
+                                Compare to Housecall Pro
                             </a>
                         </div>
                         
@@ -347,9 +347,15 @@ export const ContractorLanding = () => {
                         <h2 className="text-3xl font-bold text-slate-800 mb-4">
                             See how we compare
                         </h2>
-                        <p className="text-slate-500">
+                        <p className="text-slate-500 mb-4">
                             Same features. Better price. Unique benefits.
                         </p>
+                        <a 
+                            href="?pro=compare" 
+                            className="text-emerald-600 font-medium hover:text-emerald-700 underline"
+                        >
+                            View full comparison with savings calculator →
+                        </a>
                     </div>
                     
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
