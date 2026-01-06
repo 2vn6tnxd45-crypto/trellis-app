@@ -1,57 +1,15 @@
 // src/hooks/usePropertyData.js
-import { useState, useEffect, useCallback, useMemo } from 'react';
+// ============================================
+// PROPERTY DATA HOOK - RENTCAST API
+// ============================================
+// Fetches real property data from Rentcast API
+// Returns null if unavailable - NO MOCK DATA
+
+import { useState, useEffect, useMemo } from 'react';
 
 // Cache key for localStorage
 const CACHE_KEY = 'krib_property_data';
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-// ============================================
-// MOCK DATA GENERATOR
-// ============================================
-const generateMockData = (addressString) => {
-    const hash = addressString ? addressString.split('').reduce((a, b) => a + b.charCodeAt(0), 0) : 100;
-    const yearBuilt = 1970 + (hash % 50);
-    const sqft = 1200 + (hash % 20) * 100;
-    const beds = 2 + (hash % 4);
-    const baths = 1 + (hash % 3) + ((hash % 2) * 0.5);
-    const lastSalePrice = 200000 + (hash % 50) * 10000;
-    const taxAssessment = Math.round(lastSalePrice * (1.1 + (hash % 20) / 100));
-    
-    return {
-        property: {
-            bedrooms: beds,
-            bathrooms: baths,
-            squareFootage: sqft,
-            lotSize: sqft * 2 + (hash % 10) * 500,
-            yearBuilt: yearBuilt,
-            propertyType: 'Single Family',
-            formattedAddress: addressString || '123 Sample Street',
-            lastSaleDate: `${2015 + (hash % 8)}-${String(1 + (hash % 12)).padStart(2, '0')}-15T00:00:00.000Z`,
-            lastSalePrice: lastSalePrice,
-            taxAssessment: taxAssessment,
-            assessmentYear: 2024,
-            features: {
-                cooling: true,
-                coolingType: 'Central',
-                heating: true,
-                heatingType: 'Forced Air',
-                garage: hash % 3 !== 0,
-                garageSpaces: 2,
-                pool: hash % 5 === 0,
-                fireplace: hash % 2 === 0
-            },
-            hoaFee: hash % 4 === 0 ? 150 + (hash % 10) * 25 : null,
-            source: 'mock-data'
-        },
-        flood: {
-            zone: 'X',
-            riskLevel: 'Minimal',
-            riskDescription: 'Outside flood hazard area',
-            requiresInsurance: false,
-            source: 'mock-data'
-        }
-    };
-};
 
 // ============================================
 // MAIN HOOK
@@ -80,6 +38,7 @@ export const usePropertyData = (address, coordinates) => {
 
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             
             // Check cache first
             try {
@@ -129,13 +88,19 @@ export const usePropertyData = (address, coordinates) => {
                         }
                     }
                 } else {
-                    throw new Error(`API returned ${response.status}`);
+                    // API failed - set null, no mock data
+                    console.warn(`Property API returned ${response.status}`);
+                    if (!cancelled) {
+                        setError(`API returned ${response.status}`);
+                        setData({ property: null, flood: null });
+                    }
                 }
             } catch (err) {
-                console.warn('API fetch failed, using mock data:', err.message);
+                // Network error - set null, no mock data
+                console.warn('Property API fetch failed:', err.message);
                 if (!cancelled) {
-                    const mock = generateMockData(addressString);
-                    setData(mock);
+                    setError(err.message);
+                    setData({ property: null, flood: null });
                 }
             } finally {
                 if (!cancelled) {
@@ -189,6 +154,7 @@ export const usePropertyData = (address, coordinates) => {
         floodData: data.flood,
         loading,
         error,
+        hasData: !!data.property,
         ...computed
     };
 };
