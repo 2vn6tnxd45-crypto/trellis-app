@@ -46,7 +46,7 @@ import { SettingsPage } from './features/settings/SettingsPage';
 import { useThemeInit } from './hooks/useThemeInit';
 
 // NEW: Invitation system imports
-import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding } from './features/invitations';
+import { ContractorInviteCreator, InvitationClaimFlow, ContractorLanding, ComparisonPage } from './features/invitations';
 import { WarrantyCenter } from './features/warranty/WarrantyCenter';
 
 // Property data context (for dynamic room options, etc.)
@@ -296,13 +296,17 @@ const AppContent = () => {
         return <PublicQuoteView shareToken={quoteToken} user={app.user} />;
     }
 
-    // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
+   // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
     if (proParam !== null && proParam !== 'invite') {
         // If ?pro=dashboard, show the full Pro Dashboard
-        // Otherwise (?pro or ?pro=landing), show the landing page
         if (proParam === 'dashboard') {
             return <ContractorProApp />;
         }
+        // If ?pro=compare, show the comparison page
+        if (proParam === 'compare') {
+            return <ComparisonPage />;
+        }
+        // Otherwise (?pro or ?pro=landing), show the landing page
         return <ContractorLanding />;
     }
     
