@@ -380,7 +380,19 @@ const MyQuotesSection = ({ userId }) => {
 // ============================================
 // Shows property data from public records - ONLY if real data exists
 // Builds trust: "Wow, this site already knows about my home!"
+// ============================================
+// PUBLIC RECORDS CARD (Real Rentcast Data Only)
+// ============================================
+// Shows property data from public records - ONLY if real data exists
+// Builds trust: "Wow, this site already knows about my home!"
 const PublicRecordsCard = ({ activeProperty }) => {
+    // DEBUG - remove after fixing
+    console.log('PublicRecordsCard Debug:', {
+        activeProperty,
+        address: activeProperty?.address,
+        coordinates: activeProperty?.coordinates
+    });
+    
     const { address, coordinates } = activeProperty || {};
     const {
         propertyData,
@@ -389,6 +401,14 @@ const PublicRecordsCard = ({ activeProperty }) => {
         estimatedValue,
         appreciation,
     } = usePropertyData(address, coordinates);
+
+    // DEBUG - remove after fixing
+    console.log('usePropertyData result:', {
+        address,
+        propertyData,
+        loading,
+        hasData
+    });
 
     // Loading state
     if (loading) {
