@@ -403,7 +403,14 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
         );
     }
 
-    if (!propertyData) return null;
+    // Show teaser even without property data - use placeholders
+    const displayData = propertyData || {
+        yearBuilt: null,
+        squareFootage: null,
+        lotSize: null,
+        bedrooms: null,
+        bathrooms: null
+    };
 
     const isPositive = appreciation?.dollarChange > 0;
 
