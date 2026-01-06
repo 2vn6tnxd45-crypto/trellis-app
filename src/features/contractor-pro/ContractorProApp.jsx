@@ -190,7 +190,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 )}
                 <div>
                     <p className="font-bold text-slate-800">{profile?.profile?.companyName || 'My Business'}</p>
-                    <p className="text-xs text-slate-400">Pro Dashboard</p>
+                    <p className="text-xs text-emerald-600 font-medium">krib <span className="bg-emerald-100 px-1 rounded">PRO</span></p>
                 </div>
             </div>
         </div>
