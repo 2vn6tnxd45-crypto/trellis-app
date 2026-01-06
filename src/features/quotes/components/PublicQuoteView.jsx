@@ -910,13 +910,30 @@ const QuoteContent = ({
                 )}
             </div>
             
-            {/* Fixed Bottom Actions - THREE SEPARATE OPTIONS */}
+            {/* Fixed Bottom Actions - SAVE TO KRIB PRIMARY */}
             {canAccept && (
                 <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 p-4 shadow-lg">
                     <div className="max-w-2xl mx-auto">
-                        {/* Three action buttons */}
-                        <div className="flex gap-3 mb-3">
-                            {/* Decline */}
+                        {/* Primary CTA: Save to Krib */}
+                        {!alreadyClaimed && (
+                            <button
+                                onClick={onSaveToKrib}
+                                disabled={isSaving}
+                                className="w-full py-4 mb-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-emerald-600/20"
+                            >
+                                {isSaving ? (
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                ) : (
+                                    <>
+                                        <BookmarkPlus size={20} />
+                                        Save to Krib — Track This Quote
+                                    </>
+                                )}
+                            </button>
+                        )}
+                        
+                        {/* Secondary: Accept / Decline */}
+                        <div className="flex gap-3">
                             <button
                                 onClick={() => setShowDeclineModal(true)}
                                 className="flex-1 py-3 border-2 border-slate-300 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-colors"
@@ -924,11 +941,10 @@ const QuoteContent = ({
                                 Decline
                             </button>
                             
-                            {/* Accept */}
                             <button
                                 onClick={onAccept}
                                 disabled={isAccepting}
-                                className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                             >
                                 {isAccepting ? (
                                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -941,25 +957,7 @@ const QuoteContent = ({
                             </button>
                         </div>
                         
-                        {/* Save to Krib - secondary action */}
-                        {!alreadyClaimed && (
-                            <button
-                                onClick={onSaveToKrib}
-                                disabled={isSaving}
-                                className="w-full py-2.5 text-emerald-600 font-medium rounded-xl hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isSaving ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        <BookmarkPlus size={16} />
-                                        Save to Krib
-                                    </>
-                                )}
-                            </button>
-                        )}
-                        
-                        <p className="text-center text-xs text-slate-400 mt-2">
+                        <p className="text-center text-xs text-slate-400 mt-3">
                             Powered by <a href="/" className="text-emerald-600 hover:underline">Krib</a>
                         </p>
                     </div>
@@ -1091,16 +1089,33 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     }, [user]);
 
     // Handle auth success - continue pending action
+    // Handle auth success - continue pending action
+    // Note: We use a small delay to allow the user state to propagate from parent
     const handleAuthSuccess = () => {
         setShowAuth(false);
-        
-        if (pendingAction === 'accept') {
-            handleAccept();
-        } else if (pendingAction === 'save') {
-            handleSaveToKrib();
-        }
-        
+        const action = pendingAction;
         setPendingAction(null);
+        
+        // Small delay to allow auth state to propagate, then trigger action
+        setTimeout(() => {
+            if (action === 'accept') {
+                // Directly accept without re-checking user (we just authenticated)
+                setIsAccepting(true);
+                acceptQuote(data.contractorId, data.quote.id)
+                    .then(() => {
+                        setAccepted(true);
+                        toast.success('Quote accepted! The contractor will be in touch to schedule.');
+                    })
+                    .catch((err) => {
+                        console.error('Error accepting quote:', err);
+                        toast.error('Failed to accept quote. Please try again.');
+                    })
+                    .finally(() => setIsAccepting(false));
+            } else if (action === 'save') {
+                // Open property modal directly (we just authenticated)
+                setShowPropertyModal(true);
+            }
+        }, 100);
     };
 
     // Create property and claim quote
