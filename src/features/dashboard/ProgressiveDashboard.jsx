@@ -14,8 +14,7 @@ import {
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
     Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2,
     ClipboardCheck, Wind, Droplets, Palette, Refrigerator, Shield,
-    Zap, CircleDollarSign, FileCheck, Building2, Receipt, Tag,
-    Hash, CalendarCheck, BadgeCheck, AlertCircle, Flame, ScanLine
+    Zap, CircleDollarSign, FileCheck, Building2, ScanLine
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -470,46 +469,48 @@ const PublicRecordsCard = ({ activeProperty }) => {
 
                 {/* Financial Data - REAL NUMBERS */}
                 {(propertyData.taxAssessment || propertyData.lastSalePrice) && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {/* Tax Assessment */}
-                        {propertyData.taxAssessment && (
-                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <FileText size={14} className="text-blue-600" />
-                                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">
-                                        Tax Assessment
+                    <div className="flex justify-center">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md w-full">
+                            {/* Tax Assessment */}
+                            {propertyData.taxAssessment && (
+                                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100 text-center">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <FileText size={14} className="text-blue-600" />
+                                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">
+                                            Tax Assessment
+                                        </p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-slate-800">
+                                        {formatCurrency(propertyData.taxAssessment)}
                                     </p>
+                                    {propertyData.assessmentYear && (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            {propertyData.assessmentYear} assessment
+                                        </p>
+                                    )}
                                 </div>
-                                <p className="text-2xl font-bold text-slate-800">
-                                    {formatCurrency(propertyData.taxAssessment)}
-                                </p>
-                                {propertyData.assessmentYear && (
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        {propertyData.assessmentYear} assessment
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                            )}
 
-                        {/* Last Sale */}
-                        {propertyData.lastSalePrice && (
-                            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <CircleDollarSign size={14} className="text-emerald-600" />
-                                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">
-                                        Last Sale
+                            {/* Last Sale */}
+                            {propertyData.lastSalePrice && (
+                                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100 text-center">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <CircleDollarSign size={14} className="text-emerald-600" />
+                                        <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">
+                                            Last Sale
+                                        </p>
+                                    </div>
+                                    <p className="text-2xl font-bold text-slate-800">
+                                        {formatCurrency(propertyData.lastSalePrice)}
                                     </p>
+                                    {lastSaleYear && (
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Purchased in {lastSaleYear}
+                                        </p>
+                                    )}
                                 </div>
-                                <p className="text-2xl font-bold text-slate-800">
-                                    {formatCurrency(propertyData.lastSalePrice)}
-                                </p>
-                                {lastSaleYear && (
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        Purchased in {lastSaleYear}
-                                    </p>
-                                )}
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -608,73 +609,7 @@ const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
     );
 };
 
-// ============================================
-// EXAMPLE ITEM PREVIEW - WHAT YOU'RE BUILDING
-// ============================================
-// Shows users what a documented item looks like
-const ExampleItemPreview = () => {
-    return (
-        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-slate-100">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                    What you're building
-                </p>
-            </div>
-            
-            <div className="p-4">
-                {/* Example Item Card */}
-                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
-                    <div className="flex items-start gap-3">
-                        {/* Icon */}
-                        <div className="bg-orange-100 p-3 rounded-xl shrink-0">
-                            <Flame size={24} className="text-orange-600" />
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                                <div>
-                                    <h4 className="font-bold text-slate-800">Water Heater</h4>
-                                    <p className="text-sm text-slate-500">Rheem • XG50T06EC36U1</p>
-                                </div>
-                                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg shrink-0 flex items-center gap-1">
-                                    <AlertCircle size={10} />
-                                    8 yrs old
-                                </span>
-                            </div>
-                            
-                            {/* Details */}
-                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                <div className="flex items-center gap-1.5 text-slate-500">
-                                    <Hash size={12} className="text-slate-400" />
-                                    <span>SN: RH4829571</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-slate-500">
-                                    <CalendarCheck size={12} className="text-slate-400" />
-                                    <span>Installed: Mar 2017</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
-                                    <Shield size={12} />
-                                    <span>Warranty: Dec 2027</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-slate-500">
-                                    <Wrench size={12} className="text-slate-400" />
-                                    <span>Mike's Plumbing</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                {/* Benefit callout */}
-                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
-                    <BadgeCheck size={14} className="text-emerald-500" />
-                    <span>All this from one photo of your receipt</span>
-                </div>
-            </div>
-        </div>
-    );
-};
+
 
 // ============================================
 // QUICK START SUGGESTIONS
@@ -788,9 +723,6 @@ const GettingStartedDashboard = ({
             {/* AI Scan CTA - THE STAR OF THE SHOW */}
             <AIScanCTA onScanReceipt={onScanReceipt} onAddManually={onAddItem} />
 
-            {/* Example Preview - What you're building */}
-            <ExampleItemPreview />
-
             {/* Quick Start Suggestions */}
             <QuickStartSuggestions onScanReceipt={onScanReceipt} />
 
@@ -866,9 +798,6 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
 
             {/* AI Scan CTA - THE STAR OF THE SHOW */}
             <AIScanCTA onScanReceipt={onScanReceipt} onAddManually={onAddItem} />
-
-            {/* Example Preview - What you're building */}
-            <ExampleItemPreview />
 
             {/* Quick Start Suggestions */}
             <QuickStartSuggestions onScanReceipt={onScanReceipt} />
