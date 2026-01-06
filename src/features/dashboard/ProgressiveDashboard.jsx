@@ -14,7 +14,8 @@ import {
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
     Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2,
     ClipboardCheck, Wind, Droplets, Palette, Refrigerator, Shield,
-    Zap, CircleDollarSign, FileCheck, Building2
+    Zap, CircleDollarSign, FileCheck, Building2, Receipt, Tag,
+    Hash, CalendarCheck, BadgeCheck, AlertCircle, Flame, ScanLine
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -50,6 +51,14 @@ import { JobCompletionReview } from '../jobs/components/completion';
 // ============================================
 const formatNumber = (num) => num ? num.toLocaleString() : '--';
 const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
+const formatYear = (dateString) => {
+    if (!dateString) return null;
+    try {
+        return new Date(dateString).getFullYear();
+    } catch {
+        return null;
+    }
+};
 
 // ============================================
 // ACTIVE PROJECTS SECTION (Progressive Style)
@@ -376,39 +385,16 @@ const MyQuotesSection = ({ userId }) => {
 };
 
 // ============================================
-// PUBLIC RECORDS CARD (Real Rentcast Data Only)
+// PUBLIC RECORDS CARD (Real Data - Honest Display)
 // ============================================
-// Shows property data from public records - ONLY if real data exists
-// Builds trust: "Wow, this site already knows about my home!"
-// ============================================
-// PUBLIC RECORDS CARD (Real Rentcast Data Only)
-// ============================================
-// Shows property data from public records - ONLY if real data exists
-// Builds trust: "Wow, this site already knows about my home!"
+// Shows ACTUAL property data - tax assessment & sale price, not fake estimates
 const PublicRecordsCard = ({ activeProperty }) => {
-    // DEBUG - remove after fixing
-    console.log('PublicRecordsCard Debug:', {
-        activeProperty,
-        address: activeProperty?.address,
-        coordinates: activeProperty?.coordinates
-    });
-    
     const { address, coordinates } = activeProperty || {};
     const {
         propertyData,
         loading,
         hasData,
-        estimatedValue,
-        appreciation,
     } = usePropertyData(address, coordinates);
-
-    // DEBUG - remove after fixing
-    console.log('usePropertyData result:', {
-        address,
-        propertyData,
-        loading,
-        hasData
-    });
 
     // Loading state
     if (loading) {
@@ -432,7 +418,16 @@ const PublicRecordsCard = ({ activeProperty }) => {
         return null;
     }
 
-    const isPositive = appreciation?.dollarChange > 0;
+    // Calculate real appreciation from actual data
+    const lastSaleYear = formatYear(propertyData.lastSaleDate);
+    const hasAppreciation = propertyData.taxAssessment && propertyData.lastSalePrice;
+    const appreciationDollars = hasAppreciation 
+        ? propertyData.taxAssessment - propertyData.lastSalePrice 
+        : null;
+    const appreciationPercent = hasAppreciation 
+        ? Math.round(((propertyData.taxAssessment - propertyData.lastSalePrice) / propertyData.lastSalePrice) * 100)
+        : null;
+    const isPositive = appreciationDollars > 0;
 
     return (
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
@@ -473,40 +468,63 @@ const PublicRecordsCard = ({ activeProperty }) => {
                     </div>
                 </div>
 
-                {/* Financial Summary (if available) */}
-                {(estimatedValue || appreciation) && (
-                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-5">
-                        <div className="flex items-center justify-between mb-4">
-                            <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">
-                                Estimated Value
-                            </p>
-                            <CircleDollarSign size={16} className="text-emerald-300" />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-xs text-emerald-200 mb-1">Current</p>
-                                <p className="text-2xl font-bold text-white">
-                                    {formatCurrency(estimatedValue)}
-                                </p>
-                            </div>
-                            {appreciation && (
-                                <div>
-                                    <p className="text-xs text-emerald-200 mb-1">
-                                        Since Purchase
+                {/* Financial Data - REAL NUMBERS */}
+                {(propertyData.taxAssessment || propertyData.lastSalePrice) && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Tax Assessment */}
+                        {propertyData.taxAssessment && (
+                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <FileText size={14} className="text-blue-600" />
+                                    <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">
+                                        Tax Assessment
                                     </p>
-                                    <div className="flex items-center gap-2">
-                                        {isPositive ? (
-                                            <TrendingUp size={16} className="text-emerald-200" />
-                                        ) : (
-                                            <TrendingDown size={16} className="text-red-200" />
-                                        )}
-                                        <p className={`text-2xl font-bold ${isPositive ? 'text-white' : 'text-red-200'}`}>
-                                            {isPositive ? '+' : ''}{formatCurrency(appreciation.dollarChange)}
-                                        </p>
-                                    </div>
                                 </div>
-                            )}
-                        </div>
+                                <p className="text-2xl font-bold text-slate-800">
+                                    {formatCurrency(propertyData.taxAssessment)}
+                                </p>
+                                {propertyData.assessmentYear && (
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        {propertyData.assessmentYear} assessment
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Last Sale */}
+                        {propertyData.lastSalePrice && (
+                            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-100">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <CircleDollarSign size={14} className="text-emerald-600" />
+                                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide">
+                                        Last Sale
+                                    </p>
+                                </div>
+                                <p className="text-2xl font-bold text-slate-800">
+                                    {formatCurrency(propertyData.lastSalePrice)}
+                                </p>
+                                {lastSaleYear && (
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        Purchased in {lastSaleYear}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Appreciation Badge (if we have both numbers) */}
+                {hasAppreciation && (
+                    <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${
+                        isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                    }`}>
+                        {isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                        <span className="font-bold">
+                            {isPositive ? '+' : ''}{formatCurrency(appreciationDollars)}
+                        </span>
+                        <span className="text-sm opacity-75">
+                            ({isPositive ? '+' : ''}{appreciationPercent}% since purchase)
+                        </span>
                     </div>
                 )}
 
@@ -520,160 +538,186 @@ const PublicRecordsCard = ({ activeProperty }) => {
 };
 
 // ============================================
-// HOME PROFILE BUILDER (Honest Checklist)
+// AI SCAN CTA - THE MAGIC MOMENT
 // ============================================
-// Guides users to document their home with real value propositions
-const HomeProfileBuilder = ({ recordCount, existingCategories = [], onAddItem, onScanReceipt }) => {
-    // Define meaningful items to document
-    const profileItems = [
-        { 
-            id: 'hvac',
-            name: 'HVAC System', 
-            icon: Wind, 
-            color: 'text-blue-500',
-            tip: 'Know when service is due & warranty status',
-            why: 'Average replacement: $5,000-$10,000'
-        },
-        { 
-            id: 'water-heater',
-            name: 'Water Heater', 
-            icon: Droplets, 
-            color: 'text-cyan-500',
-            tip: 'Track age & catch problems early',
-            why: 'Typical lifespan: 10-12 years'
-        },
-        { 
-            id: 'roof',
-            name: 'Roof', 
-            icon: Home, 
-            color: 'text-orange-500',
-            tip: 'Essential for insurance claims',
-            why: 'Document age, material & warranty'
-        },
-        { 
-            id: 'appliances',
-            name: 'Major Appliances', 
-            icon: Refrigerator, 
-            color: 'text-slate-500',
-            tip: 'Never lose a warranty again',
-            why: 'Model numbers ready when you need them'
-        },
-        { 
-            id: 'electrical',
-            name: 'Electrical Panel', 
-            icon: Zap, 
-            color: 'text-yellow-500',
-            tip: 'Know your home\'s capacity',
-            why: 'Critical for renovations & safety'
-        },
-    ];
+// Sells the AI scanning feature with clear benefits
+const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
+    return (
+        <div className="bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-600 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
+            {/* Background decoration */}
+            <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
+                <ScanLine size={180} strokeWidth={1} />
+            </div>
+            
+            <div className="relative z-10">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-white/20 backdrop-blur-sm p-2 rounded-lg">
+                        <Sparkles size={20} className="text-emerald-200" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-lg">Snap a photo. We'll do the rest.</h3>
+                    </div>
+                </div>
+                
+                {/* Description */}
+                <p className="text-emerald-100 text-sm mb-4">
+                    Just photograph a receipt, invoice, or appliance label — our AI extracts everything automatically.
+                </p>
+                
+                {/* What AI extracts */}
+                <div className="grid grid-cols-2 gap-2 mb-5">
+                    <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
+                        <span className="text-emerald-50">Brand & Model</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
+                        <span className="text-emerald-50">Purchase Date</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
+                        <span className="text-emerald-50">Serial Number</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                        <CheckCircle2 size={16} className="text-emerald-300 shrink-0" />
+                        <span className="text-emerald-50">Warranty Info</span>
+                    </div>
+                </div>
+                
+                {/* CTA Button */}
+                <button 
+                    onClick={onScanReceipt}
+                    className="w-full py-4 bg-white text-emerald-700 rounded-xl font-bold text-base
+                               hover:bg-emerald-50 transition-all flex items-center justify-center gap-3
+                               shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                >
+                    <Camera size={22} />
+                    Try It — Scan Something
+                </button>
+                
+                {/* Secondary action */}
+                <button 
+                    onClick={onAddManually}
+                    className="w-full mt-3 py-2 text-emerald-200 text-sm font-medium hover:text-white transition-colors"
+                >
+                    or add details manually
+                </button>
+            </div>
+        </div>
+    );
+};
 
-    // Calculate which items might already be tracked (simple heuristic)
-    const trackedCount = Math.min(recordCount, profileItems.length);
-    const progress = (trackedCount / profileItems.length) * 100;
-
+// ============================================
+// EXAMPLE ITEM PREVIEW - WHAT YOU'RE BUILDING
+// ============================================
+// Shows users what a documented item looks like
+const ExampleItemPreview = () => {
     return (
         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-            {/* Header */}
             <div className="px-5 py-4 border-b border-slate-100">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <ClipboardCheck size={18} className="text-emerald-600" />
-                        <h3 className="font-bold text-slate-800">Home Profile</h3>
-                    </div>
-                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                        {recordCount} item{recordCount !== 1 ? 's' : ''} tracked
-                    </span>
-                </div>
-                <p className="text-sm text-slate-500 mt-1">
-                    Document what matters — be prepared when it counts
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
+                    What you're building
                 </p>
             </div>
             
-            <div className="p-5 space-y-4">
-                {/* Progress Bar */}
-                <div>
-                    <div className="flex items-center justify-between text-xs mb-2">
-                        <span className="text-slate-500">Profile completeness</span>
-                        <span className="font-bold text-slate-700">{Math.round(progress)}%</span>
-                    </div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
-                            style={{ width: `${Math.max(progress, 5)}%` }}
-                        />
-                    </div>
-                </div>
-
-                {/* Value Proposition */}
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4">
+            <div className="p-4">
+                {/* Example Item Card */}
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
                     <div className="flex items-start gap-3">
-                        <div className="bg-amber-100 p-2 rounded-lg shrink-0">
-                            <Shield size={18} className="text-amber-600" />
+                        {/* Icon */}
+                        <div className="bg-orange-100 p-3 rounded-xl shrink-0">
+                            <Flame size={24} className="text-orange-600" />
                         </div>
-                        <div>
-                            <p className="font-bold text-amber-800 text-sm">Why document your home?</p>
-                            <p className="text-amber-700 text-xs mt-1">
-                                When your water heater fails at 2am, you'll know if it's under warranty. 
-                                When you sell, documented homes command higher offers.
-                            </p>
+                        
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                                <div>
+                                    <h4 className="font-bold text-slate-800">Water Heater</h4>
+                                    <p className="text-sm text-slate-500">Rheem • XG50T06EC36U1</p>
+                                </div>
+                                <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-bold rounded-lg shrink-0 flex items-center gap-1">
+                                    <AlertCircle size={10} />
+                                    8 yrs old
+                                </span>
+                            </div>
+                            
+                            {/* Details */}
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                <div className="flex items-center gap-1.5 text-slate-500">
+                                    <Hash size={12} className="text-slate-400" />
+                                    <span>SN: RH4829571</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-slate-500">
+                                    <CalendarCheck size={12} className="text-slate-400" />
+                                    <span>Installed: Mar 2017</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-emerald-600 font-medium">
+                                    <Shield size={12} />
+                                    <span>Warranty: Dec 2027</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-slate-500">
+                                    <Wrench size={12} className="text-slate-400" />
+                                    <span>Mike's Plumbing</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                {/* Items to Document */}
-                <div>
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
-                        Recommended to track
-                    </p>
-                    <div className="space-y-2">
-                        {profileItems.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={onScanReceipt}
-                                className="w-full p-3 bg-slate-50 rounded-xl flex items-center gap-3 
-                                           hover:bg-emerald-50 hover:border-emerald-200 border border-transparent
-                                           transition-all text-left group"
-                            >
-                                <div className={`p-2 bg-white rounded-lg border border-slate-200 group-hover:border-emerald-200 transition-colors`}>
-                                    <item.icon size={18} className={`${item.color} group-hover:text-emerald-600 transition-colors`} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-slate-700 group-hover:text-emerald-700 transition-colors">
-                                        {item.name}
-                                    </p>
-                                    <p className="text-xs text-slate-400 truncate">{item.tip}</p>
-                                </div>
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors hidden sm:inline">
-                                        Add
-                                    </span>
-                                    <Camera size={16} className="text-slate-300 group-hover:text-emerald-500 transition-colors" />
-                                </div>
-                            </button>
-                        ))}
-                    </div>
+                {/* Benefit callout */}
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 justify-center">
+                    <BadgeCheck size={14} className="text-emerald-500" />
+                    <span>All this from one photo of your receipt</span>
                 </div>
+            </div>
+        </div>
+    );
+};
 
-                {/* Quick Actions */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                    <button 
-                        onClick={onScanReceipt}
-                        className="py-3 px-4 bg-emerald-600 text-white rounded-xl font-bold text-sm 
-                                   hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2
-                                   shadow-lg shadow-emerald-600/20"
-                    >
-                        <Camera size={16} />
-                        Scan Receipt
-                    </button>
-                    <button 
-                        onClick={onAddItem}
-                        className="py-3 px-4 border-2 border-slate-200 text-slate-600 rounded-xl font-bold text-sm 
-                                   hover:border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Plus size={16} />
-                        Add Manually
-                    </button>
+// ============================================
+// QUICK START SUGGESTIONS
+// ============================================
+// Lighter-weight list of items to track
+const QuickStartSuggestions = ({ onScanReceipt }) => {
+    const suggestions = [
+        { name: 'HVAC System', icon: Wind, color: 'text-blue-500', hint: 'Furnace, AC unit' },
+        { name: 'Water Heater', icon: Droplets, color: 'text-cyan-500', hint: 'Tank or tankless' },
+        { name: 'Roof', icon: Home, color: 'text-orange-500', hint: 'Age & warranty' },
+        { name: 'Appliances', icon: Refrigerator, color: 'text-slate-500', hint: 'Fridge, washer, etc.' },
+    ];
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <ClipboardCheck size={18} className="text-emerald-600" />
+                    <h3 className="font-bold text-slate-800">Start with these</h3>
+                </div>
+            </div>
+            
+            <div className="p-4">
+                <div className="grid grid-cols-2 gap-2">
+                    {suggestions.map((item) => (
+                        <button
+                            key={item.name}
+                            onClick={onScanReceipt}
+                            className="p-3 bg-slate-50 rounded-xl flex items-center gap-3 
+                                       hover:bg-emerald-50 border border-transparent hover:border-emerald-200
+                                       transition-all text-left group"
+                        >
+                            <div className="p-2 bg-white rounded-lg border border-slate-200 group-hover:border-emerald-200 transition-colors">
+                                <item.icon size={18} className={`${item.color} group-hover:text-emerald-600 transition-colors`} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="font-medium text-slate-700 text-sm group-hover:text-emerald-700 transition-colors">
+                                    {item.name}
+                                </p>
+                                <p className="text-xs text-slate-400 truncate">{item.hint}</p>
+                            </div>
+                        </button>
+                    ))}
                 </div>
             </div>
         </div>
@@ -702,34 +746,33 @@ const GettingStartedDashboard = ({
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Hero Card */}
-            <div className="bg-gradient-to-br from-emerald-800 to-teal-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                    <Sparkles size={120} />
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
+                    <Home size={150} />
                 </div>
                 
                 <div className="relative z-10">
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start justify-between mb-2">
                         <div>
-                            <p className="text-emerald-300 font-bold text-xs uppercase tracking-wider mb-1">Your Krib</p>
+                            <p className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-1">Your Krib</p>
                             <h2 className="text-2xl font-extrabold">{propertyName || 'My Home'}</h2>
-                            
-                            {activeProperty?.address && (
-                                <div className="inline-flex items-center bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 mt-3">
-                                    <MapPin size={12} className="text-emerald-300 mr-1.5" />
-                                    <p className="text-emerald-50 text-xs font-medium">
-                                        {typeof activeProperty.address === 'string' 
-                                            ? activeProperty.address 
-                                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
-                                        }
-                                    </p>
-                                </div>
-                            )}
+                        </div>
+                        <div className="bg-emerald-500/20 backdrop-blur-sm px-3 py-1.5 rounded-full border border-emerald-500/30">
+                            <span className="font-bold text-emerald-400 text-sm">{records.length} item{records.length !== 1 ? 's' : ''}</span>
                         </div>
                     </div>
-
-                    <p className="text-emerald-100 font-medium text-sm">
-                        Build your home's digital record — one item at a time
-                    </p>
+                    
+                    {activeProperty?.address && (
+                        <div className="inline-flex items-center text-slate-400 text-sm mt-2">
+                            <MapPin size={14} className="mr-1.5" />
+                            <span>
+                                {typeof activeProperty.address === 'string' 
+                                    ? activeProperty.address 
+                                    : activeProperty.address.street || `${activeProperty.address.city}, ${activeProperty.address.state}`
+                                }
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -742,12 +785,14 @@ const GettingStartedDashboard = ({
                 <PublicRecordsCard activeProperty={activeProperty} />
             )}
 
-            {/* Home Profile Builder (Always shown - honest checklist) */}
-            <HomeProfileBuilder 
-                recordCount={records.length}
-                onAddItem={onAddItem}
-                onScanReceipt={onScanReceipt}
-            />
+            {/* AI Scan CTA - THE STAR OF THE SHOW */}
+            <AIScanCTA onScanReceipt={onScanReceipt} onAddManually={onAddItem} />
+
+            {/* Example Preview - What you're building */}
+            <ExampleItemPreview />
+
+            {/* Quick Start Suggestions */}
+            <QuickStartSuggestions onScanReceipt={onScanReceipt} />
 
             {/* Recent Items Preview */}
             {records.length > 0 && (
@@ -788,9 +833,9 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Welcome Hero */}
-            <div className="text-center py-8">
-                <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6">
-                    <Home size={40} className="text-emerald-700" />
+            <div className="text-center py-6">
+                <div className="inline-flex p-4 bg-emerald-100 rounded-full mb-4">
+                    <Home size={36} className="text-emerald-700" />
                 </div>
                 
                 <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
@@ -803,7 +848,7 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                         <p className="text-slate-600 text-xs font-medium">
                             {typeof activeProperty.address === 'string' 
                                 ? activeProperty.address 
-                                : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                                : activeProperty.address.street || `${activeProperty.address.city}, ${activeProperty.address.state}`
                             }
                         </p>
                     </div>
@@ -819,12 +864,14 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 <PublicRecordsCard activeProperty={activeProperty} />
             )}
 
-            {/* Home Profile Builder */}
-            <HomeProfileBuilder 
-                recordCount={recordCount}
-                onAddItem={onAddItem}
-                onScanReceipt={onScanReceipt}
-            />
+            {/* AI Scan CTA - THE STAR OF THE SHOW */}
+            <AIScanCTA onScanReceipt={onScanReceipt} onAddManually={onAddItem} />
+
+            {/* Example Preview - What you're building */}
+            <ExampleItemPreview />
+
+            {/* Quick Start Suggestions */}
+            <QuickStartSuggestions onScanReceipt={onScanReceipt} />
 
             {/* Contractor Add Option */}
             {onCreateContractorLink && (
