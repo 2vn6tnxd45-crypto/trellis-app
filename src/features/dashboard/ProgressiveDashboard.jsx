@@ -4,7 +4,7 @@
 // ============================================
 // Shows different dashboard views based on how many items the user has tracked.
 // - 0 items: Empty state with strong CTA
-// - 1-4 items: Getting started view with property intel teaser + progress
+// - 1-4 items: Getting started view with profile builder + public records
 // - 5+ items: Full dashboard with all features
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -13,7 +13,8 @@ import {
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
     Hammer, Calendar, Clock, ChevronRight, X, Info, CheckCircle2,
-    ClipboardCheck
+    ClipboardCheck, Wind, Droplets, Palette, Refrigerator, Shield,
+    Zap, CircleDollarSign, FileCheck, Building2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -375,26 +376,29 @@ const MyQuotesSection = ({ userId }) => {
 };
 
 // ============================================
-// PROPERTY INTEL TEASER (INTEGRATED PEDIGREE)
+// PUBLIC RECORDS CARD (Real Rentcast Data Only)
 // ============================================
-const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5, onAddItem }) => {
+// Shows property data from public records - ONLY if real data exists
+// Builds trust: "Wow, this site already knows about my home!"
+const PublicRecordsCard = ({ activeProperty }) => {
     const { address, coordinates } = activeProperty || {};
     const {
         propertyData,
         loading,
+        hasData,
         estimatedValue,
         appreciation,
     } = usePropertyData(address, coordinates);
 
-    const isUnlocked = recordCount >= unlockThreshold;
-    const itemsRemaining = unlockThreshold - recordCount;
-    const progress = Math.min((recordCount / unlockThreshold) * 100, 100);
-
+    // Loading state
     if (loading) {
         return (
             <div className="bg-white rounded-2xl border border-slate-100 p-6 animate-pulse">
-                <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
-                <div className="grid grid-cols-4 gap-3">
+                <div className="flex items-center gap-2 mb-4">
+                    <div className="h-5 w-5 bg-slate-200 rounded"></div>
+                    <div className="h-4 bg-slate-200 rounded w-32"></div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[...Array(4)].map((_, i) => (
                         <div key={i} className="h-20 bg-slate-100 rounded-xl"></div>
                     ))}
@@ -403,14 +407,10 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
         );
     }
 
-    // Show teaser even without property data - use placeholders
-    const displayData = propertyData || {
-        yearBuilt: null,
-        squareFootage: null,
-        lotSize: null,
-        bedrooms: null,
-        bathrooms: null
-    };
+    // No data - don't show the card at all (honest UX)
+    if (!hasData || !propertyData) {
+        return null;
+    }
 
     const isPositive = appreciation?.dollarChange > 0;
 
@@ -419,16 +419,17 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
             {/* Header */}
             <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Home size={18} className="text-emerald-600" />
-                    <h3 className="font-bold text-slate-800">Property Details</h3>
+                    <Building2 size={18} className="text-blue-600" />
+                    <h3 className="font-bold text-slate-800">Public Records</h3>
                 </div>
-                <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
-                    County Records
+                <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-full flex items-center gap-1">
+                    <FileCheck size={10} />
+                    County Data
                 </span>
             </div>
 
             <div className="p-5 space-y-4">
-                {/* Basic property stats - ALWAYS VISIBLE */}
+                {/* Property Stats Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-slate-50 rounded-xl p-4 text-center">
                         <CalendarClock size={18} className="mx-auto mb-2 text-emerald-500" />
@@ -452,61 +453,207 @@ const PropertyIntelTeaser = ({ activeProperty, recordCount, unlockThreshold = 5,
                     </div>
                 </div>
 
-                {/* Locked/Unlocked: Financial History & Pedigree Report */}
-                <div className="relative overflow-hidden rounded-xl">
-                    <div className={`bg-gradient-to-br ${isUnlocked ? 'from-emerald-500 to-teal-600' : 'from-slate-100 to-slate-200'} rounded-xl p-5 ${!isUnlocked ? 'opacity-40 blur-[3px]' : ''}`}>
+                {/* Financial Summary (if available) */}
+                {(estimatedValue || appreciation) && (
+                    <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-5">
                         <div className="flex items-center justify-between mb-4">
-                            <p className={`text-xs font-bold uppercase tracking-wider ${isUnlocked ? 'text-emerald-200' : 'text-slate-500'}`}>
-                                Financial History
+                            <p className="text-xs font-bold uppercase tracking-wider text-emerald-200">
+                                Estimated Value
                             </p>
-                            {isUnlocked && <Sparkles size={16} className="text-emerald-300" />}
+                            <CircleDollarSign size={16} className="text-emerald-300" />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>Estimated Value</p>
-                                <p className={`text-2xl font-bold ${isUnlocked ? 'text-white' : 'text-slate-600'}`}>
+                                <p className="text-xs text-emerald-200 mb-1">Current</p>
+                                <p className="text-2xl font-bold text-white">
                                     {formatCurrency(estimatedValue)}
                                 </p>
                             </div>
-                            <div>
-                                <p className={`text-xs mb-1 ${isUnlocked ? 'text-emerald-200' : 'text-slate-400'}`}>
-                                    Appreciation
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <p className={`text-2xl font-bold ${isUnlocked ? (isPositive ? 'text-white' : 'text-red-200') : 'text-slate-600'}`}>
-                                        {appreciation ? `${isPositive ? '+' : ''}${formatCurrency(appreciation.dollarChange)}` : '--'}
+                            {appreciation && (
+                                <div>
+                                    <p className="text-xs text-emerald-200 mb-1">
+                                        Since Purchase
                                     </p>
+                                    <div className="flex items-center gap-2">
+                                        {isPositive ? (
+                                            <TrendingUp size={16} className="text-emerald-200" />
+                                        ) : (
+                                            <TrendingDown size={16} className="text-red-200" />
+                                        )}
+                                        <p className={`text-2xl font-bold ${isPositive ? 'text-white' : 'text-red-200'}`}>
+                                            {isPositive ? '+' : ''}{formatCurrency(appreciation.dollarChange)}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
+                )}
 
-                    {!isUnlocked && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm rounded-xl border-2 border-dashed border-slate-300 p-4 text-center z-10">
-                            <div className="bg-slate-100 p-3 rounded-full mb-3">
-                                <Lock size={24} className="text-slate-500" />
-                            </div>
-                            <h3 className="font-bold text-slate-800 text-lg mb-1">Property Pedigree Report</h3>
-                            <p className="text-emerald-600 font-bold text-sm mb-2">
-                                Add {itemsRemaining} more item{itemsRemaining !== 1 ? 's' : ''} to unlock
-                            </p>
-                            <div className="w-full max-w-[200px] h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
-                                <div 
-                                    className="h-full bg-emerald-500 transition-all duration-500"
-                                    style={{ width: `${progress}%` }}
-                                />
-                            </div>
-                            <p className="text-slate-500 text-xs max-w-xs mb-4">
-                                Upload receipts or scan appliance labels to build your report and unlock financial insights.
-                            </p>
-                            <button 
-                                onClick={onAddItem}
-                                className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
-                            >
-                                Add Items
-                            </button>
+                {/* Attribution */}
+                <p className="text-xs text-slate-400 text-center">
+                    Data sourced from county assessor records
+                </p>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// HOME PROFILE BUILDER (Honest Checklist)
+// ============================================
+// Guides users to document their home with real value propositions
+const HomeProfileBuilder = ({ recordCount, existingCategories = [], onAddItem, onScanReceipt }) => {
+    // Define meaningful items to document
+    const profileItems = [
+        { 
+            id: 'hvac',
+            name: 'HVAC System', 
+            icon: Wind, 
+            color: 'text-blue-500',
+            tip: 'Know when service is due & warranty status',
+            why: 'Average replacement: $5,000-$10,000'
+        },
+        { 
+            id: 'water-heater',
+            name: 'Water Heater', 
+            icon: Droplets, 
+            color: 'text-cyan-500',
+            tip: 'Track age & catch problems early',
+            why: 'Typical lifespan: 10-12 years'
+        },
+        { 
+            id: 'roof',
+            name: 'Roof', 
+            icon: Home, 
+            color: 'text-orange-500',
+            tip: 'Essential for insurance claims',
+            why: 'Document age, material & warranty'
+        },
+        { 
+            id: 'appliances',
+            name: 'Major Appliances', 
+            icon: Refrigerator, 
+            color: 'text-slate-500',
+            tip: 'Never lose a warranty again',
+            why: 'Model numbers ready when you need them'
+        },
+        { 
+            id: 'electrical',
+            name: 'Electrical Panel', 
+            icon: Zap, 
+            color: 'text-yellow-500',
+            tip: 'Know your home\'s capacity',
+            why: 'Critical for renovations & safety'
+        },
+    ];
+
+    // Calculate which items might already be tracked (simple heuristic)
+    const trackedCount = Math.min(recordCount, profileItems.length);
+    const progress = (trackedCount / profileItems.length) * 100;
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <ClipboardCheck size={18} className="text-emerald-600" />
+                        <h3 className="font-bold text-slate-800">Home Profile</h3>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                        {recordCount} item{recordCount !== 1 ? 's' : ''} tracked
+                    </span>
+                </div>
+                <p className="text-sm text-slate-500 mt-1">
+                    Document what matters — be prepared when it counts
+                </p>
+            </div>
+            
+            <div className="p-5 space-y-4">
+                {/* Progress Bar */}
+                <div>
+                    <div className="flex items-center justify-between text-xs mb-2">
+                        <span className="text-slate-500">Profile completeness</span>
+                        <span className="font-bold text-slate-700">{Math.round(progress)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-700 ease-out"
+                            style={{ width: `${Math.max(progress, 5)}%` }}
+                        />
+                    </div>
+                </div>
+
+                {/* Value Proposition */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                        <div className="bg-amber-100 p-2 rounded-lg shrink-0">
+                            <Shield size={18} className="text-amber-600" />
                         </div>
-                    )}
+                        <div>
+                            <p className="font-bold text-amber-800 text-sm">Why document your home?</p>
+                            <p className="text-amber-700 text-xs mt-1">
+                                When your water heater fails at 2am, you'll know if it's under warranty. 
+                                When you sell, documented homes command higher offers.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Items to Document */}
+                <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">
+                        Recommended to track
+                    </p>
+                    <div className="space-y-2">
+                        {profileItems.map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={onScanReceipt}
+                                className="w-full p-3 bg-slate-50 rounded-xl flex items-center gap-3 
+                                           hover:bg-emerald-50 hover:border-emerald-200 border border-transparent
+                                           transition-all text-left group"
+                            >
+                                <div className={`p-2 bg-white rounded-lg border border-slate-200 group-hover:border-emerald-200 transition-colors`}>
+                                    <item.icon size={18} className={`${item.color} group-hover:text-emerald-600 transition-colors`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-slate-700 group-hover:text-emerald-700 transition-colors">
+                                        {item.name}
+                                    </p>
+                                    <p className="text-xs text-slate-400 truncate">{item.tip}</p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-xs text-slate-300 group-hover:text-emerald-400 transition-colors hidden sm:inline">
+                                        Add
+                                    </span>
+                                    <Camera size={16} className="text-slate-300 group-hover:text-emerald-500 transition-colors" />
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                    <button 
+                        onClick={onScanReceipt}
+                        className="py-3 px-4 bg-emerald-600 text-white rounded-xl font-bold text-sm 
+                                   hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2
+                                   shadow-lg shadow-emerald-600/20"
+                    >
+                        <Camera size={16} />
+                        Scan Receipt
+                    </button>
+                    <button 
+                        onClick={onAddItem}
+                        className="py-3 px-4 border-2 border-slate-200 text-slate-600 rounded-xl font-bold text-sm 
+                                   hover:border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Plus size={16} />
+                        Add Manually
+                    </button>
                 </div>
             </div>
         </div>
@@ -532,13 +679,9 @@ const GettingStartedDashboard = ({
     onScheduleTask,
     onSnoozeTask
 }) => {
-    const unlockThreshold = 5;
-    const progress = Math.min(100, (records.length / unlockThreshold) * 100);
-    const remaining = unlockThreshold - records.length;
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Hero Progress Card */}
+            {/* Hero Card */}
             <div className="bg-gradient-to-br from-emerald-800 to-teal-900 rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                     <Sparkles size={120} />
@@ -562,24 +705,10 @@ const GettingStartedDashboard = ({
                                 </div>
                             )}
                         </div>
-                        <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-xl border border-white/10">
-                            <span className="font-bold text-xl">{records.length}</span>
-                            <span className="text-emerald-200 text-sm ml-1">/ {unlockThreshold} items</span>
-                        </div>
                     </div>
 
-                    <div className="bg-black/20 rounded-full h-3 w-full overflow-hidden mb-3">
-                        <div 
-                            className="bg-emerald-400 h-full rounded-full transition-all duration-1000 ease-out" 
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                    
                     <p className="text-emerald-100 font-medium text-sm">
-                        {remaining > 0 
-                            ? `Add ${remaining} more item${remaining > 1 ? 's' : ''} to unlock Home Value Insights`
-                            : "🎉 Home Value Insights unlocked!"
-                        }
+                        Build your home's digital record — one item at a time
                     </p>
                 </div>
             </div>
@@ -588,49 +717,23 @@ const GettingStartedDashboard = ({
             <ActiveProjectsSection userId={userId} />
             <MyQuotesSection userId={userId} />
 
-            {/* Property Intelligence Teaser (INTEGRATED PEDIGREE) */}
+            {/* Public Records Card (Real Rentcast Data - if available) */}
             {activeProperty?.address && (
-                <PropertyIntelTeaser 
-                    activeProperty={activeProperty} 
-                    recordCount={records.length}
-                    unlockThreshold={unlockThreshold}
-                    onAddItem={onAddItem}
-                />
+                <PublicRecordsCard activeProperty={activeProperty} />
             )}
 
-            {/* Quick Add Buttons */}
-            <div className="grid grid-cols-2 gap-4">
-                <button 
-                    onClick={onScanReceipt}
-                    className="p-5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl flex flex-col items-center gap-3 hover:border-emerald-400 hover:bg-emerald-100 transition-all group"
-                >
-                    <div className="bg-emerald-100 p-3 rounded-xl group-hover:bg-emerald-200 transition-colors">
-                        <Camera className="h-6 w-6 text-emerald-600" />
-                    </div>
-                    <div className="text-center">
-                        <p className="font-bold text-slate-800">Scan Receipt</p>
-                        <p className="text-xs text-slate-500">AI-powered</p>
-                    </div>
-                </button>
-                <button 
-                    onClick={onAddItem}
-                    className="p-5 bg-white border-2 border-slate-200 rounded-2xl flex flex-col items-center gap-3 hover:border-slate-300 hover:bg-slate-50 transition-all group"
-                >
-                    <div className="bg-slate-100 p-3 rounded-xl group-hover:bg-slate-200 transition-colors">
-                        <Plus className="h-6 w-6 text-slate-600" />
-                    </div>
-                    <div className="text-center">
-                        <p className="font-bold text-slate-800">Add Manually</p>
-                        <p className="text-xs text-slate-500">Enter details</p>
-                    </div>
-                </button>
-            </div>
+            {/* Home Profile Builder (Always shown - honest checklist) */}
+            <HomeProfileBuilder 
+                recordCount={records.length}
+                onAddItem={onAddItem}
+                onScanReceipt={onScanReceipt}
+            />
 
             {/* Recent Items Preview */}
             {records.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-100 p-5">
                     <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-bold text-slate-800">Recent Items</h3>
+                        <h3 className="font-bold text-slate-800">Your Items</h3>
                         <button 
                             onClick={onNavigateToItems}
                             className="text-sm text-emerald-600 font-medium hover:text-emerald-700"
@@ -644,10 +747,11 @@ const GettingStartedDashboard = ({
                                 <div className="bg-white p-2 rounded-lg border border-slate-200 text-slate-500">
                                     <Package size={20} />
                                 </div>
-                                <div>
-                                    <p className="font-bold text-slate-800 text-sm">{record.item}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-slate-800 text-sm truncate">{record.item}</p>
                                     <p className="text-xs text-slate-500">{record.category}</p>
                                 </div>
+                                <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
                             </div>
                         ))}
                     </div>
@@ -661,89 +765,58 @@ const GettingStartedDashboard = ({
 // EMPTY STATE (0 items)
 // ============================================
 const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onScanReceipt, onCreateContractorLink, recordCount }) => {
-    const { address, coordinates } = activeProperty || {};
-    const {
-        propertyData,
-        loading: propertyLoading,
-    } = usePropertyData(address, coordinates);
-
     return (
-        <div className="flex flex-col items-center min-h-[70vh] text-center p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6 animate-pulse">
-                <Home size={40} className="text-emerald-700" />
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Welcome Hero */}
+            <div className="text-center py-8">
+                <div className="inline-flex p-5 bg-emerald-100 rounded-full mb-6">
+                    <Home size={40} className="text-emerald-700" />
+                </div>
+                
+                <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
+                    Welcome to {propertyName || 'Your Krib'}
+                </h1>
+                
+                {activeProperty?.address && (
+                    <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full">
+                        <MapPin size={12} className="text-emerald-600 mr-1.5" />
+                        <p className="text-slate-600 text-xs font-medium">
+                            {typeof activeProperty.address === 'string' 
+                                ? activeProperty.address 
+                                : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
+                            }
+                        </p>
+                    </div>
+                )}
             </div>
-            
-            <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
-                Welcome to {propertyName || 'My Home'}
-            </h1>
-            
-            {activeProperty?.address && (
-                <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full mb-6">
-                    <MapPin size={12} className="text-emerald-600 mr-1.5" />
-                    <p className="text-slate-600 text-xs font-medium">
-                        {typeof activeProperty.address === 'string' 
-                            ? activeProperty.address 
-                            : `${activeProperty.address.street}, ${activeProperty.address.city}, ${activeProperty.address.state}`
-                        }
-                    </p>
-                </div>
-            )}
-
-            {/* Property Intelligence & Pedigree Report (INTEGRATED) */}
-            {activeProperty?.address && (
-                <div className="w-full max-w-lg mb-6">
-                    <PropertyIntelTeaser 
-                        activeProperty={activeProperty} 
-                        recordCount={recordCount}
-                        unlockThreshold={5}
-                        onAddItem={onAddItem}
-                    />
-                </div>
-            )}
 
             {/* ACTIVE PROJECTS & QUOTES */}
-            <div className="w-full max-w-lg text-left mb-6">
-                <ActiveProjectsSection userId={userId} />
-                <div className="mt-4">
-                    <MyQuotesSection userId={userId} />
-                </div>
-            </div>
-            
-            <p className="text-slate-500 max-w-md mb-8 text-lg leading-relaxed">
-                Snap a photo of any receipt, invoice, or appliance label. We'll extract and organize the details automatically.
-            </p>
-            
-            <div className="w-full max-w-sm space-y-4">
+            <ActiveProjectsSection userId={userId} />
+            <MyQuotesSection userId={userId} />
+
+            {/* Public Records Card (Real Rentcast Data - if available) */}
+            {activeProperty?.address && (
+                <PublicRecordsCard activeProperty={activeProperty} />
+            )}
+
+            {/* Home Profile Builder */}
+            <HomeProfileBuilder 
+                recordCount={recordCount}
+                onAddItem={onAddItem}
+                onScanReceipt={onScanReceipt}
+            />
+
+            {/* Contractor Add Option */}
+            {onCreateContractorLink && (
                 <button 
-                    onClick={onScanReceipt}
-                    className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-600/30 hover:bg-emerald-700 transition-all hover:scale-[1.02] flex items-center justify-center gap-3"
+                    onClick={onCreateContractorLink}
+                    className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
                 >
-                    <Camera size={24} />
-                    Scan a Receipt
-                    <span className="ml-1 px-2 py-0.5 bg-emerald-500 text-emerald-100 text-xs font-bold rounded-full flex items-center gap-1">
-                        <Sparkles size={10} />
-                        AI
-                    </span>
+                    <Wrench size={20} />
+                    Have a Contractor Add Items
+                    <Send size={16} className="text-amber-600" />
                 </button>
-                
-                {onCreateContractorLink && (
-                    <button 
-                        onClick={onCreateContractorLink}
-                        className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
-                    >
-                        <Wrench size={20} />
-                        Have Contractor Add It
-                        <Send size={16} className="text-amber-600" />
-                    </button>
-                )}
-                
-                <button 
-                    onClick={onAddItem}
-                    className="w-full py-3 text-slate-500 font-medium hover:text-emerald-600 transition-colors"
-                >
-                    or add details manually
-                </button>
-            </div>
+            )}
         </div>
     );
 };
