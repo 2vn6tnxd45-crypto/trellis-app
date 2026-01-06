@@ -205,6 +205,7 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
     const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
     const [selectedTech, setSelectedTech] = useState('');
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
+    const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
     const timeOptions = [];
     for (let h = 6; h <= 20; h++) {
@@ -220,10 +221,16 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
         const scheduledDateTime = new Date(date);
         scheduledDateTime.setHours(hours, minutes, 0, 0);
         
+        // Calculate end time based on duration
+        const endDateTime = new Date(scheduledDateTime);
+        endDateTime.setMinutes(endDateTime.getMinutes() + duration);
+        
         onConfirm({
             scheduledTime: scheduledDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
             assignedTo: selectedTech || null,
-            estimatedDuration: duration
+            estimatedDuration: duration,
+            isDirectSchedule: customerConfirmed
         });
     };
 
@@ -314,6 +321,23 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
                 )}
 
                 {/* Actions */}
+                {/* Customer Confirmed Checkbox */}
+                <div className="mb-4 p-3 bg-slate-50 rounded-xl">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={customerConfirmed}
+                            onChange={(e) => setCustomerConfirmed(e.target.checked)}
+                            className="mt-1 h-4 w-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500"
+                        />
+                        <div>
+                            <p className="font-medium text-slate-700">Customer already confirmed</p>
+                            <p className="text-xs text-slate-500">Check this if you've already spoken with the customer and they agreed to this time</p>
+                        </div>
+                    </label>
+                </div>
+
+                {/* Actions */}
                 <div className="flex gap-3 mt-6">
                     <button
                         onClick={onCancel}
@@ -323,10 +347,14 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
                     </button>
                     <button
                         onClick={handleConfirm}
-                        className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2"
+                        className={`flex-1 px-4 py-3 font-bold rounded-xl flex items-center justify-center gap-2 ${
+                            customerConfirmed 
+                                ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+                                : 'bg-amber-500 text-white hover:bg-amber-600'
+                        }`}
                     >
                         <Check size={18} />
-                        Schedule
+                        {customerConfirmed ? 'Schedule' : 'Propose Time'}
                     </button>
                 </div>
             </div>
@@ -466,20 +494,45 @@ export const DragDropCalendar = ({
     }, []);
 
     // Confirm scheduling
+    // Confirm scheduling (propose or direct)
     const handleConfirmSchedule = async (scheduleData) => {
         if (!confirmDrop?.job) return;
 
         try {
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
-                scheduledTime: scheduleData.scheduledTime,
-                scheduledDate: scheduleData.scheduledTime,
-                estimatedDuration: scheduleData.estimatedDuration,
-                assignedTo: scheduleData.assignedTo,
-                status: 'scheduled',
-                lastActivity: serverTimestamp()
-            });
-
-            toast.success('Job scheduled!');
+            if (scheduleData.isDirectSchedule) {
+                // DIRECT SCHEDULE - Customer already confirmed
+                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
+                    scheduledTime: scheduleData.scheduledTime,
+                    scheduledDate: scheduleData.scheduledTime,
+                    scheduledEndTime: scheduleData.endTime,
+                    estimatedDuration: scheduleData.estimatedDuration,
+                    assignedTo: scheduleData.assignedTo,
+                    status: 'scheduled',
+                    lastActivity: serverTimestamp()
+                });
+                toast.success('Job scheduled!');
+            } else {
+                // PROPOSE TIME - Customer needs to confirm
+                const slotId = `slot_${Date.now()}`;
+                const offeredSlot = {
+                    id: slotId,
+                    start: scheduleData.scheduledTime,
+                    end: scheduleData.endTime,
+                    status: 'offered',
+                    createdAt: new Date().toISOString()
+                };
+                
+                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
+                    'scheduling.offeredSlots': [offeredSlot],
+                    'scheduling.offeredAt': serverTimestamp(),
+                    assignedTo: scheduleData.assignedTo,
+                    estimatedDuration: scheduleData.estimatedDuration,
+                    status: 'slots_offered',
+                    lastActivity: serverTimestamp()
+                });
+                toast.success('Time proposed! Waiting for customer confirmation.');
+            }
+            
             if (onJobUpdate) onJobUpdate();
         } catch (error) {
             console.error('Error scheduling job:', error);
