@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { 
-    CheckCircle, X, ArrowRight, Star,
+    CheckCircle, X, ArrowRight,
     DollarSign, Users, Calendar, FileText,
     Receipt, MessageSquare, Camera, Clock,
     Shield, Zap, Heart, TrendingUp
@@ -159,20 +159,6 @@ const SavingsCalculator = () => {
 // ============================================
 // TESTIMONIAL CARD
 // ============================================
-const TestimonialCard = ({ quote, author, role, rating = 5 }) => (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <div className="flex gap-1 mb-4">
-            {[...Array(rating)].map((_, i) => (
-                <Star key={i} size={18} className="fill-amber-400 text-amber-400" />
-            ))}
-        </div>
-        <p className="text-slate-700 mb-4 italic">"{quote}"</p>
-        <div>
-            <p className="font-bold text-slate-800">{author}</p>
-            <p className="text-sm text-slate-500">{role}</p>
-        </div>
-    </div>
-);
 
 // ============================================
 // MAIN PAGE COMPONENT
@@ -350,34 +336,7 @@ export const ComparisonPage = () => {
                 </div>
             </section>
             
-            {/* Testimonials */}
-            <section className="py-16 md:py-24 bg-white">
-                <div className="max-w-6xl mx-auto px-4">
-                    <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold text-slate-800 mb-4">
-                            What contractors are saying
-                        </h2>
-                    </div>
-                    
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <TestimonialCard
-                            quote="I was paying $99/month for Housecall Pro. Krib Pro does everything I need for free. Wish I'd found it sooner."
-                            author="Mike R."
-                            role="HVAC Contractor"
-                        />
-                        <TestimonialCard
-                            quote="The customer connection feature is genius. My repeat business has gone up because customers can find me right from their home records."
-                            author="Sarah T."
-                            role="Plumbing Company Owner"
-                        />
-                        <TestimonialCard
-                            quote="Setup took 5 minutes. Sent my first professional quote the same day. No learning curve at all."
-                            author="James L."
-                            role="Electrician"
-                        />
-                    </div>
-                </div>
-            </section>
+        
             
             {/* FAQ */}
             <section className="py-16 md:py-24">
