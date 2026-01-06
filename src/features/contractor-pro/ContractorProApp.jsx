@@ -39,8 +39,8 @@ import { LogoUpload } from './components/LogoUpload';
 import { DispatchBoard } from './components/DispatchBoard';
 import { TeamManagement } from './components/TeamManagement';
 
-// Chat Components - uncomment if available in your project
-// import { ContractorMessagesView } from './components/ContractorMessagesView';
+// Chat Components
+import { ContractorMessagesView } from './components/ContractorMessagesView';
 // import { RecentMessagesWidget } from './components/RecentMessagesWidget';
 
 // Quote Components
@@ -67,8 +67,8 @@ import { JobScheduler } from '../jobs/JobScheduler';
 // Job Completion Components - uncomment if available
 // import { JobCompletionForm } from '../jobs/components/completion';
 
-// Chat Service - uncomment if available
-// import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
+// Chat Service
+import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
@@ -1254,19 +1254,19 @@ export const ContractorProApp = () => {
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
 
-    // Chat subscription - uncomment if chatService is available
-    // useEffect(() => {
-    //     if (!user?.uid || !subscribeToGlobalUnreadCount) {
-    //         setUnreadMessageCount(0);
-    //         return;
-    //     }
-    //     
-    //     const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
-    //         setUnreadMessageCount(count);
-    //     });
-    //     
-    //     return () => unsubscribe();
-    // }, [user?.uid]);
+    // Chat subscription
+    useEffect(() => {
+        if (!user?.uid) {
+            setUnreadMessageCount(0);
+            return;
+        }
+        
+        const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
+            setUnreadMessageCount(count);
+        });
+        
+        return () => unsubscribe();
+    }, [user?.uid]);
     
     // Handle Initial Setup using updateDoc with Dot Notation
     const handleInitialSetup = async (formData) => {
@@ -1552,17 +1552,10 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'messages' && (
-                        <div className="space-y-6">
-                            <div>
-                                <h1 className="text-2xl font-bold text-slate-800">Messages</h1>
-                                <p className="text-slate-500">Chat with your customers</p>
-                            </div>
-                            <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-                                <MessageSquare className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-                                <h3 className="font-bold text-slate-800 text-lg mb-2">Messages Coming Soon</h3>
-                                <p className="text-slate-500">Chat functionality will be available shortly.</p>
-                            </div>
-                        </div>
+                        <ContractorMessagesView 
+                            contractorId={contractorId}
+                            contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
+                        />
                     )}
 
                     {activeView === 'schedule' && (
