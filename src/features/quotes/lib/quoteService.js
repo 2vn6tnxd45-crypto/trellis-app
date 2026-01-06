@@ -476,3 +476,102 @@ export async function unclaimQuote(contractorId, quoteId) {
     await updateDoc(quoteRef, { customerId: null, updatedAt: serverTimestamp() });
     return { success: true };
 }
+
+// ============================================
+// ADD CONTRACTOR TO HOMEOWNER'S PROS LIST
+// ============================================
+/**
+ * Adds a contractor to homeowner's "My Pros" list when they claim a quote.
+ * Checks for duplicates first - won't add if contractor already exists.
+ */
+export async function addContractorToProsList(userId, contractorData, quoteTitle = '') {
+    if (!userId || !contractorData?.contractorId) {
+        console.warn('addContractorToProsList: Missing userId or contractorId');
+        return { success: false, reason: 'missing-params' };
+    }
+
+    try {
+        const prosRef = collection(db, 'artifacts', appId, 'users', userId, 'pros');
+        
+        // Check if this contractor already exists in pros list
+        const existingQuery = query(prosRef, where('contractorId', '==', contractorData.contractorId));
+        const existingSnap = await getDocs(existingQuery);
+        
+        if (!existingSnap.empty) {
+            console.log('Contractor already in pros list, skipping add');
+            return { success: true, alreadyExists: true };
+        }
+        
+        // Add to pros list
+        await addDoc(prosRef, {
+            name: contractorData.companyName || contractorData.displayName || 'Contractor',
+            contractorId: contractorData.contractorId,
+            phone: contractorData.phone || null,
+            email: contractorData.email || null,
+            logoUrl: contractorData.logoUrl || null,
+            specialty: quoteTitle || null,
+            isOnPlatform: true,
+            addedAt: serverTimestamp(),
+            addedFrom: 'quote'
+        });
+        
+        console.log('✅ Contractor added to pros list:', contractorData.companyName);
+        return { success: true, alreadyExists: false };
+        
+    } catch (error) {
+        console.warn('Could not add contractor to pros list:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================
+// CREATE CHAT CHANNEL FOR QUOTE DISCUSSION
+// ============================================
+/**
+ * Creates a chat channel between homeowner and contractor for quote discussion.
+ * This enables messaging before quote acceptance (negotiation).
+ */
+export async function createQuoteChatChannel(
+    homeownerId, 
+    contractorId, 
+    contractorName, 
+    homeownerName,
+    quoteId,
+    quoteTitle
+) {
+    if (!homeownerId || !contractorId) {
+        console.warn('createQuoteChatChannel: Missing homeownerId or contractorId');
+        return { success: false, reason: 'missing-params' };
+    }
+
+    try {
+        // Channel ID format: homeownerId_contractorId
+        const channelId = `${homeownerId}_${contractorId}`;
+        const channelRef = doc(db, 'channels', channelId);
+        
+        // Check if channel already exists
+        const channelSnap = await getDoc(channelRef);
+        
+        const channelData = {
+            channelId,
+            participants: [homeownerId, contractorId],
+            homeownerName: homeownerName || 'Homeowner',
+            contractorName: contractorName || 'Contractor',
+            source: 'quote',
+            linkedQuoteId: quoteId || null,
+            scopeOfWork: quoteTitle || null,
+            lastMessageTime: serverTimestamp(),
+            createdAt: channelSnap.exists() ? channelSnap.data().createdAt : serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        
+        await setDoc(channelRef, channelData, { merge: true });
+        
+        console.log('✅ Chat channel created/updated:', channelId);
+        return { success: true, channelId };
+        
+    } catch (error) {
+        console.warn('Could not create chat channel:', error);
+        return { success: false, error: error.message };
+    }
+}
