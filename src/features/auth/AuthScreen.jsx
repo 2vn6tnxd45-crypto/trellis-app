@@ -233,9 +233,16 @@ export const AuthScreen = () => {
                 </p>
                 
                 {/* Contractor portal link */}
-                <p className="text-center text-xs text-slate-400 mt-3">
-                    Are you a service professional? <a href="?pro=dashboard" className="text-emerald-600 hover:text-emerald-700 font-medium">Contractor Portal →</a>
-                </p>
+                {/* Contractor portal link */}
+                <div className="text-center mt-6 pt-6 border-t border-slate-200">
+                    <p className="text-sm text-slate-500 mb-2">Are you a contractor or service pro?</p>
+                    <a 
+                        href="?pro" 
+                        className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-semibold"
+                    >
+                        Free tools for your business →
+                    </a>
+                </div>
             </div>
         </div>
     );
