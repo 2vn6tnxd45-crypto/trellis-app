@@ -178,6 +178,9 @@ const EmptyState = ({ onCreateInvitation }) => (
 // ============================================
 // QUICK TIP CARD
 // ============================================
+// ============================================
+// QUICK TIP CARD
+// ============================================
 const QuickTip = ({ tip, onDismiss }) => (
     <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
         <div className="bg-blue-100 p-1.5 rounded-lg text-blue-600 flex-shrink-0">
@@ -199,6 +202,125 @@ const QuickTip = ({ tip, onDismiss }) => (
 );
 
 // ============================================
+// ONBOARDING CHECKLIST
+// ============================================
+const OnboardingChecklist = ({ profile, quotes = [], jobs = [], onNavigate }) => {
+    const [dismissed, setDismissed] = useState(false);
+    
+    // Define checklist items with completion checks
+    const checklistItems = [
+        {
+            id: 'account',
+            label: 'Create your account',
+            completed: true, // Always true if they're here
+            action: null,
+        },
+        {
+            id: 'company',
+            label: 'Add company name',
+            completed: !!profile?.profile?.companyName,
+            action: () => onNavigate('profile'),
+        },
+        {
+            id: 'logo',
+            label: 'Upload your logo',
+            completed: !!profile?.profile?.logoUrl,
+            action: () => onNavigate('profile'),
+        },
+        {
+            id: 'phone',
+            label: 'Add business phone',
+            completed: !!profile?.profile?.phone,
+            action: () => onNavigate('profile'),
+        },
+        {
+            id: 'quote',
+            label: 'Create your first quote',
+            completed: quotes.length > 0,
+            action: () => onNavigate('create-quote'),
+        },
+    ];
+    
+    const completedCount = checklistItems.filter(item => item.completed).length;
+    const totalCount = checklistItems.length;
+    const progressPercent = Math.round((completedCount / totalCount) * 100);
+    const allComplete = completedCount === totalCount;
+    
+    // Don't show if dismissed or all complete
+    if (dismissed || allComplete) return null;
+    
+    return (
+        <div className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 rounded-2xl border-2 border-emerald-200 p-6 shadow-sm">
+            <div className="flex items-start justify-between mb-4">
+                <div>
+                    <h3 className="font-bold text-slate-800 text-lg">Get started with Krib Pro</h3>
+                    <p className="text-slate-500 text-sm">Complete your profile to look professional to customers</p>
+                </div>
+                <button
+                    onClick={() => setDismissed(true)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                    title="Dismiss"
+                >
+                    ×
+                </button>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="mb-4">
+                <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="font-medium text-slate-600">{completedCount} of {totalCount} complete</span>
+                    <span className="font-bold text-emerald-600">{progressPercent}%</span>
+                </div>
+                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-500"
+                        style={{ width: `${progressPercent}%` }}
+                    />
+                </div>
+            </div>
+            
+            {/* Checklist items */}
+            <div className="space-y-2">
+                {checklistItems.map((item) => (
+                    <div
+                        key={item.id}
+                        onClick={item.action && !item.completed ? item.action : undefined}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                            item.completed 
+                                ? 'bg-emerald-50/50' 
+                                : item.action 
+                                    ? 'bg-white hover:bg-slate-50 cursor-pointer border border-slate-200 hover:border-emerald-300' 
+                                    : 'bg-white'
+                        }`}
+                    >
+                        {/* Checkbox */}
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            item.completed 
+                                ? 'bg-emerald-500 text-white' 
+                                : 'border-2 border-slate-300'
+                        }`}>
+                            {item.completed && <CheckCircle size={14} />}
+                        </div>
+                        
+                        {/* Label */}
+                        <span className={`flex-1 text-sm font-medium ${
+                            item.completed ? 'text-slate-500 line-through' : 'text-slate-700'
+                        }`}>
+                            {item.label}
+                        </span>
+                        
+                        {/* Action arrow */}
+                        {!item.completed && item.action && (
+                            <ChevronRight size={16} className="text-slate-400" />
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // MAIN DASHBOARD COMPONENT
 // ============================================
 export const DashboardOverview = ({ 
@@ -206,11 +328,14 @@ export const DashboardOverview = ({
     stats = { totalCustomers: 0, totalInvitations: 0, claimRate: 0, pendingInvitations: 0 },
     invitations = [],
     customers = [],
+    quotes = [],
+    jobs = [],
     loading,
     onCreateInvitation,
     onViewAllInvitations,
     onViewAllCustomers,
-    onViewInvitation
+    onViewInvitation,
+    onNavigate
 }) => {
     const [showTip, setShowTip] = useState(true);
     
@@ -263,7 +388,15 @@ export const DashboardOverview = ({
                 </button>
             </div>
             
-            {/* Quick Tip */}
+            {/* Onboarding Checklist - shows until complete */}
+            <OnboardingChecklist 
+                profile={profile}
+                quotes={quotes}
+                jobs={jobs}
+                onNavigate={onNavigate}
+            />
+
+            {/* Quick Tip - only show after onboarding complete and has data */}
             {showTip && hasData && (
                 <QuickTip 
                     tip={{
