@@ -404,28 +404,79 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
 };
 
 // --- INVOICES VIEW ---
-const InvoicesView = ({ onCreateInvoice }) => (
-    <div className="space-y-6">
-        <div className="flex items-center justify-between">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">Invoices</h1>
-                <p className="text-slate-500">Manage your invoices and payments</p>
+// --- INVOICES VIEW ---
+const InvoicesView = ({ invoices = [], loading, onCreateInvoice }) => {
+    const getStatusColor = (status) => {
+        switch (status) {
+            case 'paid': return 'bg-emerald-100 text-emerald-700';
+            case 'sent': return 'bg-blue-100 text-blue-700';
+            case 'overdue': return 'bg-red-100 text-red-700';
+            case 'draft': return 'bg-slate-100 text-slate-600';
+            default: return 'bg-slate-100 text-slate-600';
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Invoices</h1>
+                    <p className="text-slate-500">Manage your invoices and payments</p>
+                </div>
+                <button 
+                    onClick={onCreateInvoice}
+                    className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
+                >
+                    <Plus size={18} />
+                    New Invoice
+                </button>
             </div>
-            <button 
-                onClick={onCreateInvoice}
-                className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
-            >
-                <Plus size={18} />
-                New Invoice
-            </button>
+
+            {loading ? (
+                <div className="flex justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                </div>
+            ) : invoices.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                    <ScrollIcon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">No Invoices Yet</h3>
+                    <p className="text-slate-500">Create your first invoice to get started.</p>
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    {invoices.map(invoice => (
+                        <div 
+                            key={invoice.id}
+                            className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow"
+                        >
+                            <div className="flex items-center justify-between">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusColor(invoice.status)}`}>
+                                            {invoice.status || 'Draft'}
+                                        </span>
+                                        {invoice.invoiceNumber && (
+                                            <span className="text-xs text-slate-400">#{invoice.invoiceNumber}</span>
+                                        )}
+                                    </div>
+                                    <p className="font-bold text-slate-800 truncate">
+                                        {invoice.customerName || invoice.customer?.name || 'Customer'}
+                                    </p>
+                                    <p className="text-sm text-slate-500">
+                                        {formatDate(invoice.createdAt)}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-slate-800">{formatCurrency(invoice.total)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-            <ScrollIcon className="h-12 w-12 text-slate-200 mx-auto mb-4" />
-            <h3 className="font-bold text-slate-800 text-lg mb-2">Invoice List Coming Soon</h3>
-            <p className="text-slate-500 mb-4">For now, create new invoices using the button above.</p>
-        </div>
-    </div>
-);
+    );
+};
 
 // --- INVITATIONS VIEW ---
 const InvitationsView = ({ invitations, loading, onCreate }) => {
@@ -1191,6 +1242,7 @@ export const ContractorProApp = () => {
     const { invitations, loading: invitationsLoading, pendingInvitations } = useInvitations(user?.uid);
     const { customers, loading: customersLoading, byLastContact: customersByLastContact } = useCustomers(user?.uid);
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
+    const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
     
     // Quote hooks
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
@@ -1744,7 +1796,7 @@ export const ContractorProApp = () => {
     />
 )}
                     
-                    {activeView === 'invoices' && <InvoicesView onCreateInvoice={() => setActiveView('create-invoice')} />}
+                    {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
                     
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
