@@ -262,10 +262,12 @@ const isContractorFlow = () => {
     // - ?requestId= : contractor viewing request  
     // - ?quote= : viewing a quote
     // - ?from=quote : returning from accepting a quote (prevents corruption)
+    // - ?from=evaluation : returning from evaluation submission (prevents corruption)
     return params.has('pro') || 
            params.has('requestId') || 
            params.has('quote') ||
-           params.get('from') === 'quote';
+           params.get('from') === 'quote' ||
+           params.get('from') === 'evaluation';
 };
 
 // ============================================
