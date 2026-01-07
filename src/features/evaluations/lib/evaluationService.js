@@ -528,29 +528,35 @@ export const getTimeRemaining = (expiresAt) => {
 // ============================================
 
 export const prepareQuoteFromEvaluation = (evaluation) => {
+    // Build description from job info and findings
+    const description = [
+        evaluation.jobDescription,
+        evaluation.findings?.notes,
+        evaluation.findings?.recommendations
+    ].filter(Boolean).join('\n\n');
+
     return {
-        // Pre-fill customer info
-        customerName: evaluation.customerName,
-        customerEmail: evaluation.customerEmail,
-        customerPhone: evaluation.customerPhone,
-        propertyAddress: evaluation.propertyAddress,
+        // Customer info - MUST match QuoteBuilder's expected structure
+        customer: {
+            name: evaluation.customerName || '',
+            email: evaluation.customerEmail || '',
+            phone: evaluation.customerPhone || '',
+            address: evaluation.propertyAddress || ''
+        },
         
-        // Pre-fill job details
-        jobCategory: evaluation.jobCategory,
-        description: [
-            evaluation.jobDescription,
-            evaluation.findings?.notes,
-            evaluation.findings?.recommendations
-        ].filter(Boolean).join('\n\n'),
+        // Job details
+        title: `${evaluation.jobCategory?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Service'} - ${evaluation.customerName || 'Customer'}`,
+        notes: description,
         
-        // Attach evaluation photos
-        attachments: [
+        // Attach evaluation photos as reference
+        evaluationPhotos: [
             ...(evaluation.submissions?.photos || []),
             ...(evaluation.findings?.photos || [])
         ],
         
-        // Link back
+        // Link back to evaluation
         evaluationId: evaluation.id,
+        fromEvaluation: true,
         
         // Fee credit (if applicable)
         evaluationFeeCredit: evaluation.fee?.status === FEE_STATUS.PAID && evaluation.fee?.waivedIfHired
