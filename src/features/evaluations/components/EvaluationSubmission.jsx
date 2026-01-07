@@ -398,22 +398,31 @@ export const EvaluationSubmission = ({
                     )}
                     
                     {/* Account Created Success */}
+                    {/* Account Created Success */}
                     {accountCreated && (
                         <div className="border-t border-slate-200 pt-6 mt-6">
-                            <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                            <div className="bg-emerald-50 rounded-xl p-4 text-center mb-4">
                                 <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                                 <p className="font-medium text-emerald-800">Account created!</p>
                                 <p className="text-sm text-emerald-600 mt-1">
                                     We'll notify you when your quote is ready.
                                 </p>
                             </div>
+                            <button
+                                onClick={() => window.location.href = '/app'}
+                                className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Home className="w-5 h-5" />
+                                Go to Dashboard
+                            </button>
                         </div>
                     )}
                     
                     {/* Already Logged In */}
+                    {/* Already Logged In */}
                     {currentUser && !accountCreated && (
                         <div className="border-t border-slate-200 pt-6 mt-6">
-                            <div className="bg-slate-50 rounded-xl p-4 text-center">
+                            <div className="bg-slate-50 rounded-xl p-4 text-center mb-4">
                                 <p className="text-sm text-slate-600">
                                     Signed in as <span className="font-medium">{currentUser.email}</span>
                                 </p>
@@ -421,6 +430,13 @@ export const EvaluationSubmission = ({
                                     This evaluation has been added to your dashboard.
                                 </p>
                             </div>
+                            <button
+                                onClick={() => window.location.href = '/app'}
+                                className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Home className="w-5 h-5" />
+                                Go to Dashboard
+                            </button>
                         </div>
                     )}
                 </div>
