@@ -1412,12 +1412,13 @@ export const ContractorProApp = () => {
     }, [selectedQuote, updateQuoteFn, createQuoteFn]);
     
     const handleSendQuote = useCallback(async (quoteData) => {
-        try {
-            let quoteId;
-            if (selectedQuote) {
-                await updateQuoteFn(selectedQuote.id, quoteData);
-                quoteId = selectedQuote.id;
-            } else {
+    try {
+        let quoteId;
+        if (selectedQuote?.id) {
+            // Existing quote - update it
+            await updateQuoteFn(selectedQuote.id, quoteData);
+            quoteId = selectedQuote.id;
+        } else {
                 const result = await createQuoteFn({ ...quoteData, status: 'draft' });
                 quoteId = result.quoteId;
             }
