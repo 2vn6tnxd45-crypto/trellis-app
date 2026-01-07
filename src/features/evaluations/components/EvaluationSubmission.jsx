@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useSingleEvaluation, useEvaluationCountdown } from '../hooks/useEvaluations';
 import { PROMPT_TYPES } from '../lib/evaluationTemplates';
-import { EVALUATION_STATUS } from '../lib/evaluationService';
+import { EVALUATION_STATUS, uploadEvaluationFile } from '../lib/evaluationService';
 
 // ============================================
 // MAIN COMPONENT
@@ -281,6 +281,8 @@ export const EvaluationSubmission = ({
                             onVideoAdd={handleVideoAdd}
                             onVideoRemove={handleVideoRemove}
                             onAnswerChange={handleAnswerChange}
+                            contractorId={contractorId}
+                            evaluationId={evaluationId}
                         />
                     ))}
                 </div>
@@ -399,7 +401,9 @@ const PromptInput = ({
     onPhotoRemove,
     onVideoAdd,
     onVideoRemove,
-    onAnswerChange 
+    onAnswerChange,
+    contractorId,
+    evaluationId
 }) => {
     switch (prompt.type) {
         case PROMPT_TYPES.PHOTO:
@@ -411,6 +415,8 @@ const PromptInput = ({
                     onAdd={(data) => onPhotoAdd(prompt.id, data)}
                     onRemove={onPhotoRemove}
                     allPhotos={submissions.photos}
+                    contractorId={contractorId}
+                    evaluationId={evaluationId}
                 />
             );
         case PROMPT_TYPES.VIDEO:
@@ -422,6 +428,8 @@ const PromptInput = ({
                     onAdd={(data) => onVideoAdd(prompt.id, data)}
                     onRemove={onVideoRemove}
                     allVideos={submissions.videos}
+                    contractorId={contractorId}
+                    evaluationId={evaluationId}
                 />
             );
         case PROMPT_TYPES.SELECT:
@@ -467,9 +475,10 @@ const PromptInput = ({
 // PHOTO PROMPT
 // ============================================
 
-const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos }) => {
+const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos, contractorId, evaluationId }) => {
     const inputRef = useRef(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState('');
 
     const handleFileChange = async (e) => {
         const files = Array.from(e.target.files || []);
@@ -478,21 +487,29 @@ const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos }) => {
         setIsUploading(true);
         
         for (const file of files) {
-            // In production, upload to storage and get URL
-            // For now, create local preview
-            const reader = new FileReader();
-            reader.onload = () => {
+            try {
+                setUploadProgress(`Uploading ${file.name}...`);
+                
+                // Upload to Firebase Storage
+                const uploadedPhoto = await uploadEvaluationFile(
+                    contractorId, 
+                    evaluationId, 
+                    file, 
+                    'photo'
+                );
+                
                 onAdd({
-                    url: reader.result,
-                    name: file.name,
-                    size: file.size,
-                    type: file.type
+                    ...uploadedPhoto,
+                    promptId: prompt.id
                 });
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('Failed to upload photo:', error);
+                alert(`Failed to upload ${file.name}. Please try again.`);
+            }
         }
         
         setIsUploading(false);
+        setUploadProgress('');
         if (inputRef.current) inputRef.current.value = '';
     };
 
@@ -551,7 +568,10 @@ const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos }) => {
                 className="w-full py-3 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2"
             >
                 {isUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {uploadProgress || 'Uploading...'}
+                    </>
                 ) : (
                     <>
                         <Upload className="w-5 h-5" />
@@ -567,30 +587,39 @@ const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos }) => {
 // VIDEO PROMPT
 // ============================================
 
-const VideoPrompt = ({ prompt, index, videos, onAdd, onRemove, allVideos }) => {
+const VideoPrompt = ({ prompt, index, videos, onAdd, onRemove, allVideos, contractorId, evaluationId }) => {
     const inputRef = useRef(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState('');
 
     const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setIsUploading(true);
+        setUploadProgress(`Uploading ${file.name}...`);
         
-        // In production, upload to storage
-        const reader = new FileReader();
-        reader.onload = () => {
+        try {
+            // Upload to Firebase Storage
+            const uploadedVideo = await uploadEvaluationFile(
+                contractorId, 
+                evaluationId, 
+                file, 
+                'video'
+            );
+            
             onAdd({
-                url: reader.result,
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                duration: null // Would get from video metadata
+                ...uploadedVideo,
+                promptId: prompt.id,
+                duration: null // Could extract from video metadata if needed
             });
-            setIsUploading(false);
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+            console.error('Failed to upload video:', error);
+            alert(`Failed to upload ${file.name}. Please try again.`);
+        }
         
+        setIsUploading(false);
+        setUploadProgress('');
         if (inputRef.current) inputRef.current.value = '';
     };
 
@@ -652,7 +681,10 @@ const VideoPrompt = ({ prompt, index, videos, onAdd, onRemove, allVideos }) => {
                 className="w-full py-3 border-2 border-dashed border-slate-300 rounded-lg text-slate-500 hover:border-purple-400 hover:text-purple-600 hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
             >
                 {isUploading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {uploadProgress || 'Uploading...'}
+                    </>
                 ) : (
                     <>
                         <Video className="w-5 h-5" />
