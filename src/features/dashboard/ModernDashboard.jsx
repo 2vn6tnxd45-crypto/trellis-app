@@ -699,9 +699,6 @@ const PendingEvaluationsSection = ({ userId }) => {
 
 // --- MAIN COMPONENT ---
 export const ModernDashboard = ({
-
-// --- MAIN COMPONENT ---
-export const ModernDashboard = ({
     records = [], 
     contractors = [], 
     activeProperty, 
