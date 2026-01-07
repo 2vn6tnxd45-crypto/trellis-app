@@ -9,11 +9,23 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     Camera, Video, FileText, Upload, X, Check, Clock, AlertCircle,
     ChevronRight, Loader2, CheckCircle, Home, User, Phone, Mail,
-    MessageSquare, Send, Image, Play, Trash2, AlertTriangle
+    MessageSquare, Send, Image, Play, Trash2, AlertTriangle,
+    Lock, Eye, EyeOff
 } from 'lucide-react';
 import { useSingleEvaluation, useEvaluationCountdown } from '../hooks/useEvaluations';
 import { PROMPT_TYPES } from '../lib/evaluationTemplates';
 import { EVALUATION_STATUS, uploadEvaluationFile } from '../lib/evaluationService';
+import { 
+    createUserWithEmailAndPassword, 
+    signInWithEmailAndPassword, 
+    signInWithPopup, 
+    GoogleAuthProvider,
+    updateProfile,
+    onAuthStateChanged 
+} from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '../../../config/firebase';
+import { appId } from '../../../config/constants';
 
 // ============================================
 // MAIN COMPONENT
@@ -43,6 +55,37 @@ export const EvaluationSubmission = ({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState(null);
     const [submitted, setSubmitted] = useState(false);
+    
+    // Account creation state
+    const [showAccountPrompt, setShowAccountPrompt] = useState(true);
+    const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+    const [accountEmail, setAccountEmail] = useState('');
+    const [accountPassword, setAccountPassword] = useState('');
+    const [accountName, setAccountName] = useState('');
+    const [authError, setAuthError] = useState('');
+    const [currentUser, setCurrentUser] = useState(null);
+    const [accountCreated, setAccountCreated] = useState(false);
+    
+    // Check if user is already logged in
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setCurrentUser(user);
+            if (user) {
+                setShowAccountPrompt(false);
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+    
+    // Pre-fill email from evaluation
+    useEffect(() => {
+        if (evaluation?.customerEmail && !accountEmail) {
+            setAccountEmail(evaluation.customerEmail);
+        }
+        if (evaluation?.customerName && !accountName) {
+            setAccountName(evaluation.customerName);
+        }
+    }, [evaluation]);
 
     // Initialize from existing submissions
     useEffect(() => {
@@ -93,6 +136,138 @@ export const EvaluationSubmission = ({
             answers: { ...prev.answers, [promptId]: value }
         }));
     }, []);
+
+    // ----------------------------------------
+    // Account Creation
+    // ----------------------------------------
+    const handleCreateAccount = async (e) => {
+        e.preventDefault();
+        setAuthError('');
+        setIsCreatingAccount(true);
+        
+        try {
+            // Create the account
+            const credential = await createUserWithEmailAndPassword(auth, accountEmail, accountPassword);
+            
+            // Set display name
+            if (accountName.trim()) {
+                await updateProfile(credential.user, {
+                    displayName: accountName.trim()
+                });
+            }
+            
+            // Save profile with evaluation reference
+            const profileRef = doc(db, 'artifacts', appId, 'users', credential.user.uid, 'settings', 'profile');
+            await setDoc(profileRef, {
+                name: accountName.trim() || '',
+                email: accountEmail,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+                // Link this evaluation for their dashboard
+                pendingEvaluations: [{
+                    evaluationId,
+                    contractorId,
+                    contractorName: contractor?.profile?.companyName || contractor?.companyName || 'Contractor',
+                    propertyAddress: evaluation?.propertyAddress || '',
+                    jobDescription: evaluation?.jobDescription || '',
+                    submittedAt: new Date().toISOString(),
+                    status: 'awaiting_quote'
+                }]
+            }, { merge: true });
+            
+            setAccountCreated(true);
+            setShowAccountPrompt(false);
+            
+        } catch (err) {
+            console.error('Account creation error:', err);
+            if (err.code === 'auth/email-already-in-use') {
+                setAuthError('This email already has an account. Try signing in instead.');
+            } else if (err.code === 'auth/weak-password') {
+                setAuthError('Password should be at least 6 characters.');
+            } else {
+                setAuthError(err.message.replace('Firebase: ', ''));
+            }
+        } finally {
+            setIsCreatingAccount(false);
+        }
+    };
+    
+    const handleSignIn = async (e) => {
+        e.preventDefault();
+        setAuthError('');
+        setIsCreatingAccount(true);
+        
+        try {
+            const credential = await signInWithEmailAndPassword(auth, accountEmail, accountPassword);
+            
+            // Add evaluation reference to existing profile
+            const profileRef = doc(db, 'artifacts', appId, 'users', credential.user.uid, 'settings', 'profile');
+            await setDoc(profileRef, {
+                updatedAt: serverTimestamp(),
+                pendingEvaluations: [{
+                    evaluationId,
+                    contractorId,
+                    contractorName: contractor?.profile?.companyName || contractor?.companyName || 'Contractor',
+                    propertyAddress: evaluation?.propertyAddress || '',
+                    jobDescription: evaluation?.jobDescription || '',
+                    submittedAt: new Date().toISOString(),
+                    status: 'awaiting_quote'
+                }]
+            }, { merge: true });
+            
+            setAccountCreated(true);
+            setShowAccountPrompt(false);
+            
+        } catch (err) {
+            console.error('Sign in error:', err);
+            if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                setAuthError('Invalid email or password.');
+            } else if (err.code === 'auth/user-not-found') {
+                setAuthError('No account found with this email.');
+            } else {
+                setAuthError(err.message.replace('Firebase: ', ''));
+            }
+        } finally {
+            setIsCreatingAccount(false);
+        }
+    };
+    
+    const handleGoogleSignIn = async () => {
+        setAuthError('');
+        setIsCreatingAccount(true);
+        
+        try {
+            const credential = await signInWithPopup(auth, new GoogleAuthProvider());
+            
+            // Save/update profile with evaluation reference
+            const profileRef = doc(db, 'artifacts', appId, 'users', credential.user.uid, 'settings', 'profile');
+            await setDoc(profileRef, {
+                name: credential.user.displayName || '',
+                email: credential.user.email || '',
+                updatedAt: serverTimestamp(),
+                pendingEvaluations: [{
+                    evaluationId,
+                    contractorId,
+                    contractorName: contractor?.profile?.companyName || contractor?.companyName || 'Contractor',
+                    propertyAddress: evaluation?.propertyAddress || '',
+                    jobDescription: evaluation?.jobDescription || '',
+                    submittedAt: new Date().toISOString(),
+                    status: 'awaiting_quote'
+                }]
+            }, { merge: true });
+            
+            setAccountCreated(true);
+            setShowAccountPrompt(false);
+            
+        } catch (err) {
+            console.error('Google sign in error:', err);
+            if (err.code !== 'auth/popup-closed-by-user') {
+                setAuthError('Failed to sign in with Google. Please try again.');
+            }
+        } finally {
+            setIsCreatingAccount(false);
+        }
+    };
 
     const handleSubmit = async () => {
         setIsSubmitting(true);
@@ -177,31 +352,77 @@ export const EvaluationSubmission = ({
     if (submitted || evaluation.status === EVALUATION_STATUS.COMPLETED || evaluation.status === EVALUATION_STATUS.QUOTED) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-4">
-                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <CheckCircle className="w-8 h-8 text-emerald-500" />
+                <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+                    {/* Success Header */}
+                    <div className="text-center mb-6">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <CheckCircle className="w-8 h-8 text-emerald-500" />
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">Submission Received!</h2>
+                        <p className="text-slate-500">
+                            {contractor?.profile?.companyName || contractor?.companyName || 'The contractor'} will review your information and follow up with a quote.
+                        </p>
                     </div>
-                    <h2 className="text-xl font-bold text-slate-800 mb-2">Submission Received!</h2>
-                    <p className="text-slate-500 mb-6">
-                        {contractor?.companyName || 'The contractor'} will review your information and follow up with a quote.
-                    </p>
-                    <div className="p-4 bg-slate-50 rounded-xl text-left">
-                        <p className="text-xs text-slate-500 uppercase font-semibold mb-2">What's Next</p>
-                        <ul className="space-y-2 text-sm text-slate-600">
-                            <li className="flex items-start gap-2">
-                                <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                                Contractor reviews your photos and info
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                                You'll receive a detailed quote
-                            </li>
-                            <li className="flex items-start gap-2">
-                                <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                                Schedule work at your convenience
-                            </li>
-                        </ul>
-                    </div>
+                    
+                    {/* Account Creation Prompt */}
+                    {showAccountPrompt && !currentUser && !accountCreated && (
+                        <div className="border-t border-slate-200 pt-6 mt-6">
+                            <div className="bg-indigo-50 rounded-xl p-4 mb-4">
+                                <h3 className="font-bold text-indigo-900 mb-1">Track Your Quote</h3>
+                                <p className="text-sm text-indigo-700">
+                                    Create a free account to get notified when your quote is ready and track all your home service requests.
+                                </p>
+                            </div>
+                            
+                            <AccountCreationForm 
+                                email={accountEmail}
+                                setEmail={setAccountEmail}
+                                password={accountPassword}
+                                setPassword={setAccountPassword}
+                                name={accountName}
+                                setName={setAccountName}
+                                error={authError}
+                                isLoading={isCreatingAccount}
+                                onSubmit={handleCreateAccount}
+                                onSignIn={handleSignIn}
+                                onGoogleSignIn={handleGoogleSignIn}
+                            />
+                            
+                            <button
+                                onClick={() => setShowAccountPrompt(false)}
+                                className="w-full mt-3 text-sm text-slate-500 hover:text-slate-700"
+                            >
+                                Maybe later
+                            </button>
+                        </div>
+                    )}
+                    
+                    {/* Account Created Success */}
+                    {accountCreated && (
+                        <div className="border-t border-slate-200 pt-6 mt-6">
+                            <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                                <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                <p className="font-medium text-emerald-800">Account created!</p>
+                                <p className="text-sm text-emerald-600 mt-1">
+                                    We'll notify you when your quote is ready.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Already Logged In */}
+                    {currentUser && !accountCreated && (
+                        <div className="border-t border-slate-200 pt-6 mt-6">
+                            <div className="bg-slate-50 rounded-xl p-4 text-center">
+                                <p className="text-sm text-slate-600">
+                                    Signed in as <span className="font-medium">{currentUser.email}</span>
+                                </p>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    This evaluation has been added to your dashboard.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -843,6 +1064,134 @@ const NumberPrompt = ({ prompt, index, value, onChange }) => {
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 placeholder="Enter a number"
             />
+        </div>
+    );
+};
+
+// ============================================
+// ACCOUNT CREATION FORM
+// ============================================
+
+const AccountCreationForm = ({ 
+    email, setEmail, 
+    password, setPassword, 
+    name, setName,
+    error, 
+    isLoading, 
+    onSubmit, 
+    onSignIn,
+    onGoogleSignIn 
+}) => {
+    const [mode, setMode] = useState('signup'); // 'signup' or 'signin'
+    const [showPassword, setShowPassword] = useState(false);
+    
+    return (
+        <div className="space-y-4">
+            {/* Google Sign In */}
+            <button
+                type="button"
+                onClick={onGoogleSignIn}
+                disabled={isLoading}
+                className="w-full py-3 px-4 border border-slate-300 rounded-xl font-medium text-slate-700 hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+            </button>
+            
+            <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-slate-500">or</span>
+                </div>
+            </div>
+            
+            {/* Email Form */}
+            <form onSubmit={mode === 'signup' ? onSubmit : onSignIn} className="space-y-3">
+                {mode === 'signup' && (
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                        <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                                placeholder="Your name"
+                                className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                        </div>
+                    </div>
+                )}
+                
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="you@example.com"
+                            required
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                    <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                            minLength={6}
+                            className="w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                </div>
+                
+                {error && (
+                    <p className="text-red-600 text-sm">{error}</p>
+                )}
+                
+                <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                    {isLoading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                        mode === 'signup' ? 'Create Account' : 'Sign In'
+                    )}
+                </button>
+            </form>
+            
+            <p className="text-center text-sm text-slate-500">
+                {mode === 'signup' ? (
+                    <>Already have an account? <button onClick={() => setMode('signin')} className="text-indigo-600 font-medium hover:underline">Sign in</button></>
+                ) : (
+                    <>Need an account? <button onClick={() => setMode('signup')} className="text-indigo-600 font-medium hover:underline">Sign up</button></>
+                )}
+            </p>
         </div>
     );
 };
