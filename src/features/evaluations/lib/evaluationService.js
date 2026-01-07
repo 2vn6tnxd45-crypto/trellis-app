@@ -9,7 +9,8 @@ import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, serverTimestamp, writeBatch
 } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
 
 // ============================================
@@ -48,6 +49,34 @@ export const DEFAULT_EXPIRATION_DAYS = 7;
 
 const getEvaluationsPath = (contractorId) => 
     `artifacts/${appId}/public/data/contractors/${contractorId}/evaluations`;
+
+// ============================================
+// UPLOAD EVALUATION MEDIA TO STORAGE
+// ============================================
+
+export const uploadEvaluationFile = async (contractorId, evaluationId, file, type = 'photo') => {
+    try {
+        const timestamp = Date.now();
+        const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `evaluations/${contractorId}/${evaluationId}/${type}s/${timestamp}_${sanitizedName}`;
+        const storageRef = ref(storage, storagePath);
+        
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        
+        return {
+            url,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            storagePath,
+            uploadedAt: new Date().toISOString()
+        };
+    } catch (error) {
+        console.error(`Error uploading ${type}:`, error);
+        throw error;
+    }
+};
 
 // ============================================
 // CREATE EVALUATION REQUEST
