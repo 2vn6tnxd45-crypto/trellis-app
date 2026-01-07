@@ -528,15 +528,8 @@ export const getTimeRemaining = (expiresAt) => {
 // ============================================
 
 export const prepareQuoteFromEvaluation = (evaluation) => {
-    // Build description from job info and findings
-    const description = [
-        evaluation.jobDescription,
-        evaluation.findings?.notes,
-        evaluation.findings?.recommendations
-    ].filter(Boolean).join('\n\n');
-
     return {
-        // Customer info - MUST match QuoteBuilder's expected structure
+        // Pre-fill customer info (nested object format for QuoteBuilder)
         customer: {
             name: evaluation.customerName || '',
             email: evaluation.customerEmail || '',
@@ -544,19 +537,29 @@ export const prepareQuoteFromEvaluation = (evaluation) => {
             address: evaluation.propertyAddress || ''
         },
         
-        // Job details
-        title: `${evaluation.jobCategory?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Service'} - ${evaluation.customerName || 'Customer'}`,
-        notes: description,
+        // Also provide flat versions for backwards compatibility
+        customerName: evaluation.customerName,
+        customerEmail: evaluation.customerEmail,
+        customerPhone: evaluation.customerPhone,
+        propertyAddress: evaluation.propertyAddress,
         
-        // Attach evaluation photos as reference
-        evaluationPhotos: [
+        // Pre-fill job details
+        jobCategory: evaluation.jobCategory,
+        title: evaluation.jobDescription || '',
+        description: [
+            evaluation.jobDescription,
+            evaluation.findings?.notes,
+            evaluation.findings?.recommendations
+        ].filter(Boolean).join('\n\n'),
+        
+        // Attach evaluation photos
+        attachments: [
             ...(evaluation.submissions?.photos || []),
             ...(evaluation.findings?.photos || [])
         ],
         
-        // Link back to evaluation
+        // Link back
         evaluationId: evaluation.id,
-        fromEvaluation: true,
         
         // Fee credit (if applicable)
         evaluationFeeCredit: evaluation.fee?.status === FEE_STATUS.PAID && evaluation.fee?.waivedIfHired
