@@ -4,11 +4,11 @@
 // ============================================
 // Contractor interface for requesting pre-quote evaluations.
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
     X, Send, Camera, Video, FileText, ChevronDown, ChevronUp,
     Plus, Trash2, Clock, DollarSign, AlertCircle, CheckCircle,
-    Home, User, Mail, Phone, Clipboard, Eye, Loader2
+    Home, User, Mail, Phone, Clipboard, Eye, Loader2, MapPin
 } from 'lucide-react';
 import {
     EVALUATION_TYPES,
@@ -22,6 +22,21 @@ import {
     createCustomPrompt,
     SUGGESTED_EVAL_TYPE
 } from '../lib/evaluationTemplates';
+import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
+
+// ============================================
+// UTILS
+// ============================================
+const formatPhoneNumber = (value) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
 
 // ============================================
 // MAIN COMPONENT
@@ -62,6 +77,50 @@ export const CreateEvaluationRequest = ({
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
+
+    // ----------------------------------------
+    // Google Maps Autocomplete
+    // ----------------------------------------
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
+    const mapsLoaded = useGoogleMaps();
+    
+    // Use ref to track current form values (avoids stale closure in autocomplete callback)
+    const formDataRef = useRef(formData);
+    useEffect(() => {
+        formDataRef.current = formData;
+    }, [formData]);
+    
+    useEffect(() => {
+        if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
+        
+        try {
+            autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+                types: ['address'],
+                componentRestrictions: { country: 'us' }
+            });
+            
+            autocompleteRef.current.addListener('place_changed', () => {
+                const place = autocompleteRef.current.getPlace();
+                if (place.formatted_address) {
+                    setFormData(prev => ({ ...prev, propertyAddress: place.formatted_address }));
+                }
+            });
+        } catch (err) {
+            console.warn('Autocomplete init error:', err);
+        }
+    }, [mapsLoaded]);
+
+    // ----------------------------------------
+    // Phone Handler
+    // ----------------------------------------
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhoneNumber(e.target.value);
+        setFormData(prev => ({ ...prev, customerPhone: formatted }));
+    };
+
+    // ----------------------------------------
+    // Template prompts based on category
 
     // ----------------------------------------
     // Template prompts based on category
@@ -257,19 +316,22 @@ export const CreateEvaluationRequest = ({
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Phone
-                                    </label>
-                                    <div className="relative">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                        <input
-                                            type="tel"
-                                            value={formData.customerPhone}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, customerPhone: e.target.value }))}
-                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                                            placeholder="(555) 555-5555"
-                                        />
-                                    </div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Property Address *
+                                </label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                                    <input
+                                        ref={addressInputRef}
+                                        type="text"
+                                        defaultValue={formData.propertyAddress}
+                                        onBlur={(e) => setFormData(prev => ({ ...prev, propertyAddress: e.target.value }))}
+                                        className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                            errors.propertyAddress ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                        }`}
+                                        placeholder="Start typing address..."
+                                    />
+                                </div>
                                 </div>
                             </div>
                             {errors.contact && (
