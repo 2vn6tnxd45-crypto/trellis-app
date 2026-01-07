@@ -6,7 +6,7 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer, MapPin, Home, Trash2 
+    X, ExternalLink, Hammer, MapPin, Home, Trash2, ClipboardList 
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
@@ -18,8 +18,10 @@ import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/
 import { DashboardSection } from '../../components/common/DashboardSection';
 
 // NEW: Firebase imports for Active Projects
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+// NEW: Firebase imports for Active Projects
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
+import { appId } from '../../config/constants';
 
 // NEW: Job Scheduler for Homeowner
 import { JobScheduler } from '../jobs/JobScheduler';
@@ -613,6 +615,91 @@ const MyQuotesSection = ({ userId }) => {
     );
 };
 
+// --- PENDING EVALUATIONS SECTION ---
+const PendingEvaluationsSection = ({ userId }) => {
+    const [evaluations, setEvaluations] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!userId) {
+            setLoading(false);
+            return;
+        }
+
+        const fetchPendingEvaluations = async () => {
+            try {
+                const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+                const profileSnap = await getDoc(profileRef);
+                
+                if (profileSnap.exists()) {
+                    const profile = profileSnap.data();
+                    setEvaluations(profile.pendingEvaluations || []);
+                }
+            } catch (err) {
+                console.error('Error fetching pending evaluations:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchPendingEvaluations();
+    }, [userId]);
+
+    if (loading || evaluations.length === 0) return null;
+
+    return (
+        <DashboardSection 
+            title="Awaiting Quotes" 
+            icon={ClipboardList} 
+            defaultOpen={true}
+            summary={<span className="text-xs text-indigo-600 font-bold">{evaluations.length} pending</span>}
+        >
+            <div className="space-y-3">
+                {evaluations.map((evaluation, index) => (
+                    <div 
+                        key={evaluation.evaluationId || index}
+                        className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 transition-all"
+                    >
+                        <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-slate-800">
+                                    {evaluation.jobDescription || 'Service Request'}
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-0.5">
+                                    {evaluation.contractorName || 'Contractor'}
+                                </p>
+                            </div>
+                            <span className="px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 shrink-0">
+                                <Clock size={10} />
+                                Awaiting Quote
+                            </span>
+                        </div>
+                        
+                        {evaluation.propertyAddress && (
+                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
+                                <MapPin size={12} />
+                                <span className="truncate">{evaluation.propertyAddress}</span>
+                            </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                            <span className="text-xs text-slate-400">
+                                Submitted {new Date(evaluation.submittedAt).toLocaleDateString()}
+                            </span>
+                            <span className="text-xs text-indigo-600 font-medium">
+                                Quote coming soon
+                            </span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </DashboardSection>
+    );
+};
+
+// --- MAIN COMPONENT ---
+export const ModernDashboard = ({
+
 // --- MAIN COMPONENT ---
 export const ModernDashboard = ({
     records = [], 
@@ -737,6 +824,10 @@ export const ModernDashboard = ({
 
             {/* MY QUOTES SECTION */}
             <MyQuotesSection userId={userId} />
+
+            {/* PENDING EVALUATIONS SECTION */}
+            <PendingEvaluationsSection userId={userId} />
+
 
             {/* PROPERTY INTELLIGENCE SECTION */}
             <DashboardSection 
