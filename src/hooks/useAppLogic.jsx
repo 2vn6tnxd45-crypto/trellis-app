@@ -355,6 +355,38 @@ export const useAppLogic = (celebrations) => {
 
         setIsSavingProperty(true);
         
+        // =====================================================
+        // HELPER: Remove ALL undefined values from any object
+        // Firebase rejects undefined values, so we must clean them
+        // =====================================================
+        const removeUndefined = (obj) => {
+            if (obj === null || obj === undefined) return null;
+            if (typeof obj !== 'object') return obj;
+            if (Array.isArray(obj)) {
+                return obj.map(item => removeUndefined(item));
+            }
+            const cleaned = {};
+            for (const [key, value] of Object.entries(obj)) {
+                if (value !== undefined) {
+                    cleaned[key] = removeUndefined(value);
+                }
+            }
+            return cleaned;
+        };
+
+        // Helper to sanitize address specifically
+        const sanitizeAddress = (addr) => {
+            if (!addr) return '';
+            if (typeof addr === 'string') return addr;
+            return {
+                street: addr.street || '',
+                city: addr.city || '',
+                state: addr.state || '',
+                zip: addr.zip || '',
+                placeId: addr.placeId || ''
+            };
+        };
+        
         // Retry logic for new user permission issues
         const maxRetries = 3;
         let lastError;
@@ -378,20 +410,6 @@ export const useAppLogic = (celebrations) => {
                 const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
                 
                 const newPropertyId = Date.now().toString();
-                
-                // Sanitize address to prevent undefined values (Firebase rejects them)
-                const sanitizeAddress = (addr) => {
-                    if (!addr) return '';
-                    if (typeof addr === 'string') return addr;
-                    return {
-                        street: addr.street || '',
-                        city: addr.city || '',
-                        state: addr.state || '',
-                        zip: addr.zip || '',
-                        placeId: addr.placeId || ''
-                    };
-                };
-                
                 const newProperty = {
                     id: newPropertyId,
                     name: formData.name || 'My Home',
@@ -399,38 +417,46 @@ export const useAppLogic = (celebrations) => {
                     coordinates: formData.coordinates || null
                 };
                 
-                const existingProperties = existingProfile.properties || [];
+                let existingProperties = existingProfile.properties || [];
                 
                 // If no existing properties and we have legacy data, convert it
                 if (existingProperties.length === 0 && existingProfile.name) {
-                    existingProperties.push({
+                    existingProperties = [{
                         id: 'legacy',
-                        name: existingProfile.name,
-                        address: existingProfile.address,
-                        coordinates: existingProfile.coordinates
-                    });
+                        name: existingProfile.name || 'My Home',
+                        address: sanitizeAddress(existingProfile.address),
+                        coordinates: existingProfile.coordinates || null
+                    }];
                 }
                 
                 const updatedProperties = [...existingProperties, newProperty];
                 
-                // Build the new profile object
+                // Build the new profile object (only include defined values from existing)
                 const newProfile = {
-                    ...existingProfile,
                     properties: updatedProperties,
                     activePropertyId: newPropertyId,
+                    updatedAt: new Date()
                 };
                 
+                // Preserve specific existing fields if they exist (but not undefined ones)
+                if (existingProfile.name) newProfile.name = existingProfile.name;
+                if (existingProfile.email) newProfile.email = existingProfile.email;
+                if (existingProfile.hasSeenWelcome) newProfile.hasSeenWelcome = existingProfile.hasSeenWelcome;
+                if (existingProfile.createdAt) newProfile.createdAt = existingProfile.createdAt;
+                
+                // Final safety check: remove any remaining undefined values
+                const cleanedProfile = removeUndefined(newProfile);
+                
+                console.log('[handleSaveProperty] Saving cleaned profile:', cleanedProfile);
+                
                 // Save to Firebase
-                await setDoc(profileRef, {
-                    ...newProfile,
-                    updatedAt: new Date()
-                }, { merge: true });
+                await setDoc(profileRef, cleanedProfile, { merge: true });
                 
                 // SUCCESS! Update local state
                 justCompletedSetup.current = true;
                 
                 setProfile({
-                    ...newProfile,
+                    ...cleanedProfile,
                     updatedAt: new Date().toISOString()
                 });
                 
