@@ -65,6 +65,13 @@ const STATUS_CONFIG = {
         text: 'text-amber-700',
         icon: Clock
     },
+    cancellation_requested: {
+        label: 'Cancellation Pending',
+        description: 'Waiting for contractor to approve cancellation',
+        bg: 'bg-orange-100',
+        text: 'text-orange-700',
+        icon: Clock
+    },
     completed: {
         label: 'Completed',
         description: 'Job finished',
