@@ -381,9 +381,41 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
         });
         
         // STEP 7: Commit the batch
+        // STEP 7: Commit the batch
         await batch.commit();
         
         console.log(`✅ Quote ${quoteId} accepted → Job ${jobRef.id} created`);
+        
+        // STEP 8: Send email notification to contractor (non-blocking)
+        if (contractorProfile?.email) {
+            fetch('/api/send-quote-accepted', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contractorEmail: contractorProfile.email,
+                    contractorName: contractorProfile.companyName || contractorProfile.displayName || 'there',
+                    customerName: quote.customer?.name || 'A customer',
+                    customerEmail: quote.customer?.email || null,
+                    customerPhone: quote.customer?.phone || null,
+                    customerAddress: quote.customer?.address || null,
+                    quoteTitle: quote.title || 'Service Quote',
+                    quoteNumber: quote.quoteNumber || '',
+                    quoteTotal: quote.total || 0,
+                    customerMessage: customerMessage || null,
+                    dashboardLink: 'https://mykrib.app/app/?pro'
+                })
+            }).then(res => {
+                if (res.ok) {
+                    console.log('[acceptQuote] Email sent to contractor:', contractorProfile.email);
+                } else {
+                    console.warn('[acceptQuote] Email failed:', res.status);
+                }
+            }).catch(err => {
+                console.warn('[acceptQuote] Email error:', err);
+            });
+        } else {
+            console.warn('[acceptQuote] No contractor email - skipping notification');
+        }
         
         return { 
             success: true, 
