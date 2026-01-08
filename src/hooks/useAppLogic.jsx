@@ -378,10 +378,24 @@ export const useAppLogic = (celebrations) => {
                 const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
                 
                 const newPropertyId = Date.now().toString();
+                
+                // Sanitize address to prevent undefined values (Firebase rejects them)
+                const sanitizeAddress = (addr) => {
+                    if (!addr) return '';
+                    if (typeof addr === 'string') return addr;
+                    return {
+                        street: addr.street || '',
+                        city: addr.city || '',
+                        state: addr.state || '',
+                        zip: addr.zip || '',
+                        placeId: addr.placeId || ''
+                    };
+                };
+                
                 const newProperty = {
                     id: newPropertyId,
-                    name: formData.name,
-                    address: formData.address,
+                    name: formData.name || 'My Home',
+                    address: sanitizeAddress(formData.address),
                     coordinates: formData.coordinates || null
                 };
                 
