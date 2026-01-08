@@ -111,6 +111,32 @@ export const SlotPicker = ({
             });
 
             toast.success('Appointment confirmed!');
+            
+            // Send email notification to customer (non-blocking)
+            if (job.customer?.email) {
+                fetch('/api/send-job-scheduled', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customerEmail: job.customer.email,
+                        customerName: job.customer.name || 'there',
+                        contractorName: job.contractorName || 'Your contractor',
+                        contractorPhone: job.contractorPhone || null,
+                        contractorEmail: job.contractorEmail || null,
+                        jobTitle: job.title || 'Service',
+                        jobNumber: job.jobNumber || null,
+                        scheduledDate: startISO,
+                        scheduledTime: new Date(startISO).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                        estimatedDuration: null,
+                        serviceAddress: job.serviceAddress?.formatted || job.customer?.address || null,
+                        notes: null,
+                        jobLink: 'https://mykrib.app/app/'
+                    })
+                }).then(res => {
+                    if (res.ok) console.log('[SlotPicker] Confirmation email sent');
+                }).catch(err => console.warn('[SlotPicker] Email error:', err));
+            }
+            
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
