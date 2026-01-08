@@ -1396,7 +1396,7 @@ export const ContractorProApp = () => {
     
     const handleSaveQuote = useCallback(async (quoteData) => {
         try {
-            if (selectedQuote) {
+            if if (selectedQuote?.id) {
                 await updateQuoteFn(selectedQuote.id, quoteData);
                 setSelectedQuote(prev => ({ ...prev, ...quoteData }));
                 toast.success('Quote updated');
