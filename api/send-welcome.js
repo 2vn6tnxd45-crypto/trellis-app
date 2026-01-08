@@ -83,7 +83,7 @@ export default async function handler(req, res) {
 
     try {
         const { data, error } = await resend.emails.send({
-            from: 'Krib <onboarding@resend.dev>', // Change to your domain later
+            from: 'Krib <hello@mykrib.app>',, // Change to your domain later
             to: [email],
             subject: '🏠 Welcome to Krib!',
             html: generateWelcomeHtml(userName),
