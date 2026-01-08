@@ -160,12 +160,60 @@ export function subscribeToQuotes(contractorId, callback) {
 
 export async function sendQuote(contractorId, quoteId) {
     console.log('sendQuote called:', contractorId, quoteId);
+    
+    // Get the quote data first
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+    const quoteSnap = await getDoc(quoteRef);
+    
+    if (!quoteSnap.exists()) {
+        throw new Error('Quote not found');
+    }
+    
+    const quote = quoteSnap.data();
+    
+    // Get contractor profile for name/phone
+    const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+    const contractorSnap = await getDoc(contractorRef);
+    const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : null;
+    
+    // Update quote status
     await updateDoc(quoteRef, {
         status: 'sent',
         sentAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
+    
+    // Send email notification to customer (non-blocking)
+    if (quote.customer?.email) {
+        const quoteLink = `${window.location.origin}/quote/${contractorId}_${quoteId}`;
+        
+        fetch('/api/send-quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                customerEmail: quote.customer.email,
+                customerName: quote.customer.name || 'there',
+                contractorName: contractorProfile?.companyName || contractorProfile?.displayName || 'Your Contractor',
+                contractorPhone: contractorProfile?.phone || null,
+                quoteTitle: quote.title || 'Service Quote',
+                quoteTotal: quote.total || 0,
+                lineItemCount: quote.lineItems?.length || 1,
+                quoteLink: quoteLink,
+                expiresAt: quote.validUntil || null
+            })
+        }).then(res => {
+            if (res.ok) {
+                console.log('[sendQuote] Email sent to customer:', quote.customer.email);
+            } else {
+                console.warn('[sendQuote] Email failed:', res.status);
+            }
+        }).catch(err => {
+            console.warn('[sendQuote] Email error:', err);
+        });
+    } else {
+        console.warn('[sendQuote] No customer email - skipping notification');
+    }
+    
     return { success: true };
 }
 
