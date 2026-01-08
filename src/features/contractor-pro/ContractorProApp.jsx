@@ -196,22 +196,35 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
         </div>
         
         {/* Nav */}
+        {/* Nav */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <NavItem icon={Home} label="Dashboard" active={activeView === 'dashboard'} onClick={() => onNavigate('dashboard')} />
-            <NavItem icon={Search} label="Find Work" active={activeView === 'leads'} onClick={() => onNavigate('leads')} />
-            <NavItem icon={Briefcase} label="Jobs" active={activeView === 'jobs'} onClick={() => onNavigate('jobs')} badge={unscheduledJobsCount} />
-            <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
-            <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
-            <NavItem icon={FileText} label="Quotes" active={['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView)} onClick={() => onNavigate('quotes')} badge={pendingQuotesCount} />
-            <NavItem icon={Camera} label="Evaluations" active={['evaluations', 'evaluation-detail', 'create-evaluation'].includes(activeView)} onClick={() => onNavigate('evaluations')} badge={completedEvalsCount} />
-            <NavItem icon={ScrollIcon} label="Invoices" active={['invoices', 'create-invoice'].includes(activeView)} onClick={() => onNavigate('invoices')} />
             
+            {/* JOB LIFECYCLE: Find → Evaluate → Quote → Work → Get Paid */}
+            <div className="pt-4 mt-4 border-t border-slate-100">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Workflow</p>
+                <NavItem icon={Search} label="Find Work" active={activeView === 'leads'} onClick={() => onNavigate('leads')} />
+                <NavItem icon={Camera} label="Evaluations" active={['evaluations', 'evaluation-detail', 'create-evaluation'].includes(activeView)} onClick={() => onNavigate('evaluations')} badge={completedEvalsCount} />
+                <NavItem icon={FileText} label="Quotes" active={['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView)} onClick={() => onNavigate('quotes')} badge={pendingQuotesCount} />
+                <NavItem icon={Briefcase} label="Jobs" active={activeView === 'jobs'} onClick={() => onNavigate('jobs')} badge={unscheduledJobsCount} />
+                <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
+                <NavItem icon={ScrollIcon} label="Invoices" active={['invoices', 'create-invoice'].includes(activeView)} onClick={() => onNavigate('invoices')} />
+            </div>
+            
+            {/* COMMUNICATION */}
+            <div className="pt-4 mt-4 border-t border-slate-100">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Communication</p>
+                <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
+            </div>
+            
+            {/* MANAGEMENT */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
             </div>
             
+            {/* ACCOUNT */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <NavItem icon={User} label="Profile" active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
                 <NavItem icon={SettingsIcon} label="Settings" active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
