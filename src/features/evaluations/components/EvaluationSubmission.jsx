@@ -191,6 +191,21 @@ export const EvaluationSubmission = ({
             
             await new Promise(r => setTimeout(r, 500));
             setCurrentUser(credential.user);
+            
+            // Send welcome email (non-blocking)
+            fetch('/api/send-welcome', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    email: accountEmail, 
+                    userName: accountName.trim() || 'there' 
+                })
+            }).then(() => {
+                console.log('[EvaluationSubmission] Welcome email sent');
+            }).catch((err) => {
+                console.warn('[EvaluationSubmission] Welcome email failed:', err);
+            });
+            
             setFlowStep('property');
             
         } catch (err) {
