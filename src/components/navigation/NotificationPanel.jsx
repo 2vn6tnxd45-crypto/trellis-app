@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { 
   X, Bell, Clock, ChevronRight, 
-  Check, AlarmClock, CheckCheck, Phone, Mail
+  Check, AlarmClock, CheckCheck, Phone, Mail, MessageSquare
 } from 'lucide-react';
 import {
   sortTasksByPriority,
@@ -188,6 +188,8 @@ export const NotificationPanel = ({
   onClose, 
   dueTasks = [], 
   newSubmissions = [],
+  unreadMessageCount = 0,
+  onMessagesClick,
   onTaskClick,
   onSubmissionClick,
   dismissedIds = new Set(),
@@ -277,7 +279,7 @@ export const NotificationPanel = ({
         
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          {totalActionable === 0 && groupedTasks.upcoming.length === 0 ? (
+          {totalActionable === 0 && groupedTasks.upcoming.length === 0 && unreadMessageCount === 0 ? (
             // Empty State
             <div className="p-8 text-center">
               <div className="bg-emerald-100 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -288,6 +290,38 @@ export const NotificationPanel = ({
             </div>
           ) : (
             <div className="p-3 space-y-2">
+              {/* MESSAGES Section - New unread messages */}
+              {unreadMessageCount > 0 && (
+                <div>
+                  <SectionHeader 
+                    title="Messages" 
+                    emoji="💬" 
+                    count={unreadMessageCount}
+                    colorClass="text-blue-600"
+                  />
+                  <button
+                    onClick={() => {
+                      onMessagesClick?.();
+                      onClose?.();
+                    }}
+                    className="w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-200"
+                  >
+                    <div className="flex-shrink-0 p-2 bg-blue-100 rounded-lg">
+                      <MessageSquare size={16} className="text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-blue-700">
+                        {unreadMessageCount} unread message{unreadMessageCount !== 1 ? 's' : ''}
+                      </p>
+                      <p className="text-xs text-blue-500 mt-0.5">
+                        Tap to view your conversations
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-blue-300 mt-1" />
+                  </button>
+                </div>
+              )}
+              
               {/* CRITICAL Section (30+ days overdue) */}
               {groupedTasks.critical.length > 0 && (
                 <div>
