@@ -185,7 +185,7 @@ export async function sendQuote(contractorId, quoteId) {
     
     // Send email notification to customer (non-blocking)
     if (quote.customer?.email) {
-        const quoteLink = `${window.location.origin}/app/?quote=${contractorId}_${quoteId}`;
+        const quoteLink = `https://mykrib.app/?quote=${contractorId}_${quoteId}`;
         
         fetch('/api/send-quote', {
             method: 'POST',
