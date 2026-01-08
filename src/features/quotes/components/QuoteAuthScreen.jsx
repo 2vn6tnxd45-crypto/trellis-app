@@ -122,7 +122,7 @@ export const QuoteAuthScreen = ({
     /**
      * Save the user's name to their profile document
      */
-    const saveUserProfile = async (userId, userName, userEmail) => {
+   const saveUserProfile = async (userId, userName, userEmail) => {
         try {
             const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
             await setDoc(profileRef, {
@@ -131,6 +131,18 @@ export const QuoteAuthScreen = ({
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp()
             }, { merge: true });
+            
+            // Send welcome email (non-blocking)
+            fetch('/api/send-welcome', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, userName })
+            }).then(() => {
+                console.log('[QuoteAuthScreen] Welcome email sent');
+            }).catch((err) => {
+                console.warn('[QuoteAuthScreen] Welcome email failed:', err);
+            });
+            
         } catch (err) {
             console.warn('[QuoteAuthScreen] Could not save profile:', err);
         }
