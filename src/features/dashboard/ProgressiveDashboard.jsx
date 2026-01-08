@@ -203,9 +203,15 @@ const ActiveProjectsSection = ({ userId }) => {
                         <HomeownerJobCard
                             key={job.id}
                             job={job}
-                            onClick={() => setSelectedJob(job)}
-                            onRequestTimes={() => setRequestingTimesJob(job)}
-                            onReviewCompletion={() => setReviewingJob(job)}
+                            onSelect={(selectedJob) => {
+                                if (selectedJob.status === 'pending_completion') {
+                                    setReviewingJob(selectedJob);
+                                } else {
+                                    setSelectedJob(selectedJob);
+                                }
+                            }}
+                            onCancel={(jobToCancel) => setCancellingJob(jobToCancel)}
+                            onRequestNewTimes={(jobForTimes) => setRequestingTimesJob(jobForTimes)}
                         />
                     ))}
                 </div>
