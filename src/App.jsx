@@ -597,11 +597,18 @@ if (evaluateParam) {
             <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
             {/* Notification Panel */}
+            {/* Notification Panel */}
             <NotificationPanel 
                 isOpen={app.showNotifications} 
                 onClose={() => app.setShowNotifications(false)} 
                 dueTasks={app.dueTasks}
                 newSubmissions={app.newSubmissions}
+                unreadMessageCount={app.unreadMessageCount || 0}
+                onMessagesClick={() => {
+                    app.setShowNotifications(false);
+                    app.setActiveTab('Contractors');
+                    // Note: You could add a state to auto-open messages tab
+                }}
                 onTaskClick={(task) => {
                     app.setActiveTab('Maintenance');
                     app.setHighlightedTaskId?.(task.recordId + '-' + (task.taskName || task.item));
