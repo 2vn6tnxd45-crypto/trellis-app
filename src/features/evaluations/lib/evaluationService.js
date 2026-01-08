@@ -529,6 +529,10 @@ export const getTimeRemaining = (expiresAt) => {
 
 export const prepareQuoteFromEvaluation = (evaluation) => {
     return {
+        // Link to homeowner if they've claimed the evaluation
+        customerId: evaluation.customerId || null,
+        propertyId: evaluation.customerPropertyId || null,
+        
         // Pre-fill customer info (nested object format for QuoteBuilder)
         customer: {
             name: evaluation.customerName || '',
