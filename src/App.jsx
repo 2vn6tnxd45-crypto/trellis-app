@@ -346,7 +346,12 @@ if (evaluateParam) {
     if (!app.user) return <AuthScreen />;
     
     // Property setup
-    if (!app.profile && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
+    const needsPropertySetup = !app.profile || 
+    !app.profile.properties || 
+    app.profile.properties.length === 0 || 
+    (app.profile.properties.length === 1 && app.profile.properties[0].id === 'legacy' && !app.profile.properties[0].address);
+
+if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
 
     const isNewUser = app.activePropertyRecords.length === 0 && !app.hasSeenWelcome;
     const totalNotifications = app.dueTasks.length + app.newSubmissions.length;
