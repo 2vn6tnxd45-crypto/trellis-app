@@ -103,6 +103,65 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
+// ============================================
+// NEW: WELCOME CARD (for new users with 0 items)
+// ============================================
+const WelcomeCard = ({ propertyName, onScanReceipt, onAddRecord, onCreateContractorLink, onDismiss }) => {
+    return (
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 p-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Dismiss button */}
+            <button 
+                onClick={onDismiss}
+                className="absolute top-4 right-4 p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors"
+            >
+                <X size={18} />
+            </button>
+            
+            {/* Background decoration */}
+            <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-emerald-200/30 rounded-full blur-2xl pointer-events-none" />
+            
+            {/* Content */}
+            <div className="flex items-start gap-4 relative">
+                <div className="p-3 bg-emerald-100 rounded-xl shrink-0">
+                    <Sparkles size={24} className="text-emerald-600" />
+                </div>
+                <div className="flex-1 pr-8">
+                    <h3 className="font-bold text-emerald-900 text-lg mb-1">
+                        Welcome to {propertyName || 'your Krib'}!
+                    </h3>
+                    <p className="text-emerald-700 text-sm mb-4">
+                        We've already discovered public records about your property above. Now start building your complete home profile!
+                    </p>
+                    
+                    <div className="flex flex-wrap gap-2">
+                        <button
+                            onClick={onScanReceipt}
+                            className="px-4 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+                        >
+                            <Camera size={16} />
+                            Scan a Receipt
+                        </button>
+                        <button
+                            onClick={onAddRecord}
+                            className="px-4 py-2.5 bg-white text-emerald-700 font-bold text-sm rounded-xl border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <Plus size={16} />
+                            Add Item
+                        </button>
+                        <button
+                            onClick={onCreateContractorLink}
+                            className="px-4 py-2.5 bg-white text-emerald-700 font-bold text-sm rounded-xl border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center gap-2"
+                        >
+                            <Hammer size={16} />
+                            Contractor Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- ACTIVE PROJECTS SECTION ---
 
 // ============================================
@@ -722,6 +781,11 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showScoreDetails, setShowScoreDetails] = useState(false);
     
+    // NEW: Track if welcome card has been dismissed (persists via localStorage)
+    const [welcomeDismissed, setWelcomeDismissed] = useState(() => {
+        return localStorage.getItem('krib_welcome_dismissed') === 'true';
+    });
+    
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
 
@@ -760,6 +824,12 @@ export const ModernDashboard = ({
         if (dueSoon > 0) return <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> {dueSoon} Due Soon</span>;
         return <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> All Caught Up</span>;
     }, [validRecords]);
+
+    // NEW: Handle welcome card dismiss
+    const handleDismissWelcome = () => {
+        setWelcomeDismissed(true);
+        localStorage.setItem('krib_welcome_dismissed', 'true');
+    };
 
     return (
         <div className="space-y-6 pb-8">
@@ -816,17 +886,7 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* NEW: ACTIVE PROJECTS SECTION (Highest Priority) */}
-            <ActiveProjectsSection userId={userId} />
-
-            {/* MY QUOTES SECTION */}
-            <MyQuotesSection userId={userId} />
-
-            {/* PENDING EVALUATIONS SECTION */}
-            <PendingEvaluationsSection userId={userId} />
-
-
-            {/* PROPERTY INTELLIGENCE SECTION */}
+            {/* CHANGE 1: PROPERTY INTELLIGENCE SECTION - MOVED TO TOP (the wow factor!) */}
             <DashboardSection 
                 title="Property Intelligence" 
                 icon={Home} 
@@ -835,7 +895,27 @@ export const ModernDashboard = ({
             >
                 <PropertyIntelligence propertyProfile={activeProperty} />
             </DashboardSection>
-            
+
+            {/* CHANGE 2: WELCOME CARD - Only for 0 items, dismissible */}
+            {validRecords.length === 0 && !welcomeDismissed && (
+                <WelcomeCard 
+                    propertyName={activeProperty?.name}
+                    onScanReceipt={onScanReceipt}
+                    onAddRecord={onAddRecord}
+                    onCreateContractorLink={onCreateContractorLink}
+                    onDismiss={handleDismissWelcome}
+                />
+            )}
+
+            {/* ACTIVE PROJECTS SECTION (shows if user has any) */}
+            <ActiveProjectsSection userId={userId} />
+
+            {/* MY QUOTES SECTION (shows if user has any) */}
+            <MyQuotesSection userId={userId} />
+
+            {/* PENDING EVALUATIONS SECTION (shows if user has any) */}
+            <PendingEvaluationsSection userId={userId} />
+
             {/* QUICK ACTIONS SECTION */}
             <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
                 <div className="grid grid-cols-2 gap-3">
