@@ -44,6 +44,18 @@ export const AuthScreen = () => {
                 updatedAt: serverTimestamp()
             }, { merge: true });
             console.log('[AuthScreen] Saved user name to profile:', userName);
+            
+            // Send welcome email (non-blocking)
+            fetch('/api/send-welcome', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail, userName })
+            }).then(() => {
+                console.log('[AuthScreen] Welcome email sent');
+            }).catch((err) => {
+                console.warn('[AuthScreen] Welcome email failed:', err);
+            });
+            
         } catch (err) {
             // Don't fail signup if profile save fails - it can be added later
             console.warn('[AuthScreen] Could not save name to profile:', err);
