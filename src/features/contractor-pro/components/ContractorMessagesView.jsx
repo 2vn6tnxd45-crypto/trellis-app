@@ -6,10 +6,9 @@
 // conversations with homeowners
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-    MessageSquare, Send, Search, ArrowLeft, 
-    User, Clock, Check, CheckCheck, Circle,
-    MoreVertical, Phone, Mail, ChevronRight, MapPin
+import {
+    MessageSquare, Search, User, Send, Phone, Mail,
+    ArrowLeft, Loader2, MoreVertical, MapPin
 } from 'lucide-react';
 import { 
     collection, query, where, orderBy, onSnapshot, 
@@ -132,6 +131,7 @@ const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => 
             </div>
             
             {/* Content */}
+            {/* Content */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                     <h4 className={`font-semibold truncate ${
@@ -145,6 +145,15 @@ const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => 
                         {formatMessageTime(conversation.lastMessageTime)}
                     </span>
                 </div>
+                
+                {/* NEW: Show address if available */}
+                {conversation.propertyAddress && (
+                    <p className="text-xs text-slate-500 truncate mb-1 flex items-center gap-1">
+                        <MapPin size={10} className="flex-shrink-0" />
+                        {conversation.propertyAddress.split(',')[0]}
+                    </p>
+                )}
+                
                 <div className="flex items-center gap-2">
                     <p className={`text-sm truncate flex-1 ${
                         hasUnread ? 'text-slate-700 font-medium' : 'text-slate-500'
