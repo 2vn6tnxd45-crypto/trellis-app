@@ -31,7 +31,13 @@ export const EvaluationsListView = ({
     const [searchQuery, setSearchQuery] = useState('');
 
     // Filter evaluations
+    // Filter evaluations
     const filteredEvaluations = evaluations.filter(evaluation => {
+        // Always exclude cancelled evaluations from the main view
+        if (evaluation.status === EVALUATION_STATUS.CANCELLED) {
+            return false;
+        }
+        
         // Status filter
         if (filter === 'pending' && ![
             EVALUATION_STATUS.REQUESTED,
@@ -45,6 +51,10 @@ export const EvaluationsListView = ({
             return false;
         }
         if (filter === 'quoted' && evaluation.status !== EVALUATION_STATUS.QUOTED) {
+            return false;
+        }
+        // Exclude expired from "all" view by default (they have their own section)
+        if (filter === 'all' && evaluation.status === EVALUATION_STATUS.EXPIRED) {
             return false;
         }
 
@@ -129,7 +139,10 @@ export const EvaluationsListView = ({
                 />
                 <StatCard
                     label="All"
-                    value={evaluations.length}
+                    value={evaluations.filter(e => 
+                        e.status !== EVALUATION_STATUS.CANCELLED && 
+                        e.status !== EVALUATION_STATUS.EXPIRED
+                    ).length}
                     icon={Camera}
                     color="slate"
                     onClick={() => setFilter('all')}
