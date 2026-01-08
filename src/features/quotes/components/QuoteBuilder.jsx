@@ -11,7 +11,8 @@ import {
     Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { estimateDuration } from '../lib/durationEstimator';
+
+// REMOVED: import { estimateDuration } from '../lib/durationEstimator';
 
 // NEW: Import the Google Maps hook
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
@@ -738,8 +739,8 @@ export const QuoteBuilder = ({
     const [formData, setFormData] = useState(() => createDefaultFormState(quote, contractorSettings));
     const [showTemplates, setShowTemplates] = useState(false);
     const [errors, setErrors] = useState({});
-    const [isEstimating, setIsEstimating] = useState(false);
-    const [durationEstimate, setDurationEstimate] = useState(null);
+    // REMOVED: const [isEstimating, setIsEstimating] = useState(false);
+    // REMOVED: const [durationEstimate, setDurationEstimate] = useState(null);
 
     // Reset form when quote changes
     useEffect(() => {
@@ -816,41 +817,7 @@ export const QuoteBuilder = ({
         toast.success(`Template "${template.name}" applied`);
     };
 
-    // AI Duration Estimation
-    const handleEstimateDuration = async () => {
-        // Need at least a title or line items with descriptions
-        const hasTitle = formData.title?.trim();
-        const hasLineItems = formData.lineItems.some(item => item.description?.trim());
-        
-        if (!hasTitle && !hasLineItems) {
-            toast.error('Add a title or line item descriptions first');
-            return;
-        }
-
-        setIsEstimating(true);
-        setDurationEstimate(null);
-        
-        try {
-            const estimate = await estimateDuration(formData);
-            setDurationEstimate(estimate);
-            
-            // Auto-populate the duration field with AI suggestion
-            if (estimate.duration?.display) {
-                setFormData(prev => ({ ...prev, estimatedDuration: estimate.duration.display }));
-            }
-            
-            if (estimate.source === 'ai') {
-                toast.success('AI estimate ready!');
-            } else {
-                toast.success('Duration estimated');
-            }
-        } catch (error) {
-            console.error('Estimation failed:', error);
-            toast.error('Could not estimate duration');
-        } finally {
-            setIsEstimating(false);
-        }
-    };
+    // REMOVED: handleEstimateDuration function
 
     // Validation
     const validate = () => {
@@ -1011,111 +978,19 @@ export const QuoteBuilder = ({
                                     className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                 />
                             </div>
+                            {/* SIMPLIFIED: Estimated Duration - AI removed */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                     <Timer size={12} className="inline mr-1" />
                                     Estimated Duration
                                 </label>
-                                <div className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={formData.estimatedDuration}
-                                        onChange={(e) => {
-                                            setFormData(prev => ({ ...prev, estimatedDuration: e.target.value }));
-                                            setDurationEstimate(null); // Clear AI estimate when manually edited
-                                        }}
-                                        placeholder="e.g. 4 hours, 2 days"
-                                        className="flex-1 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={handleEstimateDuration}
-                                        disabled={isEstimating}
-                                        className="px-4 py-2.5 bg-purple-100 text-purple-700 font-medium rounded-xl hover:bg-purple-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        title="Get AI duration estimate"
-                                    >
-                                        {isEstimating ? (
-                                            <Loader2 size={16} className="animate-spin" />
-                                        ) : (
-                                            <Sparkles size={16} />
-                                        )}
-                                        <span className="hidden sm:inline">AI</span>
-                                    </button>
-                                </div>
-                                
-                                {/* AI Estimate Details Panel */}
-                                {durationEstimate && durationEstimate.source === 'ai' && (
-                                    <div className="mt-3 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-                                        <div className="flex items-start gap-3">
-                                            <Sparkles size={16} className="text-purple-600 mt-0.5 shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                    <span className="font-bold text-purple-800">
-                                                        {durationEstimate.duration.display}
-                                                    </span>
-                                                    {durationEstimate.crew.recommended > 1 && (
-                                                        <span className="text-sm text-purple-600 flex items-center gap-1">
-                                                            <Users size={12} />
-                                                            {durationEstimate.crew.recommended} crew
-                                                        </span>
-                                                    )}
-                                                    {durationEstimate.isMultiDay && (
-                                                        <span className="text-xs bg-purple-200 text-purple-700 px-2 py-0.5 rounded-full">
-                                                            Multi-day
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                
-                                                <p className="text-sm text-purple-700 mb-2">
-                                                    {durationEstimate.reasoning}
-                                                </p>
-                                                
-                                                {durationEstimate.breakdown && durationEstimate.breakdown.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-purple-200">
-                                                        <p className="text-xs font-bold text-purple-600 uppercase tracking-wide mb-1.5">
-                                                            Task Breakdown
-                                                        </p>
-                                                        <div className="space-y-1">
-                                                            {durationEstimate.breakdown.map((item, idx) => (
-                                                                <div key={idx} className="flex justify-between text-xs text-purple-700">
-                                                                    <span>{item.task}</span>
-                                                                    <span className="font-medium">{item.duration}</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                
-                                                {durationEstimate.crew.reasoning && (
-                                                    <p className="text-xs text-purple-500 mt-2 italic">
-                                                        {durationEstimate.crew.reasoning}
-                                                    </p>
-                                                )}
-                                                
-                                                <div className="flex items-center justify-between mt-2 pt-2 border-t border-purple-200">
-                                                    <span className="text-xs text-purple-500">
-                                                        Confidence: <span className="font-medium">{durationEstimate.confidence}</span>
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setDurationEstimate(null)}
-                                                        className="text-xs text-purple-500 hover:text-purple-700"
-                                                    >
-                                                        Dismiss
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {/* Fallback estimate notice */}
-                                {durationEstimate && durationEstimate.source === 'fallback' && (
-                                    <p className="mt-2 text-xs text-slate-500 flex items-center gap-1">
-                                        <Info size={12} />
-                                        Standard estimate based on job type
-                                    </p>
-                                )}
+                                <input
+                                    type="text"
+                                    value={formData.estimatedDuration}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, estimatedDuration: e.target.value }))}
+                                    placeholder="e.g. 4 hours, 2 days"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                />
                             </div>
                         </div>
                     </div>
