@@ -511,6 +511,31 @@ export const DragDropCalendar = ({
                     lastActivity: serverTimestamp()
                 });
                 toast.success('Job scheduled!');
+                
+                // Send email notification to customer (non-blocking)
+                if (confirmDrop.job.customer?.email) {
+                    fetch('/api/send-job-scheduled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customerEmail: confirmDrop.job.customer.email,
+                            customerName: confirmDrop.job.customer.name || 'there',
+                            contractorName: confirmDrop.job.contractorName || 'Your contractor',
+                            contractorPhone: confirmDrop.job.contractorPhone || null,
+                            contractorEmail: confirmDrop.job.contractorEmail || null,
+                            jobTitle: confirmDrop.job.title || 'Service',
+                            jobNumber: confirmDrop.job.jobNumber || null,
+                            scheduledDate: scheduleData.scheduledTime,
+                            scheduledTime: new Date(scheduleData.scheduledTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                            estimatedDuration: scheduleData.estimatedDuration || null,
+                            serviceAddress: confirmDrop.job.serviceAddress?.formatted || confirmDrop.job.customer?.address || null,
+                            notes: null,
+                            jobLink: 'https://mykrib.app/app/'
+                        })
+                    }).then(res => {
+                        if (res.ok) console.log('[DragDropCalendar] Schedule email sent');
+                    }).catch(err => console.warn('[DragDropCalendar] Email error:', err));
+                }
             } else {
                 // PROPOSE TIME - Customer needs to confirm
                 const slotId = `slot_${Date.now()}`;
