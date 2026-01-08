@@ -14,7 +14,8 @@ import { calculateNextDate } from './lib/utils';
 import { useGemini } from './hooks/useGemini';
 import { useAppLogic } from './hooks/useAppLogic'; 
 import { RecordEditorModal } from './features/records/RecordEditorModal';
-import { ProgressiveDashboard } from './features/dashboard/ProgressiveDashboard';
+// CHANGE 1: Import ModernDashboard instead of ProgressiveDashboard
+import { ModernDashboard } from './features/dashboard/ModernDashboard';
 import { MaintenanceDashboard } from './features/dashboard/MaintenanceDashboard'; 
 import { SmartScanner } from './features/scanner/SmartScanner';
 import { CelebrationRenderer, useCelebrations } from './features/celebrations/CelebrationMoments';
@@ -425,21 +426,12 @@ if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.ha
             <main className="max-w-5xl mx-auto px-4 py-6">
                 {app.showGuidedOnboarding && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4"><div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => app.setShowGuidedOnboarding(false)}></div><div className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto"><GuidedOnboarding propertyName={app.activeProperty?.name} onComplete={handleGuidedOnboardingComplete} onAddItem={handleGuidedOnboardingAddItem} onScanReceipt={() => { app.setShowGuidedOnboarding(false); openAddModal(); }} onDismiss={() => { app.setShowGuidedOnboarding(false); handleDismissWelcome(); }} /></div></div>}
                 
-                {/* UPDATED: WelcomeScreen with scan-first props & skip check */}
-                {isNewUser && app.activeTab === 'Dashboard' && !app.showGuidedOnboarding && !app.showScanner && !comingFromQuote && (
-                    <WelcomeScreen 
-                        propertyName={app.activeProperty?.name} 
-                        onScanReceipt={() => app.setShowScanner(true)}
-                        onStartGuidedScan={() => app.setShowGuidedOnboarding(true)}
-                        onCreateContractorLink={() => handleOpenQuickService(null)}
-                        onDismiss={handleDismissWelcome} 
-                    />
-                )}
+                {/* CHANGE 2: REMOVED WelcomeScreen block - welcome is now inside ModernDashboard */}
                 
-                {/* UPDATED: Dashboard with new task action props */}
-                {app.activeTab === 'Dashboard' && (!isNewUser || comingFromQuote) && (
+                {/* CHANGE 3: Dashboard now shows for ALL users (ModernDashboard handles empty state) */}
+                {app.activeTab === 'Dashboard' && (
                     <FeatureErrorBoundary label="Dashboard">
-                        <ProgressiveDashboard 
+                        <ModernDashboard 
                             records={app.activePropertyRecords} 
                             contractors={contractorsList} 
                             activeProperty={app.activeProperty}
