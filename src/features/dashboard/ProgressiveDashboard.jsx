@@ -107,7 +107,7 @@ const ActiveProjectsSection = ({ userId }) => {
             const active = allJobs.filter(r => 
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
                 (
-                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested'].includes(r.status) || 
+                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested', 'cancellation_requested'].includes(r.status) || 
                     (r.status === 'quoted' && r.estimate?.status === 'approved')
                 )
             );
