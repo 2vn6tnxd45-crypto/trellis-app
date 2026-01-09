@@ -1855,24 +1855,6 @@ export const ContractorProApp = () => {
                             }}
                         />
                     )}
-```
-
----
-
-## Summary Checklist for Step 4
-
-- [ ] **Edit 4A:** Expand `useQuoteTemplates` to include `createTemplate`, `updateTemplate`, `removeTemplate`
-- [ ] **Edit 4B:** Add Templates NavItem in sidebar Management section
-- [ ] **Edit 4C:** Add `case 'templates'` to `getViewTitle()` function
-- [ ] **Edit 4D:** Add the `{activeView === 'templates' && ...}` rendering block
-
----
-
-## File Placement Reminder
-
-Make sure you copy the `EstimateTemplates.jsx` file I created earlier to:
-```
-src/features/quotes/components/EstimateTemplates.jsx
                     
                     {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
