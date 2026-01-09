@@ -22,6 +22,7 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
     ComposedChart, Funnel, FunnelChart, LabelList
 } from 'recharts';
+import { GoalTracker } from './GoalTracker';
 
 // ============================================
 // CONSTANTS
@@ -808,6 +809,8 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
 // MAIN REPORTING DASHBOARD COMPONENT
 // ============================================
 export const ReportingDashboard = ({
+    contractorId,
+    profile,
     quotes = [],
     jobs = [],
     invoices = [],
@@ -996,6 +999,14 @@ export const ReportingDashboard = ({
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Goal Tracker */}
+            <GoalTracker
+                contractorId={contractorId}
+                profile={profile}
+                quotes={quotes}
+                jobs={jobs}
+                variant="full"
+            />
                 <KPICard
                     icon={DollarSign}
                     label="Revenue"
