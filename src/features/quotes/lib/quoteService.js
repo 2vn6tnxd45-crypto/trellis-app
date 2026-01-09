@@ -480,6 +480,15 @@ export function subscribeToQuoteTemplates(contractorId, callback) {
     }, () => callback([]));
 }
 
+export async function updateQuoteTemplate(contractorId, templateId, templateData) {
+    const templateRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTE_TEMPLATES_SUBCOLLECTION, templateId);
+    await updateDoc(templateRef, {
+        ...templateData,
+        updatedAt: serverTimestamp()
+    });
+    return { success: true };
+}
+
 export async function deleteQuoteTemplate(contractorId, templateId) {
     const templateRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTE_TEMPLATES_SUBCOLLECTION, templateId);
     await deleteDoc(templateRef);
