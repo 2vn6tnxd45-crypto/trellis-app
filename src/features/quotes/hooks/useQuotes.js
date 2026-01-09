@@ -9,6 +9,7 @@ import {
     sendQuote,
     getQuoteStats,
     createQuoteTemplate,
+    updateQuoteTemplate,
     deleteQuoteTemplate,
     generateQuoteShareLink
 } from '../lib/quoteService';
@@ -64,12 +65,17 @@ export const useQuoteTemplates = (contractorId) => {
         return createQuoteTemplate(contractorId, templateData);
     }, [contractorId]);
 
+   const updateTemplate = useCallback(async (templateId, templateData) => {
+        if (!contractorId) throw new Error('Not authenticated');
+        return updateQuoteTemplate(contractorId, templateId, templateData);
+    }, [contractorId]);
+
     const removeTemplate = useCallback(async (templateId) => {
         if (!contractorId) throw new Error('Not authenticated');
         return deleteQuoteTemplate(contractorId, templateId);
     }, [contractorId]);
 
-    return { templates, loading, createTemplate, removeTemplate };
+    return { templates, loading, createTemplate, updateTemplate, removeTemplate };
 };
 
 export const useQuoteStats = (contractorId) => {
@@ -170,6 +176,7 @@ export const useQuoteManagement = (contractorId) => {
         templates: templatesData.templates,
         templatesLoading: templatesData.loading,
         createTemplate: templatesData.createTemplate,
+        updateTemplate: templatesData.updateTemplate,
         removeTemplate: templatesData.removeTemplate,
         stats: statsData.stats,
         statsLoading: statsData.loading,
