@@ -60,7 +60,7 @@ const createDefaultLineItem = (type = 'material') => ({
     serial: '',
     warranty: '',
     crewSize: '', // Specific to Labor
-    isExpanded: true // Default to expanded per user request
+    isExpanded: false // Collapsed by default for cleaner look
 });
 
 // ============================================
@@ -383,7 +383,7 @@ const LineItemsSection = ({
                 <table className="w-full min-w-[700px]">
                     <thead className="bg-slate-50">
                         <tr>
-                            <th className="w-24"></th>
+                            <th className="w-12 text-center text-[10px] font-medium text-slate-400 px-2 py-3">Details</th>
                             <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3 w-24">Type</th>
                             <th className="text-left text-xs font-bold text-slate-500 uppercase px-4 py-3">Description</th>
                             <th className="text-right text-xs font-bold text-slate-500 uppercase px-4 py-3 w-20">Qty</th>
@@ -401,15 +401,14 @@ const LineItemsSection = ({
                                 <React.Fragment key={item.id}>
                                     <tr className={`group ${item.isExpanded ? 'bg-slate-50/50' : 'bg-white'}`}>
                                         <td className="px-2 py-3 text-center">
-                                            {/* VISIBLE TOGGLE BUTTON */}
+                                            {/* Compact toggle button */}
                                             <button 
                                                 type="button"
                                                 onClick={() => toggleExpand(item.id)}
-                                                className="px-2 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded hover:bg-emerald-100 transition-colors flex items-center gap-1 mx-auto"
-                                                title={item.isExpanded ? "Collapse Details" : "Add Brand/Model/Warranty"}
+                                                className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                title={item.isExpanded ? "Hide details" : "Show details (Brand, Model, Warranty)"}
                                             >
-                                                {item.isExpanded ? 'Hide Details' : 'Show Details'}
-                                                {item.isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                                {item.isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">
@@ -808,11 +807,33 @@ export const QuoteBuilder = ({
     };
 
     // Handle Price Book item selection
+   // Handle Price Book item selection (Smart Replace)
     const handlePriceBookSelect = (lineItem) => {
-        setFormData(prev => ({
-            ...prev,
-            lineItems: [...prev.lineItems, { ...lineItem, id: Date.now() + Math.random(), isExpanded: true }]
-        }));
+        setFormData(prev => {
+            // Look for an empty row of the same type to replace
+            const emptyRowIndex = prev.lineItems.findIndex(item => 
+                item.type === lineItem.type && 
+                !item.description?.trim() && 
+                (!item.unitPrice || item.unitPrice === 0)
+            );
+            
+            if (emptyRowIndex !== -1) {
+                // Replace the empty row with the Price Book item
+                const newLineItems = [...prev.lineItems];
+                newLineItems[emptyRowIndex] = { 
+                    ...lineItem, 
+                    id: prev.lineItems[emptyRowIndex].id, // Keep same ID to avoid React key issues
+                    isExpanded: true // Expand so user can see what was added
+                };
+                return { ...prev, lineItems: newLineItems };
+            } else {
+                // No empty row found, add as new item
+                return {
+                    ...prev,
+                    lineItems: [...prev.lineItems, { ...lineItem, id: Date.now() + Math.random(), isExpanded: true }]
+                };
+            }
+        });
     };
 
     const handleSelectTemplate = (template) => {
