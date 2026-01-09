@@ -11,7 +11,7 @@ import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase, BadgeCheck, Award, CreditCard,
+    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
