@@ -71,6 +71,7 @@ import { JobScheduler } from '../jobs/JobScheduler';
 
 // Chat Service
 import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
+import { EstimateTemplates } from './components/EstimateTemplates';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
