@@ -11,7 +11,7 @@ import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
+    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp, Bell,
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
@@ -41,6 +41,7 @@ import { TeamManagement } from './components/TeamManagement';
 // NEW: Price Book
 import { PriceBook } from './components/PriceBook';
 import { ReportingDashboard } from './components/ReportingDashboard';
+import { NeedsAttention } from './components/NeedsAttention';
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
@@ -233,6 +234,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
             {/* INSIGHTS */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Insights</p>
+                <NavItem icon={Bell} label="Needs Attention" active={activeView === 'attention'} onClick={() => onNavigate('attention')} badge={needsAttentionCount > 0 ? needsAttentionCount : null} />
                 <NavItem icon={TrendingUp} label="Reports" active={activeView === 'reports'} onClick={() => onNavigate('reports')} />
             </div>
             
@@ -1329,10 +1331,43 @@ export const ContractorProApp = () => {
         ) || [];
     }, [jobs]);
 
-    const todaysJobs = useMemo(() => {
-        const today = new Date();
-        return scheduledJobs.filter(job => isSameDay(job.scheduledDate, today));
-    }, [scheduledJobs]);
+    // Calculate needs attention count for badge
+    const needsAttentionCount = useMemo(() => {
+        let count = 0;
+        
+        // Stale quotes (sent 7+ days ago, not viewed)
+        quotes?.forEach(q => {
+            if (q.status === 'sent' && q.sentAt) {
+                const days = Math.floor((new Date() - (q.sentAt.toDate ? q.sentAt.toDate() : new Date(q.sentAt))) / (1000 * 60 * 60 * 24));
+                if (days >= 7) count++;
+            }
+        });
+        
+        // Viewed but no response (3+ days)
+        quotes?.forEach(q => {
+            if (q.status === 'viewed' && q.viewedAt) {
+                const days = Math.floor((new Date() - (q.viewedAt.toDate ? q.viewedAt.toDate() : new Date(q.viewedAt))) / (1000 * 60 * 60 * 24));
+                if (days >= 3) count++;
+            }
+        });
+        
+        // Unscheduled jobs
+        jobs?.forEach(j => {
+            if (['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status)) {
+                count++;
+            }
+        });
+        
+        // Overdue invoices
+        invoices?.forEach(i => {
+            if (i.status === 'sent' && i.dueDate) {
+                const dueDate = i.dueDate.toDate ? i.dueDate.toDate() : new Date(i.dueDate);
+                if (new Date() > dueDate) count++;
+            }
+        });
+        
+        return count;
+    }, [quotes, jobs, invoices]);
 
     const hasTeam = profile?.scheduling?.teamType === 'team';
 
@@ -1546,6 +1581,9 @@ export const ContractorProApp = () => {
             case 'pricebook': return 'Price Book';
             case 'templates': return 'Estimate Templates';
             case 'reports': return 'Business Reports';
+            case 'reports': return 'Business Reports';
+            case 'attention': return 'Needs Attention';
+            case 'profile': return 'Profile';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -1873,6 +1911,21 @@ export const ContractorProApp = () => {
                             invoices={invoices}
                             customers={customers}
                             loading={quotesLoading || jobsLoading}
+                        />
+                    )}
+                    {/* Needs Attention */}
+                    {activeView === 'attention' && (
+                        <NeedsAttention
+                            quotes={quotes}
+                            jobs={jobs}
+                            invoices={invoices}
+                            evaluations={evaluations}
+                            onNavigate={(view, data) => {
+                                if (data?.quote) setSelectedQuote(data.quote);
+                                if (data?.job) setSelectedJob(data.job);
+                                setActiveView(view);
+                            }}
+                            variant="full"
                         />
                     )}
                     
