@@ -40,6 +40,7 @@ import { DispatchBoard } from './components/DispatchBoard';
 import { TeamManagement } from './components/TeamManagement';
 // NEW: Price Book
 import { PriceBook } from './components/PriceBook';
+import { ReportingDashboard } from './components/ReportingDashboard';
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
@@ -227,6 +228,12 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
+            </div>
+            
+            {/* INSIGHTS */}
+            <div className="pt-4 mt-4 border-t border-slate-100">
+                <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Insights</p>
+                <NavItem icon={TrendingUp} label="Reports" active={activeView === 'reports'} onClick={() => onNavigate('reports')} />
             </div>
             
             {/* ACCOUNT */}
@@ -1538,6 +1545,7 @@ export const ContractorProApp = () => {
             case 'customers': return 'Customers';
             case 'pricebook': return 'Price Book';
             case 'templates': return 'Estimate Templates';
+            case 'reports': return 'Business Reports';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -1853,6 +1861,16 @@ export const ContractorProApp = () => {
                                 }
                                 setActiveView('create-quote');
                             }}
+                        />
+                    )}
+                    {/* Reports Dashboard */}
+                    {activeView === 'reports' && (
+                        <ReportingDashboard
+                            quotes={quotes}
+                            jobs={jobs}
+                            invoices={invoices}
+                            customers={customers}
+                            loading={quotesLoading || jobsLoading}
                         />
                     )}
                     
