@@ -16,6 +16,8 @@ import toast from 'react-hot-toast';
 
 // NEW: Import the Google Maps hook
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
+// Price Book Integration
+import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
 
 // ============================================
 // UTILS
@@ -312,7 +314,9 @@ const LineItemsSection = ({
     depositRequired,
     depositType,
     depositValue,
-    onDepositChange
+    onDepositChange,
+    // Price Book Props
+    onOpenPriceBook
 }) => {
     const updateItem = (id, field, value) => {
         onUpdate(lineItems.map(item => 
@@ -352,6 +356,9 @@ const LineItemsSection = ({
                     Line Items
                 </h3>
                 <div className="flex items-center gap-2">
+                    {onOpenPriceBook && (
+                        <PriceBookButton onClick={onOpenPriceBook} />
+                    )}
                     <button 
                         type="button"
                         onClick={() => onAdd('material')}
@@ -739,6 +746,7 @@ export const QuoteBuilder = ({
     const [formData, setFormData] = useState(() => createDefaultFormState(quote, contractorSettings));
     const [showTemplates, setShowTemplates] = useState(false);
     const [errors, setErrors] = useState({});
+    const [showPriceBook, setShowPriceBook] = useState(false);
     // REMOVED: const [isEstimating, setIsEstimating] = useState(false);
     // REMOVED: const [durationEstimate, setDurationEstimate] = useState(null);
 
@@ -797,6 +805,14 @@ export const QuoteBuilder = ({
     
     const handleDepositChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    // Handle Price Book item selection
+    const handlePriceBookSelect = (lineItem) => {
+        setFormData(prev => ({
+            ...prev,
+            lineItems: [...prev.lineItems, { ...lineItem, id: Date.now() + Math.random(), isExpanded: true }]
+        }));
     };
 
     const handleSelectTemplate = (template) => {
@@ -1009,6 +1025,8 @@ export const QuoteBuilder = ({
                         depositType={formData.depositType}
                         depositValue={formData.depositValue}
                         onDepositChange={handleDepositChange}
+                        // Price Book Props
+                        onOpenPriceBook={() => setShowPriceBook(true)}
                     />
                     {(errors.lineItemsGeneric) && (
                         <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 flex items-center gap-2">
@@ -1110,6 +1128,16 @@ export const QuoteBuilder = ({
                     </div>
                 </div>
             </div>
+
+            {/* Price Book Picker Modal */}
+            {showPriceBook && (
+                <PriceBookPicker
+                    contractorId={contractorProfile?.id || contractorProfile?.uid}
+                    onSelect={handlePriceBookSelect}
+                    onClose={() => setShowPriceBook(false)}
+                    selectedItems={formData.lineItems.filter(item => item.priceBookItemId).map(item => item.priceBookItemId)}
+                />
+            )}
         </div>
     );
 };
