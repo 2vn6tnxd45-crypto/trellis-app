@@ -11,7 +11,7 @@ import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
+    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp, 
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
@@ -42,6 +42,8 @@ import { TeamManagement } from './components/TeamManagement';
 import { PriceBook } from './components/PriceBook';
 import { ReportingDashboard } from './components/ReportingDashboard';
 import { NeedsAttention } from './components/NeedsAttention';
+import { ExpenseTracker } from './components/ExpenseTracker';
+import { useExpenses } from './hooks/useExpenses';
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
@@ -229,6 +231,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
+                <NavItem icon={Receipt} label="Expenses" active={activeView === 'expenses'} onClick={() => onNavigate('expenses')} />
             </div>
             
             {/* INSIGHTS */}
@@ -1308,6 +1311,15 @@ export const ContractorProApp = () => {
         linkQuote
     } = useEvaluations(contractorId);
 
+    // Expense tracking
+    const {
+        expenses,
+        loading: expensesLoading,
+        addExpense,
+        editExpense,
+        removeExpense,
+    } = useExpenses(contractorId);
+
     // Derived data
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
@@ -1583,6 +1595,7 @@ export const ContractorProApp = () => {
             case 'reports': return 'Business Reports';
             case 'reports': return 'Business Reports';
             case 'attention': return 'Needs Attention';
+            case 'expenses': return 'Expense Tracker';
             case 'profile': return 'Profile';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
@@ -1927,6 +1940,18 @@ export const ContractorProApp = () => {
                                 setActiveView(view);
                             }}
                             variant="full"
+                        />
+                    )}
+
+                    {/* Expense Tracker */}
+                    {activeView === 'expenses' && (
+                        <ExpenseTracker
+                            expenses={expenses}
+                            jobs={jobs}
+                            loading={expensesLoading}
+                            onAddExpense={addExpense}
+                            onEditExpense={editExpense}
+                            onDeleteExpense={removeExpense}
                         />
                     )}
                     
