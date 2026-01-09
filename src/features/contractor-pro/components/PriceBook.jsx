@@ -538,6 +538,226 @@ const EmptyState = ({ onAddItem, onSeedStarters }) => (
 );
 
 // ============================================
+// PRICE BOOK BUTTON (for Quote Builder)
+// ============================================
+export const PriceBookButton = ({ onClick }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        className="px-3 py-1.5 text-sm bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 flex items-center gap-1.5 font-medium transition-colors"
+    >
+        <Sparkles size={14} />
+        Price Book
+    </button>
+);
+
+// ============================================
+// PRICE BOOK PICKER MODAL (for Quote Builder)
+// ============================================
+export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems = [] }) => {
+    const {
+        filteredItems,
+        favorites,
+        loading,
+        searchTerm,
+        selectedCategory,
+        setSearchTerm,
+        setSelectedCategory,
+        categories,
+        toLineItem,
+    } = usePriceBook(contractorId);
+
+    const [activeTab, setActiveTab] = useState('all');
+
+    // Get items based on active tab
+    const displayItems = useMemo(() => {
+        if (activeTab === 'favorites') return favorites;
+        return filteredItems;
+    }, [activeTab, favorites, filteredItems]);
+
+    // Handle item selection
+    const handleSelect = (item) => {
+        const lineItem = toLineItem(item);
+        onSelect(lineItem);
+        toast.success(`Added "${item.name}" to quote`);
+    };
+
+    // Check if item is already in quote
+    const isSelected = (itemId) => selectedItems.includes(itemId);
+
+    if (loading) {
+        return (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-2xl p-8">
+                    <Loader2 size={32} className="animate-spin text-emerald-600" />
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800">Add from Price Book</h2>
+                        <p className="text-sm text-slate-500">Click items to add them to your quote</p>
+                    </div>
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 hover:bg-slate-100 rounded-lg"
+                    >
+                        <X size={20} className="text-slate-400" />
+                    </button>
+                </div>
+
+                {/* Search & Tabs */}
+                <div className="p-4 border-b border-slate-100 space-y-3">
+                    {/* Search */}
+                    <div className="relative">
+                        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Search your price book..."
+                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                            autoFocus
+                        />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2"
+                            >
+                                <X size={16} className="text-slate-400" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setActiveTab('all')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                                activeTab === 'all'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'text-slate-500 hover:bg-slate-100'
+                            }`}
+                        >
+                            All Items
+                        </button>
+                        {favorites.length > 0 && (
+                            <button
+                                onClick={() => setActiveTab('favorites')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
+                                    activeTab === 'favorites'
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'text-slate-500 hover:bg-slate-100'
+                                }`}
+                            >
+                                <Star size={14} />
+                                Favorites
+                            </button>
+                        )}
+                        
+                        {/* Category filter */}
+                        <select
+                            value={selectedCategory || ''}
+                            onChange={(e) => setSelectedCategory(e.target.value || null)}
+                            className="ml-auto px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                        >
+                            <option value="">All Categories</option>
+                            {categories.map(cat => (
+                                <option key={cat.value} value={cat.value}>{cat.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Items List */}
+                <div className="flex-1 overflow-y-auto p-4">
+                    {displayItems.length === 0 ? (
+                        <div className="text-center py-12">
+                            <Package size={48} className="mx-auto text-slate-300 mb-4" />
+                            <p className="text-slate-500">
+                                {searchTerm ? 'No items match your search' : 'No items in your price book yet'}
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {displayItems.map(item => {
+                                const alreadyAdded = isSelected(item.id);
+                                const typeConfig = TYPE_CONFIG[item.type] || TYPE_CONFIG[ITEM_TYPES.MATERIAL];
+                                
+                                return (
+                                    <button
+                                        key={item.id}
+                                        onClick={() => !alreadyAdded && handleSelect(item)}
+                                        disabled={alreadyAdded}
+                                        className={`w-full p-3 rounded-xl border text-left transition-all ${
+                                            alreadyAdded
+                                                ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
+                                                : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="font-medium text-slate-800 truncate">
+                                                        {item.name}
+                                                    </span>
+                                                    {item.isFavorite && (
+                                                        <Star size={12} className="text-amber-500 fill-amber-500 shrink-0" />
+                                                    )}
+                                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${typeConfig.color}`}>
+                                                        {typeConfig.label}
+                                                    </span>
+                                                </div>
+                                                {item.description && (
+                                                    <p className="text-xs text-slate-500 truncate">{item.description}</p>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <span className="font-bold text-emerald-600">
+                                                    ${item.unitPrice?.toFixed(2)}
+                                                    {item.unit && item.unit !== 'each' && (
+                                                        <span className="text-xs text-slate-400">/{item.unit}</span>
+                                                    )}
+                                                </span>
+                                                {alreadyAdded ? (
+                                                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                                                        <Check size={14} />
+                                                        Added
+                                                    </span>
+                                                ) : (
+                                                    <Plus size={18} className="text-emerald-600" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-slate-100">
+                    <button
+                        onClick={onClose}
+                        className="w-full py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50"
+                    >
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // MAIN PRICE BOOK COMPONENT
 // ============================================
 export const PriceBook = ({ contractorId }) => {
