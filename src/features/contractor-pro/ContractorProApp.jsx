@@ -69,6 +69,7 @@ import { ContractorLeadDashboard } from '../marketplace';
 
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
+import { CancellationApprovalModal } from '../jobs/CancellationApprovalModal';
 
 // Job Completion Components - uncomment if available
 // import { JobCompletionForm } from '../jobs/components/completion';
@@ -312,11 +313,12 @@ const formatDate = (date) => {
 // ============================================
 // JOBS VIEW
 // ============================================
-const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
     
-    const activeJobs = jobs.filter(j => !['completed', 'cancelled'].includes(j.status));
+    const cancellationRequests = jobs.filter(j => j.status === 'cancellation_requested');
+    const activeJobs = jobs.filter(j => !['completed', 'cancelled', 'cancellation_requested'].includes(j.status));
     const completedJobs = jobs.filter(j => j.status === 'completed');
     const cancelledJobs = jobs.filter(j => j.status === 'cancelled');
     
@@ -432,7 +434,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
         );
     }
 
-    const totalJobs = activeJobs.length + completedJobs.length + cancelledJobs.length;
+    const totalJobs = cancellationRequests.length + activeJobs.length + completedJobs.length + cancelledJobs.length;
 
     return (
         <div className="space-y-6">
@@ -451,6 +453,54 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
                 </div>
             ) : (
                 <div className="space-y-6">
+                    {/* Cancellation Requests - URGENT */}
+                    {cancellationRequests.length > 0 && (
+                        <div className="space-y-3">
+                            <h2 className="text-sm font-bold text-red-600 uppercase tracking-wider flex items-center gap-2">
+                                <AlertTriangle size={16} />
+                                Cancellation Requests ({cancellationRequests.length})
+                            </h2>
+                            <div className="space-y-3">
+                                {cancellationRequests.map(job => (
+                                    <div 
+                                        key={job.id}
+                                        className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4"
+                                    >
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-800">
+                                                        Cancellation Requested
+                                                    </span>
+                                                    {job.jobNumber && (
+                                                        <span className="text-xs text-slate-400">#{job.jobNumber}</span>
+                                                    )}
+                                                </div>
+                                                <p className="font-bold text-slate-800 truncate">{job.title || job.serviceType || 'Job'}</p>
+                                                <p className="text-sm text-slate-500">{job.customer?.name || job.customerName || 'Customer'}</p>
+                                                {job.cancellationRequest?.reason && (
+                                                    <p className="text-sm text-amber-700 mt-2 italic">
+                                                        Reason: {job.cancellationRequest.reason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onReviewCancellation(job);
+                                                }}
+                                                className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 flex items-center gap-2 transition-colors"
+                                            >
+                                                <AlertTriangle size={14} />
+                                                Review
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     {/* Active Jobs */}
                     {activeJobs.length > 0 && (
                         <div className="space-y-3">
@@ -1322,6 +1372,7 @@ export const ContractorProApp = () => {
     // Job completion state
     const [completingJob, setCompletingJob] = useState(null);
     const [ratingHomeowner, setRatingHomeowner] = useState(null);
+    const [reviewingCancellation, setReviewingCancellation] = useState(null);
 
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -1761,6 +1812,7 @@ export const ContractorProApp = () => {
                             loading={jobsLoading}
                             onJobClick={handleJobClick}
                             onCompleteJob={handleCompleteJob}
+                            onReviewCancellation={setReviewingCancellation}
                         />
                     )}
 
@@ -2141,6 +2193,17 @@ export const ContractorProApp = () => {
                     onSuccess={() => {
                         setRatingHomeowner(null);
                         toast.success('Thanks for your feedback!');
+                    }}
+                />
+            )}
+            {/* Cancellation Approval Modal */}
+            {reviewingCancellation && (
+                <CancellationApprovalModal
+                    job={reviewingCancellation}
+                    onClose={() => setReviewingCancellation(null)}
+                    onSuccess={() => {
+                        setReviewingCancellation(null);
+                        toast.success('Cancellation handled');
                     }}
                 />
             )}
