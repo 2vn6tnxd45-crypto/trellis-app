@@ -181,7 +181,7 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
 // ============================================
 // SIDEBAR
 // ============================================
-const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount, completedEvalsCount }) => (
+const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount, completedEvalsCount, needsAttentionCount }) => (
     <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0">
         {/* Logo */}
         <div className="p-6 border-b border-slate-100">
@@ -1627,6 +1627,7 @@ export const ContractorProApp = () => {
                 unscheduledJobsCount={unscheduledJobsCount}
                 unreadMessageCount={unreadMessageCount}
                 completedEvalsCount={completedEvaluations?.length || 0}
+                needsAttentionCount={needsAttentionCount}
             />
             
             <div className="flex-1 flex flex-col min-h-screen pb-20 lg:pb-0">
