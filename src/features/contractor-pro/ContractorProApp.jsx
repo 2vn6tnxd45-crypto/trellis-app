@@ -14,7 +14,7 @@ import {
     Briefcase, BadgeCheck, Award, CreditCard, TrendingUp, 
     Scroll as ScrollIcon,
     Receipt,
-    Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
+    Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
     ClipboardCheck, Camera, Package
 } from 'lucide-react';
