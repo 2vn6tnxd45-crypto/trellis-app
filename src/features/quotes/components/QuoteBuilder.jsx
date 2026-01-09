@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    ArrowLeft, Save, Send, User, FileText, Calculator,
+    ArrowLeft, Sparkles, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
     Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer
 } from 'lucide-react';
@@ -737,6 +737,8 @@ export const QuoteBuilder = ({
     onBack, 
     onSave, 
     onSend,
+    onSaveAsTemplate,
+    onDuplicate,
     isSaving = false,
     isSending = false
 }) => {
@@ -744,6 +746,9 @@ export const QuoteBuilder = ({
     const isEditing = !!quote;
     const [formData, setFormData] = useState(() => createDefaultFormState(quote, contractorSettings));
     const [showTemplates, setShowTemplates] = useState(false);
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [templateName, setTemplateName] = useState('');
+    const [savingTemplate, setSavingTemplate] = useState(false);
     const [errors, setErrors] = useState({});
     const [showPriceBook, setShowPriceBook] = useState(false);
     // REMOVED: const [isEstimating, setIsEstimating] = useState(false);
@@ -921,6 +926,139 @@ export const QuoteBuilder = ({
             await onSend(formData);
         } catch (error) {
             toast.error('Failed to send: ' + error.message);
+        }
+    };
+
+    // Handle Print Preview
+    const handlePrintPreview = () => {
+        // Create a printable version of the quote
+        const printContent = `
+            <html>
+            <head>
+                <title>Quote - ${formData.title || 'Untitled'}</title>
+                <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+                    h1 { color: #1e293b; font-size: 24px; margin-bottom: 8px; }
+                    h2 { color: #475569; font-size: 18px; margin-top: 24px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+                    .customer { background: #f8fafc; padding: 16px; border-radius: 8px; margin: 16px 0; }
+                    .customer p { margin: 4px 0; color: #475569; }
+                    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+                    th { text-align: left; padding: 12px; background: #f1f5f9; font-size: 12px; text-transform: uppercase; color: #64748b; }
+                    td { padding: 12px; border-bottom: 1px solid #e2e8f0; }
+                    .total-row { font-weight: bold; background: #f0fdf4; }
+                    .total-row td { color: #059669; }
+                    .notes { background: #fffbeb; padding: 16px; border-radius: 8px; margin: 16px 0; }
+                    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; color: #94a3b8; font-size: 12px; }
+                </style>
+            </head>
+            <body>
+                <h1>${formData.title || 'Quote'}</h1>
+                <p style="color: #64748b;">Quote for ${formData.customer?.name || 'Customer'}</p>
+                
+                <div class="customer">
+                    <p><strong>${formData.customer?.name || ''}</strong></p>
+                    <p>${formData.customer?.email || ''}</p>
+                    <p>${formData.customer?.phone || ''}</p>
+                    <p>${formData.customer?.address || ''}</p>
+                </div>
+                
+                <h2>Line Items</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Qty</th>
+                            <th>Unit Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${formData.lineItems.map(item => `
+                            <tr>
+                                <td>${item.description || 'Item'}</td>
+                                <td>${item.quantity || 1}</td>
+                                <td>$${(item.unitPrice || 0).toFixed(2)}</td>
+                                <td>$${((item.quantity || 1) * (item.unitPrice || 0)).toFixed(2)}</td>
+                            </tr>
+                        `).join('')}
+                        <tr class="total-row">
+                            <td colspan="3">Total</td>
+                            <td>$${formData.lineItems.reduce((sum, item) => sum + ((item.quantity || 1) * (item.unitPrice || 0)), 0).toFixed(2)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                ${formData.notes ? `<div class="notes"><strong>Notes:</strong><br/>${formData.notes}</div>` : ''}
+                ${formData.clientWarranty ? `<p><strong>Warranty:</strong> ${formData.clientWarranty}</p>` : ''}
+                ${formData.terms ? `<p><strong>Terms:</strong> ${formData.terms}</p>` : ''}
+                
+                <div class="footer">
+                    <p>Generated on ${new Date().toLocaleDateString()}</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.print();
+    };
+
+    // Handle Duplicate Quote
+    const handleDuplicateQuote = () => {
+        if (onDuplicate) {
+            onDuplicate(formData);
+            toast.success('Quote duplicated - edit the copy below');
+        } else {
+            // If no handler provided, just clear the ID to treat as new
+            setFormData(prev => ({
+                ...prev,
+                id: null,
+                quoteNumber: null,
+                status: 'draft'
+            }));
+            toast.success('Quote duplicated - this is now a new quote');
+        }
+    };
+
+    // Handle Save as Template
+    const handleSaveAsTemplate = async () => {
+        if (!templateName.trim()) {
+            toast.error('Please enter a template name');
+            return;
+        }
+        
+        if (!onSaveAsTemplate) {
+            toast.error('Save as template not available');
+            return;
+        }
+        
+        setSavingTemplate(true);
+        try {
+            await onSaveAsTemplate({
+                name: templateName.trim(),
+                category: 'general',
+                lineItems: formData.lineItems.map(item => ({
+                    type: item.type,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    brand: item.brand,
+                    model: item.model,
+                    warranty: item.warranty,
+                })),
+                defaultNotes: formData.notes,
+                defaultTerms: formData.terms,
+                defaultWarranty: formData.clientWarranty,
+            });
+            toast.success(`Template "${templateName}" saved!`);
+            setShowSaveTemplateModal(false);
+            setTemplateName('');
+        } catch (error) {
+            toast.error('Failed to save template: ' + error.message);
+        } finally {
+            setSavingTemplate(false);
         }
     };
 
@@ -1137,16 +1275,96 @@ export const QuoteBuilder = ({
                     <div className="bg-white rounded-2xl border border-slate-200 p-4">
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Quick Actions</p>
                         <div className="space-y-2">
-                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors">
+                            {onSaveAsTemplate && (
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowSaveTemplateModal(true)}
+                                    className="w-full p-3 text-left text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-2 transition-colors"
+                                >
+                                    <Sparkles size={16} className="text-emerald-600" />
+                                    Save as Template
+                                </button>
+                            )}
+                            <button 
+                                type="button"
+                                onClick={handleDuplicateQuote}
+                                className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors"
+                            >
                                 <Copy size={16} className="text-slate-400" />
                                 Duplicate Quote
                             </button>
-                            <button className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors">
+                            <button 
+                                type="button"
+                                onClick={handlePrintPreview}
+                                className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors"
+                            >
                                 <Printer size={16} className="text-slate-400" />
                                 Print Preview
                             </button>
                         </div>
                     </div>
+
+                    {/* Save as Template Modal */}
+                    {showSaveTemplateModal && (
+                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">Save as Template</h3>
+                                <p className="text-sm text-slate-500 mb-4">
+                                    Save this quote's line items as a reusable template for future quotes.
+                                </p>
+                                
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
+                                        Template Name *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={templateName}
+                                        onChange={(e) => setTemplateName(e.target.value)}
+                                        placeholder="e.g., AC Installation, HVAC Tune-Up"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        autoFocus
+                                    />
+                                </div>
+                                
+                                <div className="p-3 bg-slate-50 rounded-xl mb-4">
+                                    <p className="text-xs font-medium text-slate-500 mb-2">Will include:</p>
+                                    <ul className="text-sm text-slate-600 space-y-1">
+                                        <li>• {formData.lineItems.length} line item{formData.lineItems.length !== 1 ? 's' : ''}</li>
+                                        {formData.notes && <li>• Notes</li>}
+                                        {formData.clientWarranty && <li>• Warranty terms</li>}
+                                        {formData.terms && <li>• Terms & conditions</li>}
+                                    </ul>
+                                </div>
+                                
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowSaveTemplateModal(false);
+                                            setTemplateName('');
+                                        }}
+                                        className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-slate-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleSaveAsTemplate}
+                                        disabled={savingTemplate || !templateName.trim()}
+                                        className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                                    >
+                                        {savingTemplate ? (
+                                            <Loader2 size={18} className="animate-spin" />
+                                        ) : (
+                                            <Sparkles size={18} />
+                                        )}
+                                        Save Template
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
