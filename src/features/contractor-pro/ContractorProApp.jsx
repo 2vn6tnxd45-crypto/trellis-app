@@ -226,6 +226,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
+                <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
             </div>
             
             {/* ACCOUNT */}
@@ -1263,7 +1264,12 @@ export const ContractorProApp = () => {
     
     // Quote hooks
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
-    const { templates: quoteTemplates } = useQuoteTemplates(user?.uid);
+    const { 
+        templates: quoteTemplates,
+        createTemplate,
+        updateTemplate,
+        removeTemplate 
+    } = useQuoteTemplates(user?.uid);
     const { 
     create: createQuoteFn,
     update: updateQuoteFn,
@@ -1531,6 +1537,7 @@ export const ContractorProApp = () => {
             case 'invitations': return 'Invitations';
             case 'customers': return 'Customers';
             case 'pricebook': return 'Price Book';
+            case 'templates': return 'Estimate Templates';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -1819,6 +1826,42 @@ export const ContractorProApp = () => {
                     {activeView === 'pricebook' && (
                         <PriceBook contractorId={contractorId} />
                     )}
+
+                    {/* Estimate Templates View */}
+                    {activeView === 'templates' && (
+                        <EstimateTemplates
+                            contractorId={contractorId}
+                            templates={quoteTemplates}
+                            loading={false}
+                            createTemplate={createTemplate}
+                            updateTemplate={updateTemplate}
+                            removeTemplate={removeTemplate}
+                            onNavigateToQuote={(view, data) => {
+                                if (data?.template) {
+                                    setSelectedQuote({ fromTemplate: true, ...data.template });
+                                }
+                                setActiveView('create-quote');
+                            }}
+                        />
+                    )}
+```
+
+---
+
+## Summary Checklist for Step 4
+
+- [ ] **Edit 4A:** Expand `useQuoteTemplates` to include `createTemplate`, `updateTemplate`, `removeTemplate`
+- [ ] **Edit 4B:** Add Templates NavItem in sidebar Management section
+- [ ] **Edit 4C:** Add `case 'templates'` to `getViewTitle()` function
+- [ ] **Edit 4D:** Add the `{activeView === 'templates' && ...}` rendering block
+
+---
+
+## File Placement Reminder
+
+Make sure you copy the `EstimateTemplates.jsx` file I created earlier to:
+```
+src/features/quotes/components/EstimateTemplates.jsx
                     
                     {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
