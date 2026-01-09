@@ -16,7 +16,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera
+    ClipboardCheck, Camera, Package
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -38,6 +38,8 @@ import { LogoUpload } from './components/LogoUpload';
 // NEW: Dispatch Board and Team Management
 import { DispatchBoard } from './components/DispatchBoard';
 import { TeamManagement } from './components/TeamManagement';
+// NEW: Price Book
+import { PriceBook } from './components/PriceBook';
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
@@ -222,6 +224,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
+                <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
             </div>
             
             {/* ACCOUNT */}
@@ -1526,6 +1529,7 @@ export const ContractorProApp = () => {
             case 'create-invoice': return 'New Invoice';
             case 'invitations': return 'Invitations';
             case 'customers': return 'Customers';
+            case 'pricebook': return 'Price Book';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -1809,6 +1813,11 @@ export const ContractorProApp = () => {
         contractorProfile={profile?.profile}
     />
 )}
+
+                    {/* Price Book View */}
+                    {activeView === 'pricebook' && (
+                        <PriceBook contractorId={contractorId} />
+                    )}
                     
                     {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
