@@ -1745,6 +1745,11 @@ export const ContractorProApp = () => {
                             onBack={handleQuoteBack}
                             onSave={handleSaveQuote}
                             onSend={handleSendQuote}
+                            onSaveAsTemplate={createTemplate}
+                            onDuplicate={(quoteData) => {
+                                setSelectedQuote({ ...quoteData, id: null, quoteNumber: null, status: 'draft' });
+                                toast.success('Quote duplicated');
+                            }}
                             isSaving={isCreatingQuote || isUpdatingQuote}
                             isSending={isSendingQuote}
                         />
@@ -1770,6 +1775,12 @@ export const ContractorProApp = () => {
                             onBack={handleQuoteBack}
                             onSave={handleSaveQuote}
                             onSend={handleSendQuote}
+                            onSaveAsTemplate={createTemplate}
+                            onDuplicate={(quoteData) => {
+                                setSelectedQuote({ ...quoteData, id: null, quoteNumber: null, status: 'draft' });
+                                setActiveView('create-quote');
+                                toast.success('Quote duplicated');
+                            }}
                             isSaving={isUpdatingQuote}
                             isSending={isSendingQuote}
                         />
