@@ -1866,6 +1866,8 @@ export const ContractorProApp = () => {
                     {/* Reports Dashboard */}
                     {activeView === 'reports' && (
                         <ReportingDashboard
+                            contractorId={contractorId}
+                            profile={profile}
                             quotes={quotes}
                             jobs={jobs}
                             invoices={invoices}
