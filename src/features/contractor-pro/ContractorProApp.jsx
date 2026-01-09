@@ -309,15 +309,23 @@ const formatDate = (date) => {
 // ============================================
 // JOBS VIEW
 // ============================================
+// ============================================
+// JOBS VIEW
+// ============================================
 const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
+    const [showCompleted, setShowCompleted] = useState(true);
+    const [showCancelled, setShowCancelled] = useState(false);
+    
     const activeJobs = jobs.filter(j => !['completed', 'cancelled'].includes(j.status));
     const completedJobs = jobs.filter(j => j.status === 'completed');
+    const cancelledJobs = jobs.filter(j => j.status === 'cancelled');
     
     const getStatusColor = (status) => {
         switch (status) {
             case 'scheduled': return 'bg-blue-100 text-blue-700';
             case 'in_progress': return 'bg-amber-100 text-amber-700';
             case 'completed': return 'bg-emerald-100 text-emerald-700';
+            case 'cancelled': return 'bg-slate-100 text-slate-500';
             case 'pending_schedule': 
             case 'slots_offered':
             case 'quoted':
@@ -336,12 +344,84 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
             case 'scheduled': return 'Scheduled';
             case 'in_progress': return 'In Progress';
             case 'completed': return 'Completed';
+            case 'cancelled': return 'Cancelled';
             case 'quoted': return 'Quote Accepted';
             case 'accepted': return 'Needs Scheduling';
             case 'pending_completion_approval': return 'Pending Approval';
             case 'completion_rejected': return 'Needs Resubmission';
             default: return status;
         }
+    };
+
+    const JobCard = ({ job }) => {
+        const showCompleteButton = job.status === 'scheduled' || job.status === 'in_progress';
+        const showResubmitButton = job.status === 'completion_rejected';
+        const isInactive = ['completed', 'cancelled'].includes(job.status);
+        
+        return (
+            <div 
+                onClick={() => onJobClick(job)}
+                className={`bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
+            >
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusColor(job.status)}`}>
+                                {getStatusLabel(job.status)}
+                            </span>
+                            {job.jobNumber && (
+                                <span className="text-xs text-slate-400">#{job.jobNumber}</span>
+                            )}
+                        </div>
+                        <p className="font-bold text-slate-800 truncate">{job.title || job.serviceType || 'Job'}</p>
+                        <p className="text-sm text-slate-500">{job.customer?.name || job.customerName || 'Customer'}</p>
+                        {job.scheduledDate && (
+                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <Calendar size={12} />
+                                {formatDate(job.scheduledDate)}
+                                {job.scheduledTime && ` at ${job.scheduledTime}`}
+                            </p>
+                        )}
+                        {job.completedAt && (
+                            <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                                <CheckCircle size={12} />
+                                Completed {formatDate(job.completedAt)}
+                            </p>
+                        )}
+                    </div>
+                    
+                    {job.total && (
+                        <p className="font-bold text-slate-800">{formatCurrency(job.total)}</p>
+                    )}
+                    
+                    {showCompleteButton && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCompleteJob(job);
+                            }}
+                            className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
+                        >
+                            <ClipboardCheck size={12} />
+                            Complete
+                        </button>
+                    )}
+                    
+                    {showResubmitButton && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCompleteJob(job);
+                            }}
+                            className="ml-auto px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 flex items-center gap-1.5 transition-colors"
+                        >
+                            <AlertTriangle size={12} />
+                            Resubmit
+                        </button>
+                    )}
+                </div>
+            </div>
+        );
     };
 
     if (loading) {
@@ -352,81 +432,76 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob }) => {
         );
     }
 
+    const totalJobs = activeJobs.length + completedJobs.length + cancelledJobs.length;
+
     return (
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
-                <p className="text-slate-500">Active jobs and history</p>
+                <p className="text-slate-500">
+                    {activeJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
+                </p>
             </div>
 
-            {activeJobs.length === 0 && completedJobs.length === 0 ? (
+            {totalJobs === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                     <Briefcase className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                     <h3 className="font-bold text-slate-800 text-lg mb-2">No Jobs Yet</h3>
                     <p className="text-slate-500">Jobs from accepted quotes will appear here.</p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {activeJobs.map(job => {
-                        const showCompleteButton = job.status === 'scheduled' || job.status === 'in_progress';
-                        const showResubmitButton = job.status === 'completion_rejected';
-                        
-                        return (
-                            <div 
-                                key={job.id}
-                                onClick={() => onJobClick(job)}
-                                className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+                <div className="space-y-6">
+                    {/* Active Jobs */}
+                    {activeJobs.length > 0 && (
+                        <div className="space-y-3">
+                            <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                                Active Jobs ({activeJobs.length})
+                            </h2>
+                            {activeJobs.map(job => (
+                                <JobCard key={job.id} job={job} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Completed Jobs */}
+                    {completedJobs.length > 0 && (
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setShowCompleted(!showCompleted)}
+                                className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
                             >
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getStatusColor(job.status)}`}>
-                                                {getStatusLabel(job.status)}
-                                            </span>
-                                            {job.jobNumber && (
-                                                <span className="text-xs text-slate-400">#{job.jobNumber}</span>
-                                            )}
-                                        </div>
-                                        <p className="font-bold text-slate-800 truncate">{job.title || job.serviceType || 'Job'}</p>
-                                        <p className="text-sm text-slate-500">{job.customer?.name || job.customerName || 'Customer'}</p>
-                                        {job.scheduledDate && (
-                                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                                <Calendar size={12} />
-                                                {formatDate(job.scheduledDate)}
-                                                {job.scheduledTime && ` at ${job.scheduledTime}`}
-                                            </p>
-                                        )}
-                                    </div>
-                                    
-                                    {showCompleteButton && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onCompleteJob(job);
-                                            }}
-                                            className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
-                                        >
-                                            <ClipboardCheck size={12} />
-                                            Complete
-                                        </button>
-                                    )}
-                                    
-                                    {showResubmitButton && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onCompleteJob(job);
-                                            }}
-                                            className="ml-auto px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-bold hover:bg-amber-600 flex items-center gap-1.5 transition-colors"
-                                        >
-                                            <AlertTriangle size={12} />
-                                            Resubmit Completion
-                                        </button>
-                                    )}
+                                {showCompleted ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                Completed Jobs ({completedJobs.length})
+                            </button>
+                            {showCompleted && (
+                                <div className="space-y-3">
+                                    {completedJobs.map(job => (
+                                        <JobCard key={job.id} job={job} />
+                                    ))}
                                 </div>
-                            </div>
-                        );
-                    })}
+                            )}
+                        </div>
+                    )}
+
+                    {/* Cancelled Jobs */}
+                    {cancelledJobs.length > 0 && (
+                        <div className="space-y-3">
+                            <button
+                                onClick={() => setShowCancelled(!showCancelled)}
+                                className="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-wider hover:text-slate-600 transition-colors"
+                            >
+                                {showCancelled ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                Cancelled Jobs ({cancelledJobs.length})
+                            </button>
+                            {showCancelled && (
+                                <div className="space-y-3">
+                                    {cancelledJobs.map(job => (
+                                        <JobCard key={job.id} job={job} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
