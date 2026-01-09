@@ -997,20 +997,16 @@ export const ReportingDashboard = ({
                 </div>
             </div>
 
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Top Row: Goal + KPIs */}
+            {/* Top Row: Goal + KPIs */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
                 {/* Goal Tracker - Compact */}
-                <div className="lg:col-span-1">
-                    <GoalTracker
-                        contractorId={contractorId}
-                        profile={profile}
-                        quotes={quotes}
-                        jobs={jobs}
-                        variant="compact"
-                    />
-                </div>
+                <GoalTracker
+                    contractorId={contractorId}
+                    profile={profile}
+                    quotes={quotes}
+                    jobs={jobs}
+                    variant="compact"
+                />
                 
                 {/* KPI Cards */}
                 <KPICard
@@ -1034,7 +1030,6 @@ export const ReportingDashboard = ({
                     subValue={`${kpis.activeJobs} in progress`}
                     color="purple"
                 />
-            </div>
             </div>
 
             {/* Pending Revenue Banner */}
