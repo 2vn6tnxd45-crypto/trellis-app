@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    ArrowLeft, Sparkles, Save, Send, User, FileText, Calculator,
+    ArrowLeft, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
     Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer
 } from 'lucide-react';
