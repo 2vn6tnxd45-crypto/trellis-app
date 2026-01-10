@@ -14,6 +14,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+import { StripeConnectCard } from './StripeConnectCard';
 import { googleMapsApiKey } from '../../../config/constants';
 
 // Default working hours
@@ -607,6 +608,12 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                     </div>
                 </div>
             </SettingsSection>
+
+            {/* Stripe Connect - Payment Processing */}
+            <StripeConnectCard 
+                contractorId={contractorId} 
+                profile={profile} 
+            />
 
             {/* Home Base */}
             <SettingsSection title="Home Base Location" icon={MapPin}>
