@@ -307,6 +307,10 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             contractorPhone: contractorProfile?.phone || null,
             contractorEmail: contractorProfile?.email || null,
             
+            // Stripe info for payment processing on job completion
+            stripeAccountId: contractorSnap.exists() ? contractorSnap.data().stripe?.accountId : null,
+            stripeReady: contractorSnap.exists() ? (contractorSnap.data().stripe?.isComplete && contractorSnap.data().stripe?.chargesEnabled) : false,
+            
             // Customer info (copied from quote)
             customer: {
                 name: quote.customer?.name || '',
@@ -584,9 +588,15 @@ export async function getQuoteByShareToken(shareToken) {
     const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
     const contractorSnap = await getDoc(contractorRef);
     
+    // Get both profile and stripe data for payment processing
+    const contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
+    
     return {
         quote: { id: quoteSnap.id, ...quoteSnap.data() },
-        contractor: contractorSnap.exists() ? contractorSnap.data().profile : null,
+        contractor: contractorData ? {
+            ...contractorData.profile,
+            stripe: contractorData.stripe || null
+        } : null,
         contractorId
     };
 }
