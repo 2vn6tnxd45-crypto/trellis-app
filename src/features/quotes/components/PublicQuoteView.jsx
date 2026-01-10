@@ -38,6 +38,7 @@ import {
 } from '../lib/quoteService';
 import { QuoteAuthScreen } from './QuoteAuthScreen';
 import toast from 'react-hot-toast';
+import { createPaymentCheckout, formatCurrency as formatStripeCurrency } from '../../../lib/stripeService';
 
 // ============================================
 // HELPERS
@@ -649,7 +650,9 @@ const QuoteContent = ({
     onSaveToKrib,
     isSaving,
     isAccepting,
-    alreadyClaimed
+    alreadyClaimed,
+    onPayDeposit,
+    isProcessingPayment
 }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
@@ -826,10 +829,28 @@ const QuoteContent = ({
                         </div>
                         
                         {quote.depositRequired && quote.depositAmount > 0 && (
-                            <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                                <p className="text-sm text-amber-800">
-                                    <strong>Deposit Required:</strong> {formatCurrency(quote.depositAmount)} due upon acceptance
-                                </p>
+                            <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-bold text-amber-800">Deposit Required</p>
+                                        <p className="text-xs text-amber-700 mt-1">
+                                            {formatCurrency(quote.depositAmount)} due upon acceptance
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-2xl font-bold text-amber-800">
+                                            {formatCurrency(quote.depositAmount)}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                {/* Show payment status if already paid */}
+                                {quote.payment?.depositPaid && (
+                                    <div className="mt-3 flex items-center gap-2 text-emerald-700 bg-emerald-100 px-3 py-2 rounded-lg">
+                                        <CheckCircle size={16} />
+                                        <span className="text-sm font-medium">Deposit Paid</span>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -943,20 +964,38 @@ const QuoteContent = ({
                                 Decline
                             </button>
                             
-                            <button
-                                onClick={onAccept}
-                                disabled={isAccepting}
-                                className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                                {isAccepting ? (
-                                    <Loader2 className="h-5 w-5 animate-spin" />
-                                ) : (
-                                    <>
-                                        <CheckCircle size={18} />
-                                        Accept
-                                    </>
-                                )}
-                            </button>
+                            {/* Accept with Deposit Payment */}
+                            {quote.depositRequired && quote.depositAmount > 0 && contractor?.stripe?.accountId && contractor?.stripe?.isComplete ? (
+                                <button
+                                    onClick={onPayDeposit}
+                                    disabled={isAccepting || isProcessingPayment}
+                                    className="flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isProcessingPayment ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <DollarSign size={18} />
+                                            Accept & Pay {formatCurrency(quote.depositAmount)}
+                                        </>
+                                    )}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={onAccept}
+                                    disabled={isAccepting}
+                                    className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {isAccepting ? (
+                                        <Loader2 className="h-5 w-5 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <CheckCircle size={18} />
+                                            Accept
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                         
                         <p className="text-center text-xs text-slate-400 mt-3">
@@ -991,6 +1030,7 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [pendingAction, setPendingAction] = useState(null); // 'save' | 'accept'
     const [isClaiming, setIsClaiming] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
     const [alreadyClaimed, setAlreadyClaimed] = useState(false);
     
     // Property State
@@ -1259,6 +1299,45 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         setShowPropertyModal(true);
     };
 
+    // Handle Pay Deposit (Accept + Pay)
+    const handlePayDeposit = async () => {
+        if (!user) {
+            setPendingAction('accept');
+            setAuthAction('accept');
+            setShowAuth(true);
+            return;
+        }
+
+        setIsProcessingPayment(true);
+        
+        try {
+            // First accept the quote
+            await acceptQuote(data.contractorId, data.quote.id);
+            
+            // Then redirect to Stripe Checkout for deposit
+            const checkoutResult = await createPaymentCheckout({
+                stripeAccountId: data.contractor?.stripe?.accountId,
+                amount: data.quote.depositAmount,
+                type: 'deposit',
+                quoteId: data.quote.id,
+                jobId: null, // Job will be created, but we don't have ID yet
+                contractorId: data.contractorId,
+                title: data.quote.title || 'Service Quote',
+                description: `Deposit for Quote #${data.quote.quoteNumber}`,
+                customerEmail: user.email || data.quote.customer?.email,
+                customerName: data.quote.customer?.name
+            });
+            
+            // Redirect to Stripe Checkout
+            window.location.href = checkoutResult.checkoutUrl;
+            
+        } catch (err) {
+            console.error('Error processing payment:', err);
+            toast.error(err.message || 'Failed to process payment. Please try again.');
+            setIsProcessingPayment(false);
+        }
+    };
+
     // Handle Accept Quote button click
     const handleAccept = async () => {
         if (!user) {
@@ -1342,6 +1421,8 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                 isSaving={isClaiming}
                 isAccepting={isAccepting}
                 alreadyClaimed={alreadyClaimed}
+                onPayDeposit={handlePayDeposit}
+                isProcessingPayment={isProcessingPayment}
             />
         </>
     );
