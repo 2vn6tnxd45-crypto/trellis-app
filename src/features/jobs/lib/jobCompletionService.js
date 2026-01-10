@@ -393,49 +393,6 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                 ],
                 imageUrl: finalItem.photos?.[0]?.url || finalItem.attachments?.[0]?.url || ''
             };
-```
-
----
-
-## Summary of Changes
-
-| Edit | What It Does |
-|------|--------------|
-| 1 | Adds three helper functions: `getShortestFrequencyFromTasks()`, `processMaintenanceTasks()`, `processWarrantyDetails()` |
-| 2 | Updates house record creation to use processed tasks with `nextDueDate`, calculate frequency from tasks, and track inventory intent IDs |
-
----
-
-## What Happens Now - The Complete Flow
-
-After these changes, here's the full journey:
-```
-1. QUOTE BUILDER
-   └─ Contractor toggles "Add to Home Record" on line item
-   └─ inventoryIntent created with maintenance tasks
-   └─ Saved to quote.inventoryIntents[]
-
-2. QUOTE ACCEPTED
-   └─ inventoryIntents[] copied to job document
-
-3. JOB COMPLETION FORM
-   └─ Items pre-populated from inventoryIntents
-   └─ Contractor sees maintenance tasks, adds serial number
-   └─ Submits completion
-
-4. HOMEOWNER ACCEPTS
-   └─ acceptJobCompletion() runs
-   └─ Each item becomes a house_record with:
-      ├─ Full maintenance tasks with nextDueDate
-      ├─ Warranty details with startDate
-      ├─ Contractor info for "Book Again"
-      └─ Source tracking (inventoryIntentId, sourceQuoteId)
-
-5. HOMEOWNER DASHBOARD
-   └─ Maintenance reminders fire based on nextDueDate
-   └─ "Book ABC HVAC Again" button appears
-   └─ Warranty Center shows coverage status
-            
             const newRecordRef = doc(recordsRef);
             batch.set(newRecordRef, recordData);
             importedRecordIds.push(newRecordRef.id);
