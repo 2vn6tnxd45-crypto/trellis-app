@@ -117,6 +117,20 @@ export async function createQuote(contractorId, quoteData) {
         clientWarranty: quoteData.clientWarranty || '',
         terms: quoteData.terms || 'Quote valid for 14 days.',
         estimatedDuration: quoteData.estimatedDuration || '',
+        
+        // FINANCING: Ready for future integration with GreenSky, Wisetack, Hearth, etc.
+        financing: {
+            offered: false,
+            status: 'not_offered',  // not_offered | offered | applied | approved | declined | funded
+            provider: null,
+            applicationId: null,
+            approvedAmount: null,
+            terms: null,            // { apr, termMonths, monthlyPayment }
+            appliedAt: null,
+            approvedAt: null,
+            fundedAt: null
+        },
+        
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         expiresAt: quoteData.expiresAt || null,
@@ -319,10 +333,24 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             inventoryIntents: quote.inventoryIntents || [],
             
             // Financials
+            // Financials
             subtotal: quote.subtotal || 0,
             taxRate: quote.taxRate || 0,
             taxAmount: quote.taxAmount || 0,
             total: quote.total || 0,
+            
+            // Financing (carried from quote)
+            financing: quote.financing || {
+                offered: false,
+                status: 'not_offered',
+                provider: null,
+                applicationId: null,
+                approvedAmount: null,
+                terms: null,
+                appliedAt: null,
+                approvedAt: null,
+                fundedAt: null
+            },
             
             // Status - PENDING_SCHEDULE so homeowner sees it in Active Projects
             status: JOB_STATUSES.PENDING_SCHEDULE,
