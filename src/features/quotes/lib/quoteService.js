@@ -74,6 +74,20 @@ export async function createQuote(contractorId, quoteData) {
 
     const quoteRef = doc(collection(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION));
     
+    // Extract inventory intents from line items that have "Add to Home Record" enabled
+    const inventoryIntents = (quoteData.lineItems || [])
+        .filter(item => item.addToHomeRecord && item.inventoryIntent)
+        .map(item => ({
+            ...item.inventoryIntent,
+            linkedLineItemId: item.id,
+            // Sync key fields from line item to intent
+            item: item.inventoryIntent.item || item.description || '',
+            brand: item.inventoryIntent.brand || item.brand || '',
+            model: item.inventoryIntent.model || item.model || '',
+            warranty: item.inventoryIntent.warranty || item.warranty || '',
+            cost: (item.quantity || 1) * (item.unitPrice || 0),
+        }));
+
     await setDoc(quoteRef, {
         id: quoteRef.id,
         quoteNumber,
@@ -88,6 +102,8 @@ export async function createQuote(contractorId, quoteData) {
         customerId: quoteData.customerId || null,
         title: quoteData.title || '',
         lineItems: quoteData.lineItems || [],
+        // NEW: Store inventory intents separately for easy access
+        inventoryIntents: inventoryIntents,
         subtotal,
         taxRate: quoteData.taxRate || 0,
         taxAmount,
@@ -100,6 +116,7 @@ export async function createQuote(contractorId, quoteData) {
         exclusions: quoteData.exclusions || '',
         clientWarranty: quoteData.clientWarranty || '',
         terms: quoteData.terms || 'Quote valid for 14 days.',
+        estimatedDuration: quoteData.estimatedDuration || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         expiresAt: quoteData.expiresAt || null,
@@ -297,6 +314,10 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             description: quote.notes || '',
             lineItems: quote.lineItems || [],
             
+            // INVENTORY INTENTS: Items that will become home records on completion
+            // These flow from Quote → Job → Completion → House Record
+            inventoryIntents: quote.inventoryIntents || [],
+            
             // Financials
             subtotal: quote.subtotal || 0,
             taxRate: quote.taxRate || 0,
@@ -309,7 +330,7 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             // Scheduling (to be filled later)
             scheduledDate: null,
             scheduledTime: null,
-            estimatedDuration: null,
+            estimatedDuration: quote.estimatedDuration || null,
             
             // Work tracking
             workNotes: [],
