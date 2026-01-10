@@ -70,8 +70,10 @@ export default async function handler(req, res) {
             : 'https://mykrib.app';
 
         // Build success/cancel URLs with context
-        const defaultSuccessUrl = `${baseUrl}/app/?payment=success&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`;
-        const defaultCancelUrl = `${baseUrl}/app/?payment=cancelled&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`;
+        // Quote needs full share token format: contractorId_quoteId
+        const quoteToken = quoteId && contractorId ? `${contractorId}_${quoteId}` : '';
+        const defaultSuccessUrl = `${baseUrl}/app/?payment=success&type=${type}&job=${jobId || ''}&quote=${quoteToken}`;
+        const defaultCancelUrl = `${baseUrl}/app/?payment=cancelled&type=${type}&job=${jobId || ''}&quote=${quoteToken}`;
 
         // Create line item description
         const lineItemName = type === 'deposit' 
