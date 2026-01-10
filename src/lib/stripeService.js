@@ -1,0 +1,215 @@
+// src/lib/stripeService.js
+// ============================================
+// STRIPE SERVICE
+// ============================================
+// Frontend service for Stripe Connect and payments
+// Handles contractor onboarding and customer payments
+
+// ============================================
+// CONTRACTOR: CONNECT ONBOARDING
+// ============================================
+
+/**
+ * Start Stripe Connect onboarding for a contractor
+ * Creates a connected account and returns the onboarding URL
+ * 
+ * @param {object} params
+ * @param {string} params.contractorId - The contractor's ID
+ * @param {string} params.email - Contractor's email
+ * @param {string} params.businessName - Company name
+ * @param {string} [params.existingStripeAccountId] - If reconnecting
+ * @returns {Promise<{accountId: string, onboardingUrl: string}>}
+ */
+export const startStripeOnboarding = async ({ 
+    contractorId, 
+    email, 
+    businessName,
+    existingStripeAccountId = null 
+}) => {
+    try {
+        const response = await fetch('/api/stripe/connect-onboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contractorId,
+                email,
+                businessName,
+                existingStripeAccountId,
+                returnUrl: `${window.location.origin}/app/?pro&stripe=success`,
+                refreshUrl: `${window.location.origin}/app/?pro&stripe=refresh`
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to start onboarding');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Stripe onboarding error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Check the status of a contractor's Stripe account
+ * 
+ * @param {string} stripeAccountId - The Stripe account ID
+ * @returns {Promise<{isComplete: boolean, chargesEnabled: boolean, ...}>}
+ */
+export const checkStripeStatus = async (stripeAccountId) => {
+    try {
+        const response = await fetch('/api/stripe/connect-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stripeAccountId })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to check status');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Stripe status check error:', error);
+        throw error;
+    }
+};
+
+// ============================================
+// CUSTOMER: PAYMENTS
+// ============================================
+
+/**
+ * Create a checkout session for payment
+ * Redirects customer to Stripe Checkout
+ * 
+ * @param {object} params
+ * @param {string} params.stripeAccountId - Contractor's connected account
+ * @param {number} params.amount - Amount in dollars
+ * @param {string} params.type - 'deposit' | 'balance' | 'full_payment'
+ * @param {string} [params.quoteId] - Associated quote
+ * @param {string} [params.jobId] - Associated job
+ * @param {string} params.contractorId - Contractor's ID
+ * @param {string} params.title - Description for line item
+ * @param {string} [params.customerEmail] - Pre-fill customer email
+ * @param {string} [params.customerName] - Customer name
+ * @returns {Promise<{checkoutUrl: string}>}
+ */
+export const createPaymentCheckout = async ({
+    stripeAccountId,
+    amount,
+    type,
+    quoteId,
+    jobId,
+    contractorId,
+    title,
+    description,
+    customerEmail,
+    customerName
+}) => {
+    try {
+        const response = await fetch('/api/stripe/create-checkout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                stripeAccountId,
+                amount,
+                type,
+                quoteId,
+                jobId,
+                contractorId,
+                title,
+                description,
+                customerEmail,
+                customerName,
+                successUrl: `${window.location.origin}/app/?payment=success&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`,
+                cancelUrl: `${window.location.origin}/app/?payment=cancelled&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to create checkout');
+        }
+        
+        return data;
+    } catch (error) {
+        console.error('Payment checkout error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Redirect to Stripe Checkout
+ * Convenience function that creates session and redirects
+ */
+export const redirectToCheckout = async (params) => {
+    const { checkoutUrl } = await createPaymentCheckout(params);
+    window.location.href = checkoutUrl;
+};
+
+// ============================================
+// HELPERS
+// ============================================
+
+/**
+ * Calculate deposit amount based on quote settings
+ */
+export const calculateDepositAmount = (quote) => {
+    if (!quote.depositRequired) return 0;
+    
+    const total = quote.total || 0;
+    
+    if (quote.depositType === 'percentage') {
+        return total * ((quote.depositValue || 0) / 100);
+    }
+    
+    return quote.depositValue || 0;
+};
+
+/**
+ * Calculate balance amount (total minus deposit)
+ */
+export const calculateBalanceAmount = (quote, depositPaid = false) => {
+    const total = quote.total || 0;
+    
+    if (!depositPaid) return total;
+    
+    const deposit = calculateDepositAmount(quote);
+    return total - deposit;
+};
+
+/**
+ * Check if contractor can accept payments
+ */
+export const canAcceptPayments = (contractor) => {
+    return contractor?.stripe?.isComplete && 
+           contractor?.stripe?.chargesEnabled;
+};
+
+/**
+ * Format currency for display
+ */
+export const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(amount);
+};
+
+export default {
+    startStripeOnboarding,
+    checkStripeStatus,
+    createPaymentCheckout,
+    redirectToCheckout,
+    calculateDepositAmount,
+    calculateBalanceAmount,
+    canAcceptPayments,
+    formatCurrency
+};
