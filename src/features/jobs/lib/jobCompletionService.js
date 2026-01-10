@@ -307,6 +307,27 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                 ? { ...item, ...selection.modifications }
                 : item;
             
+            // Determine install date
+            const installDate = finalItem.dateInstalled || new Date().toISOString().split('T')[0];
+            
+            // Process maintenance tasks (add nextDueDate to each)
+            const processedTasks = processMaintenanceTasks(
+                finalItem.maintenanceTasks, 
+                installDate
+            );
+            
+            // Calculate overall frequency from tasks (use shortest interval)
+            // Fall back to item's maintenanceFrequency if no tasks
+            const overallFrequency = processedTasks.length > 0
+                ? getShortestFrequencyFromTasks(finalItem.maintenanceTasks)
+                : (finalItem.maintenanceFrequency || 'none');
+            
+            // Process warranty details (set start date)
+            const processedWarranty = processWarrantyDetails(
+                finalItem.warrantyDetails,
+                installDate
+            );
+            
             // Create house record
             const recordData = {
                 // Core item data
@@ -318,7 +339,7 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                 serialNumber: finalItem.serialNumber || '',
                 
                 // Dates
-                dateInstalled: finalItem.dateInstalled || new Date().toISOString().split('T')[0],
+                dateInstalled: installDate,
                 createdAt: serverTimestamp(),
                 
                 // Costs
@@ -326,37 +347,43 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                 laborCost: finalItem.laborCost || null,
                 partsCost: finalItem.partsCost || null,
                 
-                // Warranty
+                // Warranty (both string and structured)
                 warranty: finalItem.warranty || '',
-                warrantyDetails: finalItem.warrantyDetails || null,
+                warrantyDetails: processedWarranty,
                 
-                // Maintenance
-                maintenanceFrequency: finalItem.maintenanceFrequency || 'none',
-                maintenanceTasks: (finalItem.maintenanceTasks || [])
-                    .filter(t => t.selected !== false),
-                nextServiceDate: calculateNextServiceDate(
-                    finalItem.dateInstalled,
-                    finalItem.maintenanceFrequency
-                ),
+                // Maintenance (enhanced with processed tasks)
+                maintenanceFrequency: overallFrequency,
+                maintenanceTasks: processedTasks,
+                nextServiceDate: calculateNextServiceDate(installDate, overallFrequency),
                 
                 // Job linkage
                 sourceJobId: jobId,
                 importedFrom: 'job_completion',
                 importedAt: serverTimestamp(),
                 
-                // Contractor linkage
+                // Contractor linkage (critical for "Book Again" feature)
                 contractor: jobData.contractorName || jobData.contractor || '',
                 contractorId: completion.contractorId || jobData.contractorId || null,
-                contractorPhone: jobData.contractorPhone || '',
-                contractorEmail: jobData.contractorEmail || '',
+                contractorPhone: jobData.contractorPhone || jobData.customer?.phone || '',
+                contractorEmail: jobData.contractorEmail || jobData.customer?.email || '',
                 
                 // Property
                 propertyId: propertyId,
                 userId: userId,
                 
-                // Attachments (include invoice)
+                // Tracking (for inventory intent system)
+                inventoryIntentId: finalItem.inventoryIntentId || null,
+                sourceQuoteId: jobData.sourceQuoteId || null,
+                
+                // Attachments (include invoice and any item photos)
                 attachments: [
                     ...(finalItem.attachments || []),
+                    ...(finalItem.photos || []).map(p => ({
+                        name: p.caption || 'Completion Photo',
+                        type: 'Image',
+                        url: p.url,
+                        dateAdded: new Date().toISOString()
+                    })),
                     ...(completion.invoice?.url ? [{
                         name: 'Invoice',
                         type: 'Document',
@@ -364,8 +391,50 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                         dateAdded: new Date().toISOString()
                     }] : [])
                 ],
-                imageUrl: finalItem.attachments?.[0]?.url || ''
+                imageUrl: finalItem.photos?.[0]?.url || finalItem.attachments?.[0]?.url || ''
             };
+```
+
+---
+
+## Summary of Changes
+
+| Edit | What It Does |
+|------|--------------|
+| 1 | Adds three helper functions: `getShortestFrequencyFromTasks()`, `processMaintenanceTasks()`, `processWarrantyDetails()` |
+| 2 | Updates house record creation to use processed tasks with `nextDueDate`, calculate frequency from tasks, and track inventory intent IDs |
+
+---
+
+## What Happens Now - The Complete Flow
+
+After these changes, here's the full journey:
+```
+1. QUOTE BUILDER
+   └─ Contractor toggles "Add to Home Record" on line item
+   └─ inventoryIntent created with maintenance tasks
+   └─ Saved to quote.inventoryIntents[]
+
+2. QUOTE ACCEPTED
+   └─ inventoryIntents[] copied to job document
+
+3. JOB COMPLETION FORM
+   └─ Items pre-populated from inventoryIntents
+   └─ Contractor sees maintenance tasks, adds serial number
+   └─ Submits completion
+
+4. HOMEOWNER ACCEPTS
+   └─ acceptJobCompletion() runs
+   └─ Each item becomes a house_record with:
+      ├─ Full maintenance tasks with nextDueDate
+      ├─ Warranty details with startDate
+      ├─ Contractor info for "Book Again"
+      └─ Source tracking (inventoryIntentId, sourceQuoteId)
+
+5. HOMEOWNER DASHBOARD
+   └─ Maintenance reminders fire based on nextDueDate
+   └─ "Book ABC HVAC Again" button appears
+   └─ Warranty Center shows coverage status
             
             const newRecordRef = doc(recordsRef);
             batch.set(newRecordRef, recordData);
@@ -755,4 +824,90 @@ function getAnonymizedName(fullName) {
     const lastInitial = parts[parts.length - 1][0];
     
     return `${firstName} ${lastInitial}.`;
+}
+
+/**
+ * Get the shortest maintenance frequency from a list of tasks
+ * Used to set the overall item frequency for "next service date" calculation
+ */
+function getShortestFrequencyFromTasks(tasks) {
+    if (!tasks || tasks.length === 0) return 'none';
+    
+    const selectedTasks = tasks.filter(t => t.selected !== false);
+    if (selectedTasks.length === 0) return 'none';
+    
+    const frequencyMonths = {
+        'monthly': 1,
+        'quarterly': 3,
+        'semiannual': 6,
+        'annual': 12,
+        'every 2 years': 24,
+        'every 3 years': 36,
+        'every 5 years': 60,
+        'biennial': 24
+    };
+    
+    let shortestMonths = Infinity;
+    let shortestFrequency = 'annual';
+    
+    selectedTasks.forEach(task => {
+        const months = task.months || frequencyMonths[task.frequency] || 12;
+        if (months < shortestMonths) {
+            shortestMonths = months;
+            shortestFrequency = task.frequency || 'annual';
+        }
+    });
+    
+    return shortestFrequency;
+}
+
+/**
+ * Process maintenance tasks for storage
+ * - Filters to selected tasks only
+ * - Adds nextDueDate to each task based on install date
+ */
+function processMaintenanceTasks(tasks, installDate) {
+    if (!tasks || tasks.length === 0) return [];
+    
+    const frequencyMonths = {
+        'monthly': 1,
+        'quarterly': 3,
+        'semiannual': 6,
+        'annual': 12,
+        'every 2 years': 24,
+        'every 3 years': 36,
+        'every 5 years': 60,
+        'biennial': 24
+    };
+    
+    return tasks
+        .filter(t => t.selected !== false)
+        .map(task => {
+            const months = task.months || frequencyMonths[task.frequency] || 12;
+            const nextDate = new Date(installDate);
+            nextDate.setMonth(nextDate.getMonth() + months);
+            
+            return {
+                task: task.task,
+                frequency: task.frequency,
+                months: months,
+                notes: task.notes || '',
+                nextDueDate: nextDate.toISOString().split('T')[0]
+            };
+        });
+}
+
+/**
+ * Process warranty details for storage
+ * - Sets startDate to install date if not already set
+ */
+function processWarrantyDetails(warrantyDetails, installDate) {
+    if (!warrantyDetails || !warrantyDetails.hasCoverage) {
+        return null;
+    }
+    
+    return {
+        ...warrantyDetails,
+        startDate: warrantyDetails.startDate || installDate
+    };
 }
