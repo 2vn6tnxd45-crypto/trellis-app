@@ -8,7 +8,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     ArrowLeft, Save, Send, User, FileText, Calculator,
     Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
-    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer
+    Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer,
+    Home, CheckSquare, Square
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,6 +19,16 @@ import toast from 'react-hot-toast';
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 // Price Book Integration
 import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
+
+// Inventory Intent System (for "Add to Home Record" feature)
+import { 
+    createInventoryIntent, 
+    createIntentFromLineItem,
+    getDefaultMaintenanceTasks,
+    countSelectedTasks,
+    MAINTENANCE_TEMPLATES,
+    FREQUENCY_OPTIONS
+} from '../../../lib/inventoryIntent';
 
 // ============================================
 // UTILS
@@ -60,7 +71,10 @@ const createDefaultLineItem = (type = 'material') => ({
     serial: '',
     warranty: '',
     crewSize: '', // Specific to Labor
-    isExpanded: false // Collapsed by default for cleaner look
+    isExpanded: false, // Collapsed by default for cleaner look
+    // INVENTORY INTENT: Flag to add this item to customer's home record
+    addToHomeRecord: false,
+    inventoryIntent: null // Will hold the full intent object when addToHomeRecord is true
 });
 
 // ============================================
@@ -86,7 +100,14 @@ const createDefaultFormState = (existingQuote = null, contractorSettings = {}) =
     
     // Default to one Material AND one Labor item (both expanded)
     lineItems: existingQuote?.lineItems?.length > 0 
-        ? existingQuote.lineItems.map(item => ({ ...item, id: item.id || Date.now() + Math.random(), isExpanded: true }))
+        ? existingQuote.lineItems.map(item => ({ 
+            ...item, 
+            id: item.id || Date.now() + Math.random(), 
+            isExpanded: true,
+            // Restore inventory intent state if it existed
+            addToHomeRecord: item.addToHomeRecord || false,
+            inventoryIntent: item.inventoryIntent || null
+        }))
         : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
     
     // APPLIED DEFAULTS FROM SETTINGS
@@ -461,13 +482,43 @@ const LineItemsSection = ({
                                             ${((item.quantity || 0) * (item.unitPrice || 0)).toFixed(2)}
                                         </td>
                                         <td className="px-2 py-3">
-                                            <button
-                                                type="button"
-                                                onClick={() => onRemove(item.id)}
-                                                className="p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
+                                            <div className="flex items-center gap-1">
+                                                {/* Add to Home Record Toggle */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newAddToHome = !item.addToHomeRecord;
+                                                        let newIntent = null;
+                                                        
+                                                        if (newAddToHome) {
+                                                            // Create inventory intent from line item
+                                                            newIntent = createIntentFromLineItem({
+                                                                ...item,
+                                                                amount: (item.quantity || 1) * (item.unitPrice || 0)
+                                                            });
+                                                        }
+                                                        
+                                                        updateItem(item.id, 'addToHomeRecord', newAddToHome);
+                                                        updateItem(item.id, 'inventoryIntent', newIntent);
+                                                    }}
+                                                    className={`p-1.5 rounded-lg transition-all ${
+                                                        item.addToHomeRecord 
+                                                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' 
+                                                            : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
+                                                    }`}
+                                                    title={item.addToHomeRecord ? "Will be added to customer's home record" : "Add to customer's home record"}
+                                                >
+                                                    <Home size={16} />
+                                                </button>
+                                                {/* Delete Button */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onRemove(item.id)}
+                                                    className="p-1 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     
@@ -542,6 +593,95 @@ const LineItemsSection = ({
                                                                 </div>
                                                             </div>
                                                         </>
+                                                    )}
+                                                    
+                                                    {/* Inventory Intent Section - Shows when "Add to Home Record" is enabled */}
+                                                    {item.addToHomeRecord && (
+                                                        <div className="col-span-2 md:col-span-4 mt-3 pt-3 border-t border-emerald-200">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <Home size={14} className="text-emerald-600" />
+                                                                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">
+                                                                    Home Record Settings
+                                                                </span>
+                                                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                                                                    {item.inventoryIntent?.maintenanceTasks?.filter(t => t.selected !== false).length || 0} maintenance tasks
+                                                                </span>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
+                                                                    <select
+                                                                        value={item.inventoryIntent?.category || 'Other'}
+                                                                        onChange={(e) => {
+                                                                            const newCategory = e.target.value;
+                                                                            const newTasks = getDefaultMaintenanceTasks(newCategory);
+                                                                            updateItem(item.id, 'inventoryIntent', {
+                                                                                ...item.inventoryIntent,
+                                                                                category: newCategory,
+                                                                                maintenanceTasks: newTasks
+                                                                            });
+                                                                        }}
+                                                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                    >
+                                                                        <option value="HVAC & Systems">HVAC & Systems</option>
+                                                                        <option value="Plumbing">Plumbing</option>
+                                                                        <option value="Electrical">Electrical</option>
+                                                                        <option value="Appliances">Appliances</option>
+                                                                        <option value="Roof & Exterior">Roof & Exterior</option>
+                                                                        <option value="Interior">Interior</option>
+                                                                        <option value="Safety">Safety</option>
+                                                                        <option value="Landscaping">Landscaping</option>
+                                                                        <option value="Service & Repairs">Service & Repairs</option>
+                                                                        <option value="Other">Other</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div>
+                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Room/Area</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        placeholder="e.g. Attic, Garage"
+                                                                        value={item.inventoryIntent?.area || ''}
+                                                                        onChange={(e) => updateItem(item.id, 'inventoryIntent', {
+                                                                            ...item.inventoryIntent,
+                                                                            area: e.target.value
+                                                                        })}
+                                                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
+                                                                    />
+                                                                </div>
+                                                                <div className="col-span-2">
+                                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Maintenance Tasks</label>
+                                                                    <div className="mt-1 flex flex-wrap gap-1">
+                                                                        {(item.inventoryIntent?.maintenanceTasks || []).slice(0, 4).map((task, idx) => (
+                                                                            <button
+                                                                                key={task.id || idx}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    const updatedTasks = [...(item.inventoryIntent?.maintenanceTasks || [])];
+                                                                                    updatedTasks[idx] = { ...updatedTasks[idx], selected: !updatedTasks[idx].selected };
+                                                                                    updateItem(item.id, 'inventoryIntent', {
+                                                                                        ...item.inventoryIntent,
+                                                                                        maintenanceTasks: updatedTasks
+                                                                                    });
+                                                                                }}
+                                                                                className={`px-2 py-1 text-[10px] rounded-full transition-colors ${
+                                                                                    task.selected !== false
+                                                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                                                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                                                                }`}
+                                                                            >
+                                                                                {task.selected !== false ? '✓ ' : ''}{task.task}
+                                                                            </button>
+                                                                        ))}
+                                                                        {(item.inventoryIntent?.maintenanceTasks || []).length > 4 && (
+                                                                            <span className="px-2 py-1 text-[10px] text-slate-400">
+                                                                                +{item.inventoryIntent.maintenanceTasks.length - 4} more
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </td>
