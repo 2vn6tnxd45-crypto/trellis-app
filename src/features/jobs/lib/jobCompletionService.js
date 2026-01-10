@@ -849,7 +849,7 @@ function processMaintenanceTasks(tasks, installDate) {
                 frequency: task.frequency,
                 months: months,
                 notes: task.notes || '',
-                nextDueDate: nextDate.toISOString().split('T')[0]
+                nextDue: nextDate.toISOString().split('T')[0]
             };
         });
 }
