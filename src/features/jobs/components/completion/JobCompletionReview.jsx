@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { acceptJobCompletion, requestRevision } from '../../lib/jobCompletionService';
 import toast from 'react-hot-toast';
+import { createPaymentCheckout } from '../../../../lib/stripeService';
 
 // ============================================
 // MAIN COMPONENT
@@ -35,9 +36,60 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
         ? Math.max(0, Math.ceil((autoCloseDate - new Date()) / (1000 * 60 * 60 * 24)))
         : null;
     
+    // Payment state
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    
+    // Calculate balance due
+    const jobTotal = job.total || 0;
+    const depositPaid = job.payment?.depositPaid ? (job.payment?.deposit?.amount || 0) : 0;
+    const balanceDue = jobTotal - depositPaid;
+    const hasBalanceDue = balanceDue > 0 && !job.payment?.balancePaid;
+    
+    // Check if contractor has Stripe connected
+    const contractorStripeId = job.contractor?.stripe?.accountId || job.stripeAccountId;
+    const contractorStripeReady = job.contractor?.stripe?.isComplete || job.stripeReady;
+    const canPayOnline = hasBalanceDue && contractorStripeId && contractorStripeReady;
+    
     // ============================================
     // HANDLERS
     // ============================================
+
+    // Handle approve with payment
+    const handleApproveWithPayment = async () => {
+        setIsProcessingPayment(true);
+        const loadingToast = toast.loading('Processing...');
+        
+        try {
+            // First accept the job completion
+            await acceptJobCompletion(job.id, userId, propertyId);
+            
+            toast.dismiss(loadingToast);
+            
+            // Then redirect to Stripe Checkout for balance
+            const checkoutResult = await createPaymentCheckout({
+                stripeAccountId: contractorStripeId,
+                amount: balanceDue,
+                type: 'balance',
+                quoteId: job.sourceQuoteId || null,
+                jobId: job.id,
+                contractorId: job.contractorId,
+                title: job.title || job.description || 'Service',
+                description: `Balance for Job #${job.jobNumber || job.id.slice(-6)}`,
+                customerEmail: job.customer?.email,
+                customerName: job.customer?.name
+            });
+            
+            // Redirect to Stripe Checkout
+            window.location.href = checkoutResult.checkoutUrl;
+            
+        } catch (error) {
+            toast.dismiss(loadingToast);
+            toast.error(error.message || 'Failed to process payment');
+            console.error(error);
+            setIsProcessingPayment(false);
+        }
+    };
+    
     const handleApprove = async () => {
         setIsSubmitting(true);
         const loadingToast = toast.loading('Approving completion...');
@@ -241,6 +293,40 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                                         <p className="text-xs text-gray-500">Days left</p>
                                     </div>
                                 </div>
+                                
+                                {/* Payment Summary */}
+                                {jobTotal > 0 && (
+                                    <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                                        <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                                            <DollarSign className="w-4 h-4" />
+                                            Payment Summary
+                                        </h3>
+                                        <div className="space-y-2 text-sm">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-600">Job Total</span>
+                                                <span className="font-medium">${jobTotal.toLocaleString()}</span>
+                                            </div>
+                                            {depositPaid > 0 && (
+                                                <div className="flex justify-between text-green-600">
+                                                    <span>Deposit Paid</span>
+                                                    <span>-${depositPaid.toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {hasBalanceDue && (
+                                                <div className="flex justify-between pt-2 border-t border-slate-200 text-base">
+                                                    <span className="font-bold text-gray-900">Balance Due</span>
+                                                    <span className="font-bold text-emerald-600">${balanceDue.toLocaleString()}</span>
+                                                </div>
+                                            )}
+                                            {job.payment?.balancePaid && (
+                                                <div className="flex items-center gap-2 text-green-600 mt-2">
+                                                    <CheckCircle className="w-4 h-4" />
+                                                    <span className="font-medium">Fully Paid</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         
@@ -329,23 +415,44 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                                 Request Changes
                             </button>
                             
-                            <button
-                                onClick={handleApprove}
-                                disabled={isSubmitting}
-                                className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                            >
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                        Processing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <CheckCircle className="w-4 h-4" />
-                                        Approve & Complete
-                                    </>
-                                )}
-                            </button>
+                            {/* Show Pay & Approve if balance due and Stripe connected */}
+                            {canPayOnline ? (
+                                <button
+                                    onClick={handleApproveWithPayment}
+                                    disabled={isSubmitting || isProcessingPayment}
+                                    className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isProcessingPayment ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <DollarSign className="w-4 h-4" />
+                                            Approve & Pay ${balanceDue.toLocaleString()}
+                                        </>
+                                    )}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleApprove}
+                                    disabled={isSubmitting}
+                                    className="px-6 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                >
+                                    {isSubmitting ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-4 h-4" />
+                                            Approve & Complete
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
