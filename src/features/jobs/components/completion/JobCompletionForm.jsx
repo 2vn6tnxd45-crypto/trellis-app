@@ -9,7 +9,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     X, Camera, Upload, FileText, Plus, Trash2, CheckCircle,
     Loader2, Image, AlertCircle, DollarSign, Wrench, Calendar,
-    ClipboardList, MessageSquare, ChevronDown, ChevronUp, Sparkles, Edit3
+    ClipboardList, MessageSquare, ChevronDown, ChevronUp, Sparkles, Edit3,
+    Home, Clock, CheckSquare, Square
 } from 'lucide-react';
 import { 
     submitJobCompletion, 
@@ -49,6 +50,72 @@ const MAINTENANCE_FREQUENCIES = [
 // ============================================
 // HELPER: Map quote items to completion items
 // ============================================
+// ============================================
+// HELPER: Map inventory intents to completion items
+// ============================================
+// This is the NEW preferred method - uses rich data from quote's inventoryIntents
+const mapInventoryIntentsToCompletionItems = (inventoryIntents) => {
+    if (!inventoryIntents || !Array.isArray(inventoryIntents) || inventoryIntents.length === 0) {
+        return null; // Return null to signal fallback needed
+    }
+    
+    return inventoryIntents.map((intent, idx) => ({
+        id: intent.id || `intent_${Date.now()}_${idx}`,
+        // Core fields - already rich from quote
+        item: intent.item || '',
+        category: intent.category || 'Service & Repairs',
+        area: intent.area || '',
+        brand: intent.brand || '',
+        model: intent.model || '',
+        cost: intent.cost || null,
+        
+        // These need to be filled in by contractor at completion
+        serialNumber: intent.serialNumber || '',
+        warranty: intent.warranty || '',
+        warrantyDetails: intent.warrantyDetails || null,
+        
+        // MAINTENANCE TASKS - the key differentiator!
+        maintenanceTasks: intent.maintenanceTasks || [],
+        maintenanceFrequency: intent.maintenanceFrequency || 
+            getOverallFrequency(intent.maintenanceTasks),
+        
+        // Completion fields
+        dateInstalled: new Date().toISOString().split('T')[0],
+        
+        // Tracking
+        fromInventoryIntent: true,
+        fromQuote: true,
+        inventoryIntentId: intent.id,
+        linkedLineItemId: intent.linkedLineItemId
+    }));
+};
+
+// Helper to get overall frequency from tasks
+const getOverallFrequency = (tasks) => {
+    if (!tasks || tasks.length === 0) return 'none';
+    const selectedTasks = tasks.filter(t => t.selected !== false);
+    if (selectedTasks.length === 0) return 'none';
+    
+    // Find shortest interval
+    const monthValues = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 };
+    let shortest = 'annual';
+    let shortestMonths = 12;
+    
+    selectedTasks.forEach(task => {
+        const months = task.months || monthValues[task.frequency] || 12;
+        if (months < shortestMonths) {
+            shortestMonths = months;
+            shortest = task.frequency || 'annual';
+        }
+    });
+    
+    return shortest;
+};
+
+// ============================================
+// HELPER: Map quote items to completion items (LEGACY FALLBACK)
+// ============================================
+// Used when inventoryIntents don't exist (older quotes)
 const mapQuoteItemsToCompletionItems = (quoteItems) => {
     if (!quoteItems || !Array.isArray(quoteItems)) return [];
     
@@ -72,9 +139,11 @@ const mapQuoteItemsToCompletionItems = (quoteItems) => {
             serialNumber: qItem.serialNumber || '',
             warranty: qItem.warranty || qItem.clientWarranty || '',
             maintenanceFrequency: qItem.maintenanceFrequency || 'none',
+            maintenanceTasks: [], // Empty for legacy items
             dateInstalled: new Date().toISOString().split('T')[0],
             // Track that this came from quote
             fromQuote: true,
+            fromInventoryIntent: false,
             quoteLineId: qItem.id || null
         };
     });
@@ -111,23 +180,56 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     // ============================================
     // PRE-POPULATE ITEMS FROM QUOTE
     // ============================================
+    // ============================================
+    // PRE-POPULATE ITEMS FROM INVENTORY INTENTS (OR LEGACY QUOTE ITEMS)
+    // ============================================
     useEffect(() => {
         // Only run once when component mounts
         if (hasLoadedQuoteItems) return;
         
-        // Check for quote items on the job
-        // job.lineItems is set by acceptQuote() in quoteService.js
+        // PREFERRED: Check for inventory intents first (new system)
+        // These have full maintenance tasks, warranty details, etc.
+        const inventoryIntents = job?.inventoryIntents;
+        
+        if (inventoryIntents && inventoryIntents.length > 0) {
+            const mappedItems = mapInventoryIntentsToCompletionItems(inventoryIntents);
+            if (mappedItems && mappedItems.length > 0) {
+                setItems(mappedItems);
+                
+                // Count total maintenance tasks
+                const totalTasks = mappedItems.reduce((sum, item) => 
+                    sum + (item.maintenanceTasks?.filter(t => t.selected !== false).length || 0), 0
+                );
+                
+                toast.success(
+                    `${mappedItems.length} item${mappedItems.length > 1 ? 's' : ''} pre-filled with ${totalTasks} maintenance task${totalTasks !== 1 ? 's' : ''}!`,
+                    { icon: '✨', duration: 4000 }
+                );
+                
+                setHasLoadedQuoteItems(true);
+                return;
+            }
+        }
+        
+        // FALLBACK: Legacy system - map from line items
         const quoteItems = job?.lineItems || job?.quoteItems || job?.estimate?.lineItems || job?.quote?.items;
         
         if (quoteItems && quoteItems.length > 0) {
-            const mappedItems = mapQuoteItemsToCompletionItems(quoteItems);
-            setItems(mappedItems);
+            // Only map items that were flagged for home record (if that field exists)
+            // Otherwise map all items (legacy behavior)
+            const itemsToMap = quoteItems.some(i => i.addToHomeRecord !== undefined)
+                ? quoteItems.filter(i => i.addToHomeRecord)
+                : quoteItems;
             
-            // Show helpful toast
-            toast.success(
-                `${mappedItems.length} item${mappedItems.length > 1 ? 's' : ''} pre-filled from quote!`,
-                { icon: '✨', duration: 4000 }
-            );
+            if (itemsToMap.length > 0) {
+                const mappedItems = mapQuoteItemsToCompletionItems(itemsToMap);
+                setItems(mappedItems);
+                
+                toast.success(
+                    `${mappedItems.length} item${mappedItems.length > 1 ? 's' : ''} pre-filled from quote!`,
+                    { icon: '✨', duration: 4000 }
+                );
+            }
         }
         
         setHasLoadedQuoteItems(true);
@@ -491,8 +593,22 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                                 Items pre-filled from quote
                                             </p>
                                             <p className="text-sm text-emerald-700 mt-1">
-                                                Please add serial numbers, warranty info, and any other details now that the work is complete.
+                                                {items.some(i => i.fromInventoryIntent) 
+                                                    ? 'Maintenance schedules are ready! Just add serial numbers to complete.'
+                                                    : 'Please add serial numbers, warranty info, and any other details now that the work is complete.'
+                                                }
                                             </p>
+                                            {/* Show maintenance task summary */}
+                                            {items.some(i => i.maintenanceTasks?.length > 0) && (
+                                                <div className="mt-2 flex items-center gap-2 text-sm text-emerald-600">
+                                                    <Home className="w-4 h-4" />
+                                                    <span>
+                                                        {items.reduce((sum, item) => 
+                                                            sum + (item.maintenanceTasks?.filter(t => t.selected !== false).length || 0), 0
+                                                        )} maintenance tasks will be set up for the homeowner
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -713,14 +829,23 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
 // ============================================
 // ITEM CARD COMPONENT (ENHANCED FOR EDITING)
 // ============================================
+// ============================================
+// ITEM CARD COMPONENT (ENHANCED WITH MAINTENANCE TASKS)
+// ============================================
 const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
     const [expanded, setExpanded] = useState(isFromQuote); // Auto-expand items from quote
     const [editing, setEditing] = useState(false);
     const [editData, setEditData] = useState({
         serialNumber: item.serialNumber || '',
         warranty: item.warranty || '',
-        maintenanceFrequency: item.maintenanceFrequency || 'none'
+        maintenanceFrequency: item.maintenanceFrequency || 'none',
+        maintenanceTasks: item.maintenanceTasks || []
     });
+    
+    const hasMaintenanceTasks = item.maintenanceTasks && item.maintenanceTasks.length > 0;
+    const selectedTaskCount = hasMaintenanceTasks 
+        ? item.maintenanceTasks.filter(t => t.selected !== false).length 
+        : 0;
     
     const handleSave = () => {
         onUpdate(editData);
@@ -728,20 +853,51 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
         toast.success('Item updated!');
     };
     
+    const toggleTask = (taskIndex) => {
+        const updatedTasks = [...editData.maintenanceTasks];
+        updatedTasks[taskIndex] = {
+            ...updatedTasks[taskIndex],
+            selected: updatedTasks[taskIndex].selected === false ? true : false
+        };
+        setEditData(prev => ({ ...prev, maintenanceTasks: updatedTasks }));
+    };
+    
     return (
-        <div className={`border rounded-xl overflow-hidden ${isFromQuote ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200'}`}>
+        <div className={`border rounded-xl overflow-hidden ${
+            item.fromInventoryIntent 
+                ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/50 to-green-50/30' 
+                : isFromQuote 
+                    ? 'border-emerald-200 bg-emerald-50/30' 
+                    : 'border-gray-200'
+        }`}>
             <div 
                 className="flex items-center justify-between p-4 bg-white cursor-pointer"
                 onClick={() => setExpanded(!expanded)}
             >
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isFromQuote ? 'bg-emerald-100' : 'bg-gray-100'}`}>
-                        <Wrench className={`w-5 h-5 ${isFromQuote ? 'text-emerald-600' : 'text-gray-600'}`} />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        item.fromInventoryIntent 
+                            ? 'bg-emerald-100' 
+                            : isFromQuote 
+                                ? 'bg-emerald-100' 
+                                : 'bg-gray-100'
+                    }`}>
+                        {item.fromInventoryIntent ? (
+                            <Home className="w-5 h-5 text-emerald-600" />
+                        ) : (
+                            <Wrench className={`w-5 h-5 ${isFromQuote ? 'text-emerald-600' : 'text-gray-600'}`} />
+                        )}
                     </div>
                     <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-medium text-gray-900">{item.item}</p>
-                            {isFromQuote && (
+                            {item.fromInventoryIntent && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-1">
+                                    <Home className="w-3 h-3" />
+                                    Home Record
+                                </span>
+                            )}
+                            {isFromQuote && !item.fromInventoryIntent && (
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
                                     From Quote
                                 </span>
@@ -749,6 +905,11 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                         </div>
                         <p className="text-sm text-gray-500">
                             {item.brand} {item.model && `• ${item.model}`}
+                            {hasMaintenanceTasks && selectedTaskCount > 0 && (
+                                <span className="ml-2 text-emerald-600">
+                                    • {selectedTaskCount} maintenance task{selectedTaskCount !== 1 ? 's' : ''}
+                                </span>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -787,18 +948,63 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Maintenance</label>
-                                <select
-                                    value={editData.maintenanceFrequency}
-                                    onChange={(e) => setEditData(prev => ({ ...prev, maintenanceFrequency: e.target.value }))}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
-                                >
-                                    {MAINTENANCE_FREQUENCIES.map(f => (
-                                        <option key={f.value} value={f.value}>{f.label}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            
+                            {/* Maintenance Tasks - Editable */}
+                            {editData.maintenanceTasks && editData.maintenanceTasks.length > 0 && (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-2">
+                                        Maintenance Tasks for Homeowner
+                                    </label>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                                        {editData.maintenanceTasks.map((task, idx) => (
+                                            <button
+                                                key={task.id || idx}
+                                                type="button"
+                                                onClick={() => toggleTask(idx)}
+                                                className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${
+                                                    task.selected !== false
+                                                        ? 'bg-emerald-50 border border-emerald-200'
+                                                        : 'bg-gray-100 border border-gray-200'
+                                                }`}
+                                            >
+                                                {task.selected !== false ? (
+                                                    <CheckSquare className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                                                ) : (
+                                                    <Square className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm font-medium ${
+                                                        task.selected !== false ? 'text-emerald-800' : 'text-gray-500'
+                                                    }`}>
+                                                        {task.task}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        {task.frequency}
+                                                    </p>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Legacy frequency selector (only show if no tasks) */}
+                            {(!editData.maintenanceTasks || editData.maintenanceTasks.length === 0) && (
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Maintenance</label>
+                                    <select
+                                        value={editData.maintenanceFrequency}
+                                        onChange={(e) => setEditData(prev => ({ ...prev, maintenanceFrequency: e.target.value }))}
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        {MAINTENANCE_FREQUENCIES.map(f => (
+                                            <option key={f.value} value={f.value}>{f.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                            
                             <div className="flex gap-2 pt-2">
                                 <button
                                     onClick={handleSave}
@@ -807,7 +1013,15 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     Save
                                 </button>
                                 <button
-                                    onClick={() => setEditing(false)}
+                                    onClick={() => {
+                                        setEditData({
+                                            serialNumber: item.serialNumber || '',
+                                            warranty: item.warranty || '',
+                                            maintenanceFrequency: item.maintenanceFrequency || 'none',
+                                            maintenanceTasks: item.maintenanceTasks || []
+                                        });
+                                        setEditing(false);
+                                    }}
                                     className="flex-1 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
                                 >
                                     Cancel
@@ -829,6 +1043,12 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                         <span className="ml-2 text-gray-900">{item.category}</span>
                                     </div>
                                 )}
+                                {item.area && (
+                                    <div>
+                                        <span className="text-gray-500">Location:</span>
+                                        <span className="ml-2 text-gray-900">{item.area}</span>
+                                    </div>
+                                )}
                                 {item.cost && (
                                     <div>
                                         <span className="text-gray-500">Cost:</span>
@@ -836,22 +1056,51 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     </div>
                                 )}
                                 {item.warranty && (
-                                    <div>
+                                    <div className="col-span-2">
                                         <span className="text-gray-500">Warranty:</span>
                                         <span className="ml-2 text-gray-900">{item.warranty}</span>
                                     </div>
                                 )}
                             </div>
                             
+                            {/* Maintenance Tasks Display (Read-only) */}
+                            {hasMaintenanceTasks && selectedTaskCount > 0 && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        Maintenance Schedule for Homeowner
+                                    </p>
+                                    <div className="flex flex-wrap gap-1">
+                                        {item.maintenanceTasks
+                                            .filter(t => t.selected !== false)
+                                            .slice(0, 4)
+                                            .map((task, idx) => (
+                                                <span 
+                                                    key={idx}
+                                                    className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded-full"
+                                                >
+                                                    {task.task} ({task.frequency})
+                                                </span>
+                                            ))
+                                        }
+                                        {item.maintenanceTasks.filter(t => t.selected !== false).length > 4 && (
+                                            <span className="px-2 py-1 text-xs text-gray-500">
+                                                +{item.maintenanceTasks.filter(t => t.selected !== false).length - 4} more
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            
                             {/* Prompt to add missing details */}
-                            {isFromQuote && (!item.serialNumber || !item.warranty) && (
+                            {isFromQuote && (!item.serialNumber || (!item.warranty && !hasMaintenanceTasks)) && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
                                     <button
                                         onClick={(e) => { e.stopPropagation(); setEditing(true); }}
                                         className="text-sm text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
                                     >
                                         <Edit3 className="w-3 h-3" />
-                                        Add serial number & warranty details
+                                        {!item.serialNumber ? 'Add serial number' : 'Edit details'}
                                     </button>
                                 </div>
                             )}
@@ -863,6 +1112,17 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                 >
                                     <Edit3 className="w-3 h-3" />
                                     Edit details
+                                </button>
+                            )}
+                            
+                            {/* Edit button for items with tasks */}
+                            {isFromQuote && item.serialNumber && hasMaintenanceTasks && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+                                    className="mt-3 text-sm text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1"
+                                >
+                                    <Edit3 className="w-3 h-3" />
+                                    Edit details or tasks
                                 </button>
                             )}
                         </>
