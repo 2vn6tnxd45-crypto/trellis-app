@@ -13,7 +13,12 @@ import {
     GoogleAuthProvider,
     updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+    doc, 
+    getDoc,
+    setDoc,
+    serverTimestamp
+} from 'firebase/firestore';
 import { auth, db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
 import { 
@@ -125,6 +130,12 @@ export const QuoteAuthScreen = ({
    const saveUserProfile = async (userId, userName, userEmail) => {
         try {
             const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+            
+            // Check if profile already exists (existing user)
+            const profileSnap = await getDoc(profileRef);
+            const isExistingUser = profileSnap.exists() && profileSnap.data()?.properties?.length > 0;
+            
+            // Update/create profile
             await setDoc(profileRef, {
                 name: userName,
                 email: userEmail,
@@ -132,16 +143,20 @@ export const QuoteAuthScreen = ({
                 updatedAt: serverTimestamp()
             }, { merge: true });
             
-            // Send welcome email (non-blocking)
-            fetch('/api/send-welcome', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail, userName })
-            }).then(() => {
-                console.log('[QuoteAuthScreen] Welcome email sent');
-            }).catch((err) => {
-                console.warn('[QuoteAuthScreen] Welcome email failed:', err);
-            });
+            // Only send welcome email for NEW users (not existing members)
+            if (!isExistingUser) {
+                fetch('/api/send-welcome', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, userName })
+                }).then(() => {
+                    console.log('[QuoteAuthScreen] Welcome email sent to new user');
+                }).catch((err) => {
+                    console.warn('[QuoteAuthScreen] Welcome email failed:', err);
+                });
+            } else {
+                console.log('[QuoteAuthScreen] Existing user - skipping welcome email');
+            }
             
         } catch (err) {
             console.warn('[QuoteAuthScreen] Could not save profile:', err);
