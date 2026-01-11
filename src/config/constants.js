@@ -67,3 +67,35 @@ export const MAINTENANCE_FREQUENCIES = [
     { label: "Every 5 Years", value: "quinquennial", months: 60 }, // legacy key
     { label: "Every 5 Years", value: "5years", months: 60 }    // new key
 ];
+
+// ============================================
+// TIMING CONSTANTS
+// ============================================
+// Centralized timeout values for easy adjustment
+
+/** Timeout for Firestore read/write operations (ms) */
+export const FIRESTORE_TIMEOUT_MS = 5000;
+
+/** Timeout for Firebase Auth to be ready (ms) */
+export const AUTH_READY_TIMEOUT_MS = 5000;
+
+/** Delay after token refresh to let Firestore recognize it (ms) */
+export const TOKEN_PROPAGATION_DELAY_MS = 300;
+
+/** Delay after token refresh before retrying an operation (ms) */
+export const TOKEN_REFRESH_DELAY_MS = 500;
+
+/** Small delay after auth state change for propagation (ms) */
+export const AUTH_STATE_DELAY_MS = 100;
+
+/** Initial delay for exponential backoff retries (ms) */
+export const RETRY_INITIAL_DELAY_MS = 500;
+
+/** Maximum delay for exponential backoff retries (ms) */
+export const RETRY_MAX_DELAY_MS = 5000;
+
+/** Maximum number of retry attempts for Firestore operations */
+export const MAX_RETRY_ATTEMPTS = 3;
+
+/** Timeout for loading public pages like quotes (ms) */
+export const PAGE_LOAD_TIMEOUT_MS = 10000;
