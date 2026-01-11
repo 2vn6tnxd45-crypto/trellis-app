@@ -19,6 +19,7 @@ import {
     Phone, Mail, MapPin, TrendingUp, Zap, Star, MessageSquare,
     RefreshCw, ChevronDown, ChevronUp, Flame, Target, Award
 } from 'lucide-react';
+import { formatCurrency } from '../../../lib/utils';
 
 // ============================================
 // CONSTANTS
@@ -105,9 +106,6 @@ const CATEGORY_CONFIG = {
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-const formatCurrency = (value) => {
-    return `$${(value || 0).toLocaleString()}`;
-};
 
 const formatTimeAgo = (timestamp) => {
     if (!timestamp) return '';
