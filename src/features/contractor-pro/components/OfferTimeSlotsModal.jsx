@@ -110,16 +110,23 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
 
 // --- AI Prerequisite Check Component ---
 const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
+    // Check if we have a home base address (from scheduling.homeBase OR profile.address fallback)
+    const hasHomeBase = !!(preferences?.homeBase?.address || preferences?.address);
+    
+    // Check if working hours are configured with at least one enabled day
+    const hasWorkingHours = preferences?.workingHours && 
+        Object.values(preferences.workingHours).some(d => d?.enabled);
+    
     const checks = [
         {
-            label: 'Working Hours Set',
-            passed: Object.values(preferences?.workingHours || {}).some(d => d?.enabled),
-            fix: 'Go to Settings → Working Hours'
+            label: 'Home Base Location',
+            passed: hasHomeBase,
+            fix: 'Go to Settings → Business Address'
         },
         {
-            label: 'Home Base Location',
-            passed: !!preferences?.homeBase || !!preferences?.address,
-            fix: 'Go to Settings → Business Address'
+            label: 'Working Hours',
+            passed: hasWorkingHours,
+            fix: 'Go to Settings → Working Hours'
         }
     ];
     
