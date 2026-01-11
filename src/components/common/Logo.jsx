@@ -3,6 +3,7 @@
 // KRIB LOGO - Text Wordmark with Dot
 // ============================================
 // Clean text-based logo: "krib" with teal dot above the "i"
+// Uses dotless i character (ı) to avoid double dots
 
 import React from 'react';
 
@@ -13,7 +14,6 @@ export const Logo = ({
   color
 }) => {
   // Figure out what size to make the text based on the height class or size prop
-  // We look at the className to determine sizing
   const getTextSize = () => {
     if (size) {
       if (size <= 24) return 'text-lg';
@@ -62,16 +62,16 @@ export const Logo = ({
     >
       <span style={{ color: colors.text }}>kr</span>
       <span style={{ position: 'relative', color: colors.text }}>
-        ı
-        {/* The dot above the i - using dotless i (ı) character */}
+        ı{/* This is a DOTLESS i character (Unicode U+0131) */}
+        {/* The custom dot above the dotless i */}
         <span 
           style={{ 
             position: 'absolute',
-            top: '-0.15em',
+            top: '-0.1em',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '0.25em',
-            height: '0.25em',
+            width: '0.22em',
+            height: '0.22em',
             backgroundColor: colors.dot,
             borderRadius: '50%',
           }}
@@ -86,7 +86,7 @@ export const Logo = ({
 // LOGO VARIANTS FOR SPECIFIC USE CASES
 // ============================================
 
-// App icon version (for favicons, app icons) - keeps the house for app icons
+// App icon version (for favicons, app icons)
 export const LogoIcon = ({ size = 32, variant = "white", background = true }) => {
   if (!background) {
     return <Logo size={size} variant={variant} />;
