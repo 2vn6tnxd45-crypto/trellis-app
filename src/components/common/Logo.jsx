@@ -67,7 +67,7 @@ export const Logo = ({
         <span 
           style={{ 
             position: 'absolute',
-            top: '-0.1em',
+            top: '0.05em',
             left: '50%',
             transform: 'translateX(-50%)',
             width: '0.22em',
