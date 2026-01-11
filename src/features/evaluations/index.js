@@ -74,3 +74,15 @@ export {
     createCustomPrompt,
     mergePrompts
 } from './lib/evaluationTemplates';
+
+// AI Analysis
+export { AIAnalysisSummary } from './components/AIAnalysisSummary';
+export { 
+    analyzeEvaluation,
+    analyzeAndSaveEvaluation,
+    saveAnalysisToEvaluation,
+    getSeverityConfig,
+    formatConfidence,
+    SEVERITY_LEVELS,
+    SEVERITY_CONFIG
+} from './lib/evaluationAI';
