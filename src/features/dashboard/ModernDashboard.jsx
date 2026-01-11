@@ -637,23 +637,28 @@ const MyQuotesSection = ({ userId }) => {
             ) : (
                 <div className="grid gap-3 md:grid-cols-2">
                     {quotes.map(quote => (
-                        <a 
-                            key={quote.id}
-                            href={`/app/?quote=${quote.contractorId}_${quote.id}`}
-                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
-                        >
-                            <button 
-                                onClick={(e) => handleDelete(e, quote)}
-                                className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                title="Remove from profile"
-                            >
-                                <Trash2 size={16} />
-                            </button>
+    <a 
+        key={quote.id}
+        href={`/app/?quote=${quote.contractorId}_${quote.id}`}
+        className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
+    >
+        <button 
+            onClick={(e) => handleDelete(e, quote)}
+            className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
+            title="Remove from profile"
+        >
+            <Trash2 size={16} />
+        </button>
 
-                            <div className="flex justify-between items-start mb-2">
-                                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate pr-2">
-                                    {quote.title}
-                                </h3>
+        <div className="flex justify-between items-start mb-2">
+            <div className="flex-1 min-w-0 pr-2">
+                <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
+                    {quote.title}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5 truncate">
+                    from {quote.contractorName || quote.contractor?.companyName || 'Contractor'}
+                </p>
+            </div>
                                 <span className={`px-2 py-1 rounded text-xs font-bold capitalize shrink-0
                                     ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
                                       quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}
