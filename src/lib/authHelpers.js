@@ -2,7 +2,7 @@
 // Utility functions for handling Firebase Auth state
 
 import { auth } from '../config/firebase';
-
+import { debug } from './debug';
 /**
  * Waits for Firebase Auth to be fully ready after login/signup
  * This ensures the auth token is propagated to Firestore
@@ -20,10 +20,10 @@ export const waitForAuthReady = (timeoutMs = 5000) => {
     return new Promise((resolve, reject) => {
         // If already authenticated, force token refresh and resolve
         if (auth.currentUser) {
-            console.log('[authHelpers] User already authenticated, refreshing token...');
+            debug.log('[authHelpers] User already authenticated, refreshing token...');
             auth.currentUser.getIdToken(true)
                 .then(() => {
-                    console.log('[authHelpers] Token refreshed successfully');
+                    debug.log('[authHelpers] Token refreshed successfully');
                     resolve(auth.currentUser);
                 })
                 .catch((err) => {
@@ -33,10 +33,10 @@ export const waitForAuthReady = (timeoutMs = 5000) => {
             return;
         }
         
-        console.log('[authHelpers] Waiting for auth state...');
+        debug.log('[authHelpers] Waiting for auth state...');
         
         const timeout = setTimeout(() => {
-            console.warn('[authHelpers] Auth timeout reached');
+            debug.warn('[authHelpers] Auth timeout reached');
             unsubscribe();
             reject(new Error('Authentication timeout - please try again'));
         }, timeoutMs);
@@ -46,12 +46,12 @@ export const waitForAuthReady = (timeoutMs = 5000) => {
                 clearTimeout(timeout);
                 unsubscribe();
                 
-                console.log('[authHelpers] Auth state changed, user:', user.uid);
+                debug.log('[authHelpers] Auth state changed, user:', user.uid);
                 
                 // Force token refresh to ensure Firestore has latest auth context
                 try {
                     await user.getIdToken(true);
-                    console.log('[authHelpers] Token refreshed after auth state change');
+                    debug.log('[authHelpers] Token refreshed after auth state change');
                     
                     // Small additional delay to ensure propagation
                     await new Promise(r => setTimeout(r, 100));
@@ -94,14 +94,14 @@ export const retryWithBackoff = async (operation, options = {}) => {
             
             // Check if we should retry this error
             if (!shouldRetry(err)) {
-                console.log('[retryWithBackoff] Error not retryable, throwing');
+                debug.log('[retryWithBackoff] Error not retryable, throwing');
                 throw err;
             }
             
             if (attempt < maxRetries) {
                 // Calculate delay with exponential backoff
                 const delay = Math.min(initialDelayMs * Math.pow(2, attempt - 1), maxDelayMs);
-                console.log(`[retryWithBackoff] Waiting ${delay}ms before retry...`);
+                debug.log(`[retryWithBackoff] Waiting ${delay}ms before retry...`);
                 
                 // Call onRetry callback if provided
                 if (onRetry) {
@@ -114,9 +114,9 @@ export const retryWithBackoff = async (operation, options = {}) => {
                 if (auth.currentUser) {
                     try {
                         await auth.currentUser.getIdToken(true);
-                        console.log('[retryWithBackoff] Token refreshed before retry');
+                        debug.log('[retryWithBackoff] Token refreshed before retry');
                     } catch (tokenErr) {
-                        console.warn('[retryWithBackoff] Token refresh failed:', tokenErr.message);
+                        debug.warn('[retryWithBackoff] Token refresh failed:', tokenErr.message);
                     }
                 }
             }
