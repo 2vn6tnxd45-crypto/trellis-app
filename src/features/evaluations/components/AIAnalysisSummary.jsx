@@ -24,7 +24,51 @@ import {
     RefreshCw,
     Loader2
 } from 'lucide-react';
-import { getSeverityConfig, formatConfidence, analyzeEvaluation, saveAnalysisToEvaluation } from '../lib/evaluationAI';
+// ============================================
+// INLINE SEVERITY CONFIG (to avoid import issues)
+// ============================================
+const SEVERITY_LEVELS = {
+    LOW: 'low',
+    MEDIUM: 'medium', 
+    HIGH: 'high',
+    URGENT: 'urgent'
+};
+
+const SEVERITY_CONFIG = {
+    [SEVERITY_LEVELS.LOW]: {
+        label: 'Low Priority',
+        bgClass: 'bg-slate-100',
+        textClass: 'text-slate-600',
+    },
+    [SEVERITY_LEVELS.MEDIUM]: {
+        label: 'Medium Priority',
+        bgClass: 'bg-amber-100',
+        textClass: 'text-amber-700',
+    },
+    [SEVERITY_LEVELS.HIGH]: {
+        label: 'High Priority',
+        bgClass: 'bg-orange-100',
+        textClass: 'text-orange-700',
+    },
+    [SEVERITY_LEVELS.URGENT]: {
+        label: 'Urgent',
+        bgClass: 'bg-red-100',
+        textClass: 'text-red-700',
+    }
+};
+
+const getSeverityConfig = (severity) => {
+    return SEVERITY_CONFIG[severity] || SEVERITY_CONFIG[SEVERITY_LEVELS.MEDIUM];
+};
+
+const formatConfidence = (confidence) => {
+    if (typeof confidence !== 'number') return 'Unknown';
+    const percent = Math.round(confidence * 100);
+    if (percent >= 80) return 'High confidence';
+    if (percent >= 60) return 'Moderate confidence';
+    if (percent >= 40) return 'Low confidence';
+    return 'Very low confidence';
+};
 
 // ============================================
 // SEVERITY BADGE
@@ -110,32 +154,6 @@ export const AIAnalysisSummary = ({
     const [expanded, setExpanded] = useState(variant === 'full');
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Handle refresh/re-analyze
-    const handleRefresh = async () => {
-        if (!evaluation || isRefreshing) return;
-        
-        setIsRefreshing(true);
-        try {
-            const { success, analysis: newAnalysis } = await analyzeEvaluation({
-                photos: evaluation.submissions?.photos || [],
-                videos: evaluation.submissions?.videos || [],
-                description: evaluation.jobDescription || '',
-                answers: evaluation.submissions?.answers || {},
-                prompts: evaluation.prompts || [],
-                jobCategory: evaluation.jobCategory || '',
-                propertyType: ''
-            });
-
-            if (success && contractorId && evaluationId) {
-                await saveAnalysisToEvaluation(contractorId, evaluationId, newAnalysis);
-                onRefresh?.(newAnalysis);
-            }
-        } catch (error) {
-            console.error('Refresh error:', error);
-        } finally {
-            setIsRefreshing(false);
-        }
-    };
 
     if (!analysis) {
         return (
@@ -275,22 +293,6 @@ export const AIAnalysisSummary = ({
                                 <ConfidenceIndicator confidence={analysis.confidence} />
                             </div>
                             
-                            {/* Refresh Button */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleRefresh();
-                                }}
-                                disabled={isRefreshing}
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg transition-colors disabled:opacity-50"
-                                title="Re-analyze"
-                            >
-                                {isRefreshing ? (
-                                    <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                    <RefreshCw size={16} />
-                                )}
-                            </button>
                         </div>
                     </div>
 
