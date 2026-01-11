@@ -193,13 +193,11 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 {profile?.profile?.logoUrl ? (
                     <img src={profile.profile.logoUrl} alt="Logo" className="h-10 w-10 rounded-xl object-cover" />
                 ) : (
-                    <div className="h-10 w-10 bg-emerald-100 rounded-xl flex items-center justify-center">
-                        <Logo className="h-6 w-6 text-emerald-700" />
-                    </div>
+                    <Logo className="h-8 w-8" />
                 )}
                 <div>
                     <p className="font-bold text-slate-800">{profile?.profile?.companyName || 'My Business'}</p>
-                    <p className="text-xs text-emerald-600 font-medium">krib <span className="bg-emerald-100 px-1 rounded">PRO</span></p>
+                    <p className="text-xs text-emerald-600 font-medium"><span className="bg-emerald-100 px-1 rounded">PRO</span></p>
                 </div>
             </div>
         </div>
