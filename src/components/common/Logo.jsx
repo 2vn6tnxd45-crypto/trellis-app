@@ -1,9 +1,8 @@
 // src/components/common/Logo.jsx
 // ============================================
-// KRIB LOGO - "Negative Door" Design
+// KRIB LOGO - Text Wordmark with Dot
 // ============================================
-// The craftsman house silhouette with door as negative space.
-// Clean, iconic, memorable.
+// Clean text-based logo: "krib" with teal dot above the "i"
 
 import React from 'react';
 
@@ -13,43 +12,73 @@ export const Logo = ({
   variant = "color",
   color
 }) => {
-  // Determine the fill color based on variant or explicit color prop
-  const getFillColor = () => {
-    if (color) return color;
+  // Figure out what size to make the text based on the height class or size prop
+  // We look at the className to determine sizing
+  const getTextSize = () => {
+    if (size) {
+      if (size <= 24) return 'text-lg';
+      if (size <= 32) return 'text-xl';
+      if (size <= 40) return 'text-2xl';
+      if (size <= 52) return 'text-3xl';
+      return 'text-4xl';
+    }
+    // Check className for height hints
+    if (className.includes('h-6')) return 'text-lg';
+    if (className.includes('h-8')) return 'text-xl';
+    if (className.includes('h-9')) return 'text-2xl';
+    if (className.includes('h-10')) return 'text-2xl';
+    if (className.includes('h-12')) return 'text-3xl';
+    return 'text-xl';
+  };
+
+  // Determine colors based on variant
+  const getColors = () => {
+    if (color) return { text: color, dot: color };
     switch (variant) {
-      case 'white': return '#ffffff';
-      case 'dark': return '#0f172a';
-      case 'muted': return '#64748b';
-      default: return '#10b981'; // emerald-500
+      case 'white':
+        return { text: '#ffffff', dot: '#ffffff' };
+      case 'dark':
+        return { text: '#0f172a', dot: '#10b981' };
+      case 'muted':
+        return { text: '#64748b', dot: '#10b981' };
+      default:
+        return { text: '#0f172a', dot: '#10b981' }; // Dark text, emerald dot
     }
   };
 
-  const fillColor = getFillColor();
-
-  // Support both className-based sizing and explicit size prop
-  const sizeProps = size 
-    ? { width: size, height: size } 
-    : {};
+  const textSize = getTextSize();
+  const colors = getColors();
 
   return (
-    <svg 
-      className={className}
-      {...sizeProps}
-      viewBox="0 0 100 100" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
+    <span 
+      className={`font-extrabold tracking-tight ${textSize}`}
+      style={{ 
+        fontFamily: '"Satoshi", system-ui, -apple-system, sans-serif',
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        lineHeight: 1,
+      }}
       aria-label="Krib logo"
     >
-      {/* 
-        Craftsman house silhouette with door carved out as negative space.
-        The door uses fillRule="evenodd" to create the cutout effect.
-      */}
-      <path 
-        d="M8 50 L50 24 L92 50 L84 50 L84 90 L60 90 L60 58 C60 55 57 52 54 52 L46 52 C43 52 40 55 40 58 L40 90 L16 90 L16 50 Z" 
-        fill={fillColor}
-        fillRule="evenodd"
-      />
-    </svg>
+      <span style={{ color: colors.text }}>kr</span>
+      <span style={{ position: 'relative', color: colors.text }}>
+        i
+        {/* The dot above the i */}
+        <span 
+          style={{ 
+            position: 'absolute',
+            top: '-0.15em',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '0.25em',
+            height: '0.25em',
+            backgroundColor: colors.dot,
+            borderRadius: '50%',
+          }}
+        />
+      </span>
+      <span style={{ color: colors.text }}>b</span>
+    </span>
   );
 };
 
@@ -57,10 +86,8 @@ export const Logo = ({
 // LOGO VARIANTS FOR SPECIFIC USE CASES
 // ============================================
 
-// App icon version (for favicons, app icons)
+// App icon version (for favicons, app icons) - keeps the house for app icons
 export const LogoIcon = ({ size = 32, variant = "white", background = true }) => {
-  const bgColor = variant === "white" ? "#10b981" : "transparent";
-  
   if (!background) {
     return <Logo size={size} variant={variant} />;
   }
@@ -77,7 +104,7 @@ export const LogoIcon = ({ size = 32, variant = "white", background = true }) =>
         justifyContent: 'center'
       }}
     >
-      <Logo size={size * 0.6} variant="white" />
+      <Logo size={size * 0.5} variant="white" />
     </div>
   );
 };
