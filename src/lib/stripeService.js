@@ -20,6 +20,7 @@
  * @param {string} [params.existingStripeAccountId] - If reconnecting
  * @returns {Promise<{accountId: string, onboardingUrl: string}>}
  */
+import { formatCurrency } from './utils';
 export const startStripeOnboarding = async ({ 
     contractorId, 
     email, 
@@ -193,15 +194,6 @@ export const canAcceptPayments = (contractor) => {
            contractor?.stripe?.chargesEnabled;
 };
 
-/**
- * Format currency for display
- */
-export const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD'
-    }).format(amount);
-};
 
 export default {
     startStripeOnboarding,
@@ -210,6 +202,7 @@ export default {
     redirectToCheckout,
     calculateDepositAmount,
     calculateBalanceAmount,
-    canAcceptPayments,
-    formatCurrency
+    canAcceptPayments
 };
+
+export { formatCurrency };
