@@ -9,11 +9,12 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icons/icon-72.png",
-      "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "maskable any"
-    },
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
     {
       "src": "/icons/icon-96.png",
       "sizes": "96x96",
