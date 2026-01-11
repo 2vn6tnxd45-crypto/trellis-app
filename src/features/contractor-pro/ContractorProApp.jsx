@@ -2178,13 +2178,29 @@ export const ContractorProApp = () => {
                 <OfferTimeSlotsModal 
                     job={offeringTimesJob}
                     allJobs={jobs}
-                    schedulingPreferences={profile?.scheduling}
+                    schedulingPreferences={profile?.scheduling || {
+                        workingHours: {
+                            monday: { enabled: true, start: '08:00', end: '17:00' },
+                            tuesday: { enabled: true, start: '08:00', end: '17:00' },
+                            wednesday: { enabled: true, start: '08:00', end: '17:00' },
+                            thursday: { enabled: true, start: '08:00', end: '17:00' },
+                            friday: { enabled: true, start: '08:00', end: '17:00' },
+                            saturday: { enabled: false, start: '09:00', end: '14:00' },
+                            sunday: { enabled: false, start: '09:00', end: '14:00' }
+                        },
+                        maxJobsPerDay: 4,
+                        defaultJobDuration: 120,
+                        homeBase: { address: profile?.profile?.address || '' }
+                    }}
                     onClose={() => setOfferingTimesJob(null)}
                     onSuccess={() => {
                         setOfferingTimesJob(null);
-                        toast.success('Time slots sent!');
+                        toast.success('Time slots sent to customer!');
                     }}
-                    onNavigate={handleNavigate}
+                    onNavigate={(view) => {
+                        setOfferingTimesJob(null);
+                        handleNavigate(view);
+                    }}
                 />
             )}
 
