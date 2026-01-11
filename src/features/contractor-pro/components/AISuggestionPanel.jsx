@@ -161,6 +161,7 @@ export const AISuggestionPanel = ({
     customerPreferences,
     onSelectSuggestion,
     selectedSuggestion,
+    selectedSlots = [],  // NEW: Array of already-selected slots
     compact = false,
     onNavigate
 }) => {
@@ -234,9 +235,17 @@ export const AISuggestionPanel = ({
         );
     }
     
+    // Filter out already-selected suggestions
+    const availableSuggestions = analysis.suggestions.filter(suggestion => {
+        const suggestionDateStr = suggestion.date.toISOString().split('T')[0];
+        return !selectedSlots.some(slot => 
+            slot.date === suggestionDateStr && slot.startTime === suggestion.startTime
+        );
+    });
+
     const displaySuggestions = showAll 
-        ? analysis.suggestions 
-        : analysis.suggestions.slice(0, 3);
+        ? availableSuggestions 
+        : availableSuggestions.slice(0, 3);
     
     return (
         <div className={`space-y-4 ${compact ? '' : ''}`}>
@@ -249,7 +258,7 @@ export const AISuggestionPanel = ({
                     <div>
                         <h3 className="font-bold text-slate-800 text-sm">AI Suggestions</h3>
                         <p className="text-xs text-slate-500">
-                            {analysis.meta.totalSlotsFound} options found
+                            {availableSuggestions.length} options found
                         </p>
                     </div>
                 </div>
@@ -294,7 +303,7 @@ export const AISuggestionPanel = ({
             </div>
             
             {/* Show More/Less */}
-            {analysis.suggestions.length > 3 && (
+            {availableSuggestions.length > 3 && (
                 <button
                     onClick={() => setShowAll(!showAll)}
                     className="w-full py-2 text-sm text-slate-500 hover:text-slate-700 font-medium flex items-center justify-center gap-1"
@@ -302,7 +311,7 @@ export const AISuggestionPanel = ({
                     {showAll ? (
                         <>Show Less <ChevronUp size={16} /></>
                     ) : (
-                        <>Show {analysis.suggestions.length - 3} More <ChevronDown size={16} /></>
+                        <>Show {availableSuggestions.length - 3} More <ChevronDown size={16} /></>
                     )}
                 </button>
             )}
