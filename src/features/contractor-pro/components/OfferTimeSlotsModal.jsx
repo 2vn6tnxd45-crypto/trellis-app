@@ -541,6 +541,7 @@ export const OfferTimeSlotsModal = ({
                                     preferences={schedulingPreferences}
                                     customerPreferences={customerPrefs}
                                     onSelectSuggestion={applyAISuggestion}
+                                    selectedSlots={slots.filter(s => s.date)}
                                     compact={true}
                                     onNavigate={onNavigate}
                                 />
