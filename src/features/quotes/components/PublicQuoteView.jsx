@@ -786,12 +786,14 @@ const QuoteContent = ({
                                             )}
                                             
                                             {/* Item-specific Warranty */}
-                                            {item.warranty && (
-                                                <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
-                                                    <Shield size={12} />
-                                                    {item.warranty}
-                                                </p>
-                                            )}
+{item.warranty && (
+    <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1">
+        <Shield size={12} />
+        {item.warranty.toLowerCase().includes('warranty') 
+            ? item.warranty 
+            : `${item.warranty} Warranty`}
+    </p>
+)}
                                             
                                             {/* Quantity */}
                                             {item.quantity > 1 && (
