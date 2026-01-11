@@ -161,7 +161,8 @@ export const AISuggestionPanel = ({
     customerPreferences,
     onSelectSuggestion,
     selectedSuggestion,
-    compact = false
+    compact = false,
+    onNavigate
 }) => {
     const [showAll, setShowAll] = useState(false);
     
@@ -211,13 +212,13 @@ export const AISuggestionPanel = ({
                         <p className="text-xs text-amber-600 mb-2">
                             Working hours are not set up yet.
                         </p>
-                        <a 
-                            href="/app/?pro=dashboard&view=settings" // Quick link to settings
+                        <button 
+                            onClick={() => onNavigate?.('settings')}
                             className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-700"
                         >
                             <Settings size={12} />
                             Go to Settings
-                        </a>
+                        </button>
                     </div>
                 ) : (
                     <div className="mt-2 text-xs text-slate-400">
