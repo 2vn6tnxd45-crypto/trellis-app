@@ -62,8 +62,8 @@ export const Logo = ({
     >
       <span style={{ color: colors.text }}>kr</span>
       <span style={{ position: 'relative', color: colors.text }}>
-        i
-        {/* The dot above the i */}
+        ı
+        {/* The dot above the i - using dotless i (ı) character */}
         <span 
           style={{ 
             position: 'absolute',
