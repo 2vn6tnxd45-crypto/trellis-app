@@ -39,19 +39,11 @@ import {
 } from 'lucide-react';
 import { useHomeArchive, ARCHIVE_TYPES } from './useHomeArchive';
 import { RebookProButton } from '../../components/common/RebookProButton';
+import { formatCurrency } from '../../lib/utils';
 
 // ============================================
 // HELPERS
 // ============================================
-const formatCurrency = (amount) => {
-    if (typeof amount !== 'number' || isNaN(amount)) return '$0';
-    return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD', 
-        minimumFractionDigits: 0, 
-        maximumFractionDigits: 0 
-    }).format(amount);
-};
 
 const formatDate = (timestamp) => {
     if (!timestamp) return '—';
