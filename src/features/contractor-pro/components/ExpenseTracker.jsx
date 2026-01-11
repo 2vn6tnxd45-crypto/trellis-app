@@ -20,6 +20,7 @@ import {
     Check, AlertCircle, Loader2, Download
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from '../../../lib/utils';
 
 // ============================================
 // CONSTANTS
@@ -46,14 +47,7 @@ const TIME_FILTERS = [
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-const formatCurrency = (value) => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-    }).format(value || 0);
-};
+
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '';
