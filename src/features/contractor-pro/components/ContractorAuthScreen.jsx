@@ -109,12 +109,9 @@ export const ContractorAuthScreen = ({
             <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-emerald-600 to-emerald-700 p-12 flex-col justify-between">
                 <div>
                     <div className="flex items-center gap-3 mb-12">
-                        <div className="bg-white p-2 rounded-xl">
-    <Logo className="h-8 w-8" />
-</div>
                         <div>
-                            <h1 className="text-2xl font-bold text-white">krib</h1>
-                            <p className="text-white/70 text-sm">For Professionals</p>
+                            <Logo className="h-10 w-10" variant="white" />
+                            <p className="text-white/70 text-sm mt-1">For Professionals</p>
                         </div>
                     </div>
                     
