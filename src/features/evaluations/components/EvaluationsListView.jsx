@@ -13,6 +13,7 @@ import {
 import toast from 'react-hot-toast';
 import { EVALUATION_STATUS, EVALUATION_TYPES, getTimeRemaining } from '../lib/evaluationService';
 import { CATEGORY_LABELS } from '../lib/evaluationTemplates';
+import { AIAnalysisSummary } from './AIAnalysisSummary';
 
 // ============================================
 // MAIN COMPONENT
@@ -397,6 +398,16 @@ const EvaluationCard = ({ evaluation, onClick, highlight = false, faded = false,
                             <Clock size={12} />
                             {timeRemaining.display}
                         </p>
+                    )}
+
+                    {/* AI Analysis Summary (compact) */}
+                    {evaluation.aiAnalysis && (
+                        <div className="mt-3">
+                            <AIAnalysisSummary
+                                analysis={evaluation.aiAnalysis}
+                                variant="compact"
+                            />
+                        </div>
                     )}
                 </div>
 
