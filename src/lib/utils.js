@@ -33,3 +33,27 @@ export const calculateNextDate = (startDate, frequency) => {
     nextDate.setMonth(nextDate.getMonth() + monthsToAdd);
     return nextDate.toISOString().split('T')[0]; 
 };
+
+/**
+ * Format a number as USD currency
+ * @param {number} value - The amount to format
+ * @param {object} options - Optional formatting options
+ * @param {boolean} options.showCents - Whether to show cents (default: false for whole numbers)
+ * @param {string} options.fallback - What to show if value is null/undefined (default: '$0')
+ * @returns {string} Formatted currency string like "$1,234" or "$1,234.56"
+ */
+export const formatCurrency = (value, options = {}) => {
+    const { showCents = false, fallback = '$0' } = options;
+    
+    // Handle null, undefined, NaN
+    if (value === null || value === undefined || isNaN(value)) {
+        return fallback;
+    }
+    
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: showCents ? 2 : 0,
+        maximumFractionDigits: showCents ? 2 : 0,
+    }).format(value);
+};
