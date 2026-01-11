@@ -27,23 +27,6 @@ import { AIAnalysisSummary } from './AIAnalysisSummary';
 // MAIN COMPONENT
 // ============================================
 
-{/* AI Analysis Summary - Show if available */}
-{evaluation?.aiAnalysis && (
-    <div className="mb-6">
-        <AIAnalysisSummary
-            analysis={evaluation.aiAnalysis}
-            evaluation={evaluation}
-            contractorId={contractorId}
-            evaluationId={evaluation.id}
-            onRefresh={(newAnalysis) => {
-                // Optionally update local state if you're managing it
-                console.log('Analysis refreshed:', newAnalysis);
-            }}
-            variant="full"
-        />
-    </div>
-)}
-
 export const EvaluationReview = ({
     evaluation,
     onRequestMoreInfo,
@@ -226,6 +209,16 @@ export const EvaluationReview = ({
                     </span>
                 </div>
             </div>
+
+            {/* AI Analysis Summary - Show if available */}
+            {evaluation?.aiAnalysis && (
+                <div className="p-6 border-b border-slate-200">
+                    <AIAnalysisSummary
+                        analysis={evaluation.aiAnalysis}
+                        variant="full"
+                    />
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="border-b border-slate-200">
