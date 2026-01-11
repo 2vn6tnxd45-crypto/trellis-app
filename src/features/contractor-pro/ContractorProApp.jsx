@@ -1469,6 +1469,22 @@ export const ContractorProApp = () => {
         ) || [];
     }, [jobs]);
 
+    // Calculate jobs scheduled for today
+    const todaysJobs = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        return jobs?.filter(job => {
+            if (!job.scheduledTime && !job.scheduledDate) return false;
+            const jobDate = job.scheduledTime 
+                ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
+                : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
+            return jobDate >= today && jobDate < tomorrow;
+        }) || [];
+    }, [jobs]);
+
     // Calculate needs attention count for badge
     const needsAttentionCount = useMemo(() => {
         let count = 0;
