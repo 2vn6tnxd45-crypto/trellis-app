@@ -2,7 +2,7 @@
 // ============================================
 // FIREBASE CONFIGURATION WITH INDEXEDDB RECOVERY
 // ============================================
-
+import { debug } from '../lib/debug';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { 
@@ -150,7 +150,7 @@ const clearFailures = () => {
 const checkIndexedDBHealth = async () => {
     return new Promise((resolve) => {
         const timeout = setTimeout(() => {
-            console.warn('[Firebase] IndexedDB health check timed out');
+            debug.warn('[Firebase] IndexedDB health check timed out');
             resolve(false);
         }, 3000);
         
@@ -160,13 +160,13 @@ const checkIndexedDBHealth = async () => {
             
             request.onerror = (event) => {
                 clearTimeout(timeout);
-                console.warn('[Firebase] IndexedDB health check failed:', event);
+                debug.warn('[Firebase] IndexedDB health check failed:', event);
                 resolve(false);
             };
             
             request.onblocked = () => {
                 clearTimeout(timeout);
-                console.warn('[Firebase] IndexedDB health check blocked');
+                debug.warn('[Firebase] IndexedDB health check blocked');
                 resolve(false);
             };
             
@@ -177,7 +177,7 @@ const checkIndexedDBHealth = async () => {
                     indexedDB.deleteDatabase(testDbName);
                     resolve(true);
                 } catch (e) {
-                    console.warn('[Firebase] IndexedDB cleanup failed:', e);
+                    debug.warn('[Firebase] IndexedDB cleanup failed:', e);
                     resolve(false);
                 }
             };
@@ -188,13 +188,13 @@ const checkIndexedDBHealth = async () => {
                     db.createObjectStore('test', { keyPath: 'id' });
                 } catch (e) {
                     clearTimeout(timeout);
-                    console.warn('[Firebase] IndexedDB upgrade failed:', e);
+                    debug.warn('[Firebase] IndexedDB upgrade failed:', e);
                     resolve(false);
                 }
             };
         } catch (e) {
             clearTimeout(timeout);
-            console.warn('[Firebase] IndexedDB not available:', e);
+            debug.warn('[Firebase] IndexedDB not available:', e);
             resolve(false);
         }
     });
@@ -222,10 +222,10 @@ const clearFirebaseIndexedDB = async () => {
         }
     } catch (e) {
         // indexedDB.databases() not supported in all browsers
-        console.warn('[Firebase] Could not enumerate databases:', e);
+        debug.warn('[Firebase] Could not enumerate databases:', e);
     }
     
-    console.log('[Firebase] Clearing databases:', dbNames);
+    debug.log('[Firebase] Clearing databases:', dbNames);
     
     // Delete each database
     for (const name of dbNames) {
@@ -233,20 +233,20 @@ const clearFirebaseIndexedDB = async () => {
             await new Promise((resolve) => {
                 const request = indexedDB.deleteDatabase(name);
                 request.onsuccess = () => {
-                    console.log(`[Firebase] Deleted IndexedDB: ${name}`);
+                    debug.log(`[Firebase] Deleted IndexedDB: ${name}`);
                     resolve();
                 };
                 request.onerror = () => {
-                    console.warn(`[Firebase] Failed to delete: ${name}`);
+                    debug.warn(`[Firebase] Failed to delete: ${name}`);
                     resolve();
                 };
                 request.onblocked = () => {
-                    console.warn(`[Firebase] Delete blocked: ${name}`);
+                    debug.warn(`[Firebase] Delete blocked: ${name}`);
                     resolve();
                 };
             });
         } catch (e) {
-            console.warn(`[Firebase] Error deleting ${name}:`, e);
+            debug.warn(`[Firebase] Error deleting ${name}:`, e);
         }
     }
 };
@@ -276,19 +276,19 @@ const isContractorFlow = () => {
 const shouldUseMemoryCache = () => {
     // 1. Previously marked as corrupted
     if (isMarkedCorrupted()) {
-        console.log('[Firebase] Using memory cache: corruption marker found');
+        debug.log('[Firebase] Using memory cache: corruption marker found');
         return { useMemory: true, reason: 'corruption marker' };
     }
     
     // 2. Contractor flows don't need persistence
     if (isContractorFlow()) {
-        console.log('[Firebase] Using memory cache: contractor flow');
+        debug.log('[Firebase] Using memory cache: contractor flow');
         return { useMemory: true, reason: 'contractor flow' };
     }
     
     // 3. Previous failures detected
     if (getFailureCount() >= MAX_FAILURES) {
-        console.log('[Firebase] Using memory cache: previous failures');
+        debug.log('[Firebase] Using memory cache: previous failures');
         return { useMemory: true, reason: 'previous failures' };
     }
     
@@ -306,7 +306,7 @@ try {
     const { useMemory, reason } = shouldUseMemoryCache();
     
     if (useMemory) {
-        console.log(`[Firebase] Using memory cache (${reason})`);
+        debug.log(`[Firebase] Using memory cache (${reason})`);
         db = initializeFirestore(app, {
             localCache: memoryLocalCache()
         });
@@ -316,7 +316,7 @@ try {
             clearFirebaseIndexedDB().then(() => {
                 clearFailures();
                 clearCorruptionMark();
-                console.log('[Firebase] Cleaned up IndexedDB, will try persistence on next full reload');
+                debug.log('[Firebase] Cleaned up IndexedDB, will try persistence on next full reload');
             });
         }
     } else {
@@ -327,9 +327,9 @@ try {
                     tabManager: persistentMultipleTabManager()
                 })
             });
-            console.log('[Firebase] Using persistent cache');
+            debug.log('[Firebase] Using persistent cache');
         } catch (e) {
-            console.warn('[Firebase] Persistent cache failed, using memory:', e);
+            debug.warn('[Firebase] Persistent cache failed, using memory:', e);
             recordFailure();
             
             // Check if it's a corruption error
@@ -348,7 +348,7 @@ try {
         const vertexAI = getVertexAI(app);
         geminiModel = getGenerativeModel(vertexAI, { model: "gemini-2.0-flash" });
     } catch (aiError) {
-        console.warn("[Firebase] AI Initialization failed (optional feature):", aiError);
+        debug.warn("[Firebase] AI Initialization failed (optional feature):", aiError);
     }
 
 } catch (e) {
@@ -366,7 +366,7 @@ try {
         auth = getAuth(app);
         db = initializeFirestore(app, { localCache: memoryLocalCache() });
         storage = getStorage(app);
-        console.warn('[Firebase] Recovered with memory cache');
+        debug.warn('[Firebase] Recovered with memory cache');
     } catch (recoveryError) {
         console.error('[Firebase] Recovery failed:', recoveryError);
     }
@@ -376,7 +376,7 @@ try {
 // EXPORT RECOVERY UTILITY
 // ============================================
 export const recoverFromStorageIssues = async () => {
-    console.log('[Firebase] Manual recovery triggered');
+    debug.log('[Firebase] Manual recovery triggered');
     await clearFirebaseIndexedDB();
     clearFailures();
     clearCorruptionMark();
