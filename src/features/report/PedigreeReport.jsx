@@ -18,6 +18,7 @@ import { InvestmentBreakdown } from './components/InvestmentBreakdown';
 
 // Import property data hook
 import { useProperty } from '../../contexts/PropertyContext';
+import { formatCurrency } from '../../lib/utils';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -36,15 +37,6 @@ const formatDate = (dateStr) => {
   }
 };
 
-const formatCurrency = (value) => {
-  const num = parseFloat(value);
-  if (isNaN(num) || num === 0) return '--';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(num);
-};
 
 // ============================================
 // REPORT HEADER COMPONENT
