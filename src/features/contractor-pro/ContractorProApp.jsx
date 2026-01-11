@@ -77,6 +77,7 @@ import { CancellationApprovalModal } from '../jobs/CancellationApprovalModal';
 // Chat Service
 import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
 import { EstimateTemplates } from './components/EstimateTemplates';
+import { formatCurrency } from '../../lib/utils';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
@@ -300,7 +301,6 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
-const formatCurrency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
 const formatDate = (date) => {
     if (!date) return 'N/A';
     const d = date.toDate ? date.toDate() : new Date(date);
