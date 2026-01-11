@@ -683,7 +683,10 @@ const isMultiDay = durationMins > maxSlotDuration;
 const originalDurationMins = durationMins; // Save before capping for the warning message
 if (isMultiDay) {
     durationMins = maxSlotDuration; // Find slots that fit one workday
-    warnings.push(`This is a multi-day job (~${Math.ceil(originalDurationMins / 480)} days). Suggestions show potential start dates.`);
+    warnings.push({
+        type: 'multi_day',
+        message: `This is a multi-day job (~${Math.ceil(originalDurationMins / 480)} days). Suggestions show potential start dates.`
+    });
 }
     
     const today = new Date();
