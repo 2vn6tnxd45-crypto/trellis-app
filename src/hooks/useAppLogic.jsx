@@ -6,7 +6,7 @@ import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTi
 import toast from 'react-hot-toast';
 import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
 import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
-import { calculateNextDate } from '../lib/utils';
+import { calculateNextDate, removeUndefined } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
 // NEW: Import Chat Service Logic for Badge Counts
 import { subscribeToGlobalUnreadCount } from '../lib/chatService';
@@ -360,20 +360,6 @@ export const useAppLogic = (celebrations) => {
         // HELPER: Remove ALL undefined values from any object
         // Firebase rejects undefined values, so we must clean them
         // =====================================================
-        const removeUndefined = (obj) => {
-            if (obj === null || obj === undefined) return null;
-            if (typeof obj !== 'object') return obj;
-            if (Array.isArray(obj)) {
-                return obj.map(item => removeUndefined(item));
-            }
-            const cleaned = {};
-            for (const [key, value] of Object.entries(obj)) {
-                if (value !== undefined) {
-                    cleaned[key] = removeUndefined(value);
-                }
-            }
-            return cleaned;
-        };
 
         // Helper to sanitize address specifically
         const sanitizeAddress = (addr) => {
