@@ -14,17 +14,12 @@ import {
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
+import { formatCurrency } from '../../lib/utils';
 import toast from 'react-hot-toast';
 
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
-const formatCurrency = (val) => {
-    return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD' 
-    }).format(val || 0);
-};
 
 const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
