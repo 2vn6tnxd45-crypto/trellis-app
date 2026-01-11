@@ -365,6 +365,7 @@ export const OfferTimeSlotsModal = ({
     };
 
     // Submit slots
+    // Submit slots
     const handleSubmit = async () => {
         if (!validateAllSlots()) return;
         
@@ -372,21 +373,55 @@ export const OfferTimeSlotsModal = ({
         try {
             const filledSlots = slots.filter(s => s.date);
             
-            const timeSlots = filledSlots.map(slot => ({
-                date: slot.date,
-                startTime: slot.startTime,
-                endTime: slot.endTime,
-                status: 'offered'
-            }));
+            // ========================================
+            // FIX: Format slots correctly for SlotPicker
+            // ========================================
+            // SlotPicker expects: { id, start, end, status }
+            // Where start/end are ISO datetime strings
+            const formattedSlots = filledSlots.map((slot, index) => {
+                // Combine date + time into full ISO datetime strings
+                const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`);
+                const endDateTime = new Date(`${slot.date}T${slot.endTime}:00`);
+                
+                return {
+                    id: slot.id || `slot_${Date.now()}_${index}`,  // Unique ID for tracking
+                    start: startDateTime.toISOString(),            // Full ISO string
+                    end: endDateTime.toISOString(),                // Full ISO string
+                    status: 'offered'
+                };
+            });
             
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+            
+            // ========================================
+            // FIX: Write to scheduling.offeredSlots (where readers look)
+            // ========================================
             await updateDoc(jobRef, {
-                offeredTimeSlots: timeSlots,
+                // Write to the NESTED path that SlotPicker reads from
+                'scheduling.offeredSlots': formattedSlots,
+                'scheduling.offeredMessage': message || null,
+                'scheduling.offeredAt': serverTimestamp(),
+                
+                // Also keep the old field for backwards compatibility (optional)
+                offeredTimeSlots: formattedSlots,
+                
+                // Update status
                 status: 'slots_offered',
                 contractorMessage: message || null,
                 slotsOfferedAt: serverTimestamp(),
                 lastActivity: serverTimestamp()
             });
+            
+            toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
+            if (onSuccess) onSuccess();
+            onClose();
+        } catch (error) {
+            console.error('Error offering time slots:', error);
+            toast.error('Failed to send time slots');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
             
             toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
             if (onSuccess) onSuccess();
