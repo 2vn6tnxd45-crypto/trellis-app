@@ -7,6 +7,7 @@ import {
     Paintbrush, Plug, Grid, Fan, Droplet, Zap, Hammer, Sun, 
     Armchair, Box, Bug, Paperclip, ExternalLink
 } from 'lucide-react';
+import { RebookProButton } from '../../components/common/RebookProButton';
 import { toProperCase } from '../../lib/utils';
 
 // --- NEW: Category configuration from RecordCard for colored icons ---
@@ -125,7 +126,11 @@ export const EnhancedRecordCard = ({
     onAddTask,
     onEditTask,
     onDeleteTask,
-    onCompleteTask
+    onCompleteTask,
+    // NEW: Props for Rebook Pro Button
+    userId,
+    userProfile,
+    propertyAddress
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     
@@ -280,21 +285,47 @@ export const EnhancedRecordCard = ({
                         )}
                     </div>
 
-                    {/* Footer Actions */}
-                    <div className="flex gap-3 pt-2">
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onEditRecord(record); }}
-                            className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition-colors flex items-center justify-center gap-2"
-                        >
-                            <Edit2 size={14} /> Edit Details
-                        </button>
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onDeleteRecord(record.id); }}
-                            className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors"
-                        >
-                            <Trash2 size={14} />
-                        </button>
-                    </div>
+                    {/* Contractor / Rebook Section */}
+{record.contractor && (
+    <div className="bg-emerald-50 rounded-xl p-4 mb-4 border border-emerald-100">
+        <div className="flex items-center justify-between">
+            <div>
+                <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-1">Installed By</p>
+                <p className="text-sm font-bold text-slate-800">{record.contractor}</p>
+                {record.contractorPhone && (
+                    <p className="text-xs text-slate-500 mt-0.5">{record.contractorPhone}</p>
+                )}
+            </div>
+            <RebookProButton
+                contractor={record.contractor}
+                contractorId={record.contractorId}
+                contractorPhone={record.contractorPhone}
+                contractorEmail={record.contractorEmail}
+                itemName={record.item}
+                userId={userId}
+                userProfile={userProfile}
+                propertyAddress={propertyAddress}
+                variant="default"
+            />
+        </div>
+    </div>
+)}
+
+{/* Footer Actions */}
+<div className="flex gap-3 pt-2">
+    <button 
+        onClick={(e) => { e.stopPropagation(); onEditRecord(record); }}
+        className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 hover:text-slate-800 transition-colors flex items-center justify-center gap-2"
+    >
+        <Edit2 size={14} /> Edit Details
+    </button>
+    <button 
+        onClick={(e) => { e.stopPropagation(); onDeleteRecord(record.id); }}
+        className="py-2.5 px-4 rounded-xl border border-slate-200 text-slate-400 hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-colors"
+    >
+        <Trash2 size={14} />
+    </button>
+</div>
                 </div>
             )}
         </div>
