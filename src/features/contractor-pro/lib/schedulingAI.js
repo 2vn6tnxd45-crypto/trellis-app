@@ -680,9 +680,10 @@ export const generateSchedulingSuggestions = (
 // Cap duration at one workday for slot-finding (multi-day jobs just need a start date)
 const maxSlotDuration = 480; // 8 hours
 const isMultiDay = durationMins > maxSlotDuration;
+const originalDurationMins = durationMins; // Save before capping for the warning message
 if (isMultiDay) {
     durationMins = maxSlotDuration; // Find slots that fit one workday
-    warnings.push(`This is a multi-day job (~${Math.ceil(durationMins / 480)} days). Suggestions show potential start dates.`);
+    warnings.push(`This is a multi-day job (~${Math.ceil(originalDurationMins / 480)} days). Suggestions show potential start dates.`);
 }
     
     const today = new Date();
