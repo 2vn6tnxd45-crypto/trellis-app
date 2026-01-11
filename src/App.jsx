@@ -432,11 +432,12 @@ if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.ha
                 {app.activeTab === 'Dashboard' && (
                     <FeatureErrorBoundary label="Dashboard">
                         <ModernDashboard 
-                            records={app.activePropertyRecords} 
-                            contractors={contractorsList} 
-                            activeProperty={app.activeProperty}
-                            userId={app.user.uid}
-                            onScanReceipt={() => app.setShowScanner(true)} 
+    records={app.activePropertyRecords} 
+    contractors={contractorsList} 
+    activeProperty={app.activeProperty}
+    userId={app.user.uid}
+    userProfile={app.profile}
+    onScanReceipt={() => app.setShowScanner(true)}
                             onAddRecord={() => openAddModal()} 
                             onNavigateToItems={() => app.setActiveTab('Items')} 
                             onNavigateToContractors={() => app.setActiveTab('Contractors')} 
