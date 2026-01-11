@@ -270,10 +270,10 @@ export const AISuggestionPanel = ({
                 </div>
             )}
             
-            {/* Warnings */}
-            {analysis.warnings.length > 0 && !compact && (
-                <div className="space-y-2">
-                    {analysis.warnings.slice(0, 2).map((warning, idx) => (
+            {/* Warnings - Always show these (important for multi-day jobs) */}
+            {analysis.warnings.length > 0 && (
+                <div className="space-y-2 mb-3">
+                    {analysis.warnings.map((warning, idx) => (
                         <WarningCard key={idx} warning={warning} />
                     ))}
                 </div>
