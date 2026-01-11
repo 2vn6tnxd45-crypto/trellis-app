@@ -6,7 +6,7 @@ import {
     AlertTriangle, Wrench, Shield, CheckCircle2,
     Info, TrendingUp, ChevronDown, Check, User,
     Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer, MapPin, Home, Trash2, ClipboardList 
+    X, ExternalLink, Hammer, MapPin, Home, Trash2, ClipboardList, Archive
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
@@ -16,6 +16,7 @@ import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MaintenanceDashboard } from './MaintenanceDashboard'; 
 import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
+import { HomeArchive } from '../archive';
 
 // NEW: Firebase imports for Active Projects
 // NEW: Firebase imports for Active Projects
@@ -946,6 +947,21 @@ export const ModernDashboard = ({
                     onSnoozeTask={onSnoozeTask}
                 />
             </DashboardSection>
+
+            {/* HISTORY & ARCHIVE SECTION */}
+<DashboardSection 
+    title="History & Archive" 
+    icon={Archive} 
+    defaultOpen={false}
+    summary={<span className="text-xs text-slate-500">Past jobs & quotes</span>}
+>
+    <HomeArchive 
+        userId={userId}
+        userProfile={userProfile}
+        propertyAddress={activeProperty?.address?.formatted || activeProperty?.address}
+        variant="section"
+    />
+</DashboardSection>
 
             {/* LOCAL INSIGHTS SECTION */}
             <DashboardSection 
