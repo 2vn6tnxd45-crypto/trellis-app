@@ -2177,12 +2177,14 @@ export const ContractorProApp = () => {
 
             {/* Offer Time Slots Modal */}
             {offeringTimesJob && (
-                <OfferTimeSlotsModal
-                    job={offeringTimesJob}
-                    contractorId={contractorId}
-                    workingHours={profile?.scheduling?.workingHours}
-                    onClose={() => setOfferingTimesJob(null)}
-                />
+                <OfferTimeSlotsModal 
+    job={selectedJob}
+    allJobs={jobs}
+    schedulingPreferences={profile?.scheduling}
+    onClose={() => setShowOfferTimesModal(false)}
+    onSuccess={() => { /* stuff */ }}
+    onNavigate={handleNavigate}   // ← ADD THIS LINE
+/>
             )}
 
             {/* Job Completion Modal - uncomment when JobCompletionForm is available */}
