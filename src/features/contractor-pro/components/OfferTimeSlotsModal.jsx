@@ -153,7 +153,8 @@ export const OfferTimeSlotsModal = ({
     allJobs = [],
     schedulingPreferences = {},
     onClose, 
-    onSuccess 
+    onSuccess,
+    onNavigate   // ← ADD THIS
 }) => {
     const [slots, setSlots] = useState([
         { id: 'slot_1', date: '', startTime: '09:00', endTime: '12:00', showCalendar: false }
@@ -509,6 +510,7 @@ export const OfferTimeSlotsModal = ({
                                     customerPreferences={customerPrefs}
                                     onSelectSuggestion={applyAISuggestion}
                                     compact={true}
+                                    onNavigate={onNavigate}
                                 />
                             </div>
                         )}
