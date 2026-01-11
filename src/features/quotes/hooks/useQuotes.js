@@ -85,6 +85,7 @@ export const useQuoteStats = (contractorId) => {
     });
     const [loading, setLoading] = useState(true);
 
+    // Manual refresh function (for button clicks, etc.)
     const refresh = useCallback(async () => {
         if (!contractorId) { setLoading(false); return; }
         setLoading(true);
@@ -98,7 +99,30 @@ export const useQuoteStats = (contractorId) => {
         }
     }, [contractorId]);
 
-    useEffect(() => { refresh(); }, [refresh]);
+    // Initial load with mounted check to prevent memory leaks
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadStats = async () => {
+            if (!contractorId) {
+                if (isMounted) setLoading(false);
+                return;
+            }
+            if (isMounted) setLoading(true);
+            try {
+                const newStats = await getQuoteStats(contractorId);
+                if (isMounted) setStats(newStats);
+            } catch (err) {
+                console.error('Error loading stats:', err);
+            } finally {
+                if (isMounted) setLoading(false);
+            }
+        };
+
+        loadStats();
+
+        return () => { isMounted = false; };
+    }, [contractorId]);
 
     return { stats, loading, refresh };
 };
