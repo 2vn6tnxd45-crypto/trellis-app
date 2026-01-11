@@ -57,3 +57,29 @@ export const formatCurrency = (value, options = {}) => {
         maximumFractionDigits: showCents ? 2 : 0,
     }).format(value);
 };
+
+/**
+ * Recursively remove all undefined values from an object
+ * Firebase/Firestore rejects undefined values, so we must clean them before saving
+ * 
+ * @param {any} obj - The object to clean
+ * @returns {any} - Cleaned object with no undefined values
+ * 
+ * @example
+ * removeUndefined({ a: 1, b: undefined, c: { d: undefined, e: 2 } })
+ * // Returns: { a: 1, c: { e: 2 } }
+ */
+export const removeUndefined = (obj) => {
+    if (obj === null || obj === undefined) return null;
+    if (typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) {
+        return obj.map(item => removeUndefined(item));
+    }
+    const cleaned = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (value !== undefined) {
+            cleaned[key] = removeUndefined(value);
+        }
+    }
+    return cleaned;
+};
