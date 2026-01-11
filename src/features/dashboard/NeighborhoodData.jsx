@@ -19,16 +19,7 @@ import {
     Snowflake
 } from 'lucide-react';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
-
-// Helper to format currency
-const formatCurrency = (value) => {
-    if (!value) return '--';
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        maximumFractionDigits: 0
-    }).format(value);
-};
+import { formatCurrency } from '../../lib/utils';
 
 // Helper to format large numbers
 const formatNumber = (value) => {
