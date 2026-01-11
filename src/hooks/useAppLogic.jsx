@@ -5,7 +5,15 @@ import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndP
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
 import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
-import { appId, REQUESTS_COLLECTION_PATH, MAINTENANCE_FREQUENCIES } from '../config/constants';
+import { 
+    appId, 
+    REQUESTS_COLLECTION_PATH, 
+    MAINTENANCE_FREQUENCIES,
+    FIRESTORE_TIMEOUT_MS,
+    TOKEN_PROPAGATION_DELAY_MS,
+    TOKEN_REFRESH_DELAY_MS,
+    MAX_RETRY_ATTEMPTS
+} from '../config/constants';
 import { calculateNextDate, removeUndefined } from '../lib/utils';
 import { Check, RotateCcw } from 'lucide-react';
 // NEW: Import Chat Service Logic for Badge Counts
@@ -138,8 +146,8 @@ export const useAppLogic = (celebrations) => {
                         await currentUser.getIdToken(true);
                         debug.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
                         
-                        debug.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
-                        await new Promise(r => setTimeout(r, 300));
+                        debug.log('[useAppLogic] ⏳ Waiting for token propagation...');
+await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                         debug.log('[useAppLogic] ✅ Token propagation wait complete');
                     } catch (tokenErr) {
                         debug.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
@@ -161,10 +169,10 @@ export const useAppLogic = (celebrations) => {
                             debug.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
                             const startTime = Date.now();
                             profileSnap = await withTimeout(
-                                getDoc(profileRef),
-                                5000,  // 5 second timeout
-                                `getDoc attempt ${attempt}`
-                            );
+    getDoc(profileRef),
+    FIRESTORE_TIMEOUT_MS,
+    `getDoc attempt ${attempt}`
+);
                             debug.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
                             break;
                         } catch (readError) {
@@ -375,7 +383,7 @@ export const useAppLogic = (celebrations) => {
         };
         
         // Retry logic for new user permission issues
-        const maxRetries = 3;
+        const maxRetries = MAX_RETRY_ATTEMPTS;
         let lastError;
         
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -387,7 +395,7 @@ export const useAppLogic = (celebrations) => {
                 try {
                     await user.getIdToken(true);
                     // Small delay to let Firestore recognize the token
-                    await new Promise(r => setTimeout(r, 500));
+                    await new Promise(r => setTimeout(r, TOKEN_REFRESH_DELAY_MS));
                 } catch (tokenErr) {
                     debug.warn('Token refresh failed:', tokenErr);
                 }
