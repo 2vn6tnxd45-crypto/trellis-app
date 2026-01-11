@@ -2,6 +2,13 @@
 // Utility functions for handling Firebase Auth state
 
 import { auth } from '../config/firebase';
+import { 
+    AUTH_READY_TIMEOUT_MS, 
+    AUTH_STATE_DELAY_MS,
+    RETRY_INITIAL_DELAY_MS,
+    RETRY_MAX_DELAY_MS,
+    MAX_RETRY_ATTEMPTS
+} from '../config/constants';
 import { debug } from './debug';
 /**
  * Waits for Firebase Auth to be fully ready after login/signup
@@ -16,7 +23,7 @@ import { debug } from './debug';
  * @param {number} timeoutMs - Maximum time to wait (default 5000ms)
  * @returns {Promise<User>} - The authenticated user
  */
-export const waitForAuthReady = (timeoutMs = 5000) => {
+export const waitForAuthReady = (timeoutMs = AUTH_READY_TIMEOUT_MS) => {
     return new Promise((resolve, reject) => {
         // If already authenticated, force token refresh and resolve
         if (auth.currentUser) {
@@ -54,7 +61,8 @@ export const waitForAuthReady = (timeoutMs = 5000) => {
                     debug.log('[authHelpers] Token refreshed after auth state change');
                     
                     // Small additional delay to ensure propagation
-                    await new Promise(r => setTimeout(r, 100));
+                    // Small additional delay to ensure propagation
+await new Promise(r => setTimeout(r, AUTH_STATE_DELAY_MS));
                     
                     resolve(user);
                 } catch (err) {
@@ -76,9 +84,9 @@ export const waitForAuthReady = (timeoutMs = 5000) => {
  */
 export const retryWithBackoff = async (operation, options = {}) => {
     const {
-        maxRetries = 3,
-        initialDelayMs = 500,
-        maxDelayMs = 5000,
+    maxRetries = MAX_RETRY_ATTEMPTS,
+    initialDelayMs = RETRY_INITIAL_DELAY_MS,
+    maxDelayMs = RETRY_MAX_DELAY_MS,
         onRetry = null,
         shouldRetry = (err) => err.code === 'permission-denied' || err.message?.includes('permission')
     } = options;
