@@ -108,21 +108,53 @@ const AppContent = () => {
   const evaluateParam = urlParams.get('evaluate');
     
     // FIX: Use STATE to track "from=quote" so it persists even if URL is cleaned
-    const [comingFromQuote] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('from') === 'quote';
-    });
+const [comingFromQuote] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('from') === 'quote';
+});
 
-    // Clean up the URL param for aesthetics, but rely on state for logic
-    useEffect(() => {
-        if (comingFromQuote) {
-            const newUrl = new URL(window.location.href);
-            if (newUrl.searchParams.has('from')) {
-                newUrl.searchParams.delete('from');
-                window.history.replaceState({}, '', newUrl.toString());
-            }
-        }
-    }, [comingFromQuote]);
+// NEW: Track payment success redirect
+const [paymentSuccess] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('payment') === 'success';
+});
+
+const [paymentType] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('type') || null;
+});
+
+// Clean up URL params for aesthetics
+useEffect(() => {
+    const newUrl = new URL(window.location.href);
+    let needsUpdate = false;
+    
+    if (comingFromQuote && newUrl.searchParams.has('from')) {
+        newUrl.searchParams.delete('from');
+        needsUpdate = true;
+    }
+    
+    // NEW: Clean up payment params and show success toast
+    if (paymentSuccess) {
+        newUrl.searchParams.delete('payment');
+        newUrl.searchParams.delete('type');
+        newUrl.searchParams.delete('job');
+        newUrl.searchParams.delete('quote');
+        needsUpdate = true;
+        
+        // Show success toast after a brief delay
+        setTimeout(() => {
+            const message = paymentType === 'deposit' 
+                ? '✅ Deposit paid! Your project is now in Active Projects.'
+                : '✅ Payment successful!';
+            toast.success(message, { duration: 5000 });
+        }, 500);
+    }
+    
+    if (needsUpdate) {
+        window.history.replaceState({}, '', newUrl.toString());
+    }
+}, [comingFromQuote, paymentSuccess, paymentType]);
     
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -293,9 +325,10 @@ const AppContent = () => {
     // -- Early Returns --
     
     // CHANGE 3: Quote View - Check this BEFORE auth to allow public access
-    if (quoteToken) {
-        return <PublicQuoteView shareToken={quoteToken} user={app.user} />;
-    }
+// Skip if we just completed payment (quote is now a job, would show "not found")
+if (quoteToken && !paymentSuccess) {
+    return <PublicQuoteView shareToken={quoteToken} user={app.user} />;
+}
 
    // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
     if (proParam !== null && proParam !== 'invite') {
