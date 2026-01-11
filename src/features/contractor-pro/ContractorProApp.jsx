@@ -2176,13 +2176,16 @@ export const ContractorProApp = () => {
             {/* Offer Time Slots Modal */}
             {offeringTimesJob && (
                 <OfferTimeSlotsModal 
-    job={selectedJob}
-    allJobs={jobs}
-    schedulingPreferences={profile?.scheduling}
-    onClose={() => setShowOfferTimesModal(false)}
-    onSuccess={() => { /* stuff */ }}
-    onNavigate={handleNavigate}   // ← ADD THIS LINE
-/>
+                    job={offeringTimesJob}
+                    allJobs={jobs}
+                    schedulingPreferences={profile?.scheduling}
+                    onClose={() => setOfferingTimesJob(null)}
+                    onSuccess={() => {
+                        setOfferingTimesJob(null);
+                        toast.success('Time slots sent!');
+                    }}
+                    onNavigate={handleNavigate}
+                />
             )}
 
             {/* Job Completion Modal - uncomment when JobCompletionForm is available */}
