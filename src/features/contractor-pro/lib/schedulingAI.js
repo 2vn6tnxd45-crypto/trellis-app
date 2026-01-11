@@ -674,7 +674,16 @@ export const generateSchedulingSuggestions = (
                         preferences?.defaultJobDuration || 
                         120; // 2 hours default
     
-    const durationMins = typeof jobDuration === 'number' ? jobDuration : parseDurationToMinutes(jobDuration);
+    let durationMins = typeof jobDuration === 'number' ? 
+    jobDuration : parseDurationToMinutes(jobDuration);
+
+// Cap duration at one workday for slot-finding (multi-day jobs just need a start date)
+const maxSlotDuration = 480; // 8 hours
+const isMultiDay = durationMins > maxSlotDuration;
+if (isMultiDay) {
+    durationMins = maxSlotDuration; // Find slots that fit one workday
+    warnings.push(`This is a multi-day job (~${Math.ceil(durationMins / 480)} days). Suggestions show potential start dates.`);
+}
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
