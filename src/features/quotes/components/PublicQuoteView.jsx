@@ -855,6 +855,37 @@ const QuoteContent = ({
                                 )}
                             </div>
                         )}
+                        
+                        {/* Financing CTA - Show for quotes over $1,000 */}
+                        {quote.total >= 1000 && !quote.payment?.depositPaid && (
+                            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-100 rounded-lg">
+                                            <DollarSign size={18} className="text-blue-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-blue-900">Need financing?</p>
+                                            <p className="text-xs text-blue-700">
+                                                As low as {formatCurrency(Math.round(quote.total / 60))}/mo with approved credit
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <a 
+                                        href="https://www.wisetack.com/apply" 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+                                    >
+                                        Check Rates
+                                        <ChevronRight size={14} />
+                                    </a>
+                                </div>
+                                <p className="text-[10px] text-blue-600 mt-2">
+                                    Checking rates won't affect your credit score
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
                 
