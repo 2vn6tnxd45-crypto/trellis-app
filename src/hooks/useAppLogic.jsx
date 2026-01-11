@@ -1,4 +1,5 @@
 // src/hooks/useAppLogic.jsx
+import { debug } from '../lib/debug';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
@@ -106,79 +107,79 @@ export const useAppLogic = (celebrations) => {
         const isContractorMode = urlParams.get('pro') !== null || window.location.pathname.includes('/contractor');
 
         if (isContractorMode) {
-            console.log('[useAppLogic] Contractor mode detected - skipping homeowner data load');
+            debug.log('[useAppLogic] Contractor mode detected - skipping homeowner data load');
             setLoading(false);
             return; // EXIT EARLY to prevent permission errors
         }
         // --- FIX END ---
 
-        console.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
+        debug.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
         
         let unsubRecords = null;
         let unsubRequests = null;
         
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-            console.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
+            debug.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
                 hasUser: !!currentUser, 
                 email: currentUser?.email 
             });
             
             try {
                 setUser(currentUser);
-                console.log('[useAppLogic] ✅ setUser complete');
+                debug.log('[useAppLogic] ✅ setUser complete');
                 
                 if (currentUser) {
-                    console.log('[useAppLogic] 👤 User exists, starting token refresh...');
+                    debug.log('[useAppLogic] 👤 User exists, starting token refresh...');
                     
                     // Token refresh
                     try {
-                        console.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
+                        debug.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
                         const startTime = Date.now();
                         await currentUser.getIdToken(true);
-                        console.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
+                        debug.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
                         
-                        console.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
+                        debug.log('[useAppLogic] ⏳ Waiting 300ms for token propagation...');
                         await new Promise(r => setTimeout(r, 300));
-                        console.log('[useAppLogic] ✅ Token propagation wait complete');
+                        debug.log('[useAppLogic] ✅ Token propagation wait complete');
                     } catch (tokenErr) {
-                        console.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
+                        debug.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
                     }
                     
                     if (!appId) {
-                        console.error('[useAppLogic] ❌ appId is missing!');
+                        debug.error('[useAppLogic] ❌ appId is missing!');
                         throw new Error("appId is missing");
                     }
-                    console.log('[useAppLogic] ✅ appId check passed:', appId);
+                    debug.log('[useAppLogic] ✅ appId check passed:', appId);
                     
                     // Profile read
                     const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
-                    console.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
+                    debug.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
                     
                     let profileSnap = null;
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
-                            console.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
+                            debug.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
                             const startTime = Date.now();
                             profileSnap = await withTimeout(
                                 getDoc(profileRef),
                                 5000,  // 5 second timeout
                                 `getDoc attempt ${attempt}`
                             );
-                            console.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
+                            debug.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
                             break;
                         } catch (readError) {
-                            console.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
+                            debug.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
                             
                             const isPermissionError = readError.code === 'permission-denied' || 
                                                       readError.message?.includes('permission');
                             const isTimeout = readError.message?.includes('timed out');
                             
                             if (isTimeout) {
-                                console.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
+                                debug.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
                                 
                                 // Record failure and check if we need recovery
                                 const failureCount = reportFirestoreHang();
-                                console.warn(`[useAppLogic] Recorded failure #${failureCount}`);
+                                debug.warn(`[useAppLogic] Recorded failure #${failureCount}`);
                                 
                                 if (attempt < 3) {
                                     await new Promise(r => setTimeout(r, 1000));
@@ -187,7 +188,7 @@ export const useAppLogic = (celebrations) => {
                                 
                                 // After 3 timeouts, check if auto-recovery is needed
                                 if (failureCount >= 2) {
-                                    console.error('[useAppLogic] 🔄 Triggering automatic recovery...');
+                                    debug.error('[useAppLogic] 🔄 Triggering automatic recovery...');
                                     toast.error('Connection issue detected. Refreshing...', { duration: 2000 });
                                     setTimeout(() => recoverFromStorageIssues(), 1500);
                                     return;
@@ -198,7 +199,7 @@ export const useAppLogic = (celebrations) => {
                             }
                             
                             if (isPermissionError && attempt < 3) {
-                                console.log(`[useAppLogic] 🔄 Retrying after permission error...`);
+                                debug.log(`[useAppLogic] 🔄 Retrying after permission error...`);
                                 await currentUser.getIdToken(true);
                                 await new Promise(r => setTimeout(r, 500 * attempt));
                                 continue;
@@ -209,7 +210,7 @@ export const useAppLogic = (celebrations) => {
                                 const isIndexedDBError = readError.message?.includes('IndexedDB') ||
                                                          readError.code === 'unavailable';
                                 if (isIndexedDBError) {
-                                    console.error('[useAppLogic] 🚨 IndexedDB error detected!');
+                                    debug.error('[useAppLogic] 🚨 IndexedDB error detected!');
                                     reportFirestoreHang();
                                     toast.error('Storage issue detected. Refreshing...', { duration: 2000 });
                                     setTimeout(() => recoverFromStorageIssues(), 1500);
@@ -220,7 +221,7 @@ export const useAppLogic = (celebrations) => {
                             
                             // If we're here on attempt 3 with permission error, continue without profile
                             if (attempt === 3) {
-                                console.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
+                                debug.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
                                 profileSnap = null;
                                 break;
                             }
@@ -229,7 +230,7 @@ export const useAppLogic = (celebrations) => {
                     
                     if (profileSnap?.exists()) {
                         const data = profileSnap.data();
-                        console.log('[useAppLogic] ✅ Profile loaded:', { 
+                        debug.log('[useAppLogic] ✅ Profile loaded:', { 
                             hasProperties: !!data.properties,
                             propertyCount: data.properties?.length 
                         });
@@ -237,35 +238,35 @@ export const useAppLogic = (celebrations) => {
                         if (data.hasSeenWelcome) setHasSeenWelcome(true);
                         setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
                     } else {
-                        console.log('[useAppLogic] ℹ️ No profile found (new user)');
+                        debug.log('[useAppLogic] ℹ️ No profile found (new user)');
                         setProfile(null);
                     }
                     
                     // Set up listeners
-                    console.log('[useAppLogic] 📡 Setting up realtime listeners...');
+                    debug.log('[useAppLogic] 📡 Setting up realtime listeners...');
                     if (unsubRecords) unsubRecords();
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
                     unsubRecords = onSnapshot(q, (snap) => {
-                        console.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
+                        debug.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
                         setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                    }, (e) => console.error('[useAppLogic] ❌ Records error:', e));
+                    }, (e) => debug.error('[useAppLogic] ❌ Records error:', e));
 
                     if (unsubRequests) unsubRequests();
                     const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
                     unsubRequests = onSnapshot(qReq, (snap) => {
-                        console.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
+                        debug.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
                         setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
-                    }, (e) => console.error('[useAppLogic] ❌ Requests error:', e));
+                    }, (e) => debug.error('[useAppLogic] ❌ Requests error:', e));
                     
-                    console.log('[useAppLogic] ✅ All listeners set up');
+                    debug.log('[useAppLogic] ✅ All listeners set up');
                 } else {
-                    console.log('[useAppLogic] 👻 No user, clearing state');
+                    debug.log('[useAppLogic] 👻 No user, clearing state');
                     setProfile(null); 
                     setRecords([]); 
                     setNewSubmissions([]);
                 }
             } catch (error) { 
-                console.error('[useAppLogic] ❌ Auth state change error:', error);
+                debug.error('[useAppLogic] ❌ Auth state change error:', error);
                 const isPermissionError = error.code === 'permission-denied' || 
                                           error.message?.includes('permission') ||
                                           error.message?.includes('Missing or insufficient');
@@ -273,15 +274,15 @@ export const useAppLogic = (celebrations) => {
                     toast.error("Error: " + error.message);
                 }
             } finally { 
-                console.log('[useAppLogic] 🏁 Setting loading = false');
+                debug.log('[useAppLogic] 🏁 Setting loading = false');
                 setLoading(false); 
             }
         });
         
-        console.log('[useAppLogic] ✅ Auth listener registered');
+        debug.log('[useAppLogic] ✅ Auth listener registered');
         
         return () => { 
-            console.log('[useAppLogic] 🧹 Cleanup running');
+            debug.log('[useAppLogic] 🧹 Cleanup running');
             unsubAuth(); 
             if (unsubRecords) unsubRecords(); 
             if (unsubRequests) unsubRequests(); 
@@ -305,7 +306,7 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     useEffect(() => {
         if (justCompletedSetup.current && profile && activeTab !== 'Dashboard') {
-            console.log('[useAppLogic] Post-setup redirect: navigating to Dashboard');
+            debug.log('[useAppLogic] Post-setup redirect: navigating to Dashboard');
             setActiveTab('Dashboard');
             justCompletedSetup.current = false;
         }
@@ -341,14 +342,14 @@ export const useAppLogic = (celebrations) => {
     const handleSaveProperty = async (formData) => {
         // Validate user
         if (!user) {
-            console.error('handleSaveProperty: No authenticated user found');
+            debug.error('handleSaveProperty: No authenticated user found');
             toast.error('Authentication error. Please try signing in again.');
             return;
         }
         
         // Validate appId
         if (!appId) {
-            console.error('handleSaveProperty: appId is missing');
+            debug.error('handleSaveProperty: appId is missing');
             toast.error('Configuration error. Please refresh the page.');
             return;
         }
@@ -395,14 +396,14 @@ export const useAppLogic = (celebrations) => {
             try {
                 // Force token refresh before each attempt (especially important for new users)
                 if (attempt > 1) {
-                    console.log(`[handleSaveProperty] Attempt ${attempt}: Refreshing auth token...`);
+                    debug.log(`[handleSaveProperty] Attempt ${attempt}: Refreshing auth token...`);
                 }
                 try {
                     await user.getIdToken(true);
                     // Small delay to let Firestore recognize the token
                     await new Promise(r => setTimeout(r, 500));
                 } catch (tokenErr) {
-                    console.warn('Token refresh failed:', tokenErr);
+                    debug.warn('Token refresh failed:', tokenErr);
                 }
                 
                 const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
@@ -447,7 +448,7 @@ export const useAppLogic = (celebrations) => {
                 // Final safety check: remove any remaining undefined values
                 const cleanedProfile = removeUndefined(newProfile);
                 
-                console.log('[handleSaveProperty] Saving cleaned profile:', cleanedProfile);
+                debug.log('[handleSaveProperty] Saving cleaned profile:', cleanedProfile);
                 
                 // Save to Firebase
                 await setDoc(profileRef, cleanedProfile, { merge: true });
@@ -471,7 +472,7 @@ export const useAppLogic = (celebrations) => {
                 
             } catch (error) {
                 lastError = error;
-                console.error(`handleSaveProperty attempt ${attempt} failed:`, error);
+                debug.error(`handleSaveProperty attempt ${attempt} failed:`, error);
                 
                 // Check if it's a permissions error - wait and retry
                 const isPermissionError = error.code === 'permission-denied' || 
@@ -479,7 +480,7 @@ export const useAppLogic = (celebrations) => {
                                           error.message?.includes('Missing or insufficient');
                 
                 if (isPermissionError && attempt < maxRetries) {
-                    console.log(`[handleSaveProperty] Permission denied, retrying in ${1000 * attempt}ms...`);
+                    debug.log(`[handleSaveProperty] Permission denied, retrying in ${1000 * attempt}ms...`);
                     // Wait before retry (exponential backoff)
                     await new Promise(r => setTimeout(r, 1000 * attempt));
                     continue;
@@ -491,7 +492,7 @@ export const useAppLogic = (celebrations) => {
         }
         
         // All retries failed
-        console.error('handleSaveProperty: All attempts failed:', lastError);
+        debug.error('handleSaveProperty: All attempts failed:', lastError);
         toast.error("Failed to save: " + (lastError?.message || 'Unknown error'));
         setIsSavingProperty(false);
         setIsAddingProperty(false);
@@ -502,7 +503,7 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     const handleMarkTaskDone = useCallback(async (task, notes = '') => {
         // DIAGNOSTIC: Remove after debugging
-        console.log('[DEBUG] handleMarkTaskDone called with:', {
+        debug.log('[DEBUG] handleMarkTaskDone called with:', {
             task,
             recordId: task.recordId,
             taskName: task.taskName,
@@ -519,7 +520,7 @@ export const useAppLogic = (celebrations) => {
             if (!record) return;
             
             // ADD THIS NEW DEBUG BLOCK:
-            console.log('[DEBUG] Found record:', {
+            debug.log('[DEBUG] Found record:', {
                 recordId: record.id,
                 maintenanceTasks: record.maintenanceTasks,
                 taskNamesInRecord: record.maintenanceTasks?.map(t => t.task)
@@ -596,7 +597,7 @@ export const useAppLogic = (celebrations) => {
             );
 
             if (celebrations) celebrations.showToast("Maintenance Recorded!", Check);
-        } catch (e) { console.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
+        } catch (e) { debug.error('[App] handleMarkTaskDone error:', e); toast.error("Failed to update: " + e.message); }
     }, [records, user, celebrations]);
 
     // =========================================================================
@@ -604,10 +605,10 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
-            console.log('[App] Deleting history item:', historyItem);
+            debug.log('[App] Deleting history item:', historyItem);
             
             if (!historyItem.recordId) {
-                console.error('[App] Delete failed: History item missing recordId');
+                debug.error('[App] Delete failed: History item missing recordId');
                 toast.error("Cannot delete: Item missing record ID");
                 return;
             }
@@ -615,7 +616,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === historyItem.recordId);
             
             if (!record) {
-                console.error(`[App] Delete failed: Record ${historyItem.recordId} not found`);
+                debug.error(`[App] Delete failed: Record ${historyItem.recordId} not found`);
                 toast.error("Could not find the original record. Try refreshing.");
                 return;
             }
@@ -631,10 +632,10 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     const handleRestoreHistoryItem = useCallback(async (historyItem) => {
         try {
-            console.log('[App] Restoring history item:', historyItem);
+            debug.log('[App] Restoring history item:', historyItem);
 
             if (!historyItem.recordId) {
-                console.error('[App] Restore failed: History item missing recordId');
+                debug.error('[App] Restore failed: History item missing recordId');
                 toast.error("Cannot restore: Item missing record ID");
                 return;
             }
@@ -642,7 +643,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === historyItem.recordId);
             
             if (!record) {
-                console.error(`[App] Restore failed: Record ${historyItem.recordId} not found`);
+                debug.error(`[App] Restore failed: Record ${historyItem.recordId} not found`);
                 toast.error("Could not find the original record.");
                 return;
             }
@@ -674,7 +675,7 @@ export const useAppLogic = (celebrations) => {
             await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), updates);
             toast.success("Task restored to active", { icon: '↩️' });
         } catch (e) { 
-            console.error('[App] Restore error:', e);
+            debug.error('[App] Restore error:', e);
             toast.error("Failed to restore: " + e.message); 
         }
     }, [records, user]);
@@ -684,10 +685,10 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     const handleDeleteMaintenanceTask = useCallback(async (task) => {
         try {
-            console.log('[App] Deleting maintenance task:', task);
+            debug.log('[App] Deleting maintenance task:', task);
             
             if (!task.recordId) {
-                console.error('[App] Delete task failed: Missing recordId');
+                debug.error('[App] Delete task failed: Missing recordId');
                 toast.error("Cannot delete: Missing record ID");
                 return;
             }
@@ -695,7 +696,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === task.recordId);
             
             if (!record) {
-                console.error(`[App] Delete task failed: Record ${task.recordId} not found`);
+                debug.error(`[App] Delete task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
                 return;
             }
@@ -720,7 +721,7 @@ export const useAppLogic = (celebrations) => {
                 toast.success("Maintenance schedule removed", { icon: '🗑️' });
             }
         } catch (e) {
-            console.error('[App] handleDeleteMaintenanceTask error:', e);
+            debug.error('[App] handleDeleteMaintenanceTask error:', e);
             toast.error("Failed to delete task: " + e.message);
         }
     }, [records, user]);
@@ -728,10 +729,10 @@ export const useAppLogic = (celebrations) => {
     // NEW: Schedule a task with an appointment date - COMPLETE ORIGINAL
     const handleScheduleTask = useCallback(async (task, scheduledDate, notes = '') => {
         try {
-            console.log('[App] Scheduling task:', { task, scheduledDate, notes });
+            debug.log('[App] Scheduling task:', { task, scheduledDate, notes });
             
             if (!task.recordId) {
-                console.error('[App] Schedule task failed: Missing recordId');
+                debug.error('[App] Schedule task failed: Missing recordId');
                 toast.error("Cannot schedule: Missing record ID");
                 return;
             }
@@ -739,7 +740,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === task.recordId);
             
             if (!record) {
-                console.error(`[App] Schedule task failed: Record ${task.recordId} not found`);
+                debug.error(`[App] Schedule task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
                 return;
             }
@@ -782,7 +783,7 @@ export const useAppLogic = (celebrations) => {
             
             toast.success(`Scheduled for ${formattedDate}`, { icon: '📅' });
         } catch (e) {
-            console.error('[App] handleScheduleTask error:', e);
+            debug.error('[App] handleScheduleTask error:', e);
             toast.error("Failed to schedule: " + e.message);
         }
     }, [records, user]);
@@ -790,10 +791,10 @@ export const useAppLogic = (celebrations) => {
     // NEW: Snooze a task by pushing its due date forward - COMPLETE ORIGINAL
     const handleSnoozeTask = useCallback(async (task, days) => {
         try {
-            console.log('[App] Snoozing task:', { task, days });
+            debug.log('[App] Snoozing task:', { task, days });
             
             if (!task.recordId) {
-                console.error('[App] Snooze task failed: Missing recordId');
+                debug.error('[App] Snooze task failed: Missing recordId');
                 toast.error("Cannot snooze: Missing record ID");
                 return;
             }
@@ -801,7 +802,7 @@ export const useAppLogic = (celebrations) => {
             const record = records.find(r => r.id === task.recordId);
             
             if (!record) {
-                console.error(`[App] Snooze task failed: Record ${task.recordId} not found`);
+                debug.error(`[App] Snooze task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
                 return;
             }
@@ -849,7 +850,7 @@ export const useAppLogic = (celebrations) => {
             const label = days === 7 ? '1 week' : days === 14 ? '2 weeks' : days === 30 ? '1 month' : `${days} days`;
             toast.success(`Snoozed for ${label}`, { icon: '⏰' });
         } catch (e) {
-            console.error('[App] handleSnoozeTask error:', e);
+            debug.error('[App] handleSnoozeTask error:', e);
             toast.error("Failed to snooze: " + e.message);
         }
     }, [records, user]);
