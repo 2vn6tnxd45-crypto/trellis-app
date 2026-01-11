@@ -423,16 +423,6 @@ export const OfferTimeSlotsModal = ({
         }
     };
             
-            toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
-            if (onSuccess) onSuccess();
-            onClose();
-        } catch (error) {
-            console.error('Error offering time slots:', error);
-            toast.error('Failed to send time slots');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
 
     const filledSlotsCount = slots.filter(s => s.date).length;
 
