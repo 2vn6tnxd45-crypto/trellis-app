@@ -151,14 +151,9 @@ export const ContractorAuthScreen = ({
             <div className="flex-1 flex items-center justify-center p-6">
                 <div className="w-full max-w-md">
                     {/* Mobile Logo */}
-                    <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-                        <div className="bg-emerald-100 p-2 rounded-xl">
-                            <Logo className="h-8 w-8" />
-                        </div>
-                        <div>
-                            <h1 className="text-xl font-bold text-slate-800">krib</h1>
-                            <p className="text-slate-500 text-xs">For Professionals</p>
-                        </div>
+                    <div className="lg:hidden flex flex-col items-center justify-center mb-8">
+                        <Logo className="h-10 w-10" />
+                        <p className="text-slate-500 text-xs mt-1">For Professionals</p>
                     </div>
                     
                     {/* Auth Card */}
