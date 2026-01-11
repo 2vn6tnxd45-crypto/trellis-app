@@ -145,13 +145,12 @@ export const AuthScreen = () => {
         <div className="min-h-screen bg-emerald-50 flex flex-col items-center justify-center p-6">
             <div className="w-full max-w-md">
                 {/* Logo */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center mb-4">
-                        <Logo className="h-16 w-16" />
-                    </div>
-                    <h1 className="text-3xl font-extrabold text-emerald-950">krib</h1>
-                    <p className="text-slate-500 mt-1">Your home's digital twin</p>
-                </div>
+<div className="text-center mb-10">
+    <div className="inline-flex items-center justify-center mb-2">
+        <Logo className="h-10" />
+    </div>
+    <p className="text-slate-500 mt-1">Your home's digital twin</p>
+</div>
 
                 {/* Card */}
                 <div className="bg-white rounded-[2rem] shadow-xl p-8 border border-emerald-100">
