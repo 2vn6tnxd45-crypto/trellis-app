@@ -893,7 +893,16 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* CHANGE 1: PROPERTY INTELLIGENCE SECTION - MOVED TO TOP (the wow factor!) */}
+            {/* ACTIVE PROJECTS SECTION - First! (shows if user has any) */}
+            <ActiveProjectsSection userId={userId} />
+
+            {/* MY QUOTES SECTION (shows if user has any) */}
+            <MyQuotesSection userId={userId} />
+
+            {/* PENDING EVALUATIONS SECTION (shows if user has any) */}
+            <PendingEvaluationsSection userId={userId} />
+
+            {/* PROPERTY INTELLIGENCE SECTION */}
             <DashboardSection 
                 title="Property Intelligence" 
                 icon={Home} 
@@ -903,7 +912,7 @@ export const ModernDashboard = ({
                 <PropertyIntelligence propertyProfile={activeProperty} />
             </DashboardSection>
 
-            {/* CHANGE 2: WELCOME CARD - Only for 0 items, dismissible */}
+            {/* WELCOME CARD - Only for 0 items, dismissible */}
             {validRecords.length === 0 && !welcomeDismissed && (
                 <WelcomeCard 
                     propertyName={activeProperty?.name}
@@ -913,15 +922,6 @@ export const ModernDashboard = ({
                     onDismiss={handleDismissWelcome}
                 />
             )}
-
-            {/* ACTIVE PROJECTS SECTION (shows if user has any) */}
-            <ActiveProjectsSection userId={userId} />
-
-            {/* MY QUOTES SECTION (shows if user has any) */}
-            <MyQuotesSection userId={userId} />
-
-            {/* PENDING EVALUATIONS SECTION (shows if user has any) */}
-            <PendingEvaluationsSection userId={userId} />
 
             {/* QUICK ACTIONS SECTION */}
             <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
