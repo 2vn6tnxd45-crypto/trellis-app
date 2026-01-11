@@ -29,6 +29,7 @@ import { auth, db } from '../../../config/firebase';
 import { appId, googleMapsApiKey } from '../../../config/constants';
 import { addContractorToProsList } from '../../quotes/lib/quoteService';
 import toast from 'react-hot-toast';
+import { analyzeAndSaveEvaluation } from '../lib/evaluationAI';
 
 // ============================================
 // MAIN COMPONENT
@@ -375,6 +376,31 @@ export const EvaluationSubmission = ({
             await submitMedia(submissions);
             await markComplete();
             setSubmitted(true);
+
+            // After: await submitMedia(submissionData);
+// Add this:
+
+// Trigger AI analysis (non-blocking)
+analyzeAndSaveEvaluation(
+    contractorId,
+    evaluationId,
+    {
+        photos: submissions.photos,
+        videos: submissions.videos,
+        answers: submissions.answers
+    },
+    {
+        jobDescription: evaluation?.jobDescription || '',
+        prompts: evaluation?.prompts || [],
+        jobCategory: evaluation?.jobCategory || ''
+    }
+).then(({ success, analysis }) => {
+    if (success) {
+        console.log('✅ AI analysis complete:', analysis.severity);
+    }
+}).catch(err => {
+    console.warn('AI analysis failed (non-critical):', err);
+});
             
             if (currentUser) {
                 const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
