@@ -1111,18 +1111,27 @@ export const PublicQuoteView = ({ shareToken, user }) => {
                     const profileData = profileSnap.data();
                     setUserProfile(profileData);
                     
-                    const props = profileData.properties || [];
-                    
-                    if (props.length === 0 && profileData.address) {
-                        props.push({
-                            id: 'legacy',
-                            name: profileData.name || 'My Home',
-                            address: profileData.address,
-                            coordinates: profileData.coordinates
-                        });
-                    }
-                    
-                    setUserProperties(props);
+                    let props = profileData.properties || [];
+
+// Add legacy property if no properties exist but address does
+if (props.length === 0 && profileData.address) {
+    props.push({
+        id: 'legacy',
+        name: profileData.name || 'My Home',
+        address: profileData.address,
+        coordinates: profileData.coordinates
+    });
+}
+
+// Deduplicate properties by ID (in case of duplicates in database)
+const seen = new Set();
+props = props.filter(p => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+});
+
+setUserProperties(props);
                 }
             } catch (err) {
                 console.error('Error loading user data:', err);
