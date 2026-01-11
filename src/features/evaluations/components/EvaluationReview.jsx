@@ -21,10 +21,28 @@ import {
 } from '../lib/evaluationService';
 import { PROMPT_TYPES, CATEGORY_LABELS } from '../lib/evaluationTemplates';
 import { useEvaluationCountdown } from '../hooks/useEvaluations';
+import { AIAnalysisSummary } from './AIAnalysisSummary';
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
+
+{/* AI Analysis Summary - Show if available */}
+{evaluation?.aiAnalysis && (
+    <div className="mb-6">
+        <AIAnalysisSummary
+            analysis={evaluation.aiAnalysis}
+            evaluation={evaluation}
+            contractorId={contractorId}
+            evaluationId={evaluation.id}
+            onRefresh={(newAnalysis) => {
+                // Optionally update local state if you're managing it
+                console.log('Analysis refreshed:', newAnalysis);
+            }}
+            variant="full"
+        />
+    </div>
+)}
 
 export const EvaluationReview = ({
     evaluation,
