@@ -763,6 +763,7 @@ export const ModernDashboard = ({
     contractors = [], 
     activeProperty, 
     userId,
+    userProfile,
     onScanReceipt, 
     onAddRecord,
     onNavigateToItems, 
