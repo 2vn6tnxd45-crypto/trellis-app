@@ -519,14 +519,17 @@ if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.ha
                                                 <div key={r.id} className={`cursor-pointer ${app.isSelectionMode && app.selectedRecords.has(r.id) ? 'ring-2 ring-emerald-500 rounded-2xl transform scale-[0.98] transition-transform' : 'hover:-translate-y-1 transition-transform duration-300'}`} onClick={() => app.isSelectionMode && toggleRecordSelection(r.id)}>
                                                     {app.useEnhancedCards ? (
                                                         <EnhancedRecordCard 
-                                                            record={r} 
-                                                            onDeleteRecord={(id) => handleDeleteRecord(id, r.item || r.name || 'this item')} 
-                                                            onEditRecord={openAddModal} 
-                                                            onAddTask={handleAddTask}
-                                                            onEditTask={handleEditTask}
-                                                            onDeleteTask={handleDeleteTask}
-                                                            onCompleteTask={app.handleMarkTaskDone}
-                                                        />
+    record={r} 
+    onDeleteRecord={(id) => handleDeleteRecord(id, r.item || r.name || 'this item')} 
+    onEditRecord={openAddModal} 
+    onAddTask={handleAddTask}
+    onEditTask={handleEditTask}
+    onDeleteTask={handleDeleteTask}
+    onCompleteTask={app.handleMarkTaskDone}
+    userId={app.user?.uid}
+    userProfile={app.profile}
+    propertyAddress={app.activeProperty?.address?.formatted || app.activeProperty?.address}
+/>
                                                     ) : (
                                                         <RecordCard 
                                                             record={r} 
