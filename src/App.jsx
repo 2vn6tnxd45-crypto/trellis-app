@@ -38,6 +38,8 @@ import { ProConnect } from './features/requests/ProConnect';
 import { ContractorPortal } from './features/requests/ContractorPortal';
 import { QuickServiceRequest } from './features/requests/QuickServiceRequest';
 import { CookieConsent } from './components/common/CookieConsent';
+import { NotificationPermissionPrompt } from './components/common/NotificationPermissionPrompt';
+import { useNotificationPermission } from './hooks/useNotificationPermission';
 
 // NEW: Import NotificationPanel and UserMenu components
 import { NotificationPanel } from './components/navigation/NotificationPanel';
@@ -82,7 +84,19 @@ const AppContent = () => {
     
     // Use the Logic Hook
     const app = useAppLogic(celebrations);
-    
+
+    // Push Notification Permission Hook
+    const notifications = useNotificationPermission(app.user?.uid, {
+        autoInitialize: true,
+        onMessage: (payload) => {
+            // Handle foreground messages - show toast notification
+            toast(payload.notification?.body || 'New notification', {
+                icon: '🔔',
+                duration: 4000
+            });
+        }
+    });
+
     // -- Derived UI Helpers --
     const contractorsList = useMemo(() => {
         return Object.values(app.activePropertyRecords.reduce((acc, r) => {
@@ -454,6 +468,16 @@ if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.ha
                     </div>
                 )}
             </header>
+
+            {/* Notification Permission Prompt - Banner style */}
+            {notifications.shouldShowPrompt && (
+                <NotificationPermissionPrompt
+                    variant="banner"
+                    isLoading={notifications.isInitializing}
+                    onEnable={notifications.requestAndInitialize}
+                    onDismiss={notifications.dismissPrompt}
+                />
+            )}
 
             {/* Main Content */}
             <main className="max-w-5xl mx-auto px-4 py-6">
