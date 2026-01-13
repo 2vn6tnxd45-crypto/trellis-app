@@ -88,8 +88,16 @@ export const registerServiceWorker = async () => {
             appId: import.meta.env.VITE_FIREBASE_APP_ID
         };
 
+        // Create URL with config parameters
+        const swUrl = new URL('/firebase-messaging-sw.js', window.location.origin);
+        if (firebaseConfig) {
+            Object.entries(firebaseConfig).forEach(([key, value]) => {
+                if (value) swUrl.searchParams.append(key, value);
+            });
+        }
+
         // Register service worker
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        const registration = await navigator.serviceWorker.register(swUrl.href, {
             scope: '/'
         });
 

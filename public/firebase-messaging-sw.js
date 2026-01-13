@@ -8,42 +8,54 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-comp
 
 // Firebase configuration - must match your app's config
 // These values are safe to expose in client-side code
+// Firebase configuration - can be passed via URL params or injected
+const params = new URLSearchParams(self.location.search);
 const firebaseConfig = {
-    apiKey: self.FIREBASE_CONFIG?.apiKey || '',
-    authDomain: self.FIREBASE_CONFIG?.authDomain || '',
-    projectId: self.FIREBASE_CONFIG?.projectId || '',
-    storageBucket: self.FIREBASE_CONFIG?.storageBucket || '',
-    messagingSenderId: self.FIREBASE_CONFIG?.messagingSenderId || '',
-    appId: self.FIREBASE_CONFIG?.appId || ''
+    apiKey: params.get('apiKey') || self.FIREBASE_CONFIG?.apiKey || '',
+    authDomain: params.get('authDomain') || self.FIREBASE_CONFIG?.authDomain || '',
+    projectId: params.get('projectId') || self.FIREBASE_CONFIG?.projectId || '',
+    storageBucket: params.get('storageBucket') || self.FIREBASE_CONFIG?.storageBucket || '',
+    messagingSenderId: params.get('messagingSenderId') || self.FIREBASE_CONFIG?.messagingSenderId || '',
+    appId: params.get('appId') || self.FIREBASE_CONFIG?.appId || ''
 };
 
 // Initialize Firebase in the service worker
-firebase.initializeApp(firebaseConfig);
+if (firebaseConfig.apiKey) {
+    try {
+        firebase.initializeApp(firebaseConfig);
 
-// Get messaging instance
-const messaging = firebase.messaging();
+        // Get messaging instance
+        const messaging = firebase.messaging();
 
-// Handle background messages (when app is not in focus)
-messaging.onBackgroundMessage((payload) => {
-    console.log('[SW] Background message received:', payload);
+        // Handle background messages (when app is not in focus)
+        messaging.onBackgroundMessage((payload) => {
+            console.log('[SW] Background message received:', payload);
 
-    const notificationTitle = payload.notification?.title || 'Krib Notification';
-    const notificationOptions = {
-        body: payload.notification?.body || 'You have a new notification',
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-96.png',
-        tag: payload.data?.tag || 'krib-notification',
-        data: payload.data || {},
-        // Action buttons
-        actions: getActionsForType(payload.data?.type),
-        // Vibration pattern
-        vibrate: [100, 50, 100],
-        // Require interaction for important notifications
-        requireInteraction: payload.data?.priority === 'high'
-    };
+            const notificationTitle = payload.notification?.title || 'Krib Notification';
+            const notificationOptions = {
+                body: payload.notification?.body || 'You have a new notification',
+                icon: '/icons/icon-192.png',
+                badge: '/icons/icon-96.png',
+                tag: payload.data?.tag || 'krib-notification',
+                data: payload.data || {},
+                // Action buttons
+                actions: getActionsForType(payload.data?.type),
+                // Vibration pattern
+                vibrate: [100, 50, 100],
+                // Require interaction for important notifications
+                requireInteraction: payload.data?.priority === 'high'
+            };
 
-    return self.registration.showNotification(notificationTitle, notificationOptions);
-});
+            return self.registration.showNotification(notificationTitle, notificationOptions);
+        });
+
+        console.log('[SW] Firebase Messaging initialized successfully');
+    } catch (e) {
+        console.error('[SW] Firebase Messaging initialization failed:', e);
+    }
+} else {
+    console.warn('[SW] Skipping Firebase Messaging init: Missing config');
+}
 
 // Get notification actions based on type
 function getActionsForType(type) {
