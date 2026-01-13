@@ -1,10 +1,10 @@
 // src/features/dashboard/HomeSnapshot.jsx
 import React from 'react';
-import { 
-    Sun, 
-    Shield, 
-    AlertTriangle, 
-    CheckCircle2, 
+import {
+    Sun,
+    Shield,
+    AlertTriangle,
+    CheckCircle2,
     Flame,
     Users,
     DollarSign,
@@ -13,7 +13,6 @@ import {
     MapPin
 } from 'lucide-react';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
-import { useCountyData } from '../../hooks/useCountyData';
 
 const RiskBadge = ({ level, label }) => {
     const config = {
@@ -23,7 +22,7 @@ const RiskBadge = ({ level, label }) => {
     };
     const style = config[level] || config.low;
     const Icon = style.icon;
-    
+
     return (
         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${style.bg} ${style.text} border ${style.border}`}>
             <Icon size={12} className="mr-1" />
@@ -47,8 +46,7 @@ const formatCompactCurrency = (value) => {
 export const HomeSnapshot = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
     const { wildfire, census, climate, amenities, loading: neighborhoodLoading } = useNeighborhoodData(coordinates, address);
-    const { parcelData, detectedLocation } = useCountyData(coordinates, address);
-    
+
     const loading = neighborhoodLoading;
 
     return (
@@ -59,16 +57,16 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                     Property & Neighborhood Insights
                 </h2>
             </div>
-            
+
             <div className="p-6 space-y-6">
-                
+
                 {/* Row 1: Wildfire Risk + Census Quick Stats */}
                 <div>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
                         Risk & Demographics
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        
+
                         {/* Wildfire Risk */}
                         <div className={`p-4 rounded-xl border ${wildfire?.isHighRisk ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'}`}>
                             <div className="flex items-start justify-between mb-2">
@@ -76,9 +74,9 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                                 {loading ? (
                                     <div className="h-5 w-16 bg-slate-200 rounded animate-pulse" />
                                 ) : (
-                                    <RiskBadge 
-                                        level={wildfire?.isHighRisk ? 'high' : wildfire?.riskLevel === 'Moderate' ? 'medium' : 'low'} 
-                                        label={wildfire?.riskLevel || 'Unknown'} 
+                                    <RiskBadge
+                                        level={wildfire?.isHighRisk ? 'high' : wildfire?.riskLevel === 'Moderate' ? 'medium' : 'low'}
+                                        label={wildfire?.riskLevel || 'Unknown'}
                                     />
                                 )}
                             </div>
@@ -109,7 +107,7 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Row 2: Climate + Amenities Summary */}
                 <div>
                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
@@ -117,7 +115,7 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                         Local Insights
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        
+
                         {/* Climate Summary */}
                         <div className="p-4 rounded-xl border bg-sky-50 border-sky-100">
                             {loading ? (
@@ -184,25 +182,8 @@ export const HomeSnapshot = ({ propertyProfile }) => {
                         </div>
                     </div>
                 </div>
-                
-                {/* County Data Link */}
-                {detectedLocation?.county && (
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="font-bold text-slate-800 text-sm">
-                                    {detectedLocation.county}, {detectedLocation.state}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    {parcelData?.apn ? `Parcel: ${parcelData.apn}` : 'County records detected'}
-                                </p>
-                            </div>
-                            <span className="text-xs font-bold text-emerald-600 bg-white px-2 py-1 rounded border border-slate-200">
-                                {parcelData?.yearBuilt ? `Built ${parcelData.yearBuilt}` : 'View Records'}
-                            </span>
-                        </div>
-                    </div>
-                )}
+
+
             </div>
         </div>
     );

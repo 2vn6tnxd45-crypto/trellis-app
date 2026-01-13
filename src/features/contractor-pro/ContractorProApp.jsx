@@ -114,7 +114,8 @@ import {
     useCustomers,
     useDashboardStats,
     useContractorJobs,
-    useContractorInvoices
+    useContractorInvoices,
+    useCalendarEvents
 } from './hooks/useContractorData';
 
 import {
@@ -1393,6 +1394,14 @@ export const ContractorProApp = () => {
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
     const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
 
+    // Calendar events hook - merges jobs and evaluations for calendar display
+    const {
+        calendarEvents,
+        evaluations: calendarEvaluations,
+        scheduledEvaluations,
+        loading: calendarEventsLoading
+    } = useCalendarEvents(user?.uid);
+
     // Quote hooks
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
     const {
@@ -1877,9 +1886,14 @@ export const ContractorProApp = () => {
                             {!hasTeam && (
                                 <DragDropCalendar
                                     jobs={jobs}
+                                    evaluations={calendarEvaluations}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
+                                    onEvaluationClick={(evaluation) => {
+                                        // Navigate to evaluation details or show modal
+                                        setActiveView('evaluations');
+                                    }}
                                     teamMembers={[]}
                                 />
                             )}
@@ -1888,9 +1902,13 @@ export const ContractorProApp = () => {
                             {hasTeam && scheduleView === 'calendar' && (
                                 <DragDropCalendar
                                     jobs={jobs}
+                                    evaluations={calendarEvaluations}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
+                                    onEvaluationClick={(evaluation) => {
+                                        setActiveView('evaluations');
+                                    }}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                 />
                             )}

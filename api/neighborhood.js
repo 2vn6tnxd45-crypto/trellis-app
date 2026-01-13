@@ -51,7 +51,7 @@ export default async function handler(req, res) {
                 const fccUrl = `https://geo.fcc.gov/api/census/area?lat=${latFixed}&lon=${lonFixed}&format=json`;
                 const fccRes = await fetch(fccUrl);
                 const fccData = await fccRes.json();
-                
+
                 if (!fccData.results || fccData.results.length === 0) {
                     return null;
                 }
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
                 // Variables: B19013_001E (median income), B25077_001E (median home value), 
                 // B01003_001E (total pop), B25003_002E (owner occupied), B25003_003E (renter occupied)
                 const censusUrl = `https://api.census.gov/data/2022/acs/acs5?get=B19013_001E,B25077_001E,B01003_001E,B25003_002E,B25003_003E,B25002_001E&for=county:${countyFips.slice(-3)}&in=state:${stateFips}`;
-                
+
                 const censusRes = await fetch(censusUrl);
                 const censusData = await censusRes.json();
 
@@ -78,9 +78,9 @@ export default async function handler(req, res) {
                     const ownerOccupied = parseInt(values[3]) || 0;
                     const renterOccupied = parseInt(values[4]) || 0;
                     const totalHousing = parseInt(values[5]) || 1;
-                    
-                    const ownershipRate = totalHousing > 0 
-                        ? Math.round((ownerOccupied / totalHousing) * 100) 
+
+                    const ownershipRate = totalHousing > 0
+                        ? Math.round((ownerOccupied / totalHousing) * 100)
                         : null;
 
                     return {
@@ -105,11 +105,11 @@ export default async function handler(req, res) {
                 // Use the NOAA NCEI normals gridded data endpoint
                 // This returns 30-year climate normals for the location
                 const noaaUrl = `https://www.ncei.noaa.gov/cdo-web/api/v2/data?datasetid=NORMAL_MLY&datatypeid=MLY-TAVG-NORMAL,MLY-PRCP-NORMAL&locationid=ZIP:${await getZipFromCoords(latFixed, lonFixed)}&startdate=2010-01-01&enddate=2010-12-31&limit=24&units=standard`;
-                
+
                 // Since NOAA requires an API key and can be slow, let's use Open-Meteo instead
                 // It's free, no API key, and very reliable
                 const meteoUrl = `https://archive-api.open-meteo.com/v1/archive?latitude=${latFixed}&longitude=${lonFixed}&start_date=2023-01-01&end_date=2023-12-31&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=America%2FNew_York`;
-                
+
                 const meteoRes = await fetch(meteoUrl);
                 const meteoData = await meteoRes.json();
 
@@ -119,13 +119,13 @@ export default async function handler(req, res) {
                     const precip = meteoData.daily.precipitation_sum || [];
 
                     // Calculate yearly averages
-                    const avgHigh = temps.length > 0 
-                        ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 9/5 + 32) 
+                    const avgHigh = temps.length > 0
+                        ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 9 / 5 + 32)
                         : null;
-                    const avgLow = tempMins.length > 0 
-                        ? Math.round(tempMins.reduce((a, b) => a + b, 0) / tempMins.length * 9/5 + 32) 
+                    const avgLow = tempMins.length > 0
+                        ? Math.round(tempMins.reduce((a, b) => a + b, 0) / tempMins.length * 9 / 5 + 32)
                         : null;
-                    const totalRainfall = precip.length > 0 
+                    const totalRainfall = precip.length > 0
                         ? Math.round(precip.reduce((a, b) => a + b, 0) / 25.4) // mm to inches
                         : null;
 
@@ -134,7 +134,7 @@ export default async function handler(req, res) {
                         const monthTemps = temps.filter((_, i) => new Date(2023, 0, i + 1).getMonth() === m);
                         return monthTemps.length > 0 ? monthTemps.reduce((a, b) => a + b, 0) / monthTemps.length : 0;
                     });
-                    
+
                     const hottestMonth = monthlyHighs.indexOf(Math.max(...monthlyHighs));
                     const coldestMonth = monthlyHighs.indexOf(Math.min(...monthlyHighs));
                     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
                 // Search within ~1 mile (0.015 degrees roughly)
                 const radius = 0.015;
                 const bbox = `${latFixed - radius},${lonFixed - radius},${Number(latFixed) + radius},${Number(lonFixed) + radius}`;
-                
+
                 // Query for parks, grocery stores, restaurants, schools, hospitals
                 const overpassQuery = `
                     [out:json][timeout:10];
@@ -176,25 +176,33 @@ export default async function handler(req, res) {
                     );
                     out body;
                 `;
-                
+
                 const overpassUrl = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
                 const overpassRes = await fetch(overpassUrl);
                 const overpassData = await overpassRes.json();
 
                 if (overpassData && overpassData.elements) {
                     const elements = overpassData.elements;
-                    
+
                     const parks = elements.filter(e => e.tags?.leisure === 'park').length;
                     const schools = elements.filter(e => e.tags?.amenity === 'school').length;
                     const groceryStores = elements.filter(e => e.tags?.shop === 'supermarket').length;
                     const restaurants = elements.filter(e => e.tags?.amenity === 'restaurant' || e.tags?.amenity === 'cafe').length;
                     const healthcare = elements.filter(e => e.tags?.amenity === 'hospital' || e.tags?.amenity === 'pharmacy').length;
 
-                    // Get names of nearest parks (up to 3)
-                    const parkNames = elements
-                        .filter(e => e.tags?.leisure === 'park' && e.tags?.name)
+                    // Helper to get names (up to 3)
+                    const getNames = (filterFn) => elements
+                        .filter(e => filterFn(e) && e.tags?.name)
                         .slice(0, 3)
                         .map(e => e.tags.name);
+
+                    const parkNames = getNames(e => e.tags?.leisure === 'park');
+                    const schoolNames = getNames(e => e.tags?.amenity === 'school');
+                    const groceryNames = getNames(e => e.tags?.shop === 'supermarket');
+                    // For dining, combine restaurants and cafes
+                    const diningNames = getNames(e => e.tags?.amenity === 'restaurant' || e.tags?.amenity === 'cafe');
+                    // For health, combine hospitals and pharmacies
+                    const healthNames = getNames(e => e.tags?.amenity === 'hospital' || e.tags?.amenity === 'pharmacy');
 
                     return {
                         parks,
@@ -203,6 +211,10 @@ export default async function handler(req, res) {
                         restaurants,
                         healthcare,
                         nearbyParks: parkNames,
+                        nearbySchools: schoolNames,
+                        nearbyGrocery: groceryNames,
+                        nearbyDining: diningNames,
+                        nearbyHealth: healthNames,
                         totalAmenities: elements.length
                     };
                 }

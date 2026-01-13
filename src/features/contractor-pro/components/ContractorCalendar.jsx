@@ -6,10 +6,10 @@
 // UPDATED: Shows pending slots in amber
 
 import React, { useState, useMemo } from 'react';
-import { 
+import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     Plus, Filter, List, Grid3X3, AlertCircle, CheckCircle,
-    User, DollarSign, ArrowRight, Sparkles, X
+    User, DollarSign, ArrowRight, Sparkles, X, ClipboardList, Video
 } from 'lucide-react';
 
 // ============================================
@@ -56,19 +56,24 @@ const getWeekDates = (date) => {
     return dates;
 };
 
-// UPDATED: Include jobs with offered slots (pending)
-const getJobsForDate = (jobs, date) => {
-    return jobs.filter(job => {
-        // Confirmed jobs
-        if (job.scheduledTime) {
-            return isSameDay(job.scheduledTime, date);
+// UPDATED: Include jobs with offered slots (pending) and evaluations
+const getEventsForDate = (events, date) => {
+    return events.filter(event => {
+        // Handle evaluations (type === 'evaluation')
+        if (event.type === 'evaluation') {
+            return event.start && isSameDay(event.start, date);
         }
-        if (job.scheduledDate) {
-            return isSameDay(job.scheduledDate, date);
+
+        // Handle jobs - confirmed time
+        if (event.scheduledTime) {
+            return isSameDay(event.scheduledTime, date);
         }
-        // NEW: Pending slots logic
-        if (job.scheduling?.offeredSlots?.length > 0) {
-            return job.scheduling.offeredSlots.some(slot => 
+        if (event.scheduledDate) {
+            return isSameDay(event.scheduledDate, date);
+        }
+        // Pending slots logic
+        if (event.scheduling?.offeredSlots?.length > 0) {
+            return event.scheduling.offeredSlots.some(slot =>
                 slot.status === 'offered' && isSameDay(slot.start, date)
             );
         }
@@ -76,13 +81,23 @@ const getJobsForDate = (jobs, date) => {
     });
 };
 
-const getJobStatus = (job) => {
-    if (job.status === 'scheduled' || job.scheduledTime) return 'confirmed';
-    if (job.status === 'in_progress') return 'in_progress';
-    if (job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending'; // NEW CHECK
-    if (job.proposedTimes?.length > 0) return 'pending';
+// Backward compatibility alias
+const getJobsForDate = getEventsForDate;
+
+const getEventStatus = (event) => {
+    // Handle evaluations
+    if (event.type === 'evaluation') return 'evaluation';
+
+    // Handle jobs
+    if (event.status === 'scheduled' || event.scheduledTime) return 'confirmed';
+    if (event.status === 'in_progress') return 'in_progress';
+    if (event.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending';
+    if (event.proposedTimes?.length > 0) return 'pending';
     return 'unscheduled';
 };
+
+// Backward compatibility alias
+const getJobStatus = getEventStatus;
 
 // ============================================
 // STATUS CONFIG
@@ -117,6 +132,14 @@ const STATUS_STYLES = {
         border: 'border-slate-200',
         text: 'text-slate-600',
         label: 'Unscheduled'
+    },
+    // NEW: Evaluation status for site visits and virtual evaluations
+    evaluation: {
+        bg: 'bg-purple-500',
+        bgLight: 'bg-purple-50',
+        border: 'border-purple-200',
+        text: 'text-purple-700',
+        label: 'Site Visit'
     }
 };
 
@@ -136,17 +159,19 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                 {weekDates.map((date, idx) => {
                     const isToday = isSameDay(date, today);
                     const isSelected = isSameDay(date, selectedDate);
-                    const dayJobs = getJobsForDate(jobs, date);
-                    const hasConfirmed = dayJobs.some(j => getJobStatus(j) === 'confirmed');
-                    const hasPending = dayJobs.some(j => getJobStatus(j) === 'pending');
-                    
+                    const dayEvents = getJobsForDate(jobs, date);
+                    const hasConfirmed = dayEvents.some(e => getJobStatus(e) === 'confirmed');
+                    const hasPending = dayEvents.some(e => getJobStatus(e) === 'pending');
+                    const hasEvaluation = dayEvents.some(e => e.type === 'evaluation');
+                    const hasInProgress = dayEvents.some(e => getJobStatus(e) === 'in_progress');
+
                     return (
                         <button
                             key={idx}
                             onClick={() => onSelectDate(date)}
                             className={`p-3 text-center transition-colors relative ${
-                                isSelected 
-                                    ? 'bg-emerald-50' 
+                                isSelected
+                                    ? 'bg-emerald-50'
                                     : 'hover:bg-slate-50'
                             }`}
                         >
@@ -156,20 +181,21 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
                             </p>
                             <p className={`text-lg font-bold mt-1 ${
-                                isToday 
-                                    ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto' 
+                                isToday
+                                    ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto'
                                     : isSelected
                                         ? 'text-emerald-600'
                                         : 'text-slate-800'
                             }`}>
                                 {date.getDate()}
                             </p>
-                            {/* Job indicators */}
-                            {dayJobs.length > 0 && (
+                            {/* Event indicators */}
+                            {dayEvents.length > 0 && (
                                 <div className="flex justify-center gap-1 mt-2">
                                     {hasConfirmed && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
-                                    {hasPending && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />} {/* Pulse pending */}
-                                    {!hasConfirmed && !hasPending && dayJobs.length > 0 && (
+                                    {hasPending && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
+                                    {hasEvaluation && <div className="w-2 h-2 rounded-full bg-purple-500" />}
+                                    {hasInProgress && !hasConfirmed && !hasPending && !hasEvaluation && (
                                         <div className="w-2 h-2 rounded-full bg-blue-500" />
                                     )}
                                 </div>
@@ -187,33 +213,34 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                             {formatDate(selectedDate)}
                         </h3>
                         <span className="text-xs text-slate-500">
-                            {getJobsForDate(jobs, selectedDate).length} jobs
+                            {getJobsForDate(jobs, selectedDate).length} events
                         </span>
                     </div>
-                    
+
                     <div className="space-y-2">
                         {getJobsForDate(jobs, selectedDate).length === 0 ? (
                             <div className="text-center py-8 text-slate-400">
                                 <Calendar size={24} className="mx-auto mb-2 opacity-50" />
-                                <p className="text-sm">No jobs scheduled</p>
+                                <p className="text-sm">No events scheduled</p>
                             </div>
                         ) : (
                             getJobsForDate(jobs, selectedDate)
                                 .sort((a, b) => {
-                                    const timeA = a.scheduledTime || a.scheduledDate || 
+                                    const timeA = a.start || a.scheduledTime || a.scheduledDate ||
                                         (a.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
-                                    const timeB = b.scheduledTime || b.scheduledDate || 
+                                    const timeB = b.start || b.scheduledTime || b.scheduledDate ||
                                         (b.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
                                     return new Date(timeA) - new Date(timeB);
                                 })
-                                .map(job => {
-                                    const status = getJobStatus(job);
+                                .map(event => {
+                                    const status = getJobStatus(event);
                                     const styles = STATUS_STYLES[status];
-                                    
-                                    // Get display time (confirmed OR first offered for this day)
-                                    let displayTime = job.scheduledTime;
+                                    const isEvaluation = event.type === 'evaluation';
+
+                                    // Get display time
+                                    let displayTime = event.start || event.scheduledTime;
                                     if (status === 'pending') {
-                                        const slot = job.scheduling?.offeredSlots?.find(s => 
+                                        const slot = event.scheduling?.offeredSlots?.find(s =>
                                             s.status === 'offered' && isSameDay(s.start, selectedDate)
                                         );
                                         displayTime = slot?.start;
@@ -221,8 +248,8 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
 
                                     return (
                                         <button
-                                            key={job.id}
-                                            onClick={() => onSelectJob(job)}
+                                            key={event.id}
+                                            onClick={() => onSelectJob(event)}
                                             className={`w-full p-3 rounded-xl border ${styles.border} ${status === 'pending' ? styles.borderDashed : ''} ${styles.bgLight} text-left hover:shadow-md transition-all`}
                                         >
                                             <div className="flex items-start justify-between">
@@ -237,17 +264,34 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                                                                 OFFERED
                                                             </span>
                                                         )}
+                                                        {isEvaluation && (
+                                                            <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium flex items-center gap-1">
+                                                                {event.evaluationType === 'virtual' ? <Video size={10} /> : <ClipboardList size={10} />}
+                                                                {event.evaluationType === 'virtual' ? 'VIRTUAL' : 'SITE VISIT'}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <h4 className="font-bold text-slate-800 mt-1 truncate">
-                                                        {job.title || job.description || 'Service'}
+                                                        {event.title || event.description || 'Service'}
                                                     </h4>
                                                     <p className="text-xs text-slate-500 truncate mt-0.5">
-                                                        {job.customer?.name || 'Customer'}
+                                                        {event.customer?.name || 'Customer'}
                                                     </p>
+                                                    {isEvaluation && event.customer?.address && (
+                                                        <p className="text-xs text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                                                            <MapPin size={10} />
+                                                            {event.customer.address}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                {job.total > 0 && (
+                                                {!isEvaluation && event.total > 0 && (
                                                     <span className="text-sm font-bold text-slate-700">
-                                                        ${job.total.toLocaleString()}
+                                                        ${event.total.toLocaleString()}
+                                                    </span>
+                                                )}
+                                                {isEvaluation && event.duration && (
+                                                    <span className="text-xs text-purple-600 font-medium">
+                                                        {event.duration}min
                                                     </span>
                                                 )}
                                             </div>
@@ -304,16 +348,17 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
                     {day}
                 </span>
                 
-                {/* Job pills */}
+                {/* Event pills */}
                 <div className="mt-1 space-y-0.5 overflow-hidden">
-                    {dayJobs.slice(0, 2).map((job, idx) => {
-                        const status = getJobStatus(job);
+                    {dayJobs.slice(0, 2).map((event, idx) => {
+                        const status = getJobStatus(event);
                         const styles = STATUS_STYLES[status];
-                        
+                        const isEvaluation = event.type === 'evaluation';
+
                         // Get display time
-                        let displayTime = job.scheduledTime;
+                        let displayTime = event.start || event.scheduledTime;
                         if (status === 'pending') {
-                            const slot = job.scheduling?.offeredSlots?.find(s => 
+                            const slot = event.scheduling?.offeredSlots?.find(s =>
                                 s.status === 'offered' && isSameDay(s.start, date)
                             );
                             displayTime = slot?.start;
@@ -321,10 +366,10 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
 
                         return (
                             <div
-                                key={`${job.id}-${idx}`}
+                                key={`${event.id}-${idx}`}
                                 className={`text-[10px] px-1.5 py-0.5 rounded truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-80' : ''}`}
                             >
-                                {formatTime(displayTime)} {job.customer?.name?.split(' ')[0] || 'Job'}
+                                {formatTime(displayTime)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
                             </div>
                         );
                     })}
@@ -623,7 +668,7 @@ export const ContractorCalendar = ({
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-4 text-xs flex-wrap">
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                     <span className="text-slate-600">Confirmed</span>
@@ -635,6 +680,10 @@ export const ContractorCalendar = ({
                 <div className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                     <span className="text-slate-600">In Progress</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                    <span className="text-slate-600">Site Visit / Evaluation</span>
                 </div>
             </div>
 

@@ -4,8 +4,11 @@
 // ============================================
 // Hooks for managing invitations, customers, and stats
 
-import { useState, useEffect, useCallback } from 'react';
-import { 
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '../../../config/firebase';
+import { appId } from '../../../config/constants';
+import {
     getContractorInvitations,
     subscribeToInvitations,
     getContractorCustomers,
@@ -15,6 +18,7 @@ import {
     subscribeToContractorJobs, // NEW IMPORT
     subscribeToContractorInvoices // NEW IMPORT
 } from '../lib/contractorService';
+import { mergeCalendarEvents } from '../lib/calendarEventsTransformer';
 
 // ============================================
 // INVITATIONS HOOK
@@ -292,11 +296,111 @@ export const useContractorInvoices = (contractorId) => {
     return { invoices, loading };
 };
 
+// ============================================
+// CALENDAR EVENTS HOOK (Jobs + Evaluations)
+// ============================================
+export const useCalendarEvents = (contractorId) => {
+    const [jobs, setJobs] = useState([]);
+    const [evaluations, setEvaluations] = useState([]);
+    const [loadingJobs, setLoadingJobs] = useState(true);
+    const [loadingEvals, setLoadingEvals] = useState(true);
+
+    // Subscribe to jobs
+    useEffect(() => {
+        if (!contractorId) {
+            setLoadingJobs(false);
+            return;
+        }
+
+        const unsubscribe = subscribeToContractorJobs(contractorId, (data) => {
+            setJobs(data);
+            setLoadingJobs(false);
+        });
+
+        return () => unsubscribe();
+    }, [contractorId]);
+
+    // Subscribe to evaluations
+    useEffect(() => {
+        if (!contractorId) {
+            setLoadingEvals(false);
+            return;
+        }
+
+        const evaluationsRef = collection(
+            db,
+            'artifacts',
+            appId,
+            'public',
+            'data',
+            'contractors',
+            contractorId,
+            'evaluations'
+        );
+        const q = query(evaluationsRef, orderBy('createdAt', 'desc'));
+
+        const unsubscribe = onSnapshot(
+            q,
+            (snapshot) => {
+                const evals = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                setEvaluations(evals);
+                setLoadingEvals(false);
+            },
+            (error) => {
+                console.error('Error subscribing to evaluations:', error);
+                setLoadingEvals(false);
+            }
+        );
+
+        return () => unsubscribe();
+    }, [contractorId]);
+
+    // Merge jobs and evaluations into unified calendar events
+    const calendarEvents = useMemo(() => {
+        return mergeCalendarEvents(jobs, evaluations);
+    }, [jobs, evaluations]);
+
+    // Filter helpers
+    const scheduledEvaluations = useMemo(() => {
+        return evaluations.filter(e =>
+            e.scheduling?.scheduledFor &&
+            e.status !== 'cancelled' &&
+            e.status !== 'expired'
+        );
+    }, [evaluations]);
+
+    const activeJobs = useMemo(() => {
+        return jobs.filter(j =>
+            j.status !== 'completed' &&
+            j.status !== 'cancelled'
+        );
+    }, [jobs]);
+
+    return {
+        // Unified events for calendar display
+        calendarEvents,
+        // Raw data
+        jobs,
+        evaluations,
+        // Filtered subsets
+        activeJobs,
+        scheduledEvaluations,
+        // Loading state
+        loading: loadingJobs || loadingEvals,
+        loadingJobs,
+        loadingEvals
+    };
+};
+
 export default {
     useInvitations,
     useCustomers,
     useDashboardStats,
     useCreateInvitation,
     useContractorJobs,
-    useContractorInvoices // NEW EXPORT
+    useContractorInvoices,
+    useCalendarEvents // NEW EXPORT
 };

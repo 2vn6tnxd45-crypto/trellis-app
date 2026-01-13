@@ -1,15 +1,14 @@
 // src/features/dashboard/Dashboard.jsx
 import React, { useState, useMemo } from 'react';
-import { 
+import {
     Camera, CheckCircle2, Clock, ChevronRight,
     ChevronDown, ChevronUp, Sparkles, Calendar, DollarSign, Wrench,
-    Leaf, Sun, Bell, MapPin, Package, Link as LinkIcon, 
+    Leaf, Sun, Bell, MapPin, Package, Link as LinkIcon,
     Plus, Share2, AlertTriangle, Home
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { HomeSnapshot } from './HomeSnapshot';
-import { useCountyData } from '../../hooks/useCountyData';
 
 // --- HELPER FUNCTIONS (Unchanged) ---
 const getNextServiceDate = (record) => {
@@ -59,7 +58,7 @@ const SeasonalChecklist = ({ completedTasks, onToggleTask }) => {
         { id: 'fa1', task: 'Schedule furnace tune-up', category: 'HVAC', priority: 'high' },
         { id: 'wi1', task: 'Check for ice dams', category: 'Roof', priority: 'high' }
     ].slice(0, 3); // Simplified for brevity in this view
-    
+
     const completedCount = tasks.filter(t => completedTasks.includes(t.id)).length;
     const progress = tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0;
     const [isExpanded, setIsExpanded] = useState(false);
@@ -108,7 +107,7 @@ const MoneyTracker = ({ records, onAddExpense }) => {
         const totalThisYear = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
         return { totalThisYear };
     }, [records]);
-    
+
     return (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -162,19 +161,18 @@ const NeedsAttentionCard = ({ task, onDone }) => (
 
 // --- MAIN DASHBOARD COMPONENT ---
 
-export const Dashboard = ({ 
-    records, 
-    contractors = [], 
-    activeProperty, 
-    onScanReceipt, 
-    onNavigateToItems, 
-    onNavigateToContractors, 
+export const Dashboard = ({
+    records,
+    contractors = [],
+    activeProperty,
+    onScanReceipt,
+    onNavigateToItems,
+    onNavigateToContractors,
     onCreateContractorLink,
-    onNavigateToReports 
+    onNavigateToReports
 }) => {
-    const { parcelData } = useCountyData(activeProperty?.coordinates, activeProperty?.address);
     const [completedSeasonalTasks, setCompletedSeasonalTasks] = useState([]);
-    
+
     // Calculate alerts
     const needsAttention = useMemo(() => {
         const now = new Date();
@@ -182,7 +180,7 @@ export const Dashboard = ({
             const nextDate = getNextServiceDate(r);
             if (!nextDate) return false;
             const days = Math.ceil((nextDate - now) / (86400000));
-            return days <= 30; 
+            return days <= 30;
         });
     }, [records]);
 
@@ -200,12 +198,12 @@ export const Dashboard = ({
 
     return (
         <div className="space-y-8 pb-10">
-            
+
             {/* 1. HERO SECTION with Overlap */}
             <div className="relative">
                 {/* Green Card Background */}
                 <div className="bg-gradient-to-br from-emerald-800 to-teal-900 rounded-[2.5rem] pt-8 pb-20 px-8 text-white shadow-xl relative overflow-hidden">
-                    
+
                     {/* Background Pattern (Abstract House/Map Lines) */}
                     <div className="absolute inset-0 opacity-10 pointer-events-none">
                         <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -255,26 +253,26 @@ export const Dashboard = ({
 
             {/* 2. Quick Actions */}
             <div className="px-2">
-                <QuickActions 
-                    onScanReceipt={onScanReceipt} 
-                    onCreateContractorLink={onCreateContractorLink} 
-                    onMarkTaskDone={() => {}} 
-                    onShareHome={handleShareHome} 
+                <QuickActions
+                    onScanReceipt={onScanReceipt}
+                    onCreateContractorLink={onCreateContractorLink}
+                    onMarkTaskDone={() => { }}
+                    onShareHome={handleShareHome}
                 />
             </div>
 
             {/* 3. Alerts & Money */}
             <div className="space-y-4">
                 {needsAttention.slice(0, 2).map(task => (
-                    <NeedsAttentionCard key={task.id} task={task} onDone={() => {}} />
+                    <NeedsAttentionCard key={task.id} task={task} onDone={() => { }} />
                 ))}
-                
+
                 <MoneyTracker records={records} onAddExpense={onScanReceipt} />
             </div>
 
             {/* 4. Seasonal & Insights */}
             <div className="space-y-6">
-                <SeasonalChecklist completedTasks={completedSeasonalTasks} onToggleTask={() => {}} />
+                <SeasonalChecklist completedTasks={completedSeasonalTasks} onToggleTask={() => { }} />
                 <HomeSnapshot propertyProfile={activeProperty} />
             </div>
 

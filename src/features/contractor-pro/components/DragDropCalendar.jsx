@@ -119,16 +119,18 @@ const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
 // TIME SLOT (Drop Zone)
 // ============================================
 
-const TimeSlot = ({ 
-    date, 
-    hour, 
-    jobs, 
+const TimeSlot = ({
+    date,
+    hour,
+    jobs,
     pendingSlots, // NEW: Receive pending slots
-    isDropTarget, 
-    onDrop, 
-    onDragOver, 
+    evaluations = [],  // NEW: Scheduled evaluations
+    isDropTarget,
+    onDrop,
+    onDragOver,
     onDragLeave,
     onJobClick,
+    onEvaluationClick,  // NEW: Handler for evaluation clicks
     preferences
 }) => {
     // Filter jobs for this hour
@@ -141,6 +143,12 @@ const TimeSlot = ({
     const slotPending = pendingSlots.filter(slot => {
         const slotDate = new Date(slot.slotStart);
         return isSameDay(slotDate, date) && slotDate.getHours() === hour;
+    });
+
+    // NEW: Filter evaluations for this hour
+    const slotEvaluations = evaluations.filter(evaluation => {
+        const evalDate = new Date(evaluation.scheduledTime);
+        return isSameDay(evalDate, date) && evalDate.getHours() === hour;
     });
 
     // Check if this hour is within working hours
@@ -181,7 +189,7 @@ const TimeSlot = ({
 
             {/* NEW: Pending/Offered Slots */}
             {slotPending.map((slot, idx) => (
-                <div 
+                <div
                     key={`${slot.id}-${slot.slotId}-${idx}`}
                     className="w-full mb-1 p-2 bg-amber-50 border border-amber-300 border-dashed rounded-lg text-xs text-left opacity-90"
                     title="Offered time slot (Pending confirmation)"
@@ -192,6 +200,28 @@ const TimeSlot = ({
                     </div>
                     <p className="truncate text-amber-600">{slot.customerName}</p>
                 </div>
+            ))}
+
+            {/* NEW: Scheduled Evaluations */}
+            {slotEvaluations.map(evaluation => (
+                <button
+                    key={evaluation.id}
+                    onClick={() => onEvaluationClick?.(evaluation._original || evaluation)}
+                    className="w-full mb-1 p-2 bg-purple-500 text-white rounded-lg text-xs text-left hover:bg-purple-600 transition-colors shadow-sm"
+                >
+                    <div className="flex items-center gap-1 mb-0.5">
+                        {evaluation.evaluationType === 'virtual' ? (
+                            <span className="text-[10px] bg-purple-400 px-1 rounded">VIDEO</span>
+                        ) : (
+                            <span className="text-[10px] bg-purple-400 px-1 rounded">SITE</span>
+                        )}
+                        <p className="font-bold truncate flex-1">{evaluation.title}</p>
+                    </div>
+                    <p className="truncate opacity-80">{evaluation.customer?.name}</p>
+                    {evaluation.duration && (
+                        <p className="text-[10px] opacity-70">{evaluation.duration}min</p>
+                    )}
+                </button>
             ))}
         </div>
     );
@@ -366,11 +396,13 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
 // MAIN DRAG & DROP CALENDAR
 // ============================================
 
-export const DragDropCalendar = ({ 
-    jobs = [], 
+export const DragDropCalendar = ({
+    jobs = [],
+    evaluations = [],  // NEW: Scheduled evaluations to display
     preferences = {},
     onJobUpdate,
-    onJobClick 
+    onJobClick,
+    onEvaluationClick  // NEW: Handler for evaluation clicks
 }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [draggedJob, setDraggedJob] = useState(null);
@@ -415,6 +447,31 @@ export const DragDropCalendar = ({
         
         return { scheduledJobs: scheduled, unscheduledJobs: unscheduled, pendingSlots: pending };
     }, [jobs]);
+
+    // NEW: Transform evaluations into calendar-displayable format
+    const scheduledEvaluations = useMemo(() => {
+        return evaluations
+            .filter(evaluation =>
+                evaluation.scheduling?.scheduledFor &&
+                evaluation.status !== 'cancelled' &&
+                evaluation.status !== 'expired'
+            )
+            .map(evaluation => ({
+                id: evaluation.id,
+                type: 'evaluation',
+                title: `Eval: ${evaluation.jobDescription || evaluation.jobCategory || 'Site Visit'}`,
+                scheduledTime: evaluation.scheduling.scheduledFor,
+                duration: evaluation.scheduling?.duration || 30,
+                evaluationType: evaluation.type, // 'virtual' or 'site_visit'
+                customer: {
+                    name: evaluation.customerName,
+                    address: evaluation.propertyAddress,
+                    phone: evaluation.customerPhone
+                },
+                videoCallLink: evaluation.scheduling?.videoCallLink,
+                _original: evaluation
+            }));
+    }, [evaluations]);
 
     // Working hours range
     const workingHours = useMemo(() => {
@@ -675,7 +732,8 @@ export const DragDropCalendar = ({
                                         date={date}
                                         hour={hour}
                                         jobs={getJobsForDate(scheduledJobs, date)}
-                                        pendingSlots={pendingSlots} // NEW: Pass pending slots
+                                        pendingSlots={pendingSlots}
+                                        evaluations={scheduledEvaluations}
                                         isDropTarget={isTarget}
                                         onDrop={handleDrop}
                                         onDragOver={(e) => {
@@ -684,6 +742,7 @@ export const DragDropCalendar = ({
                                         }}
                                         onDragLeave={handleDragLeave}
                                         onJobClick={onJobClick}
+                                        onEvaluationClick={onEvaluationClick}
                                         preferences={preferences}
                                     />
                                 );
