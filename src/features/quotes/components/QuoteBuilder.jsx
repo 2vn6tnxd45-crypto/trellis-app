@@ -5,9 +5,9 @@
 // Create and edit quotes with line items
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
     ArrowLeft, Save, Send, User, FileText, Calculator,
-    Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar, 
+    Package, Wrench, Trash2, ChevronDown, ChevronUp, Loader2, Calendar,
     Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer,
     Home, CheckSquare, Square
 } from 'lucide-react';
@@ -21,8 +21,8 @@ import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
 
 // Inventory Intent System (for "Add to Home Record" feature)
-import { 
-    createInventoryIntent, 
+import {
+    createInventoryIntent,
     createIntentFromLineItem,
     getDefaultMaintenanceTasks,
     countSelectedTasks,
@@ -89,34 +89,34 @@ const createDefaultFormState = (existingQuote = null, contractorSettings = {}) =
     },
     customerId: existingQuote?.customerId || null,
     title: existingQuote?.title || '',
-    expiresAt: existingQuote?.expiresAt 
-        ? (existingQuote.expiresAt.toDate 
+    expiresAt: existingQuote?.expiresAt
+        ? (existingQuote.expiresAt.toDate
             ? existingQuote.expiresAt.toDate().toISOString().split('T')[0]
             : new Date(existingQuote.expiresAt).toISOString().split('T')[0])
         : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 14 days from now
-    
+
     // NEW: Estimated Duration
     estimatedDuration: existingQuote?.estimatedDuration || '',
-    
+
     // Default to one Material AND one Labor item (both expanded)
-    lineItems: existingQuote?.lineItems?.length > 0 
-        ? existingQuote.lineItems.map(item => ({ 
-            ...item, 
-            id: item.id || Date.now() + Math.random(), 
+    lineItems: existingQuote?.lineItems?.length > 0
+        ? existingQuote.lineItems.map(item => ({
+            ...item,
+            id: item.id || Date.now() + Math.random(),
             isExpanded: true,
             // Restore inventory intent state if it existed
             addToHomeRecord: item.addToHomeRecord || false,
             inventoryIntent: item.inventoryIntent || null
         }))
         : [createDefaultLineItem('material'), createDefaultLineItem('labor')],
-    
+
     // APPLIED DEFAULTS FROM SETTINGS
     taxRate: existingQuote?.taxRate ?? contractorSettings?.defaultTaxRate ?? 8.75,
     notes: existingQuote?.notes || '',
-    exclusions: existingQuote?.exclusions || '', 
-    clientWarranty: existingQuote?.clientWarranty || contractorSettings?.defaultLaborWarranty || '', 
+    exclusions: existingQuote?.exclusions || '',
+    clientWarranty: existingQuote?.clientWarranty || contractorSettings?.defaultLaborWarranty || '',
     terms: existingQuote?.terms || 'Quote valid for 14 days. Final payment due upon completion.',
-    
+
     // Financials - APPLIED DEFAULTS FROM SETTINGS
     depositRequired: existingQuote?.depositRequired ?? (contractorSettings?.defaultDepositValue > 0),
     depositType: existingQuote?.depositType || contractorSettings?.defaultDepositType || 'percentage',
@@ -135,7 +135,7 @@ const TemplatePicker = ({ templates = [], onSelect, onClose }) => {
             </div>
         );
     }
-    
+
     return (
         <div className="bg-white border border-slate-200 rounded-2xl p-4">
             <p className="text-sm font-medium text-slate-500 mb-3">Select a template:</p>
@@ -165,26 +165,26 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
     const [searchTerm, setSearchTerm] = useState('');
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
-    
+
     // Google Maps initialization
     // Google Maps initialization
     const mapsLoaded = useGoogleMaps();
-    
+
     // Use ref to track current customer values (avoids stale closure in autocomplete callback)
     const customerRef = useRef(customer);
     useEffect(() => {
         customerRef.current = customer;
     }, [customer]);
-    
+
     useEffect(() => {
         if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
-        
+
         try {
             autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
                 types: ['address'],
                 componentRestrictions: { country: 'us' }
             });
-            
+
             autocompleteRef.current.addListener('place_changed', () => {
                 const place = autocompleteRef.current.getPlace();
                 if (place.formatted_address) {
@@ -196,13 +196,13 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
             console.warn('Autocomplete init error:', err);
         }
     }, [mapsLoaded]);
-    
+
     const handlePhoneChange = (e) => {
         const formatted = formatPhoneNumber(e.target.value);
         onChange({ ...customer, phone: formatted });
     };
-    
-    const filteredCustomers = existingCustomers.filter(c => 
+
+    const filteredCustomers = existingCustomers.filter(c =>
         c.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -224,7 +224,7 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
                     </button>
                 )}
             </div>
-            
+
             {showSearch ? (
                 <div className="space-y-3">
                     <input
@@ -262,9 +262,8 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
                             value={customer.name}
                             onChange={(e) => onChange({ ...customer, name: e.target.value })}
                             placeholder="John Smith"
-                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                errors.customerName ? 'border-red-500 bg-red-50' : 'border-slate-200'
-                            }`}
+                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerName ? 'border-red-500 bg-red-50' : 'border-slate-200'
+                                }`}
                         />
                         {errors.customerName && (
                             <p className="text-red-500 text-xs mt-1">{errors.customerName}</p>
@@ -279,9 +278,8 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
                             value={customer.email}
                             onChange={(e) => onChange({ ...customer, email: e.target.value })}
                             placeholder="john@example.com"
-                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                errors.customerEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'
-                            }`}
+                            className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.customerEmail ? 'border-red-500 bg-red-50' : 'border-slate-200'
+                                }`}
                         />
                         {errors.customerEmail && (
                             <p className="text-red-500 text-xs mt-1">{errors.customerEmail}</p>
@@ -306,11 +304,11 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
                             Service Address
                         </label>
                         <input
-    ref={addressInputRef}
-    type="text"
-    defaultValue={customer.address}
-    onBlur={(e) => onChange({ ...customer, address: e.target.value })}
-    placeholder="123 Main St, City, State"
+                            ref={addressInputRef}
+                            type="text"
+                            defaultValue={customer.address}
+                            onBlur={(e) => onChange({ ...customer, address: e.target.value })}
+                            placeholder="123 Main St, City, State"
                             className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
@@ -323,13 +321,13 @@ const CustomerForm = ({ customer, onChange, onSelectExisting, existingCustomers 
 // ============================================
 // LINE ITEMS SECTION
 // ============================================
-const LineItemsSection = ({ 
-    lineItems, 
-    onUpdate, 
-    onAdd, 
-    onRemove, 
-    taxRate, 
-    onTaxRateChange, 
+const LineItemsSection = ({
+    lineItems,
+    onUpdate,
+    onAdd,
+    onRemove,
+    taxRate,
+    onTaxRateChange,
     errors = {},
     // Deposit Props
     depositRequired,
@@ -340,25 +338,25 @@ const LineItemsSection = ({
     onOpenPriceBook
 }) => {
     const updateItem = (id, field, value) => {
-        onUpdate(lineItems.map(item => 
+        onUpdate(lineItems.map(item =>
             item.id === id ? { ...item, [field]: value } : item
         ));
     };
 
     const toggleExpand = (id) => {
-        onUpdate(lineItems.map(item => 
+        onUpdate(lineItems.map(item =>
             item.id === id ? { ...item, isExpanded: !item.isExpanded } : item
         ));
     };
-    
+
     // CALCS
     const subtotal = lineItems.reduce(
-        (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 
+        (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)),
         0
     );
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
-    
+
     // Deposit Calc
     let depositAmount = 0;
     if (depositRequired) {
@@ -380,7 +378,7 @@ const LineItemsSection = ({
                     {onOpenPriceBook && (
                         <PriceBookButton onClick={onOpenPriceBook} />
                     )}
-                    <button 
+                    <button
                         type="button"
                         onClick={() => onAdd('material')}
                         className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1 transition-colors"
@@ -388,7 +386,7 @@ const LineItemsSection = ({
                         <Package size={14} />
                         Add Material
                     </button>
-                    <button 
+                    <button
                         type="button"
                         onClick={() => onAdd('labor')}
                         className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 flex items-center gap-1 transition-colors"
@@ -398,7 +396,7 @@ const LineItemsSection = ({
                     </button>
                 </div>
             </div>
-            
+
             {/* Line Items Table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto mb-6">
                 <table className="w-full min-w-[700px]">
@@ -416,14 +414,14 @@ const LineItemsSection = ({
                     <tbody className="divide-y divide-slate-100">
                         {lineItems.map((item, index) => {
                             const itemType = LINE_ITEM_TYPES.find(t => t.value === item.type) || LINE_ITEM_TYPES[0];
-                            const itemError = errors[`lineItems[${index}]`]; 
-                            
+                            const itemError = errors[`lineItems[${index}]`];
+
                             return (
                                 <React.Fragment key={item.id}>
                                     <tr className={`group ${item.isExpanded ? 'bg-slate-50/50' : 'bg-white'}`}>
                                         <td className="px-2 py-3 text-center">
                                             {/* Compact toggle button */}
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={() => toggleExpand(item.id)}
                                                 className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
@@ -449,9 +447,8 @@ const LineItemsSection = ({
                                                 value={item.description}
                                                 onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                                                 placeholder="Item description..."
-                                                className={`w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                                    itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                                                }`}
+                                                className={`w-full px-2 py-1 border rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none ${itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                                                    }`}
                                             />
                                         </td>
                                         <td className="px-4 py-3">
@@ -472,9 +469,8 @@ const LineItemsSection = ({
                                                     step="0.01"
                                                     value={item.unitPrice}
                                                     onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                    className={`w-full pl-6 pr-2 py-1 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                                        itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
-                                                    }`}
+                                                    className={`w-full pl-6 pr-2 py-1 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none ${itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
+                                                        }`}
                                                 />
                                             </div>
                                         </td>
@@ -489,7 +485,7 @@ const LineItemsSection = ({
                                                     onClick={() => {
                                                         const newAddToHome = !item.addToHomeRecord;
                                                         let newIntent = null;
-                                                        
+
                                                         if (newAddToHome) {
                                                             // Create inventory intent from line item
                                                             newIntent = createIntentFromLineItem({
@@ -497,15 +493,14 @@ const LineItemsSection = ({
                                                                 amount: (item.quantity || 1) * (item.unitPrice || 0)
                                                             });
                                                         }
-                                                        
+
                                                         updateItem(item.id, 'addToHomeRecord', newAddToHome);
                                                         updateItem(item.id, 'inventoryIntent', newIntent);
                                                     }}
-                                                    className={`p-1.5 rounded-lg transition-all ${
-                                                        item.addToHomeRecord 
-                                                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' 
+                                                    className={`p-1.5 rounded-lg transition-all ${item.addToHomeRecord
+                                                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
                                                             : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
-                                                    }`}
+                                                        }`}
                                                     title={item.addToHomeRecord ? "Will be added to customer's home record" : "Add to customer's home record"}
                                                 >
                                                     <Home size={16} />
@@ -521,7 +516,7 @@ const LineItemsSection = ({
                                             </div>
                                         </td>
                                     </tr>
-                                    
+
                                     {/* Expanded Details Row */}
                                     {item.isExpanded && (
                                         <tr className="bg-slate-50/80">
@@ -531,8 +526,8 @@ const LineItemsSection = ({
                                                         <>
                                                             <div>
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Brand</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     placeholder="e.g. Carrier, Lennox"
                                                                     value={item.brand || ''}
                                                                     onChange={(e) => updateItem(item.id, 'brand', e.target.value)}
@@ -541,8 +536,8 @@ const LineItemsSection = ({
                                                             </div>
                                                             <div>
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Model #</label>
-                                                                <input 
-                                                                    type="text" 
+                                                                <input
+                                                                    type="text"
                                                                     placeholder="Model number"
                                                                     value={item.model || ''}
                                                                     onChange={(e) => updateItem(item.id, 'model', e.target.value)}
@@ -553,8 +548,8 @@ const LineItemsSection = ({
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Manufacturer Warranty (Specific to Item)</label>
                                                                 <div className="relative">
                                                                     <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                                    <input 
-                                                                        type="text" 
+                                                                    <input
+                                                                        type="text"
                                                                         placeholder="e.g. 10 Year Parts & Compressor"
                                                                         value={item.warranty || ''}
                                                                         onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
@@ -569,8 +564,8 @@ const LineItemsSection = ({
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Crew Size</label>
                                                                 <div className="relative">
                                                                     <Users size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                                    <input 
-                                                                        type="number" 
+                                                                    <input
+                                                                        type="number"
                                                                         min="1"
                                                                         placeholder="Number of technicians"
                                                                         value={item.crewSize || ''}
@@ -583,8 +578,8 @@ const LineItemsSection = ({
                                                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">Labor Warranty (Specific to Item)</label>
                                                                 <div className="relative">
                                                                     <Shield size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                                                                    <input 
-                                                                        type="text" 
+                                                                    <input
+                                                                        type="text"
                                                                         placeholder="e.g. 1 Year Guarantee"
                                                                         value={item.warranty || ''}
                                                                         onChange={(e) => updateItem(item.id, 'warranty', e.target.value)}
@@ -594,7 +589,7 @@ const LineItemsSection = ({
                                                             </div>
                                                         </>
                                                     )}
-                                                    
+
                                                     {/* Inventory Intent Section - Shows when "Add to Home Record" is enabled */}
                                                     {item.addToHomeRecord && (
                                                         <div className="col-span-2 md:col-span-4 mt-3 pt-3 border-t border-emerald-200">
@@ -607,7 +602,7 @@ const LineItemsSection = ({
                                                                     {item.inventoryIntent?.maintenanceTasks?.filter(t => t.selected !== false).length || 0} maintenance tasks
                                                                 </span>
                                                             </div>
-                                                            
+
                                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                                 <div>
                                                                     <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
@@ -664,11 +659,10 @@ const LineItemsSection = ({
                                                                                         maintenanceTasks: updatedTasks
                                                                                     });
                                                                                 }}
-                                                                                className={`px-2 py-1 text-[10px] rounded-full transition-colors ${
-                                                                                    task.selected !== false
+                                                                                className={`px-2 py-1 text-[10px] rounded-full transition-colors ${task.selected !== false
                                                                                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
                                                                                         : 'bg-slate-100 text-slate-500 border border-slate-200'
-                                                                                }`}
+                                                                                    }`}
                                                                             >
                                                                                 {task.selected !== false ? '✓ ' : ''}{task.task}
                                                                             </button>
@@ -693,10 +687,10 @@ const LineItemsSection = ({
                     </tbody>
                 </table>
             </div>
-            
+
             {/* Totals Section */}
             <div className="flex flex-col md:flex-row justify-between items-start gap-8 border-t border-slate-100 pt-6">
-                
+
                 {/* Deposit Configuration */}
                 <div className="w-full md:w-auto">
                     <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
@@ -708,7 +702,7 @@ const LineItemsSection = ({
                         />
                         Require Deposit
                     </label>
-                    
+
                     {depositRequired && (
                         <div className="mt-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
                             <div className="flex items-center gap-2">
@@ -723,7 +717,7 @@ const LineItemsSection = ({
                                 <span className="text-sm text-slate-600">
                                     {depositType === 'percentage' ? 'Percent:' : 'Amount:'}
                                 </span>
-                                <input 
+                                <input
                                     type="number"
                                     value={depositValue}
                                     onChange={(e) => onDepositChange('depositValue', parseFloat(e.target.value) || 0)}
@@ -731,14 +725,14 @@ const LineItemsSection = ({
                                 />
                                 {depositType === 'percentage' && <span className="text-slate-500">%</span>}
                             </div>
-                            
+
                             <div className="pt-2 border-t border-slate-200 text-sm flex justify-between">
                                 <span className="font-medium text-slate-600">Deposit Amount:</span>
                                 <span className="font-bold text-emerald-600">${depositAmount.toFixed(2)}</span>
                             </div>
                         </div>
                     )}
-                    
+
                     {!depositRequired && (
                         <p className="text-xs text-slate-400 italic">
                             Check this box to request a partial payment upfront.
@@ -781,24 +775,24 @@ const LineItemsSection = ({
 // ============================================
 // SIDEBAR SUMMARY
 // ============================================
-const QuoteSummary = ({ 
-    lineItems, 
+const QuoteSummary = ({
+    lineItems,
     taxRate,
     depositRequired,
     depositType,
     depositValue,
-    onSaveDraft, 
-    onSend, 
+    onSaveDraft,
+    onSend,
     isSaving,
     isSending
 }) => {
     const subtotal = lineItems.reduce(
-        (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 
+        (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)),
         0
     );
     const tax = subtotal * (taxRate / 100);
     const total = subtotal + tax;
-    
+
     // Deposit Calc
     let depositAmount = 0;
     if (depositRequired) {
@@ -813,7 +807,7 @@ const QuoteSummary = ({
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 sticky top-4">
             <h3 className="font-bold text-slate-800 mb-4">Quote Summary</h3>
-            
+
             <div className="space-y-4">
                 <div className="p-4 bg-slate-50 rounded-xl">
                     <p className="text-sm text-slate-500">Quote Total</p>
@@ -832,9 +826,9 @@ const QuoteSummary = ({
                         </div>
                     </div>
                 )}
-                
+
                 <div className="pt-4 border-t border-slate-200 space-y-2">
-                    <button 
+                    <button
                         type="button"
                         onClick={onSend}
                         disabled={isSending}
@@ -847,7 +841,7 @@ const QuoteSummary = ({
                         )}
                         Send to Customer
                     </button>
-                    <button 
+                    <button
                         type="button"
                         onClick={onSaveDraft}
                         disabled={isSaving}
@@ -869,13 +863,13 @@ const QuoteSummary = ({
 // ============================================
 // MAIN QUOTE BUILDER COMPONENT
 // ============================================
-export const QuoteBuilder = ({ 
-    quote = null, 
+export const QuoteBuilder = ({
+    quote = null,
     customers = [],
     templates = [],
     contractorProfile = null,
-    onBack, 
-    onSave, 
+    onBack,
+    onSave,
     onSend,
     onSaveAsTemplate,
     onDuplicate,
@@ -916,7 +910,7 @@ export const QuoteBuilder = ({
             }));
             return;
         }
-        
+
         setFormData(prev => ({
             ...prev,
             customerId: selectedCustomer.id,
@@ -946,27 +940,27 @@ export const QuoteBuilder = ({
             lineItems: prev.lineItems.filter(item => item.id !== id)
         }));
     };
-    
+
     const handleDepositChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
     // Handle Price Book item selection
-   // Handle Price Book item selection (Smart Replace)
+    // Handle Price Book item selection (Smart Replace)
     const handlePriceBookSelect = (lineItem) => {
         setFormData(prev => {
             // Look for an empty row of the same type to replace
-            const emptyRowIndex = prev.lineItems.findIndex(item => 
-                item.type === lineItem.type && 
-                !item.description?.trim() && 
+            const emptyRowIndex = prev.lineItems.findIndex(item =>
+                item.type === lineItem.type &&
+                !item.description?.trim() &&
                 (!item.unitPrice || item.unitPrice === 0)
             );
-            
+
             if (emptyRowIndex !== -1) {
                 // Replace the empty row with the Price Book item
                 const newLineItems = [...prev.lineItems];
-                newLineItems[emptyRowIndex] = { 
-                    ...lineItem, 
+                newLineItems[emptyRowIndex] = {
+                    ...lineItem,
                     id: prev.lineItems[emptyRowIndex].id, // Keep same ID to avoid React key issues
                     isExpanded: true // Expand so user can see what was added
                 };
@@ -1004,39 +998,74 @@ export const QuoteBuilder = ({
     // Validation
     const validate = () => {
         const newErrors = {};
-        
+
+        // EDGE CASE: Validate customer name with length limit
         if (!formData.customer.name?.trim()) {
             newErrors.customerName = 'Customer name is required';
+        } else if (formData.customer.name.length > 200) {
+            newErrors.customerName = 'Customer name is too long (max 200 characters)';
         }
-        
+
+        // EDGE CASE: Validate email format and length
         if (!formData.customer.email?.trim()) {
             newErrors.customerEmail = 'Customer email is required';
         } else if (!isValidEmail(formData.customer.email)) {
             newErrors.customerEmail = 'Please enter a valid email address';
+        } else if (formData.customer.email.length > 254) {
+            newErrors.customerEmail = 'Email address is too long';
         }
-        
+
+        // EDGE CASE: Validate title with length limit
         if (!formData.title?.trim()) {
             newErrors.title = 'Quote title is required';
+        } else if (formData.title.length > 200) {
+            newErrors.title = 'Quote title is too long (max 200 characters)';
         }
-        
+
         if (formData.lineItems.length === 0) {
             newErrors.lineItems = 'At least one line item is required';
         }
-        
-        // Detailed Line Item Validation
+
+        // EDGE CASE: Comprehensive Line Item Validation
         formData.lineItems.forEach((item, index) => {
+            // Description validation
+            if (!item.description?.trim()) {
+                newErrors[`lineItems[${index}].description`] = 'Description required';
+            } else if (item.description.length > 2000) {
+                newErrors[`lineItems[${index}].description`] = 'Description too long';
+            }
+
+            // Price validation - check for negative, zero, and extreme values
+            if (typeof item.unitPrice !== 'number' || item.unitPrice <= 0) {
+                newErrors[`lineItems[${index}].price`] = 'Valid price required';
+            } else if (item.unitPrice < 0) {
+                newErrors[`lineItems[${index}].price`] = 'Price cannot be negative';
+            } else if (item.unitPrice > 999999999) {
+                newErrors[`lineItems[${index}].price`] = 'Price exceeds maximum ($999,999,999)';
+            } else if (!isFinite(item.unitPrice)) {
+                newErrors[`lineItems[${index}].price`] = 'Invalid price value';
+            }
+
+            // Quantity validation
+            if (typeof item.quantity !== 'number' || item.quantity < 1) {
+                newErrors[`lineItems[${index}].quantity`] = 'Quantity must be at least 1';
+            } else if (item.quantity > 10000) {
+                newErrors[`lineItems[${index}].quantity`] = 'Quantity too large (max 10,000)';
+            }
+
+            // Mark row as having any error
             if (!item.description?.trim() || item.unitPrice <= 0) {
                 newErrors[`lineItems[${index}]`] = true;
             }
         });
-        
+
         const hasValidItems = formData.lineItems.some(
             item => item.description?.trim() && item.unitPrice > 0
         );
         if (!hasValidItems) {
             newErrors.lineItemsGeneric = 'Please complete line item details (Description & Price)';
         }
-        
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -1047,7 +1076,7 @@ export const QuoteBuilder = ({
             toast.error('Please fix errors highlighted in red');
             return;
         }
-        
+
         try {
             await onSave({ ...formData, status: 'draft' });
             toast.success(isEditing ? 'Quote updated' : 'Draft saved');
@@ -1061,7 +1090,7 @@ export const QuoteBuilder = ({
             toast.error('Please fix errors highlighted in red');
             return;
         }
-        
+
         try {
             await onSend(formData);
         } catch (error) {
@@ -1138,7 +1167,7 @@ export const QuoteBuilder = ({
             </body>
             </html>
         `;
-        
+
         const printWindow = window.open('', '_blank');
         printWindow.document.write(printContent);
         printWindow.document.close();
@@ -1168,12 +1197,12 @@ export const QuoteBuilder = ({
             toast.error('Please enter a template name');
             return;
         }
-        
+
         if (!onSaveAsTemplate) {
             toast.error('Save as template not available');
             return;
         }
-        
+
         setSavingTemplate(true);
         try {
             await onSaveAsTemplate({
@@ -1207,7 +1236,7 @@ export const QuoteBuilder = ({
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
-                    <button 
+                    <button
                         onClick={onBack}
                         className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
                     >
@@ -1222,7 +1251,7 @@ export const QuoteBuilder = ({
                         </p>
                     </div>
                 </div>
-                
+
                 {templates.length > 0 && !isEditing && (
                     <button
                         type="button"
@@ -1234,16 +1263,16 @@ export const QuoteBuilder = ({
                     </button>
                 )}
             </div>
-            
+
             {/* Template Picker */}
             {showTemplates && (
-                <TemplatePicker 
-                    templates={templates} 
+                <TemplatePicker
+                    templates={templates}
                     onSelect={handleSelectTemplate}
                     onClose={() => setShowTemplates(false)}
                 />
             )}
-            
+
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left col - Main form */}
@@ -1256,7 +1285,7 @@ export const QuoteBuilder = ({
                         existingCustomers={customers}
                         errors={errors}
                     />
-                    
+
                     {/* Quote Details */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6">
                         <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -1273,9 +1302,8 @@ export const QuoteBuilder = ({
                                     value={formData.title}
                                     onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                                     placeholder="e.g. HVAC System Replacement"
-                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${
-                                        errors.title ? 'border-red-500 bg-red-50' : 'border-slate-200'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none ${errors.title ? 'border-red-500 bg-red-50' : 'border-slate-200'
+                                        }`}
                                 />
                                 {errors.title && (
                                     <p className="text-red-500 text-xs mt-1">{errors.title}</p>
@@ -1309,7 +1337,7 @@ export const QuoteBuilder = ({
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Line Items */}
                     <LineItemsSection
                         lineItems={formData.lineItems}
@@ -1333,7 +1361,7 @@ export const QuoteBuilder = ({
                             {errors.lineItemsGeneric}
                         </div>
                     )}
-                    
+
                     {/* Notes, Exclusions & Terms */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6">
                         <h3 className="font-bold text-slate-800 mb-4">Notes & Terms</h3>
@@ -1351,8 +1379,8 @@ export const QuoteBuilder = ({
                                 />
                             </div>
 
-                             {/* NEW EXCLUSIONS FIELD - With Optional Tag */}
-                             <div>
+                            {/* NEW EXCLUSIONS FIELD - With Optional Tag */}
+                            <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                     Exclusions <span className="text-slate-400 font-normal lowercase">(optional)</span>
                                 </label>
@@ -1373,7 +1401,7 @@ export const QuoteBuilder = ({
                                 <p className="text-[10px] text-slate-400 mb-1">
                                     Your guarantee on the installation work
                                 </p>
-                                <input 
+                                <input
                                     type="text"
                                     value={formData.clientWarranty}
                                     onChange={(e) => setFormData(prev => ({ ...prev, clientWarranty: e.target.value }))}
@@ -1396,7 +1424,7 @@ export const QuoteBuilder = ({
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Sidebar - Right col */}
                 <div className="space-y-4">
                     <QuoteSummary
@@ -1410,13 +1438,13 @@ export const QuoteBuilder = ({
                         isSaving={isSaving}
                         isSending={isSending}
                     />
-                    
+
                     {/* Quick Actions */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-4">
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Quick Actions</p>
                         <div className="space-y-2">
                             {onSaveAsTemplate && (
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => setShowSaveTemplateModal(true)}
                                     className="w-full p-3 text-left text-sm text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-2 transition-colors"
@@ -1425,7 +1453,7 @@ export const QuoteBuilder = ({
                                     Save as Template
                                 </button>
                             )}
-                            <button 
+                            <button
                                 type="button"
                                 onClick={handleDuplicateQuote}
                                 className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors"
@@ -1433,7 +1461,7 @@ export const QuoteBuilder = ({
                                 <Copy size={16} className="text-slate-400" />
                                 Duplicate Quote
                             </button>
-                            <button 
+                            <button
                                 type="button"
                                 onClick={handlePrintPreview}
                                 className="w-full p-3 text-left text-sm text-slate-600 hover:bg-slate-50 rounded-xl flex items-center gap-2 transition-colors"
@@ -1452,7 +1480,7 @@ export const QuoteBuilder = ({
                                 <p className="text-sm text-slate-500 mb-4">
                                     Save this quote's line items as a reusable template for future quotes.
                                 </p>
-                                
+
                                 <div className="mb-4">
                                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                         Template Name *
@@ -1466,7 +1494,7 @@ export const QuoteBuilder = ({
                                         autoFocus
                                     />
                                 </div>
-                                
+
                                 <div className="p-3 bg-slate-50 rounded-xl mb-4">
                                     <p className="text-xs font-medium text-slate-500 mb-2">Will include:</p>
                                     <ul className="text-sm text-slate-600 space-y-1">
@@ -1476,7 +1504,7 @@ export const QuoteBuilder = ({
                                         {formData.terms && <li>• Terms & conditions</li>}
                                     </ul>
                                 </div>
-                                
+
                                 <div className="flex gap-3">
                                     <button
                                         type="button"

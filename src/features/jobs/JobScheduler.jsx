@@ -37,6 +37,26 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
     const [showEstimateInput, setShowEstimateInput] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // EDGE CASE: Handle null/undefined job
+    if (!job) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
+                <AlertCircle className="mx-auto text-slate-400 mb-2" size={32} />
+                <p className="text-slate-600">No job data available</p>
+            </div>
+        );
+    }
+
+    // EDGE CASE: Validate job has required ID
+    if (!job.id) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
+                <AlertCircle className="mx-auto text-amber-500 mb-2" size={32} />
+                <p className="text-slate-600">Invalid job reference</p>
+            </div>
+        );
+    }
+
     // Check for offered slots for homeowner
     const hasOfferedSlots = job.scheduling?.offeredSlots?.some(s => s.status === 'offered');
 
@@ -106,8 +126,15 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
             setProposal({ date: '', time: '09:00' }); // Reset form
             if (onUpdate) onUpdate();
         } catch (e) {
-            console.error(e);
-            toast.error("Failed to propose time");
+            console.error('Propose time error:', e);
+            // EDGE CASE: Provide specific error messages
+            if (e.code === 'unavailable' || e.message?.includes('network')) {
+                toast.error("Network error. Please check your connection and try again.");
+            } else if (e.code === 'permission-denied') {
+                toast.error("You don't have permission to update this job.");
+            } else {
+                toast.error("Failed to propose time. Please try again.");
+            }
             // Don't close the form - let user try again
         }
     };

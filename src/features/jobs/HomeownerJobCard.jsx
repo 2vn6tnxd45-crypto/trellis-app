@@ -5,7 +5,7 @@
 // Enhanced job card with proper status display and action buttons
 
 import React, { useState } from 'react';
-import { 
+import {
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
     AlertTriangle, Wrench, Info, MessageSquare,
@@ -95,14 +95,23 @@ const STATUS_CONFIG = {
     }
 };
 
-export const HomeownerJobCard = ({ 
-    job, 
+export const HomeownerJobCard = ({
+    job,
     onSelect,
     onCancel,
     onRequestNewTimes,
-    compact = false 
+    compact = false
 }) => {
     const [showActions, setShowActions] = useState(false);
+
+    // EDGE CASE: Handle null/undefined job
+    if (!job) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center">
+                <p className="text-slate-500">No job data</p>
+            </div>
+        );
+    }
 
     // Determine effective status
     const getEffectiveStatus = () => {
@@ -113,7 +122,7 @@ export const HomeownerJobCard = ({
         if (job.status === 'revision_requested') {
             return 'revision_requested';
         }
-        
+
         // Existing logic
         if (job.status === 'quoted' && job.estimate?.status === 'approved') {
             return 'pending_schedule';
@@ -130,8 +139,8 @@ export const HomeownerJobCard = ({
 
     // Get contractor display name
     const getContractorName = () => {
-        return job.contractorName 
-            || job.contractorCompany 
+        return job.contractorName
+            || job.contractorCompany
             || job.contractor?.companyName
             || job.contractor?.name
             || 'Contractor';
@@ -158,19 +167,19 @@ export const HomeownerJobCard = ({
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         const date = new Date(dateStr);
-        return date.toLocaleDateString([], { 
-            weekday: 'short', 
-            month: 'short', 
-            day: 'numeric' 
+        return date.toLocaleDateString([], {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
         });
     };
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
         const date = new Date(dateStr);
-        return date.toLocaleTimeString([], { 
-            hour: 'numeric', 
-            minute: '2-digit' 
+        return date.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit'
         });
     };
 
@@ -183,13 +192,12 @@ export const HomeownerJobCard = ({
     const canRequestNewTimes = ['scheduling', 'slots_offered', 'pending_schedule'].includes(effectiveStatus);
 
     return (
-        <div 
-            className={`bg-white rounded-2xl border border-slate-200 overflow-hidden transition-all hover:shadow-md hover:border-slate-300 ${
-                compact ? '' : ''
-            }`}
+        <div
+            className={`bg-white rounded-2xl border border-slate-200 overflow-hidden transition-all hover:shadow-md hover:border-slate-300 ${compact ? '' : ''
+                }`}
         >
             {/* Main Card Content */}
-            <div 
+            <div
                 className="p-4 cursor-pointer"
                 onClick={() => onSelect?.(job)}
             >
@@ -206,14 +214,14 @@ export const HomeownerJobCard = ({
                             </span>
                         </div>
                     </div>
-                    
+
                     {/* Status Badge */}
                     <div className="flex items-center gap-2 shrink-0">
                         <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 ${statusConfig.bg} ${statusConfig.text}`}>
                             <StatusIcon size={12} />
                             {statusConfig.label}
                         </span>
-                        
+
                         {/* Actions Menu */}
                         {(canCancel || canRequestNewTimes) && (
                             <div className="relative">
@@ -226,10 +234,10 @@ export const HomeownerJobCard = ({
                                 >
                                     <MoreVertical size={16} />
                                 </button>
-                                
+
                                 {showActions && (
                                     <>
-                                        <div 
+                                        <div
                                             className="fixed inset-0 z-10"
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -300,7 +308,7 @@ export const HomeownerJobCard = ({
                             <p className="text-sm text-slate-500 mb-2">Available times:</p>
                             <div className="space-y-1.5">
                                 {offeredSlots.slice(0, 3).map((slot, idx) => (
-                                    <div 
+                                    <div
                                         key={slot.id || idx}
                                         className="flex items-center justify-between bg-amber-50 px-3 py-2 rounded-lg"
                                     >
@@ -369,7 +377,8 @@ export const HomeownerJobCard = ({
                 </div>
 
                 {/* Price (if available) */}
-                {job.total > 0 && (
+                {/* EDGE CASE: Validate price is a valid number before display */}
+                {typeof job.total === 'number' && job.total > 0 && isFinite(job.total) && (
                     <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                         <span className="text-sm text-slate-500">Total:</span>
                         <span className="font-bold text-slate-800">

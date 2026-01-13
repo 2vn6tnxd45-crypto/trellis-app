@@ -64,6 +64,26 @@ export const SlotPicker = ({
     const [selectedSlotIds, setSelectedSlotIds] = useState([]); // Changed to array for multi-selection
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // EDGE CASE: Handle null/undefined job
+    if (!job) {
+        return (
+            <div className="p-6 text-center">
+                <AlertCircle size={32} className="mx-auto mb-2 text-slate-400" />
+                <p className="text-slate-600">No job data available</p>
+            </div>
+        );
+    }
+
+    // EDGE CASE: Validate job has required ID
+    if (!job.id) {
+        return (
+            <div className="p-6 text-center">
+                <AlertCircle size={32} className="mx-auto mb-2 text-amber-500" />
+                <p className="text-slate-600">Invalid job reference</p>
+            </div>
+        );
+    }
+
     const offeredSlots = job.scheduling?.offeredSlots?.filter(s => s.status === 'offered') || [];
     const contractorMessage = job.scheduling?.offeredMessage;
 
