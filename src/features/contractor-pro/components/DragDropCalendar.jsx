@@ -16,6 +16,7 @@ import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { getTimezoneAbbreviation } from '../lib/timezoneUtils';
+import { getSegmentForDate, getMultiDayLabel, jobIsMultiDay, isMultiDayJob } from '../lib/multiDayUtils';
 
 // ============================================
 // HELPERS
@@ -50,9 +51,34 @@ const formatTime = (hour) => {
 
 const getJobsForDate = (jobs, date) => {
     return jobs.filter(job => {
+        // Check regular scheduled date
         const jobDate = job.scheduledTime || job.scheduledDate;
-        if (!jobDate) return false;
-        return isSameDay(new Date(jobDate), date);
+        if (jobDate && isSameDay(new Date(jobDate), date)) {
+            return true;
+        }
+
+        // Check multi-day job segments
+        if (jobIsMultiDay(job)) {
+            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
+            return isInSchedule;
+        }
+
+        return false;
+    }).map(job => {
+        // Add multi-day context if applicable
+        if (jobIsMultiDay(job)) {
+            const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
+            return {
+                ...job,
+                _multiDayInfo: {
+                    dayNumber,
+                    totalDays: job.multiDaySchedule.totalDays,
+                    segment,
+                    label: `Day ${dayNumber}/${job.multiDaySchedule.totalDays}`
+                }
+            };
+        }
+        return job;
     });
 };
 
@@ -181,9 +207,18 @@ const TimeSlot = ({
                 <button
                     key={job.id}
                     onClick={() => onJobClick?.(job)}
-                    className="w-full mb-1 p-2 bg-emerald-500 text-white rounded-lg text-xs text-left hover:bg-emerald-600 transition-colors shadow-sm"
+                    className={`w-full mb-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm ${
+                        job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                    }`}
                 >
-                    <p className="font-bold truncate">{job.title || job.description || 'Job'}</p>
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                        <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
+                        {job._multiDayInfo && (
+                            <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold shrink-0">
+                                {job._multiDayInfo.label}
+                            </span>
+                        )}
+                    </div>
                     <p className="truncate opacity-80">{job.customer?.name}</p>
                 </button>
             ))}
@@ -238,6 +273,10 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
     const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
+    // Multi-day detection
+    const isMultiDay = isMultiDayJob(duration);
+    const estimatedDays = Math.ceil(duration / 480);
+
     const timeOptions = [];
     for (let h = 6; h <= 20; h++) {
         for (let m = 0; m < 60; m += 30) {
@@ -251,17 +290,19 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
         const [hours, minutes] = selectedTime.split(':').map(Number);
         const scheduledDateTime = new Date(date);
         scheduledDateTime.setHours(hours, minutes, 0, 0);
-        
+
         // Calculate end time based on duration
         const endDateTime = new Date(scheduledDateTime);
         endDateTime.setMinutes(endDateTime.getMinutes() + duration);
-        
+
         onConfirm({
             scheduledTime: scheduledDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
             assignedTo: selectedTech || null,
             estimatedDuration: duration,
-            isDirectSchedule: customerConfirmed
+            isDirectSchedule: customerConfirmed,
+            isMultiDay,
+            estimatedDays
         });
     };
 
@@ -326,9 +367,30 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
                         <option value={120}>2 hours</option>
                         <option value={180}>3 hours</option>
                         <option value={240}>4 hours</option>
-                        <option value={480}>Full day</option>
+                        <option value={480}>Full day (8 hours)</option>
+                        <option value={960}>2 days</option>
+                        <option value={1440}>3 days</option>
+                        <option value={1920}>4 days</option>
+                        <option value={2400}>5 days</option>
                     </select>
                 </div>
+
+                {/* Multi-day info */}
+                {isMultiDay && (
+                    <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                        <div className="flex items-start gap-2">
+                            <Calendar size={16} className="text-indigo-600 mt-0.5 shrink-0" />
+                            <div>
+                                <p className="font-medium text-indigo-800">Multi-Day Job</p>
+                                <p className="text-xs text-indigo-600">
+                                    This job spans ~{estimatedDays} work days starting from{' '}
+                                    {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}.
+                                    It will automatically be blocked on your calendar across all days.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Tech Assignment (if team) */}
                 {teamMembers && teamMembers.length > 0 && (
@@ -561,8 +623,8 @@ export const DragDropCalendar = ({
 
         try {
             if (scheduleData.isDirectSchedule) {
-                // DIRECT SCHEDULE - Customer already confirmed
-                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
+                // Build update data
+                const updateData = {
                     scheduledTime: scheduleData.scheduledTime,
                     scheduledDate: scheduleData.scheduledTime,
                     scheduledEndTime: scheduleData.endTime,
@@ -570,8 +632,25 @@ export const DragDropCalendar = ({
                     assignedTo: scheduleData.assignedTo,
                     status: 'scheduled',
                     lastActivity: serverTimestamp()
-                });
-                toast.success('Job scheduled!');
+                };
+
+                // Handle multi-day jobs
+                if (scheduleData.isMultiDay) {
+                    const { createMultiDaySchedule } = await import('../lib/multiDayUtils');
+                    const multiDaySchedule = createMultiDaySchedule(
+                        new Date(scheduleData.scheduledTime),
+                        scheduleData.estimatedDuration,
+                        preferences?.workingHours || {}
+                    );
+                    updateData.multiDaySchedule = multiDaySchedule;
+                }
+
+                // DIRECT SCHEDULE - Customer already confirmed
+                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), updateData);
+
+                toast.success(scheduleData.isMultiDay
+                    ? `Job scheduled for ${scheduleData.estimatedDays} days!`
+                    : 'Job scheduled!');
                 
                 // Send email notification to customer (non-blocking)
                 if (confirmDrop.job.customer?.email) {

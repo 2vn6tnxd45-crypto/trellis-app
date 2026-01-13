@@ -17,6 +17,7 @@ import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { parseDurationToMinutes } from '../lib/schedulingAI';
+import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
 
 // ============================================
 // HELPERS
@@ -27,8 +28,8 @@ const isSameDay = (date1, date2) => {
     const d1 = new Date(date1);
     const d2 = new Date(date2);
     return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+        d1.getMonth() === d2.getMonth() &&
+        d1.getDate() === d2.getDate();
 };
 
 const getWeekDates = (date) => {
@@ -67,15 +68,51 @@ const STATUS_STYLES = {
     pending: { bg: 'bg-amber-500', bgLight: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-300' },
     in_progress: { bg: 'bg-blue-500', bgLight: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-300' },
     evaluation: { bg: 'bg-purple-500', bgLight: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-300' },
-    unassigned: { bg: 'bg-slate-400', bgLight: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300' }
+    unassigned: { bg: 'bg-slate-400', bgLight: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-300' },
+    multi_day: { bg: 'bg-indigo-500', bgLight: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-300' }
 };
 
 const getEventStatus = (event) => {
     if (event.type === 'evaluation') return 'evaluation';
+    if (jobIsMultiDay(event)) return 'multi_day';
     if (event.status === 'scheduled' || event.scheduledTime) return 'confirmed';
     if (event.status === 'in_progress') return 'in_progress';
     if (event.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending';
     return 'unassigned';
+};
+
+// Get jobs for a date including multi-day segment info
+const getJobsForDateWithMultiDay = (jobs, date) => {
+    return jobs.filter(job => {
+        // Regular scheduled date check
+        const jobDate = job.scheduledTime || job.scheduledDate;
+        if (jobDate && isSameDay(new Date(jobDate), date)) {
+            return true;
+        }
+
+        // Multi-day segment check
+        if (jobIsMultiDay(job)) {
+            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
+            return isInSchedule;
+        }
+
+        return false;
+    }).map(job => {
+        // Add multi-day context
+        if (jobIsMultiDay(job)) {
+            const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
+            return {
+                ...job,
+                _multiDayInfo: {
+                    dayNumber,
+                    totalDays: job.multiDaySchedule.totalDays,
+                    segment,
+                    label: `Day ${dayNumber}/${job.multiDaySchedule.totalDays}`
+                }
+            };
+        }
+        return job;
+    });
 };
 
 // ============================================
@@ -122,6 +159,7 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
     const status = getEventStatus(event);
     const styles = STATUS_STYLES[status];
     const isEvaluation = event.type === 'evaluation';
+    const isMultiDay = event._multiDayInfo != null;
     const duration = event.duration || parseDurationToMinutes(event.estimatedDuration) || 60;
 
     return (
@@ -145,9 +183,16 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
             <div className="flex items-start gap-1.5">
                 <div className={`w-1.5 h-1.5 rounded-full ${styles.bg} mt-1.5 shrink-0`} />
                 <div className="flex-1 min-w-0">
-                    <p className={`font-medium ${styles.text} text-xs truncate`}>
-                        {formatTime(event.start || event.scheduledTime)}
-                    </p>
+                    <div className="flex items-center gap-1">
+                        <p className={`font-medium ${styles.text} text-xs truncate`}>
+                            {formatTime(event.start || event.scheduledTime)}
+                        </p>
+                        {isMultiDay && (
+                            <span className="text-[9px] bg-indigo-200 text-indigo-700 px-1 py-0.5 rounded font-bold">
+                                {event._multiDayInfo.label}
+                            </span>
+                        )}
+                    </div>
                     <p className="font-bold text-slate-800 text-sm truncate mt-0.5">
                         {event.title || event.description || 'Job'}
                     </p>
@@ -242,10 +287,10 @@ const UnassignedJobsSidebar = ({ jobs, evaluations, onEventClick, draggedEvent, 
         !['completed', 'cancelled'].includes(job.status)
     );
 
-    const unscheduledEvaluations = evaluations.filter(eval =>
-        !eval.assignedTo &&
-        eval.status !== 'cancelled' &&
-        eval.status !== 'completed'
+    const unscheduledEvaluations = evaluations.filter(evaluation =>
+        !evaluation.assignedTo &&
+        evaluation.status !== 'cancelled' &&
+        evaluation.status !== 'completed'
     );
 
     const allUnassigned = [
@@ -336,12 +381,14 @@ export const TeamCalendarView = ({
         });
     };
 
-    // Get events for a specific tech and date
+    // Get events for a specific tech and date (including multi-day job segments)
     const getEventsForTechAndDate = useCallback((techId, date) => {
-        const techJobs = jobs.filter(job => {
-            const isAssigned = job.assignedTo === techId || job.assignedTechId === techId;
-            const jobDate = job.scheduledTime || job.scheduledDate;
-            return isAssigned && jobDate && isSameDay(jobDate, date);
+        // Get jobs for this date (including multi-day segments)
+        const dateJobs = getJobsForDateWithMultiDay(jobs, date);
+
+        // Filter to just this tech's jobs
+        const techJobs = dateJobs.filter(job => {
+            return job.assignedTo === techId || job.assignedTechId === techId;
         });
 
         const techEvaluations = evaluations.filter(evaluation => {
@@ -499,21 +546,19 @@ export const TeamCalendarView = ({
                         <div className="flex bg-slate-100 rounded-lg p-1">
                             <button
                                 onClick={() => setViewMode('day')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                    viewMode === 'day'
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'day'
                                         ? 'bg-white text-slate-800 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
-                                }`}
+                                    }`}
                             >
                                 Day
                             </button>
                             <button
                                 onClick={() => setViewMode('week')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                    viewMode === 'week'
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'week'
                                         ? 'bg-white text-slate-800 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
-                                }`}
+                                    }`}
                             >
                                 Week
                             </button>

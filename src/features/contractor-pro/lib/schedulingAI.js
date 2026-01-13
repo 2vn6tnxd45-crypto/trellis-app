@@ -6,9 +6,16 @@
 // Considers: skills, availability, capacity, location, workload balance
 
 import { db } from '../../../config/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { getDistance, optimizeRoute } from './distanceMatrixService';
+import {
+    isMultiDayJob,
+    createMultiDaySchedule,
+    getSegmentForDate,
+    checkMultiDayConflicts,
+    jobIsMultiDay
+} from './multiDayUtils';
 
 // ============================================
 // CONSTANTS
@@ -698,13 +705,17 @@ export const generateSchedulingSuggestions = (
 
 // Cap duration at one workday for slot-finding (multi-day jobs just need a start date)
 const maxSlotDuration = 480; // 8 hours
-const isMultiDay = durationMins > maxSlotDuration;
+const isMultiDayDuration = durationMins > maxSlotDuration;
 const originalDurationMins = durationMins; // Save before capping for the warning message
-if (isMultiDay) {
+const estimatedDays = Math.ceil(originalDurationMins / maxSlotDuration);
+
+if (isMultiDayDuration) {
     durationMins = maxSlotDuration; // Find slots that fit one workday
     warnings.push({
         type: 'multi_day',
-        message: `This is a multi-day job (~${Math.ceil(originalDurationMins / 480)} days). Suggestions show potential start dates.`
+        message: `This is a multi-day job (~${estimatedDays} days). Suggestions show potential start dates.`,
+        estimatedDays,
+        totalMinutes: originalDurationMins
     });
 }
     
@@ -1046,6 +1057,162 @@ export const suggestRouteOrderAsync = async (jobs, homeBase) => {
     }
 };
 
+// ============================================
+// MULTI-DAY JOB SCHEDULING
+// ============================================
+
+/**
+ * Schedule a multi-day job, creating day segments
+ * @param {string} jobId - Job ID to schedule
+ * @param {Date} startDate - Start date
+ * @param {number} totalMinutes - Total job duration
+ * @param {Object} workingHours - Working hours configuration
+ * @param {string} assignedTechId - Optional tech assignment
+ * @returns {Promise<Object>} The created multi-day schedule
+ */
+export const scheduleMultiDayJob = async (jobId, startDate, totalMinutes, workingHours = {}, assignedTechId = null) => {
+    const multiDaySchedule = createMultiDaySchedule(startDate, totalMinutes, workingHours);
+
+    const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+
+    const updateData = {
+        scheduledTime: startDate.toISOString(),
+        scheduledDate: startDate.toISOString(),
+        multiDaySchedule,
+        estimatedDuration: totalMinutes,
+        status: 'scheduled',
+        lastActivity: serverTimestamp()
+    };
+
+    if (assignedTechId) {
+        updateData.assignedTechId = assignedTechId;
+    }
+
+    await updateDoc(jobRef, updateData);
+
+    return multiDaySchedule;
+};
+
+/**
+ * Check if scheduling a multi-day job would cause conflicts
+ * @param {Date} startDate - Proposed start date
+ * @param {number} totalMinutes - Total duration
+ * @param {Object} workingHours - Working hours config
+ * @param {Array} existingJobs - Existing jobs to check
+ * @param {string} techId - Optional tech to check
+ * @returns {Object} Conflict analysis
+ */
+export const analyzeMultiDayConflicts = (startDate, totalMinutes, workingHours, existingJobs, techId = null) => {
+    const proposedSchedule = createMultiDaySchedule(startDate, totalMinutes, workingHours);
+    const conflicts = checkMultiDayConflicts(proposedSchedule.segments, existingJobs, techId);
+
+    return {
+        hasConflicts: conflicts.length > 0,
+        conflicts,
+        proposedSchedule,
+        affectedDays: conflicts.map(c => c.date),
+        summary: conflicts.length > 0
+            ? `Conflicts on ${conflicts.length} day${conflicts.length > 1 ? 's' : ''}: ${conflicts.map(c => `Day ${c.dayNumber}`).join(', ')}`
+            : 'No conflicts detected'
+    };
+};
+
+/**
+ * Get jobs that appear on a specific date (including multi-day segments)
+ * @param {Array} jobs - All jobs
+ * @param {Date} date - Date to check
+ * @returns {Array} Jobs that appear on this date
+ */
+export const getJobsForDateIncludingMultiDay = (jobs, date) => {
+    const dateStr = date.toISOString().split('T')[0];
+
+    return jobs.filter(job => {
+        // Check regular scheduled date
+        if (job.scheduledTime || job.scheduledDate) {
+            const jobDate = new Date(job.scheduledTime || job.scheduledDate);
+            if (jobDate.toISOString().split('T')[0] === dateStr) {
+                return true;
+            }
+        }
+
+        // Check multi-day segments
+        if (jobIsMultiDay(job)) {
+            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
+            return isInSchedule;
+        }
+
+        return false;
+    });
+};
+
+// ============================================
+// ATOMIC BATCH OPERATIONS
+// ============================================
+
+/**
+ * Perform multiple job updates atomically using Firestore batch
+ * @param {Array<{jobId: string, updates: Object}>} operations - Array of update operations
+ * @returns {Promise<{success: boolean, updatedCount: number}>}
+ */
+export const batchUpdateJobs = async (operations) => {
+    if (!operations || operations.length === 0) {
+        return { success: true, updatedCount: 0 };
+    }
+
+    const batch = writeBatch(db);
+
+    for (const op of operations) {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, op.jobId);
+        batch.update(jobRef, {
+            ...op.updates,
+            lastActivity: serverTimestamp()
+        });
+    }
+
+    await batch.commit();
+
+    return { success: true, updatedCount: operations.length };
+};
+
+/**
+ * Bulk assign jobs atomically (improved version using batch)
+ * @param {Array} assignments - Array of {jobId, techId, techName}
+ * @returns {Promise<{success: boolean, updatedCount: number}>}
+ */
+export const bulkAssignJobsAtomic = async (assignments) => {
+    const operations = assignments
+        .filter(a => !a.failed && a.techId)
+        .map(a => ({
+            jobId: a.jobId,
+            updates: {
+                assignedTechId: a.techId,
+                assignedTechName: a.techName,
+                assignedAt: serverTimestamp(),
+                assignedBy: 'ai'
+            }
+        }));
+
+    return batchUpdateJobs(operations);
+};
+
+/**
+ * Reschedule multiple jobs atomically (useful after route optimization)
+ * @param {Array<{jobId: string, scheduledTime: string, order: number}>} schedule - New schedule
+ * @returns {Promise<{success: boolean, updatedCount: number}>}
+ */
+export const batchRescheduleJobs = async (schedule) => {
+    const operations = schedule.map((item, index) => ({
+        jobId: item.jobId,
+        updates: {
+            scheduledTime: item.scheduledTime,
+            scheduledDate: item.scheduledTime,
+            routeOrder: item.order || index
+        }
+    }));
+
+    return batchUpdateJobs(operations);
+};
+
 export default {
     // Tech assignment functions
     scoreTechForJob,
@@ -1063,5 +1230,13 @@ export default {
     checkForConflicts,
     // Route optimization
     suggestRouteOrder,
-    suggestRouteOrderAsync
+    suggestRouteOrderAsync,
+    // Multi-day scheduling
+    scheduleMultiDayJob,
+    analyzeMultiDayConflicts,
+    getJobsForDateIncludingMultiDay,
+    // Batch operations
+    batchUpdateJobs,
+    bulkAssignJobsAtomic,
+    batchRescheduleJobs
 };
