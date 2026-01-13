@@ -11,6 +11,9 @@ import { useState, useEffect, useMemo } from 'react';
 const CACHE_KEY = 'krib_property_data_v2';
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+// Request deduping map
+const inflightRequests = new Map();
+
 // ============================================
 // MAIN HOOK
 // ============================================
@@ -77,20 +80,36 @@ export const usePropertyData = (address, coordinates) => {
 
             // Try API
             try {
-                const params = new URLSearchParams({ address: addressString });
-                if (coordinates?.lat && coordinates?.lon) {
-                    params.append('lat', coordinates.lat);
-                    params.append('lon', coordinates.lon);
+                // Check for inflight request
+                const requestKey = `prop_${addressString}`;
+
+                let fetchPromise;
+                if (inflightRequests.has(requestKey)) {
+                    // Reuse existing promise
+                    fetchPromise = inflightRequests.get(requestKey);
+                } else {
+                    // Start new request
+                    const params = new URLSearchParams({ address: addressString });
+                    if (coordinates?.lat && coordinates?.lon) {
+                        params.append('lat', coordinates.lat);
+                        params.append('lon', coordinates.lon);
+                    }
+
+                    fetchPromise = fetch(`/api/property-data?${params}`).then(async (res) => {
+                        if (res.ok) return res.json();
+                        throw new Error(`API returned ${res.status}`);
+                    });
+
+                    inflightRequests.set(requestKey, fetchPromise);
                 }
 
-                const response = await fetch(`/api/property-data?${params}`);
+                try {
+                    const result = await fetchPromise;
 
-                if (response.ok) {
-                    const result = await response.json();
                     if (!cancelled) {
                         setData({ property: result.property, flood: result.flood });
 
-                        // Cache it
+                        // Cache it if it was a new fetch (only if we have the result)
                         try {
                             const cached = localStorage.getItem(CACHE_KEY);
                             const cacheData = cached ? JSON.parse(cached) : {};
@@ -104,12 +123,15 @@ export const usePropertyData = (address, coordinates) => {
                             console.warn('Cache write failed:', e);
                         }
                     }
-                } else {
-                    // API failed - set null, no mock data
-                    console.warn(`Property API returned ${response.status}`);
-                    if (!cancelled) {
-                        setError(`API returned ${response.status}`);
-                        setData({ property: null, flood: null });
+                } finally {
+                    // Only the primary requester needs to clean up, but doing it safely is fine
+                    if (inflightRequests.has(requestKey)) {
+                        // We wait a tick to ensure all subscribers get the result? 
+                        // Actually duplicate cleanup is fine.
+                        // But if we delete it too early? 
+                        // No, once awaited, it's resolved. Future calls will just start new.
+                        // We keep it in map only while pending.
+                        inflightRequests.delete(requestKey);
                     }
                 }
             } catch (err) {

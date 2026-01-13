@@ -8,7 +8,7 @@
 // - 5+ items: Full dashboard with all features
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { 
+import {
     Camera, Plus, Package, Sparkles, MapPin, Wrench, Send,
     Home, Lock, BedDouble, Bath, Ruler, CalendarClock, LandPlot,
     TrendingUp, TrendingDown, FileText, ExternalLink, AlertTriangle, Trash2,
@@ -24,7 +24,7 @@ import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { ReportTeaser } from './ReportTeaser';
 
 // Property data hook for getting started view
-import usePropertyData from '../../hooks/usePropertyData';
+import { useProperty } from '../../contexts/PropertyContext';
 // Quotes hook and service
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 import { unclaimQuote } from '../quotes/lib/quoteService';
@@ -75,54 +75,54 @@ const ActiveProjectsSection = ({ userId }) => {
             setLoading(false);
             return;
         }
-        
+
         // Query by BOTH createdBy (direct requests) AND customerId (quote jobs)
         const q1 = query(
-            collection(db, REQUESTS_COLLECTION_PATH), 
+            collection(db, REQUESTS_COLLECTION_PATH),
             where("createdBy", "==", userId)
         );
-        
+
         const q2 = query(
-            collection(db, REQUESTS_COLLECTION_PATH), 
+            collection(db, REQUESTS_COLLECTION_PATH),
             where("customerId", "==", userId)
         );
-        
+
         let results1 = [];
         let results2 = [];
         let loaded1 = false;
         let loaded2 = false;
-        
+
         const mergeAndUpdate = () => {
             if (!loaded1 || !loaded2) return;
-            
+
             // Merge and dedupe by id
             const merged = new Map();
             [...results1, ...results2].forEach(job => {
                 merged.set(job.id, job);
             });
-            
+
             const allJobs = Array.from(merged.values());
-            
+
             // Filter for active/negotiating jobs (exclude cancelled and completed)
-            const active = allJobs.filter(r => 
+            const active = allJobs.filter(r =>
                 !['cancelled', 'completed', 'archived'].includes(r.status) &&
                 (
-                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested', 'cancellation_requested'].includes(r.status) || 
+                    ['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested', 'cancellation_requested'].includes(r.status) ||
                     (r.status === 'quoted' && r.estimate?.status === 'approved')
                 )
             );
-            
+
             // Sort by last activity
             active.sort((a, b) => {
                 const aTime = a.lastActivity?.toDate?.() || a.createdAt?.toDate?.() || new Date(0);
                 const bTime = b.lastActivity?.toDate?.() || b.createdAt?.toDate?.() || new Date(0);
                 return bTime - aTime;
             });
-            
+
             setProjects(active);
             setLoading(false);
         };
-        
+
         const unsub1 = onSnapshot(q1, (snap) => {
             results1 = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             loaded1 = true;
@@ -132,7 +132,7 @@ const ActiveProjectsSection = ({ userId }) => {
             loaded1 = true;
             mergeAndUpdate();
         });
-        
+
         const unsub2 = onSnapshot(q2, (snap) => {
             results2 = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             loaded2 = true;
@@ -142,7 +142,7 @@ const ActiveProjectsSection = ({ userId }) => {
             loaded2 = true;
             mergeAndUpdate();
         });
-        
+
         return () => {
             unsub1();
             unsub2();
@@ -151,14 +151,14 @@ const ActiveProjectsSection = ({ userId }) => {
 
     // Helper to determine summary text
     const getStatusSummary = () => {
-        const needsAction = projects.filter(p => 
-            p.status === 'slots_offered' || 
+        const needsAction = projects.filter(p =>
+            p.status === 'slots_offered' ||
             p.status === 'pending_completion' ||
             p.status === 'revision_requested'
         ).length;
         const scheduled = projects.filter(p => p.status === 'scheduled').length;
         const inProgress = projects.filter(p => p.status === 'in_progress').length;
-        
+
         if (needsAction > 0) {
             return <span className="text-xs text-amber-600 font-bold">{needsAction} need{needsAction === 1 ? 's' : ''} action</span>;
         }
@@ -173,9 +173,9 @@ const ActiveProjectsSection = ({ userId }) => {
 
     if (loading) {
         return (
-            <DashboardSection 
-                title="Active Projects" 
-                icon={Hammer} 
+            <DashboardSection
+                title="Active Projects"
+                icon={Hammer}
                 defaultOpen={true}
             >
                 <div className="py-8 text-center">
@@ -192,9 +192,9 @@ const ActiveProjectsSection = ({ userId }) => {
 
     return (
         <>
-            <DashboardSection 
-                title="Active Projects" 
-                icon={Hammer} 
+            <DashboardSection
+                title="Active Projects"
+                icon={Hammer}
                 defaultOpen={true}
                 summary={getStatusSummary()}
             >
@@ -232,7 +232,7 @@ const ActiveProjectsSection = ({ userId }) => {
                             </button>
                         </div>
                         <div className="flex-grow overflow-hidden bg-slate-50">
-                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => {}} />
+                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => { }} />
                         </div>
                         <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-white shrink-0">
                             <button
@@ -291,9 +291,9 @@ const MyQuotesSection = ({ userId }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
     const handleDelete = async (e, quote) => {
-        e.preventDefault(); 
+        e.preventDefault();
         e.stopPropagation();
-        
+
         if (!window.confirm('Remove this quote from your profile?')) return;
 
         try {
@@ -309,9 +309,9 @@ const MyQuotesSection = ({ userId }) => {
     if (loading || (!quotes.length && error !== 'missing-index')) return null;
 
     return (
-        <DashboardSection 
-            title="My Quotes & Estimates" 
-            icon={FileText} 
+        <DashboardSection
+            title="My Quotes & Estimates"
+            icon={FileText}
             defaultOpen={true}
             summary={<span className="text-xs text-emerald-600 font-bold">{quotes.length} Active</span>}
         >
@@ -327,13 +327,13 @@ const MyQuotesSection = ({ userId }) => {
             ) : (
                 <div className="space-y-3">
                     {quotes.map(quote => (
-                        <a 
+                        <a
                             key={quote.id}
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}
                             className="block bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all group relative"
                         >
                             {/* Delete button */}
-                            <button 
+                            <button
                                 onClick={(e) => handleDelete(e, quote)}
                                 className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
                                 title="Remove from profile"
@@ -352,10 +352,10 @@ const MyQuotesSection = ({ userId }) => {
                                     </p>
                                 </div>
                                 <span className={`px-2.5 py-1 rounded-lg text-xs font-bold capitalize shrink-0 flex items-center gap-1
-                                    ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 
-                                      quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 
-                                      quote.status === 'viewed' ? 'bg-purple-100 text-purple-700' :
-                                      'bg-slate-100 text-slate-700'}`}
+                                    ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
+                                        quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
+                                            quote.status === 'viewed' ? 'bg-purple-100 text-purple-700' :
+                                                'bg-slate-100 text-slate-700'}`}
                                 >
                                     {quote.status === 'accepted' && <CheckCircle2 size={12} />}
                                     {quote.status}
@@ -406,7 +406,7 @@ const PendingEvaluationsSection = ({ userId }) => {
             try {
                 const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
                 const profileSnap = await getDoc(profileRef);
-                
+
                 if (profileSnap.exists()) {
                     const profile = profileSnap.data();
                     setEvaluations(profile.pendingEvaluations || []);
@@ -424,15 +424,15 @@ const PendingEvaluationsSection = ({ userId }) => {
     if (loading || evaluations.length === 0) return null;
 
     return (
-        <DashboardSection 
-            title="Awaiting Quotes" 
-            icon={ClipboardList} 
+        <DashboardSection
+            title="Awaiting Quotes"
+            icon={ClipboardList}
             defaultOpen={true}
             summary={<span className="text-xs text-indigo-600 font-bold">{evaluations.length} pending</span>}
         >
             <div className="space-y-3">
                 {evaluations.map((evaluation, index) => (
-                    <div 
+                    <div
                         key={evaluation.evaluationId || index}
                         className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 transition-all"
                     >
@@ -450,14 +450,14 @@ const PendingEvaluationsSection = ({ userId }) => {
                                 Awaiting Quote
                             </span>
                         </div>
-                        
+
                         {evaluation.propertyAddress && (
                             <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
                                 <MapPin size={12} />
                                 <span className="truncate">{evaluation.propertyAddress}</span>
                             </div>
                         )}
-                        
+
                         <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                             <span className="text-xs text-slate-400">
                                 Submitted {new Date(evaluation.submittedAt).toLocaleDateString()}
@@ -478,12 +478,11 @@ const PendingEvaluationsSection = ({ userId }) => {
 // ============================================
 // Shows ACTUAL property data - tax assessment & sale price, not fake estimates
 const PublicRecordsCard = ({ activeProperty }) => {
-    const { address, coordinates } = activeProperty || {};
     const {
         propertyData,
         loading,
         hasData,
-    } = usePropertyData(address, coordinates);
+    } = useProperty();
 
     // Loading state
     if (loading) {
@@ -510,10 +509,10 @@ const PublicRecordsCard = ({ activeProperty }) => {
     // Calculate real appreciation from actual data
     const lastSaleYear = formatYear(propertyData.lastSaleDate);
     const hasAppreciation = propertyData.taxAssessment && propertyData.lastSalePrice;
-    const appreciationDollars = hasAppreciation 
-        ? propertyData.taxAssessment - propertyData.lastSalePrice 
+    const appreciationDollars = hasAppreciation
+        ? propertyData.taxAssessment - propertyData.lastSalePrice
         : null;
-    const appreciationPercent = hasAppreciation 
+    const appreciationPercent = hasAppreciation
         ? Math.round(((propertyData.taxAssessment - propertyData.lastSalePrice) / propertyData.lastSalePrice) * 100)
         : null;
     const isPositive = appreciationDollars > 0;
@@ -606,9 +605,8 @@ const PublicRecordsCard = ({ activeProperty }) => {
 
                 {/* Appreciation Badge (if we have both numbers) */}
                 {hasAppreciation && (
-                    <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${
-                        isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-                    }`}>
+                    <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg ${isPositive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                        }`}>
                         {isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                         <span className="font-bold">
                             {isPositive ? '+' : ''}{formatCurrency(appreciationDollars)}
@@ -639,7 +637,7 @@ const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
             <div className="absolute top-0 right-0 opacity-10 pointer-events-none">
                 <ScanLine size={180} strokeWidth={1} />
             </div>
-            
+
             <div className="relative z-10">
                 {/* Header */}
                 <div className="flex items-center gap-2 mb-3">
@@ -650,12 +648,12 @@ const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
                         <h3 className="font-bold text-lg">Snap a photo. We'll do the rest.</h3>
                     </div>
                 </div>
-                
+
                 {/* Description */}
                 <p className="text-emerald-100 text-sm mb-4">
                     Just photograph a receipt, invoice, or appliance label — our AI extracts everything automatically.
                 </p>
-                
+
                 {/* What AI extracts */}
                 <div className="grid grid-cols-2 gap-2 mb-5">
                     <div className="flex items-center gap-2 text-sm">
@@ -675,9 +673,9 @@ const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
                         <span className="text-emerald-50">Warranty Info</span>
                     </div>
                 </div>
-                
+
                 {/* CTA Button */}
-                <button 
+                <button
                     onClick={onScanReceipt}
                     className="w-full py-4 bg-white text-emerald-700 rounded-xl font-bold text-base
                                hover:bg-emerald-50 transition-all flex items-center justify-center gap-3
@@ -686,9 +684,9 @@ const AIScanCTA = ({ onScanReceipt, onAddManually }) => {
                     <Camera size={22} />
                     Try It — Scan Something
                 </button>
-                
+
                 {/* Secondary action */}
-                <button 
+                <button
                     onClick={onAddManually}
                     className="w-full mt-3 py-2 text-emerald-200 text-sm font-medium hover:text-white transition-colors"
                 >
@@ -721,7 +719,7 @@ const QuickStartSuggestions = ({ onScanReceipt }) => {
                     <h3 className="font-bold text-slate-800">Start with these</h3>
                 </div>
             </div>
-            
+
             <div className="p-4">
                 <div className="grid grid-cols-2 gap-2">
                     {suggestions.map((item) => (
@@ -752,13 +750,13 @@ const QuickStartSuggestions = ({ onScanReceipt }) => {
 // ============================================
 // GETTING STARTED DASHBOARD (1-4 items)
 // ============================================
-const GettingStartedDashboard = ({ 
-    records, 
+const GettingStartedDashboard = ({
+    records,
     propertyName,
     activeProperty,
     userId,
-    onAddItem, 
-    onScanReceipt, 
+    onAddItem,
+    onScanReceipt,
     onNavigateToItems,
     onBookService,
     onMarkTaskDone,
@@ -775,7 +773,7 @@ const GettingStartedDashboard = ({
                 <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                     <Home size={150} />
                 </div>
-                
+
                 <div className="relative z-10">
                     <div className="flex items-start justify-between mb-2">
                         <div>
@@ -786,13 +784,13 @@ const GettingStartedDashboard = ({
                             <span className="font-bold text-emerald-400 text-sm">{records.length} item{records.length !== 1 ? 's' : ''}</span>
                         </div>
                     </div>
-                    
+
                     {activeProperty?.address && (
                         <div className="inline-flex items-center text-slate-400 text-sm mt-2">
                             <MapPin size={14} className="mr-1.5" />
                             <span>
-                                {typeof activeProperty.address === 'string' 
-                                    ? activeProperty.address 
+                                {typeof activeProperty.address === 'string'
+                                    ? activeProperty.address
                                     : activeProperty.address.street || `${activeProperty.address.city}, ${activeProperty.address.state}`
                                 }
                             </span>
@@ -821,7 +819,7 @@ const GettingStartedDashboard = ({
                 <div className="bg-white rounded-2xl border border-slate-100 p-5">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="font-bold text-slate-800">Your Items</h3>
-                        <button 
+                        <button
                             onClick={onNavigateToItems}
                             className="text-sm text-emerald-600 font-medium hover:text-emerald-700"
                         >
@@ -859,17 +857,17 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
                 <div className="inline-flex p-4 bg-emerald-100 rounded-full mb-4">
                     <Home size={36} className="text-emerald-700" />
                 </div>
-                
+
                 <h1 className="text-2xl font-extrabold text-slate-800 mb-2">
                     Welcome to {propertyName || 'Your Krib'}
                 </h1>
-                
+
                 {activeProperty?.address && (
                     <div className="inline-flex items-center bg-slate-100 px-3 py-1.5 rounded-full">
                         <MapPin size={12} className="text-emerald-600 mr-1.5" />
                         <p className="text-slate-600 text-xs font-medium">
-                            {typeof activeProperty.address === 'string' 
-                                ? activeProperty.address 
+                            {typeof activeProperty.address === 'string'
+                                ? activeProperty.address
                                 : activeProperty.address.street || `${activeProperty.address.city}, ${activeProperty.address.state}`
                             }
                         </p>
@@ -896,7 +894,7 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
 
             {/* Contractor Add Option */}
             {onCreateContractorLink && (
-                <button 
+                <button
                     onClick={onCreateContractorLink}
                     className="w-full py-4 bg-gradient-to-r from-amber-50 to-orange-50 text-amber-800 border border-amber-200 rounded-2xl font-bold text-base hover:border-amber-300 hover:shadow-md transition-all flex items-center justify-center gap-3"
                 >
@@ -924,7 +922,7 @@ export const ProgressiveDashboard = ({
     onNavigateToReports,
     onCreateContractorLink,
     onNavigateToMaintenance,
-    onBookService, 
+    onBookService,
     onMarkTaskDone,
     onDeleteHistoryItem,
     onRestoreHistoryItem,
@@ -939,64 +937,64 @@ export const ProgressiveDashboard = ({
     }, [records]);
 
     switch (stage) {
-    case 'empty':
-        return (
-            <EmptyHomeState 
-                propertyName={activeProperty?.name} 
-                activeProperty={activeProperty}
-                userId={userId}
-                onAddItem={onAddRecord} 
-                onScanReceipt={onScanReceipt}
-                onCreateContractorLink={onCreateContractorLink}
-                recordCount={records.length} 
-            />
-        );
-    
-    case 'getting-started':
-        return (
-            <GettingStartedDashboard 
-                records={records} 
-                propertyName={activeProperty?.name}
-                activeProperty={activeProperty}
-                userId={userId}
-                onAddItem={onAddRecord} 
-                onScanReceipt={onScanReceipt} 
-                onNavigateToItems={onNavigateToItems}  
-                onBookService={onBookService}
-                onMarkTaskDone={onMarkTaskDone}
-                onDeleteHistoryItem={onDeleteHistoryItem}
-                onRestoreHistoryItem={onRestoreHistoryItem}
-                onDeleteTask={onDeleteTask}
-                onScheduleTask={onScheduleTask}
-                onSnoozeTask={onSnoozeTask}
-            />
-        );
-    
-    case 'established':
-    default:
-        // Established view uses ModernDashboard which handles everything
-        return (
-            <ModernDashboard 
-                records={records}
-                contractors={contractors}
-                activeProperty={activeProperty}
-                userId={userId}
-                onScanReceipt={onScanReceipt}
-                onAddRecord={onAddRecord}
-                onNavigateToItems={onNavigateToItems}
-                onNavigateToContractors={onNavigateToContractors}
-                onNavigateToReports={onNavigateToReports}
-                onCreateContractorLink={onCreateContractorLink}
-                onNavigateToMaintenance={onNavigateToMaintenance}
-                onBookService={onBookService}
-                onMarkTaskDone={onMarkTaskDone}
-                onDeleteHistoryItem={onDeleteHistoryItem}
-                onRestoreHistoryItem={onRestoreHistoryItem}
-                onDeleteTask={onDeleteTask}
-                onScheduleTask={onScheduleTask}
-                onSnoozeTask={onSnoozeTask}
-            />
-        );
+        case 'empty':
+            return (
+                <EmptyHomeState
+                    propertyName={activeProperty?.name}
+                    activeProperty={activeProperty}
+                    userId={userId}
+                    onAddItem={onAddRecord}
+                    onScanReceipt={onScanReceipt}
+                    onCreateContractorLink={onCreateContractorLink}
+                    recordCount={records.length}
+                />
+            );
+
+        case 'getting-started':
+            return (
+                <GettingStartedDashboard
+                    records={records}
+                    propertyName={activeProperty?.name}
+                    activeProperty={activeProperty}
+                    userId={userId}
+                    onAddItem={onAddRecord}
+                    onScanReceipt={onScanReceipt}
+                    onNavigateToItems={onNavigateToItems}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
+                />
+            );
+
+        case 'established':
+        default:
+            // Established view uses ModernDashboard which handles everything
+            return (
+                <ModernDashboard
+                    records={records}
+                    contractors={contractors}
+                    activeProperty={activeProperty}
+                    userId={userId}
+                    onScanReceipt={onScanReceipt}
+                    onAddRecord={onAddRecord}
+                    onNavigateToItems={onNavigateToItems}
+                    onNavigateToContractors={onNavigateToContractors}
+                    onNavigateToReports={onNavigateToReports}
+                    onCreateContractorLink={onCreateContractorLink}
+                    onNavigateToMaintenance={onNavigateToMaintenance}
+                    onBookService={onBookService}
+                    onMarkTaskDone={onMarkTaskDone}
+                    onDeleteHistoryItem={onDeleteHistoryItem}
+                    onRestoreHistoryItem={onRestoreHistoryItem}
+                    onDeleteTask={onDeleteTask}
+                    onScheduleTask={onScheduleTask}
+                    onSnoozeTask={onSnoozeTask}
+                />
+            );
     }
 };
 
