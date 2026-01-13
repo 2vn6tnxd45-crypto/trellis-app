@@ -8,7 +8,7 @@
 import { useState, useEffect, useMemo } from 'react';
 
 // Cache key for localStorage
-const CACHE_KEY = 'krib_property_data';
+const CACHE_KEY = 'krib_property_data_v2';
 const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ============================================
@@ -24,23 +24,23 @@ export const usePropertyData = (address, coordinates) => {
     const addressString = useMemo(() => {
         if (!address) return null;
         if (typeof address === 'string') return address;
-        
+
         // If street contains a full address (common from Google Places), use it directly
         if (address.street && address.street.includes(',')) {
             return address.street;
         }
-        
+
         // Otherwise, build from parts (need at least street + city or 3 parts)
         const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
         if (parts.length >= 2) {
             return parts.join(', ');
         }
-        
+
         // Fallback: if we have any street value at all, try it
         if (address.street) {
             return address.street;
         }
-        
+
         return null;
     }, [address]);
 
@@ -56,7 +56,7 @@ export const usePropertyData = (address, coordinates) => {
         const fetchData = async () => {
             setLoading(true);
             setError(null);
-            
+
             // Check cache first
             try {
                 const cached = localStorage.getItem(CACHE_KEY);
@@ -84,12 +84,12 @@ export const usePropertyData = (address, coordinates) => {
                 }
 
                 const response = await fetch(`/api/property-data?${params}`);
-                
+
                 if (response.ok) {
                     const result = await response.json();
                     if (!cancelled) {
                         setData({ property: result.property, flood: result.flood });
-                        
+
                         // Cache it
                         try {
                             const cached = localStorage.getItem(CACHE_KEY);
@@ -146,15 +146,15 @@ export const usePropertyData = (address, coordinates) => {
 
         const currentYear = new Date().getFullYear();
         const homeAge = property.yearBuilt ? currentYear - property.yearBuilt : null;
-        
+
         const pricePerSqft = property.taxAssessment && property.squareFootage
             ? Math.round(property.taxAssessment / property.squareFootage)
             : null;
-        
+
         const estimatedValue = property.taxAssessment
             ? Math.round(property.taxAssessment * 1.15)
             : null;
-        
+
         const appreciation = property.lastSalePrice && estimatedValue ? {
             dollarChange: estimatedValue - property.lastSalePrice,
             percentChange: Math.round(((estimatedValue - property.lastSalePrice) / property.lastSalePrice) * 100),
@@ -199,20 +199,20 @@ const COMPONENT_LIFESPANS = [
 
 function generateMaintenancePredictions(homeAge, yearBuilt) {
     const currentYear = new Date().getFullYear();
-    
+
     return COMPONENT_LIFESPANS.map(component => {
         let replacementYear = yearBuilt + component.lifespan;
         while (replacementYear < currentYear) {
             replacementYear += component.lifespan;
         }
-        
+
         const remainingYears = replacementYear - currentYear;
-        
+
         let priority = 'good';
         if (remainingYears <= 2) priority = 'critical';
         else if (remainingYears <= 5) priority = 'warning';
         else if (remainingYears <= 10) priority = 'monitor';
-        
+
         return {
             ...component,
             remainingYears,
