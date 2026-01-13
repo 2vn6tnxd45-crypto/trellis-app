@@ -7,11 +7,11 @@
 // UPDATED: Added Evaluations feature for pre-quote assessments
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { 
+import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
-    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp, 
+    Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
     Scroll as ScrollIcon,
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
@@ -22,7 +22,7 @@ import toast, { Toaster } from 'react-hot-toast';
 
 // Components
 import { ContractorAuthScreen } from './components/ContractorAuthScreen';
-import { SetupBusinessProfile } from './components/SetupBusinessProfile'; 
+import { SetupBusinessProfile } from './components/SetupBusinessProfile';
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
@@ -50,14 +50,14 @@ import { ContractorMessagesView } from './components/ContractorMessagesView';
 // import { RecentMessagesWidget } from './components/RecentMessagesWidget';
 
 // Quote Components
-import { 
-    QuotesListView, 
-    QuoteBuilder, 
-    QuoteDetailView 
+import {
+    QuotesListView,
+    QuoteBuilder,
+    QuoteDetailView
 } from '../quotes';
 
 // Evaluation Components
-import { 
+import {
     useEvaluations,
     CreateEvaluationRequest,
     EvaluationReview,
@@ -90,13 +90,13 @@ const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
                 <p className="text-slate-500 text-sm">Rating component placeholder</p>
             </div>
             <div className="flex gap-2">
-                <button 
+                <button
                     onClick={onClose}
                     className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
                 >
                     Skip
                 </button>
-                <button 
+                <button
                     onClick={() => { onSuccess?.(); }}
                     className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
                 >
@@ -109,28 +109,28 @@ const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
-import { 
-    useInvitations, 
-    useCustomers, 
+import {
+    useInvitations,
+    useCustomers,
     useDashboardStats,
     useContractorJobs,
     useContractorInvoices
 } from './hooks/useContractorData';
 
-import { 
-    useQuotes, 
-    useQuoteTemplates, 
-    useQuoteOperations 
+import {
+    useQuotes,
+    useQuoteTemplates,
+    useQuoteOperations
 } from '../quotes/hooks/useQuotes';
 
 import { updateContractorSettings, deleteContractorAccount } from './lib/contractorService';
-import { 
-    deleteUser, 
-    reauthenticateWithPopup, 
-    GoogleAuthProvider, 
-    EmailAuthProvider, 
+import {
+    deleteUser,
+    reauthenticateWithPopup,
+    GoogleAuthProvider,
+    EmailAuthProvider,
     reauthenticateWithCredential,
-    OAuthProvider 
+    OAuthProvider
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -141,7 +141,7 @@ import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 // ============================================
 const PAYMENT_METHOD_OPTIONS = [
     'Credit Card',
-    'Debit Card', 
+    'Debit Card',
     'Check',
     'Cash',
     'Bank Transfer',
@@ -156,8 +156,8 @@ const isSameDay = (d1, d2) => {
     const date1 = new Date(d1);
     const date2 = new Date(d2);
     return date1.getDate() === date2.getDate() &&
-           date1.getMonth() === date2.getMonth() &&
-           date1.getFullYear() === date2.getFullYear();
+        date1.getMonth() === date2.getMonth() &&
+        date1.getFullYear() === date2.getFullYear();
 };
 
 // ============================================
@@ -166,11 +166,10 @@ const isSameDay = (d1, d2) => {
 const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
     <button
         onClick={onClick}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-            active 
-                ? 'bg-emerald-100 text-emerald-700' 
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${active
+                ? 'bg-emerald-100 text-emerald-700'
                 : 'text-slate-600 hover:bg-slate-100'
-        }`}
+            }`}
     >
         <Icon size={20} />
         <span className="font-medium">{label}</span>
@@ -201,12 +200,12 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 </div>
             </div>
         </div>
-        
+
         {/* Nav */}
         {/* Nav */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
             <NavItem icon={Home} label="Dashboard" active={activeView === 'dashboard'} onClick={() => onNavigate('dashboard')} />
-            
+
             {/* JOB LIFECYCLE: Find → Evaluate → Quote → Work → Get Paid */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Workflow</p>
@@ -217,13 +216,13 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={Calendar} label="Schedule" active={activeView === 'schedule'} onClick={() => onNavigate('schedule')} />
                 <NavItem icon={ScrollIcon} label="Invoices" active={['invoices', 'create-invoice'].includes(activeView)} onClick={() => onNavigate('invoices')} />
             </div>
-            
+
             {/* COMMUNICATION */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Communication</p>
                 <NavItem icon={MessageSquare} label="Messages" active={activeView === 'messages'} onClick={() => onNavigate('messages')} badge={unreadMessageCount} />
             </div>
-            
+
             {/* MANAGEMENT */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
@@ -233,24 +232,24 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
                 <NavItem icon={Receipt} label="Expenses" active={activeView === 'expenses'} onClick={() => onNavigate('expenses')} />
             </div>
-            
+
             {/* INSIGHTS */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Insights</p>
                 <NavItem icon={Bell} label="Needs Attention" active={activeView === 'attention'} onClick={() => onNavigate('attention')} badge={needsAttentionCount > 0 ? needsAttentionCount : null} />
                 <NavItem icon={TrendingUp} label="Reports" active={activeView === 'reports'} onClick={() => onNavigate('reports')} />
             </div>
-            
+
             {/* ACCOUNT */}
             <div className="pt-4 mt-4 border-t border-slate-100">
                 <NavItem icon={User} label="Profile" active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
                 <NavItem icon={SettingsIcon} label="Settings" active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
             </div>
         </nav>
-        
+
         {/* User */}
         <div className="p-4 border-t border-slate-100">
-            <button 
+            <button
                 onClick={onSignOut}
                 className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
             >
@@ -277,11 +276,10 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                 <button
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
-                    className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
-                        activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
-                            ? 'text-emerald-600' 
+                    className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                            ? 'text-emerald-600'
                             : 'text-slate-400'
-                    }`}
+                        }`}
                 >
                     <item.icon size={22} />
                     <span className="text-xs mt-1 font-medium">{item.label}</span>
@@ -314,19 +312,19 @@ const formatDate = (date) => {
 const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
-    
+
     const cancellationRequests = jobs.filter(j => j.status === 'cancellation_requested');
     const activeJobs = jobs.filter(j => !['completed', 'cancelled', 'cancellation_requested'].includes(j.status));
     const completedJobs = jobs.filter(j => j.status === 'completed');
     const cancelledJobs = jobs.filter(j => j.status === 'cancelled');
-    
+
     const getStatusColor = (status) => {
         switch (status) {
             case 'scheduled': return 'bg-blue-100 text-blue-700';
             case 'in_progress': return 'bg-amber-100 text-amber-700';
             case 'completed': return 'bg-emerald-100 text-emerald-700';
             case 'cancelled': return 'bg-slate-100 text-slate-500';
-            case 'pending_schedule': 
+            case 'pending_schedule':
             case 'slots_offered':
             case 'quoted':
             case 'accepted':
@@ -336,7 +334,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
             default: return 'bg-slate-100 text-slate-600';
         }
     };
-    
+
     const getStatusLabel = (status) => {
         switch (status) {
             case 'pending_schedule': return 'Needs Scheduling';
@@ -357,9 +355,9 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
         const showCompleteButton = job.status === 'scheduled' || job.status === 'in_progress';
         const showResubmitButton = job.status === 'completion_rejected';
         const isInactive = ['completed', 'cancelled'].includes(job.status);
-        
+
         return (
-            <div 
+            <div
                 onClick={() => onJobClick(job)}
                 className={`bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
             >
@@ -389,11 +387,11 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             </p>
                         )}
                     </div>
-                    
+
                     {job.total && (
                         <p className="font-bold text-slate-800">{formatCurrency(job.total)}</p>
                     )}
-                    
+
                     {showCompleteButton && (
                         <button
                             onClick={(e) => {
@@ -406,7 +404,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             Complete
                         </button>
                     )}
-                    
+
                     {showResubmitButton && (
                         <button
                             onClick={(e) => {
@@ -460,7 +458,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             </h2>
                             <div className="space-y-3">
                                 {cancellationRequests.map(job => (
-                                    <div 
+                                    <div
                                         key={job.id}
                                         className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4"
                                     >
@@ -482,7 +480,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                                                     </p>
                                                 )}
                                             </div>
-                                            
+
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -576,7 +574,7 @@ const InvoicesView = ({ invoices = [], loading, onCreateInvoice }) => {
                     <h1 className="text-2xl font-bold text-slate-800">Invoices</h1>
                     <p className="text-slate-500">Manage your invoices and payments</p>
                 </div>
-                <button 
+                <button
                     onClick={onCreateInvoice}
                     className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
                 >
@@ -598,7 +596,7 @@ const InvoicesView = ({ invoices = [], loading, onCreateInvoice }) => {
             ) : (
                 <div className="space-y-3">
                     {invoices.map(invoice => (
-                        <div 
+                        <div
                             key={invoice.id}
                             className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow"
                         >
@@ -634,7 +632,7 @@ const InvoicesView = ({ invoices = [], loading, onCreateInvoice }) => {
 // --- INVITATIONS VIEW ---
 const InvitationsView = ({ invitations, loading, onCreate }) => {
     const getStatusInfo = (status) => {
-        switch(status) {
+        switch (status) {
             case 'claimed': return { color: 'bg-emerald-100 text-emerald-700', label: 'Claimed' };
             case 'pending': return { color: 'bg-amber-100 text-amber-700', label: 'Pending' };
             default: return { color: 'bg-slate-100 text-slate-600', label: status };
@@ -847,7 +845,7 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             {/* Logo Section */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-4">Company Logo</h3>
-                <LogoUpload 
+                <LogoUpload
                     currentLogo={formData.logoUrl}
                     onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
                     contractorId={contractorId}
@@ -857,81 +855,81 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             {/* Basic Info Section */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
                 <h3 className="font-bold text-slate-800">Basic Information</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Company Name</label>
-                        <input 
-                            type="text" 
-                            value={formData.companyName} 
-                            onChange={(e) => setFormData({...formData, companyName: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="text"
+                            value={formData.companyName}
+                            onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Name</label>
-                        <input 
-                            type="text" 
-                            value={formData.displayName} 
-                            onChange={(e) => setFormData({...formData, displayName: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="text"
+                            value={formData.displayName}
+                            onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Email</label>
-                        <input 
-                            type="email" 
-                            value={formData.email} 
-                            onChange={(e) => setFormData({...formData, email: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
-                        <input 
-                            type="tel" 
-                            value={formData.phone} 
-                            onChange={(e) => setFormData({...formData, phone: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="tel"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Business Address</label>
-                        <input 
-                            type="text" 
-                            value={formData.address} 
-                            onChange={(e) => setFormData({...formData, address: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="text"
+                            value={formData.address}
+                            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">License Number</label>
-                        <input 
-                            type="text" 
-                            value={formData.licenseNumber} 
-                            onChange={(e) => setFormData({...formData, licenseNumber: e.target.value})} 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="text"
+                            value={formData.licenseNumber}
+                            onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Years in Business</label>
-                        <input 
-                            type="number" 
+                        <input
+                            type="number"
                             min="0"
-                            value={formData.yearsInBusiness} 
-                            onChange={(e) => setFormData({...formData, yearsInBusiness: e.target.value})} 
+                            value={formData.yearsInBusiness}
+                            onChange={(e) => setFormData({ ...formData, yearsInBusiness: e.target.value })}
                             placeholder="e.g. 15"
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                     <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Specialty / Trade</label>
-                        <input 
-                            type="text" 
-                            value={formData.specialty} 
-                            onChange={(e) => setFormData({...formData, specialty: e.target.value})} 
-                            placeholder="e.g., HVAC, Plumbing, Electrical" 
-                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
+                        <input
+                            type="text"
+                            value={formData.specialty}
+                            onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                            placeholder="e.g., HVAC, Plumbing, Electrical"
+                            className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
                 </div>
@@ -941,14 +939,13 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-2">Insurance & Bonding</h3>
                 <p className="text-sm text-slate-500 mb-4">These badges will appear on your quotes to build customer trust.</p>
-                
+
                 <div className="flex flex-wrap gap-3">
-                    <label 
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            formData.insured 
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                    <label
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.insured
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                 : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                            }`}
                     >
                         <input
                             type="checkbox"
@@ -960,13 +957,12 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                         <span className="font-medium">Fully Insured</span>
                         {formData.insured && <CheckCircle size={16} className="text-emerald-600" />}
                     </label>
-                    
-                    <label 
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            formData.bonded 
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+
+                    <label
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.bonded
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                 : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                            }`}
                     >
                         <input
                             type="checkbox"
@@ -985,7 +981,7 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-2">Certifications</h3>
                 <p className="text-sm text-slate-500 mb-4">Add any professional certifications or licenses.</p>
-                
+
                 <div className="flex gap-2 mb-3">
                     <div className="relative flex-1">
                         <Award className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -1006,11 +1002,11 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                         <Plus size={18} />
                     </button>
                 </div>
-                
+
                 {formData.certifications.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                         {formData.certifications.map((cert, idx) => (
-                            <span 
+                            <span
                                 key={idx}
                                 className="inline-flex items-center gap-1 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm"
                             >
@@ -1035,16 +1031,15 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-2">Accepted Payment Methods</h3>
                 <p className="text-sm text-slate-500 mb-4">Let customers know how they can pay you.</p>
-                
+
                 <div className="flex flex-wrap gap-2">
                     {PAYMENT_METHOD_OPTIONS.map(method => (
-                        <label 
+                        <label
                             key={method}
-                            className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${
-                                formData.paymentMethods.includes(method)
+                            className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${formData.paymentMethods.includes(method)
                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                     : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                            }`}
+                                }`}
                         >
                             <input
                                 type="checkbox"
@@ -1060,9 +1055,9 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
 
             {/* Save Button */}
             <div className="flex justify-end">
-                <button 
-                    onClick={handleSave} 
-                    disabled={saving} 
+                <button
+                    onClick={handleSave}
+                    disabled={saving}
                     className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 transition-colors"
                 >
                     {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
@@ -1122,17 +1117,17 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
 
     const handleDelete = async () => {
         if (confirmText !== 'DELETE') return;
-        
+
         setIsDeleting(true);
         setError('');
-        
+
         try {
             await deleteContractorAccount(contractorId);
-            
+
             if (auth.currentUser) {
                 await deleteUser(auth.currentUser);
             }
-            
+
             toast.success('Account deleted successfully');
             onDeleteSuccess();
         } catch (err) {
@@ -1189,7 +1184,7 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
                                     </button>
                                 </div>
                             )}
-                            
+
                             {isEmailUser && !isGoogleUser && (
                                 <div className="space-y-4">
                                     <p className="text-slate-600">
@@ -1226,7 +1221,7 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
                                     <li>• Invoices and settings</li>
                                 </ul>
                             </div>
-                            
+
                             <div className="space-y-2">
                                 <label className="block">
                                     <span className="text-sm font-medium text-slate-700">
@@ -1308,7 +1303,7 @@ const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
 
             <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
                 <h3 className="font-bold text-slate-800">Notifications</h3>
-                
+
                 {[
                     { key: 'emailNotifications', label: 'Email Notifications', desc: 'Receive updates via email' },
                     { key: 'smsNotifications', label: 'SMS Notifications', desc: 'Receive text message alerts' },
@@ -1322,15 +1317,15 @@ const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
                         <input
                             type="checkbox"
                             checked={settings[item.key]}
-                            onChange={(e) => setSettings({...settings, [item.key]: e.target.checked})}
+                            onChange={(e) => setSettings({ ...settings, [item.key]: e.target.checked })}
                             className="h-5 w-5 text-emerald-600 rounded focus:ring-emerald-500"
                         />
                     </label>
                 ))}
-                
-                <button 
-                    onClick={handleSaveSettings} 
-                    disabled={saving} 
+
+                <button
+                    onClick={handleSaveSettings}
+                    disabled={saving}
                     className="px-6 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50"
                 >
                     {saving ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" /> : <Save size={18} />}
@@ -1360,13 +1355,13 @@ const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
 // ============================================
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
-    const [selectedQuote, setSelectedQuote] = useState(null); 
+    const [selectedQuote, setSelectedQuote] = useState(null);
     const [selectedJob, setSelectedJob] = useState(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [offeringTimesJob, setOfferingTimesJob] = useState(null);
-    const [scheduleView, setScheduleView] = useState('calendar'); 
-    const [selectedDate, setSelectedDate] = useState(new Date()); 
-    
+    const [scheduleView, setScheduleView] = useState('calendar');
+    const [selectedDate, setSelectedDate] = useState(new Date());
+
     // Job completion state
     const [completingJob, setCompletingJob] = useState(null);
     const [ratingHomeowner, setRatingHomeowner] = useState(null);
@@ -1391,31 +1386,31 @@ export const ContractorProApp = () => {
         updateProfile,
         clearError
     } = useContractorAuth();
-    
+
     // Data hooks
     const { invitations, loading: invitationsLoading, pendingInvitations } = useInvitations(user?.uid);
     const { customers, loading: customersLoading, byLastContact: customersByLastContact } = useCustomers(user?.uid);
     const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
     const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
-    
+
     // Quote hooks
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
-    const { 
+    const {
         templates: quoteTemplates,
         createTemplate,
         updateTemplate,
-        removeTemplate 
+        removeTemplate
     } = useQuoteTemplates(user?.uid);
-    const { 
-    create: createQuoteFn,
-    update: updateQuoteFn,
-    remove: deleteQuoteFn,
-    send: sendQuoteFn,
-    getShareLink,
-    isCreating: isCreatingQuote,
-    isUpdating: isUpdatingQuote,
-    isSending: isSendingQuote
-} = useQuoteOperations(user?.uid);
+    const {
+        create: createQuoteFn,
+        update: updateQuoteFn,
+        remove: deleteQuoteFn,
+        send: sendQuoteFn,
+        getShareLink,
+        isCreating: isCreatingQuote,
+        isUpdating: isUpdatingQuote,
+        isSending: isSendingQuote
+    } = useQuoteOperations(user?.uid);
 
 
     const contractorId = user?.uid;
@@ -1448,21 +1443,21 @@ export const ContractorProApp = () => {
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
     }, [quotes]);
-    
+
     const activeJobsCount = useMemo(() => {
-        return jobs?.filter(job => 
+        return jobs?.filter(job =>
             !['completed', 'cancelled'].includes(job.status)
         ).length || 0;
     }, [jobs]);
 
     const unscheduledJobsCount = useMemo(() => {
-        return jobs?.filter(job => 
+        return jobs?.filter(job =>
             ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(job.status)
         ).length || 0;
     }, [jobs]);
 
     const scheduledJobs = useMemo(() => {
-        return jobs?.filter(job => 
+        return jobs?.filter(job =>
             job.status === 'scheduled' && job.scheduledDate
         ) || [];
     }, [jobs]);
@@ -1473,10 +1468,10 @@ export const ContractorProApp = () => {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
+
         return jobs?.filter(job => {
             if (!job.scheduledTime && !job.scheduledDate) return false;
-            const jobDate = job.scheduledTime 
+            const jobDate = job.scheduledTime
                 ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
                 : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
             return jobDate >= today && jobDate < tomorrow;
@@ -1486,7 +1481,7 @@ export const ContractorProApp = () => {
     // Calculate needs attention count for badge
     const needsAttentionCount = useMemo(() => {
         let count = 0;
-        
+
         // Stale quotes (sent 7+ days ago, not viewed)
         quotes?.forEach(q => {
             if (q.status === 'sent' && q.sentAt) {
@@ -1494,7 +1489,7 @@ export const ContractorProApp = () => {
                 if (days >= 7) count++;
             }
         });
-        
+
         // Viewed but no response (3+ days)
         quotes?.forEach(q => {
             if (q.status === 'viewed' && q.viewedAt) {
@@ -1502,14 +1497,14 @@ export const ContractorProApp = () => {
                 if (days >= 3) count++;
             }
         });
-        
+
         // Unscheduled jobs
         jobs?.forEach(j => {
             if (['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status)) {
                 count++;
             }
         });
-        
+
         // Overdue invoices
         invoices?.forEach(i => {
             if (i.status === 'sent' && i.dueDate) {
@@ -1517,7 +1512,7 @@ export const ContractorProApp = () => {
                 if (new Date() > dueDate) count++;
             }
         });
-        
+
         return count;
     }, [quotes, jobs, invoices]);
 
@@ -1529,23 +1524,23 @@ export const ContractorProApp = () => {
             setUnreadMessageCount(0);
             return;
         }
-        
+
         const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
             setUnreadMessageCount(count);
         });
-        
+
         return () => unsubscribe();
     }, [user?.uid]);
-    
+
     // Handle Initial Setup using updateDoc with Dot Notation
     const handleInitialSetup = async (formData) => {
         console.log("handleInitialSetup called with:", formData);
         setIsSavingProfile(true);
         try {
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, user.uid);
-            
+
             const updates = {};
-            
+
             if (formData.profile) {
                 if (formData.profile.companyName) updates['profile.companyName'] = formData.profile.companyName;
                 if (formData.profile.phone) updates['profile.phone'] = formData.profile.phone;
@@ -1559,7 +1554,7 @@ export const ContractorProApp = () => {
                 if (formData.profile.certifications) updates['profile.certifications'] = formData.profile.certifications;
                 if (formData.profile.paymentMethods) updates['profile.paymentMethods'] = formData.profile.paymentMethods;
             }
-            
+
             if (formData.scheduling) {
                 updates['scheduling'] = formData.scheduling;
             } else {
@@ -1569,9 +1564,9 @@ export const ContractorProApp = () => {
             }
 
             await updateDoc(contractorRef, updates);
-            
+
             toast.success("Profile setup complete!");
-            
+
         } catch (error) {
             console.error("Setup error:", error);
             toast.error("Failed to save profile: " + error.message);
@@ -1589,28 +1584,28 @@ export const ContractorProApp = () => {
         }
         setActiveView(view);
     }, []);
-    
+
     const handleCreateInvitation = useCallback(() => {
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'invite');
         window.location.href = url.toString();
     }, []);
-    
+
     // Quote Handlers
     const handleCreateQuote = useCallback(() => {
         setSelectedQuote(null);
         setActiveView('create-quote');
     }, []);
-    
+
     const handleSelectQuote = useCallback((quote) => {
         setSelectedQuote(quote);
         setActiveView('quote-detail');
     }, []);
-    
+
     const handleEditQuote = useCallback(() => {
         setActiveView('edit-quote');
     }, []);
-    
+
     const handleSaveQuote = useCallback(async (quoteData) => {
         try {
             if (selectedQuote?.id) {
@@ -1627,19 +1622,19 @@ export const ContractorProApp = () => {
             throw error;
         }
     }, [selectedQuote, updateQuoteFn, createQuoteFn]);
-    
+
     const handleSendQuote = useCallback(async (quoteData) => {
-    try {
-        let quoteId;
-        if (selectedQuote?.id) {
-            // Existing quote - update it
-            await updateQuoteFn(selectedQuote.id, quoteData);
-            quoteId = selectedQuote.id;
-        } else {
+        try {
+            let quoteId;
+            if (selectedQuote?.id) {
+                // Existing quote - update it
+                await updateQuoteFn(selectedQuote.id, quoteData);
+                quoteId = selectedQuote.id;
+            } else {
                 const result = await createQuoteFn({ ...quoteData, status: 'draft' });
                 quoteId = result.quoteId;
             }
-            
+
             await sendQuoteFn(quoteId);
             toast.success('Quote sent to customer!');
             setSelectedQuote(null);
@@ -1649,7 +1644,7 @@ export const ContractorProApp = () => {
             throw error;
         }
     }, [selectedQuote, updateQuoteFn, createQuoteFn, sendQuoteFn]);
-    
+
     const handleDeleteQuote = useCallback(async (quoteId) => {
         try {
             await deleteQuoteFn(quoteId);
@@ -1660,7 +1655,7 @@ export const ContractorProApp = () => {
             throw error;
         }
     }, [deleteQuoteFn]);
-    
+
     const handleQuoteBack = useCallback(() => {
         if (activeView === 'edit-quote') {
             setActiveView('quote-detail');
@@ -1712,16 +1707,16 @@ export const ContractorProApp = () => {
         setCompletingJob(null);
         setRatingHomeowner(job);
     }, []);
-    
+
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
-            case 'jobs': return 'My Jobs'; 
+            case 'jobs': return 'My Jobs';
             case 'messages': return 'Messages';
-            case 'schedule': return 'Schedule'; 
-            case 'quotes': return 'Quotes'; 
-            case 'create-quote': return 'New Quote'; 
-            case 'quote-detail': return 'Quote Details'; 
+            case 'schedule': return 'Schedule';
+            case 'quotes': return 'Quotes';
+            case 'create-quote': return 'New Quote';
+            case 'quote-detail': return 'Quote Details';
             case 'edit-quote': return 'Edit Quote';
             case 'evaluations': return 'Evaluations';
             case 'evaluation-detail': return 'Evaluation Details';
@@ -1733,10 +1728,8 @@ export const ContractorProApp = () => {
             case 'pricebook': return 'Price Book';
             case 'templates': return 'Estimate Templates';
             case 'reports': return 'Business Reports';
-            case 'reports': return 'Business Reports';
             case 'attention': return 'Needs Attention';
             case 'expenses': return 'Expense Tracker';
-            case 'profile': return 'Profile';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -1754,12 +1747,12 @@ export const ContractorProApp = () => {
             </div>
         );
     }
-    
+
     // Auth
     if (!user) {
         return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} error={authError} clearError={clearError} />;
     }
-    
+
     // Setup
     if (profile && !profile.profile?.companyName) {
         return <SetupBusinessProfile profile={profile} onSave={handleInitialSetup} saving={isSavingProfile} />;
@@ -1768,10 +1761,10 @@ export const ContractorProApp = () => {
     return (
         <div className="min-h-screen bg-slate-50 flex">
             <Toaster position="top-right" />
-            
-            <Sidebar 
-                activeView={activeView} 
-                onNavigate={handleNavigate} 
+
+            <Sidebar
+                activeView={activeView}
+                onNavigate={handleNavigate}
                 profile={profile}
                 onSignOut={signOut}
                 pendingCount={pendingInvitations.length}
@@ -1782,7 +1775,7 @@ export const ContractorProApp = () => {
                 completedEvalsCount={completedEvaluations?.length || 0}
                 needsAttentionCount={needsAttentionCount}
             />
-            
+
             <div className="flex-1 flex flex-col min-h-screen pb-20 lg:pb-0">
                 {/* Mobile Header */}
                 <header className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-30">
@@ -1805,11 +1798,11 @@ export const ContractorProApp = () => {
                         </button>
                     </div>
                 </header>
-                
+
                 {/* Main Content */}
                 <main className="flex-1 p-4 lg:p-8 overflow-x-hidden">
                     {activeView === 'dashboard' && (
-                        <DashboardOverview 
+                        <DashboardOverview
                             profile={profile}
                             invitations={invitations}
                             customers={customers}
@@ -1819,10 +1812,10 @@ export const ContractorProApp = () => {
                             onJobClick={handleJobClick}
                         />
                     )}
-                    
+
                     {activeView === 'jobs' && (
-                        <JobsView 
-                            jobs={jobs} 
+                        <JobsView
+                            jobs={jobs}
                             loading={jobsLoading}
                             onJobClick={handleJobClick}
                             onCompleteJob={handleCompleteJob}
@@ -1831,7 +1824,7 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'messages' && (
-                        <ContractorMessagesView 
+                        <ContractorMessagesView
                             contractorId={contractorId}
                             contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
                         />
@@ -1846,36 +1839,33 @@ export const ContractorProApp = () => {
                                         {todaysJobs.length} job{todaysJobs.length !== 1 ? 's' : ''} today
                                     </p>
                                 </div>
-                                
+
                                 {hasTeam && (
                                     <div className="flex bg-slate-100 rounded-xl p-1">
                                         <button
                                             onClick={() => setScheduleView('calendar')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                                scheduleView === 'calendar' 
-                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                                }`}
                                         >
                                             Calendar
                                         </button>
                                         <button
                                             onClick={() => setScheduleView('dispatch')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                                scheduleView === 'dispatch' 
-                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                                }`}
                                         >
                                             Dispatch
                                         </button>
                                         <button
                                             onClick={() => setScheduleView('team')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                                scheduleView === 'team' 
-                                                    ? 'bg-white text-slate-800 shadow-sm' 
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                                }`}
                                         >
                                             Team View
                                         </button>
@@ -1885,7 +1875,7 @@ export const ContractorProApp = () => {
 
                             {/* Solo contractor - simple calendar */}
                             {!hasTeam && (
-                                <DragDropCalendar 
+                                <DragDropCalendar
                                     jobs={jobs}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
@@ -1896,7 +1886,7 @@ export const ContractorProApp = () => {
 
                             {/* Team - Calendar View */}
                             {hasTeam && scheduleView === 'calendar' && (
-                                <DragDropCalendar 
+                                <DragDropCalendar
                                     jobs={jobs}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
@@ -1904,10 +1894,10 @@ export const ContractorProApp = () => {
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                 />
                             )}
-                            
+
                             {/* Team - Dispatch Board */}
                             {hasTeam && scheduleView === 'dispatch' && (
-                                <DispatchBoard 
+                                <DispatchBoard
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                     initialDate={selectedDate}
@@ -1916,27 +1906,27 @@ export const ContractorProApp = () => {
                                     }}
                                 />
                             )}
-                            
+
                             {/* Team - Team View */}
                             {hasTeam && scheduleView === 'team' && (
-                                <TechAssignmentPanel 
+                                <TechAssignmentPanel
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
-                                    onJobUpdate={() => {}}
+                                    onJobUpdate={() => { }}
                                 />
                             )}
                         </div>
                     )}
 
                     {activeView === 'quotes' && (
-                        <QuotesListView 
+                        <QuotesListView
                             quotes={quotes}
                             loading={quotesLoading}
                             onCreateQuote={handleCreateQuote}
                             onSelectQuote={handleSelectQuote}
                         />
                     )}
-                    
+
                     {activeView === 'create-quote' && (
                         <QuoteBuilder
                             quote={selectedQuote}
@@ -1955,7 +1945,7 @@ export const ContractorProApp = () => {
                             isSending={isSendingQuote}
                         />
                     )}
-                    
+
                     {activeView === 'quote-detail' && selectedQuote && (
                         <QuoteDetailView
                             quote={selectedQuote}
@@ -1966,7 +1956,7 @@ export const ContractorProApp = () => {
                             getShareLink={getShareLink}
                         />
                     )}
-                    
+
                     {activeView === 'edit-quote' && selectedQuote && (
                         <QuoteBuilder
                             quote={selectedQuote}
@@ -1989,7 +1979,7 @@ export const ContractorProApp = () => {
 
                     {/* Evaluation Views */}
                     {activeView === 'evaluations' && (
-                        <EvaluationsListView 
+                        <EvaluationsListView
                             evaluations={evaluations}
                             pendingEvaluations={pendingEvaluations}
                             completedEvaluations={completedEvaluations}
@@ -2028,11 +2018,11 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'leads' && (
-    <ContractorLeadDashboard 
-        contractorId={profile?.id || user?.uid}
-        contractorProfile={profile?.profile}
-    />
-)}
+                        <ContractorLeadDashboard
+                            contractorId={profile?.id || user?.uid}
+                            contractorProfile={profile?.profile}
+                        />
+                    )}
 
                     {/* Price Book View */}
                     {activeView === 'pricebook' && (
@@ -2095,22 +2085,22 @@ export const ContractorProApp = () => {
                             onDeleteExpense={removeExpense}
                         />
                     )}
-                    
+
                     {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
                     {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
-                    
+
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
-                    
+
                     {activeView === 'settings' && (
                         <div className="space-y-8">
-                            <BusinessSettings 
+                            <BusinessSettings
                                 contractorId={contractorId}
                                 profile={profile}
                                 onUpdate={(settings) => console.log('Settings updated:', settings)}
                             />
-                            
+
                             {/* Team Management - only show if team type is selected */}
                             {profile?.scheduling?.teamType === 'team' && (
                                 <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -2123,22 +2113,22 @@ export const ContractorProApp = () => {
                                     />
                                 </div>
                             )}
-                            
+
                             <div className="pt-8 border-t border-slate-200">
-                                <SettingsView 
+                                <SettingsView
                                     user={user}
-                                    profile={profile} 
-                                    onUpdateSettings={updateContractorSettings} 
-                                    onSignOut={signOut} 
+                                    profile={profile}
+                                    onUpdateSettings={updateContractorSettings}
+                                    onSignOut={signOut}
                                 />
                             </div>
                         </div>
                     )}
                 </main>
-                
-                <MobileNav 
-                    activeView={activeView} 
-                    onNavigate={handleNavigate} 
+
+                <MobileNav
+                    activeView={activeView}
+                    onNavigate={handleNavigate}
                     pendingCount={pendingInvitations.length}
                     pendingQuotesCount={pendingQuotes?.length || 0}
                     activeJobsCount={activeJobsCount}
@@ -2162,7 +2152,7 @@ export const ContractorProApp = () => {
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto flex-1">
-                            <JobScheduler 
+                            <JobScheduler
                                 job={selectedJob}
                                 contractorId={contractorId}
                                 contractorProfile={profile}
@@ -2175,7 +2165,7 @@ export const ContractorProApp = () => {
 
             {/* Offer Time Slots Modal */}
             {offeringTimesJob && (
-                <OfferTimeSlotsModal 
+                <OfferTimeSlotsModal
                     job={offeringTimesJob}
                     allJobs={jobs}
                     schedulingPreferences={profile?.scheduling || {

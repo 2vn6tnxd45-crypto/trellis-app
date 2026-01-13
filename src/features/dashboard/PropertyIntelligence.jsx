@@ -477,63 +477,66 @@ const DataSourceBanner = ({ source }) => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-const {
-    propertyData,
-    floodData,
-    loading,
-    pricePerSqft,
-    homeAge,
-} = useProperty();
+export const PropertyIntelligence = ({ propertyProfile }) => {
+    const { address, coordinates } = propertyProfile || {};
 
-// Don't render if no address
-if (!address) {
+    const {
+        propertyData,
+        floodData,
+        loading,
+        pricePerSqft,
+        homeAge,
+    } = useProperty();
+
+    // Don't render if no address
+    if (!address) {
+        return (
+            <div className="p-6 text-center text-slate-400">
+                <Home size={32} className="mx-auto mb-2 opacity-50" />
+                <p>Add an address to see property intelligence</p>
+            </div>
+        );
+    }
+
+    // Loading state
+    if (loading) {
+        return <LoadingState />;
+    }
+
+    // No data or mock data - don't show anything
+    if (!propertyData || propertyData.source === 'mock-data') {
+        return null;
+    }
+
+    // Full content - only show sections that have data
     return (
-        <div className="p-6 text-center text-slate-400">
-            <Home size={32} className="mx-auto mb-2 opacity-50" />
-            <p>Add an address to see property intelligence</p>
+        <div className="space-y-4">
+            {/* Property Value Card */}
+            <PropertyValueCard propertyData={propertyData} />
+
+            {/* Quick Stats */}
+            <QuickStats
+                propertyData={propertyData}
+                pricePerSqft={pricePerSqft}
+                homeAge={homeAge}
+            />
+
+            {/* Building Details */}
+            <BuildingDetails propertyData={propertyData} />
+
+            {/* Systems & Utilities */}
+            <UtilitiesAndSystems propertyData={propertyData} />
+
+            {/* HOA & Zoning */}
+            <HoaAndZoning propertyData={propertyData} />
+
+            {/* Flood Risk */}
+            <FloodRiskCard floodData={floodData} />
+
+            {/* Data Source */}
+            <DataSourceBanner source={propertyData.source} />
         </div>
     );
-}
-
-// Loading state
-if (loading) {
-    return <LoadingState />;
-}
-
-// No data or mock data - don't show anything
-if (!propertyData || propertyData.source === 'mock-data') {
-    return null;
-}
-
-// Full content - only show sections that have data
-return (
-    <div className="space-y-4">
-        {/* Property Value Card */}
-        <PropertyValueCard propertyData={propertyData} />
-
-        {/* Quick Stats */}
-        <QuickStats
-            propertyData={propertyData}
-            pricePerSqft={pricePerSqft}
-            homeAge={homeAge}
-        />
-
-        {/* Building Details */}
-        <BuildingDetails propertyData={propertyData} />
-
-        {/* Systems & Utilities */}
-        <UtilitiesAndSystems propertyData={propertyData} />
-
-        {/* HOA & Zoning */}
-        <HoaAndZoning propertyData={propertyData} />
-
-        {/* Flood Risk */}
-        <FloodRiskCard floodData={floodData} />
-
-        {/* Data Source */}
-        <DataSourceBanner source={propertyData.source} />
-    </div>
-);
 };
 
 export default PropertyIntelligence;
