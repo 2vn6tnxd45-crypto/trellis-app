@@ -940,8 +940,9 @@ export const ModernDashboard = ({
                 defaultOpen={true}
                 summary={maintenanceSummary}
             >
-                <MaintenanceDashboard 
+                <MaintenanceDashboard
                     records={records}
+                    userId={userId}
                     onAddRecord={onAddRecord}
                     onBookService={onBookService}
                     onMarkTaskDone={onMarkTaskDone}

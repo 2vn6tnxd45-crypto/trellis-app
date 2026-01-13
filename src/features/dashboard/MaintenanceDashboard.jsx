@@ -1,14 +1,15 @@
 // src/features/dashboard/MaintenanceDashboard.jsx
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { 
+import {
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, ChevronDown,
-    Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive, 
+    Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive,
     ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
     Trash2, RotateCcw, Layers, Filter, MoreHorizontal, CalendarClock, AlarmClock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
 import { toProperCase } from '../../lib/utils';
+import { TaskCompletionModal } from '../../components/common/TaskCompletionModal';
 
 // --- HELPER FUNCTIONS ---
 
@@ -584,23 +585,40 @@ const HistoryItemCard = ({ item, onDelete, onRestore }) => {
 
 // --- MAIN COMPONENT (UPDATED with title prop) ---
 
-export const MaintenanceDashboard = ({ 
-    records = [], 
-    onAddRecord, 
-    onNavigateToRecords, 
-    onBookService, 
+export const MaintenanceDashboard = ({
+    records = [],
+    onAddRecord,
+    onNavigateToRecords,
+    onBookService,
     onMarkTaskDone,
     onDeleteHistoryItem,
     onRestoreHistoryItem,
-    // NEW PROPS:
+    // Task action props:
     onDeleteTask,
     onScheduleTask,
     onSnoozeTask,
-    title = "Maintenance"  // NEW: customizable title with default
+    title = "Maintenance",  // Customizable title with default
+    userId  // NEW: Required for photo uploads in TaskCompletionModal
 }) => {
     const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
     const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
     const [showSuggestions, setShowSuggestions] = useState(false);
+
+    // NEW: State for task completion modal
+    const [completingTask, setCompletingTask] = useState(null);
+
+    // Handler to open completion modal
+    const handleOpenCompletionModal = (task) => {
+        setCompletingTask(task);
+    };
+
+    // Handler for when task is completed via modal
+    const handleCompleteTask = async (task, details) => {
+        if (onMarkTaskDone) {
+            await onMarkTaskDone(task, details);
+        }
+        setCompletingTask(null);
+    };
     
     // Safety check for records
     const safeRecords = Array.isArray(records) ? records : [];
@@ -767,12 +785,12 @@ export const MaintenanceDashboard = ({
                                         <AlertTriangle className="h-4 w-4 mr-2" /> Needs Attention
                                     </h3>
                                     {overdueTasks.map(task => (
-                                        <MaintenanceCard 
-                                            key={task.id} 
-                                            task={task} 
-                                            isOverdue 
-                                            onBook={onBookService} 
-                                            onComplete={onMarkTaskDone}
+                                        <MaintenanceCard
+                                            key={task.id}
+                                            task={task}
+                                            isOverdue
+                                            onBook={onBookService}
+                                            onComplete={handleOpenCompletionModal}
                                             onDelete={onDeleteTask}
                                             onSchedule={onScheduleTask}
                                             onSnooze={onSnoozeTask}
@@ -791,11 +809,11 @@ export const MaintenanceDashboard = ({
                                     </div>
                                 ) : (
                                     soonTasks.map(task => (
-                                        <MaintenanceCard 
-                                            key={task.id} 
-                                            task={task} 
-                                            onBook={onBookService} 
-                                            onComplete={onMarkTaskDone}
+                                        <MaintenanceCard
+                                            key={task.id}
+                                            task={task}
+                                            onBook={onBookService}
+                                            onComplete={handleOpenCompletionModal}
                                             onDelete={onDeleteTask}
                                             onSchedule={onScheduleTask}
                                             onSnooze={onSnoozeTask}
@@ -810,11 +828,11 @@ export const MaintenanceDashboard = ({
                                         <Hourglass className="h-4 w-4 mr-2" /> Future Schedule
                                     </h3>
                                     {futureTasks.map(task => (
-                                        <MaintenanceCard 
-                                            key={task.id} 
-                                            task={task} 
-                                            onBook={onBookService} 
-                                            onComplete={onMarkTaskDone}
+                                        <MaintenanceCard
+                                            key={task.id}
+                                            task={task}
+                                            onBook={onBookService}
+                                            onComplete={handleOpenCompletionModal}
                                             onDelete={onDeleteTask}
                                             onSchedule={onScheduleTask}
                                             onSnooze={onSnoozeTask}
@@ -835,12 +853,12 @@ export const MaintenanceDashboard = ({
                                 </div>
                              ) : (
                                  tasksByCategory.map(([category, tasks]) => (
-                                     <CategoryGroup 
-                                        key={category} 
-                                        category={category} 
-                                        tasks={tasks} 
-                                        onBook={onBookService} 
-                                        onComplete={onMarkTaskDone}
+                                     <CategoryGroup
+                                        key={category}
+                                        category={category}
+                                        tasks={tasks}
+                                        onBook={onBookService}
+                                        onComplete={handleOpenCompletionModal}
                                         onDelete={onDeleteTask}
                                         onSchedule={onScheduleTask}
                                         onSnooze={onSnoozeTask}
@@ -914,6 +932,15 @@ export const MaintenanceDashboard = ({
                     )}
                 </div>
             )}
+
+            {/* Task Completion Modal */}
+            <TaskCompletionModal
+                isOpen={!!completingTask}
+                task={completingTask}
+                onClose={() => setCompletingTask(null)}
+                onComplete={handleCompleteTask}
+                userId={userId}
+            />
         </div>
     );
 };

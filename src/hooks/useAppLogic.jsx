@@ -493,10 +493,18 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     };
 
     // =========================================================================
-    // handleMarkTaskDone - COMPLETE ORIGINAL with Undo toast and celebrations
+    // handleMarkTaskDone - Supports optional details (cost, photoUrl, notes)
+    // Can be called with:
+    //   handleMarkTaskDone(task)                    - Quick complete
+    //   handleMarkTaskDone(task, 'some notes')      - Legacy: notes string
+    //   handleMarkTaskDone(task, { notes, cost, photoUrl }) - Enhanced: full details
     // =========================================================================
-    const handleMarkTaskDone = useCallback(async (task, notes = '') => {
-        // DIAGNOSTIC: Remove after debugging
+    const handleMarkTaskDone = useCallback(async (task, detailsOrNotes = '') => {
+        // Normalize input: support both legacy (string) and new (object) formats
+        const details = typeof detailsOrNotes === 'string'
+            ? { notes: detailsOrNotes }
+            : (detailsOrNotes || {});
+
         debug.log('[DEBUG] handleMarkTaskDone called with:', {
             task,
             recordId: task.recordId,
@@ -504,25 +512,37 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             isGranular: task.isGranular,
             frequency: task.frequency,
             nextDue: task.nextDue,
-            daysUntil: task.daysUntil
+            daysUntil: task.daysUntil,
+            details
         });
-        
+
         try {
             if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
             const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) return;
-            
-            // ADD THIS NEW DEBUG BLOCK:
+
             debug.log('[DEBUG] Found record:', {
                 recordId: record.id,
                 maintenanceTasks: record.maintenanceTasks,
                 taskNamesInRecord: record.maintenanceTasks?.map(t => t.task)
             });
-                
+
             const completedDate = new Date().toISOString();
             const completedDateShort = completedDate.split('T')[0];
-            const historyEntry = { taskName: task.taskName, completedDate: completedDate, performedBy: 'User', notes: notes, id: Date.now().toString() };
+
+            // Build enhanced history entry with optional cost and photo
+            const historyEntry = {
+                taskName: task.taskName,
+                completedDate: completedDate,
+                performedBy: 'User',
+                notes: details.notes || '',
+                id: Date.now().toString(),
+                // NEW: Optional enhanced fields
+                ...(details.cost && { cost: details.cost }),
+                ...(details.photoUrl && { photoUrl: details.photoUrl }),
+                ...(details.contractor && { contractor: details.contractor })
+            };
             const currentHistory = record.maintenanceHistory || [];
             const newHistory = [historyEntry, ...currentHistory];
 
