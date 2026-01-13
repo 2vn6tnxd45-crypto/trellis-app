@@ -17,6 +17,7 @@ import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeArchive } from '../archive';
+import { MyContractorsSection } from './components/MyContractorsSection';
 
 // NEW: Firebase imports for Active Projects
 // NEW: Firebase imports for Active Projects
@@ -932,6 +933,14 @@ export const ModernDashboard = ({
                     <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
                 </div>
             </DashboardSection>
+
+            {/* MY CONTRACTORS SECTION */}
+            <MyContractorsSection
+                contractors={contractors}
+                userId={userId}
+                onNavigateToContractors={onNavigateToContractors}
+                onCreateContractorLink={onCreateContractorLink}
+            />
 
             {/* MAINTENANCE SCHEDULE SECTION */}
             <DashboardSection 
