@@ -8,6 +8,7 @@
 import { db } from '../../../config/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import { getDistance, optimizeRoute } from './distanceMatrixService';
 
 // ============================================
 // CONSTANTS
@@ -114,13 +115,31 @@ const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs) =
 };
 
 /**
- * Calculate distance between two zip codes (simplified)
- * In production, use Google Distance Matrix API
+ * Calculate distance between two locations
+ * Uses Google Distance Matrix API when available, falls back to estimates
  */
-const estimateDistance = (zip1, zip2) => {
-    if (!zip1 || !zip2) return 10; // Default 10 miles
-    
-    // Simplified: If same first 3 digits, close
+const estimateDistance = async (location1, location2) => {
+    // Try to use real distance calculation
+    try {
+        const result = await getDistance(location1, location2);
+        return result.distanceMiles || 10;
+    } catch (e) {
+        // Fallback to zip-code based estimation
+        const zip1 = typeof location1 === 'string' ? location1.match(/\b\d{5}\b/)?.[0] : null;
+        const zip2 = typeof location2 === 'string' ? location2.match(/\b\d{5}\b/)?.[0] : null;
+
+        if (!zip1 || !zip2) return 10; // Default 10 miles
+
+        // Simplified: If same first 3 digits, close
+        if (zip1.substring(0, 3) === zip2.substring(0, 3)) return 5;
+        if (zip1.substring(0, 2) === zip2.substring(0, 2)) return 15;
+        return 25;
+    }
+};
+
+// Synchronous fallback for when async isn't possible
+const estimateDistanceSync = (zip1, zip2) => {
+    if (!zip1 || !zip2) return 10;
     if (zip1.substring(0, 3) === zip2.substring(0, 3)) return 5;
     if (zip1.substring(0, 2) === zip2.substring(0, 2)) return 15;
     return 25;
@@ -926,45 +945,105 @@ export const checkForConflicts = (proposedStart, proposedEnd, allJobs, preferenc
 };
 
 /**
- * Suggest optimal route order for a day's jobs
+ * Suggest optimal route order for a day's jobs (synchronous fallback)
+ * Uses simple Euclidean distance - fast but less accurate
  */
 export const suggestRouteOrder = (jobs, homeBase) => {
     if (jobs.length <= 1) return jobs;
-    
-    // Simple nearest-neighbor algorithm
+
+    // Simple nearest-neighbor algorithm with Euclidean distance
     const orderedJobs = [];
     const remaining = [...jobs];
-    
+
     let currentLocation = homeBase?.coordinates || null;
-    
+
     while (remaining.length > 0) {
         let nearestIndex = 0;
         let nearestDistance = Infinity;
-        
+
         for (let i = 0; i < remaining.length; i++) {
             const jobCoords = remaining[i].serviceAddress?.coordinates;
             if (!jobCoords || !currentLocation) {
                 nearestIndex = 0;
                 break;
             }
-            
+
             const distance = Math.sqrt(
                 Math.pow(currentLocation.lat - jobCoords.lat, 2) +
                 Math.pow(currentLocation.lng - jobCoords.lng, 2)
             );
-            
+
             if (distance < nearestDistance) {
                 nearestDistance = distance;
                 nearestIndex = i;
             }
         }
-        
+
         const nextJob = remaining.splice(nearestIndex, 1)[0];
         orderedJobs.push(nextJob);
         currentLocation = nextJob.serviceAddress?.coordinates || currentLocation;
     }
-    
+
     return orderedJobs;
+};
+
+/**
+ * Suggest optimal route order using Google Distance Matrix API
+ * More accurate but async - uses real driving times
+ * @param {Array} jobs - Jobs to optimize
+ * @param {Object} homeBase - Starting point with address/coordinates
+ * @returns {Promise<{orderedJobs: Array, totalDistance: number, totalDuration: number, legs: Array}>}
+ */
+export const suggestRouteOrderAsync = async (jobs, homeBase) => {
+    if (!jobs || jobs.length === 0) {
+        return { orderedJobs: [], totalDistance: 0, totalDuration: 0, legs: [] };
+    }
+
+    if (jobs.length === 1) {
+        // Single job - just calculate distance from home
+        try {
+            const homeLocation = homeBase?.coordinates
+                ? { lat: homeBase.coordinates.lat, lng: homeBase.coordinates.lng }
+                : homeBase?.address;
+
+            const jobLocation = jobs[0].serviceAddress?.coordinates
+                ? { lat: jobs[0].serviceAddress.coordinates.lat, lng: jobs[0].serviceAddress.coordinates.lng }
+                : jobs[0].serviceAddress?.formatted || jobs[0].customer?.address;
+
+            if (homeLocation && jobLocation) {
+                const distance = await getDistance(homeLocation, jobLocation);
+                return {
+                    orderedJobs: jobs,
+                    totalDistance: distance.distanceMiles || 0,
+                    totalDuration: distance.durationMinutes || 0,
+                    legs: [distance]
+                };
+            }
+        } catch (e) {
+            console.warn('Distance calculation failed, using fallback:', e);
+        }
+
+        return { orderedJobs: jobs, totalDistance: 0, totalDuration: 0, legs: [] };
+    }
+
+    // Use the optimizeRoute function from distanceMatrixService
+    try {
+        const startPoint = homeBase?.coordinates
+            ? { lat: homeBase.coordinates.lat, lng: homeBase.coordinates.lng, address: homeBase.address }
+            : { address: homeBase?.address };
+
+        return await optimizeRoute(jobs, startPoint);
+    } catch (e) {
+        console.warn('Route optimization failed, using fallback:', e);
+        // Fall back to synchronous version
+        return {
+            orderedJobs: suggestRouteOrder(jobs, homeBase),
+            totalDistance: 0,
+            totalDuration: 0,
+            legs: [],
+            fallback: true
+        };
+    }
 };
 
 export default {
@@ -982,5 +1061,7 @@ export default {
     generateSchedulingSuggestions,
     getQuickSuggestions,
     checkForConflicts,
-    suggestRouteOrder
+    // Route optimization
+    suggestRouteOrder,
+    suggestRouteOrderAsync
 };

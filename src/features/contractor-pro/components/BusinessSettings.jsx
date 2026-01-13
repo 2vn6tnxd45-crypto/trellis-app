@@ -5,10 +5,10 @@
 // Collects information to power AI scheduling suggestions
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
     Users, Truck, Clock, MapPin, Calendar, Sparkles,
     ChevronDown, ChevronUp, Save, Info, Building2,
-    Plus, Trash2, Check, FileText
+    Plus, Trash2, Check, FileText, Globe
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -16,6 +16,8 @@ import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { StripeConnectCard } from './StripeConnectCard';
 import { googleMapsApiKey } from '../../../config/constants';
+import { TimezoneSelector } from './TimezoneSelector';
+import { detectTimezone } from '../lib/timezoneUtils';
 
 // Default working hours
 const DEFAULT_HOURS = {
@@ -110,10 +112,13 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         teamType: profile?.scheduling?.teamType || 'solo',
         teamSize: profile?.scheduling?.teamSize || 1,
         vehicles: profile?.scheduling?.vehicles || 1,
-        
+
+        // Timezone - detect from browser if not set
+        timezone: profile?.scheduling?.timezone || detectTimezone(),
+
         // Working hours
         workingHours: profile?.scheduling?.workingHours || DEFAULT_HOURS,
-        
+
         // Scheduling preferences
         bufferMinutes: profile?.scheduling?.bufferMinutes || 30,
         defaultJobDuration: profile?.scheduling?.defaultJobDuration || 120,
@@ -415,7 +420,17 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
 
             {/* Working Hours */}
             <SettingsSection title="Working Hours" icon={Clock}>
-                <div className="space-y-3 pt-4">
+                {/* Timezone Selector */}
+                <div className="pt-4 pb-4 border-b border-slate-100 mb-4">
+                    <TimezoneSelector
+                        currentTimezone={settings.timezone}
+                        onTimezoneChange={(tz) => setSettings(s => ({ ...s, timezone: tz }))}
+                        showBrowserWarning={true}
+                    />
+                </div>
+
+                <p className="text-xs font-bold text-slate-500 uppercase mb-3">Daily Schedule</p>
+                <div className="space-y-3">
                     {DAYS.map((day, idx) => (
                         <div key={day} className="flex items-center gap-3">
                             <button

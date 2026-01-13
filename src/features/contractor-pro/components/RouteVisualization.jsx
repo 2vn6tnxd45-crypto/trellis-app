@@ -5,16 +5,17 @@
 // Shows daily jobs on a map-like visualization with route optimization suggestions
 // UPDATED: Added Auto-Geocoding for missing coordinates to fix "0.0 miles"
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-    Navigation, MapPin, Clock, ArrowRight, 
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import {
+    Navigation, MapPin, Clock, ArrowRight,
     Route, Sparkles, ChevronDown, ChevronUp,
     Car, Home, CheckCircle, AlertCircle, Zap,
     ChevronLeft, ChevronRight, Calendar, Map,
-    Users, MessageSquare, Phone, Loader2
+    Users, MessageSquare, Phone, Loader2, ToggleLeft, ToggleRight
 } from 'lucide-react';
-import { suggestRouteOrder } from '../lib/schedulingAI';
+import { suggestRouteOrder, suggestRouteOrderAsync, parseDurationToMinutes } from '../lib/schedulingAI';
 import { googleMapsApiKey } from '../../../config/constants';
+import { getDistance } from '../lib/distanceMatrixService';
 
 // ============================================
 // HELPERS
@@ -199,15 +200,32 @@ const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) =
 // ROUTE SUMMARY
 // ============================================
 
-const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
+const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps, realTravelData, useRealTravelTimes }) => {
     const stats = useMemo(() => {
+        // If we have real travel data, use it
+        if (useRealTravelTimes && realTravelData && !realTravelData.fallback) {
+            const totalJobTime = jobs.reduce((sum, job) =>
+                sum + (parseDurationToMinutes(job.estimatedDuration || 60)), 0);
+            const totalRevenue = jobs.reduce((sum, j) => sum + (j.total || 0), 0);
+
+            return {
+                totalDistance: realTravelData.totalDistance?.toFixed(1) || '0.0',
+                totalTravelTime: realTravelData.totalDuration || 0,
+                totalJobTime,
+                jobCount: jobs.length,
+                totalRevenue,
+                isRealData: true
+            };
+        }
+
+        // Fallback to local calculation
         let totalDistance = 0;
         let totalTravelTime = 0;
         let totalJobTime = 0;
-        
+
         // Use coordinates if available, otherwise we can't calculate
         let prevCoords = homeBase?.coordinates;
-        
+
         jobs.forEach(job => {
             totalJobTime += job.estimatedDuration || 120;
             
@@ -249,6 +267,13 @@ const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
                 )}
             </div>
             
+            {stats.isRealData && (
+                <div className="flex items-center gap-2 mb-3 text-xs text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg">
+                    <Car size={12} />
+                    <span className="font-medium">Using real traffic data from Google Maps</span>
+                </div>
+            )}
+
             <div className="grid grid-cols-4 gap-3 mb-4">
                 <div className="text-center">
                     <p className="text-lg font-bold text-slate-800">{stats.jobCount}</p>
@@ -256,17 +281,21 @@ const RouteSummary = ({ jobs, homeBase, isOptimized, onOpenMaps }) => {
                 </div>
                 <div className="text-center">
                     <p className="text-lg font-bold text-slate-800">{stats.totalDistance}</p>
-                    <p className="text-xs text-slate-500">Miles</p>
+                    <p className="text-xs text-slate-500">Miles{stats.isRealData ? '' : '*'}</p>
                 </div>
                 <div className="text-center">
                     <p className="text-lg font-bold text-slate-800">{stats.totalTravelTime}</p>
-                    <p className="text-xs text-slate-500">Min Drive</p>
+                    <p className="text-xs text-slate-500">Min Drive{stats.isRealData ? '' : '*'}</p>
                 </div>
                 <div className="text-center">
                     <p className="text-lg font-bold text-emerald-600">${stats.totalRevenue.toLocaleString()}</p>
                     <p className="text-xs text-slate-500">Revenue</p>
                 </div>
             </div>
+
+            {!stats.isRealData && (
+                <p className="text-[10px] text-slate-400 mb-3">*Estimated - enable Real Travel Times for accurate data</p>
+            )}
 
             {/* Open in Google Maps Button */}
             <button
@@ -372,18 +401,23 @@ const OptimizationSuggestion = ({ currentJobs, optimizedJobs, onApply }) => {
 // MAIN ROUTE VISUALIZATION COMPONENT
 // ============================================
 
-export const RouteVisualization = ({ 
-    jobs = [], 
+export const RouteVisualization = ({
+    jobs = [],
     date,
     preferences = {},
-    teamMembers = [], 
+    teamMembers = [],
     onJobClick,
     onReorder,
     onDateChange
 }) => {
     const [isOptimized, setIsOptimized] = useState(false);
-    const [selectedTech, setSelectedTech] = useState('all'); 
-    
+    const [selectedTech, setSelectedTech] = useState('all');
+
+    // Real travel times feature
+    const [useRealTravelTimes, setUseRealTravelTimes] = useState(false);
+    const [realTravelData, setRealTravelData] = useState(null);
+    const [loadingRealTimes, setLoadingRealTimes] = useState(false);
+
     // Local state for enriched data (with coordinates)
     const [enrichedJobs, setEnrichedJobs] = useState([]);
     const [enrichedHomeBase, setEnrichedHomeBase] = useState(null);
@@ -463,6 +497,30 @@ export const RouteVisualization = ({
     const optimizedJobs = useMemo(() => {
         return suggestRouteOrder(sortedJobs, enrichedHomeBase);
     }, [sortedJobs, enrichedHomeBase]);
+
+    // Fetch real travel times when enabled
+    const fetchRealTravelTimes = useCallback(async () => {
+        if (!useRealTravelTimes || sortedJobs.length === 0) {
+            setRealTravelData(null);
+            return;
+        }
+
+        setLoadingRealTimes(true);
+        try {
+            const result = await suggestRouteOrderAsync(sortedJobs, enrichedHomeBase);
+            setRealTravelData(result);
+        } catch (error) {
+            console.error('Failed to fetch real travel times:', error);
+            setRealTravelData(null);
+        } finally {
+            setLoadingRealTimes(false);
+        }
+    }, [useRealTravelTimes, sortedJobs, enrichedHomeBase]);
+
+    // Effect to fetch real travel times when toggle changes
+    useEffect(() => {
+        fetchRealTravelTimes();
+    }, [fetchRealTravelTimes]);
 
     const displayJobs = isOptimized ? optimizedJobs : sortedJobs;
 
@@ -577,6 +635,31 @@ export const RouteVisualization = ({
                         </button>
                     </div>
                 )}
+
+                {/* Real Travel Times Toggle */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                        <Car size={14} className="text-slate-500" />
+                        <span className="text-xs font-medium text-slate-600">Real Travel Times</span>
+                        {googleMapsApiKey && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">API</span>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => setUseRealTravelTimes(!useRealTravelTimes)}
+                        disabled={!googleMapsApiKey}
+                        className={`flex items-center gap-1 ${!googleMapsApiKey ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title={googleMapsApiKey ? 'Use Google Distance Matrix for accurate travel times' : 'Google Maps API key required'}
+                    >
+                        {loadingRealTimes ? (
+                            <Loader2 size={16} className="animate-spin text-emerald-600" />
+                        ) : useRealTravelTimes ? (
+                            <ToggleRight size={24} className="text-emerald-600" />
+                        ) : (
+                            <ToggleLeft size={24} className="text-slate-400" />
+                        )}
+                    </button>
+                </div>
             </div>
 
             {/* List */}
@@ -596,11 +679,13 @@ export const RouteVisualization = ({
             ) : !isEnriching && (
                 <>
                     {/* Route Summary (Restored & Enhanced) */}
-                    <RouteSummary 
-                        jobs={displayJobs} 
+                    <RouteSummary
+                        jobs={displayJobs}
                         homeBase={enrichedHomeBase}
                         isOptimized={isOptimized}
                         onOpenMaps={handleOpenRoute}
+                        realTravelData={realTravelData}
+                        useRealTravelTimes={useRealTravelTimes}
                     />
 
                     {/* Optimization Suggestion (Restored) */}

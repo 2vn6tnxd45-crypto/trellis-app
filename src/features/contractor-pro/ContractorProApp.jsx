@@ -33,6 +33,7 @@ import { BusinessSettings } from './components/BusinessSettings';
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
+import { TeamCalendarView } from './components/TeamCalendarView';
 import { LogoUpload } from './components/LogoUpload';
 
 // NEW: Dispatch Board and Team Management
@@ -1876,7 +1877,16 @@ export const ContractorProApp = () => {
                                                     : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
-                                            Team View
+                                            Assignment
+                                        </button>
+                                        <button
+                                            onClick={() => setScheduleView('team-calendar')}
+                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                                }`}
+                                        >
+                                            Team Calendar
                                         </button>
                                     </div>
                                 )}
@@ -1887,6 +1897,7 @@ export const ContractorProApp = () => {
                                 <DragDropCalendar
                                     jobs={jobs}
                                     evaluations={calendarEvaluations}
+                                    timezone={profile?.scheduling?.timezone}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
@@ -1903,6 +1914,7 @@ export const ContractorProApp = () => {
                                 <DragDropCalendar
                                     jobs={jobs}
                                     evaluations={calendarEvaluations}
+                                    timezone={profile?.scheduling?.timezone}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
@@ -1925,12 +1937,29 @@ export const ContractorProApp = () => {
                                 />
                             )}
 
-                            {/* Team - Team View */}
+                            {/* Team - Assignment Panel */}
                             {hasTeam && scheduleView === 'team' && (
                                 <TechAssignmentPanel
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                     onJobUpdate={() => { }}
+                                />
+                            )}
+
+                            {/* Team - Team Calendar View */}
+                            {hasTeam && scheduleView === 'team-calendar' && (
+                                <TeamCalendarView
+                                    jobs={jobs}
+                                    evaluations={calendarEvaluations}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    preferences={profile?.scheduling}
+                                    onJobClick={handleJobClick}
+                                    onEvaluationClick={(evaluation) => {
+                                        setActiveView('evaluations');
+                                    }}
+                                    onJobUpdate={() => {
+                                        // Jobs will auto-refresh via subscription
+                                    }}
                                 />
                             )}
                         </div>

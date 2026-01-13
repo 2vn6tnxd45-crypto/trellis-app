@@ -21,7 +21,7 @@ export const useGemini = () => {
                 Return JSON: { "frequency": "annual", "tasks": ["Task 1", "Task 2"] }
             `;
             const result = await geminiModel.generateContent(prompt);
-            const text = result.response.text().replace(/```json|```/g, '').trim(); 
+            const text = result.response.text().replace(/```json|```/g, '').trim();
             return JSON.parse(text);
         } catch (error) { return null; } finally { setIsSuggesting(false); }
     };
@@ -32,10 +32,10 @@ export const useGemini = () => {
         // ===== COMPREHENSIVE DEBUG =====
         console.log(`🔍 findBestRoomMatch called:`, { aiGuess, itemName, category, invoiceContext: invoiceContext?.substring(0, 100) });
         // ================================
-        
+
         // Combine all text for context search
         const fullContext = `${aiGuess} ${itemName} ${category} ${invoiceContext}`.toLowerCase();
-        
+
         // ============ STEP 1: Check for EXPLICIT location mentions in context ============
         // These take absolute priority over any inference
         const explicitLocationPatterns = [
@@ -47,7 +47,7 @@ export const useGemini = () => {
             { pattern: /\bmaster\s+bath|\bmaster\s+bathroom/i, room: 'Master Bathroom' },
             { pattern: /\bkitchen\b/i, room: 'Kitchen' },
         ];
-        
+
         for (const { pattern, room } of explicitLocationPatterns) {
             if (pattern.test(fullContext)) {
                 console.log(`   ✅ EXPLICIT location found: "${room}" (pattern: ${pattern})`);
@@ -55,28 +55,28 @@ export const useGemini = () => {
             }
         }
         // =================================================================================
-        
+
         // ============ STEP 2: Trust AI guess if it's valid ============
         if (aiGuess && aiGuess.toLowerCase() !== 'general') {
             const lowerGuess = aiGuess.toLowerCase();
-            
+
             // Exact match
             const exact = ROOMS.find(r => r.toLowerCase() === lowerGuess);
             if (exact) {
                 console.log(`   ✅ AI guess exact match: "${exact}"`);
                 return exact;
             }
-            
+
             // Partial match
-            const partial = ROOMS.find(r => 
-                r.toLowerCase().includes(lowerGuess) || 
+            const partial = ROOMS.find(r =>
+                r.toLowerCase().includes(lowerGuess) ||
                 lowerGuess.includes(r.toLowerCase())
             );
             if (partial) {
                 console.log(`   ✅ AI guess partial match: "${partial}"`);
                 return partial;
             }
-            
+
             // Custom location (AI found something not in our list)
             if (aiGuess.trim() && aiGuess.length > 2) {
                 console.log(`   ⚠️ Using AI custom guess: "${aiGuess}"`);
@@ -84,41 +84,41 @@ export const useGemini = () => {
             }
         }
         // ==============================================================
-        
+
         // ============ STEP 3: Inference based on item type (LAST RESORT) ============
         const searchText = `${itemName} ${category}`.toLowerCase();
         console.log(`   🔎 Fallback inference for: "${searchText}"`);
-        
+
         // Kitchen items
         if (/dishwasher|refrigerator|fridge|oven|stove|range|microwave|garbage disposal/.test(searchText)) {
             console.log(`   ✅ Inferred: Kitchen`);
             return 'Kitchen';
         }
-        
+
         // Bathroom items
         if (/toilet|vanity|shower|bathtub|faucet|bathroom|bath\b/.test(searchText)) {
             console.log(`   ✅ Inferred: Bathroom`);
             return 'Bathroom';
         }
-        
+
         // Laundry items
         if (/washer|dryer|laundry/.test(searchText)) {
             console.log(`   ✅ Inferred: Laundry Room`);
             return 'Laundry Room';
         }
-        
+
         // Garage items (water heaters, garage doors, etc.)
         if (/water heater|garage door|opener|water softener/.test(searchText)) {
             console.log(`   ✅ Inferred: Garage`);
             return 'Garage';
         }
-        
+
         // Indoor HVAC (air handlers, furnaces) - default to Attic
         if (/air handler|furnace/.test(searchText)) {
             console.log(`   ✅ Inferred: Attic (indoor HVAC unit)`);
             return 'Attic';
         }
-        
+
         // ============ CRITICAL FIX FOR HEAT PUMP ============
         // Only infer "Exterior" for heat pump if we DIDN'T find an explicit location above
         // and if the item name specifically includes "condenser" or "outdoor"
@@ -126,7 +126,7 @@ export const useGemini = () => {
             console.log(`   ✅ Inferred: Exterior (outdoor unit)`);
             return 'Exterior';
         }
-        
+
         // Heat pump WITHOUT "outdoor" or "condenser" in name - DON'T auto-assign Exterior
         // This is where the bug was! Heat pump systems can be in attic.
         if (/heat pump/.test(searchText)) {
@@ -140,13 +140,13 @@ export const useGemini = () => {
             return 'Exterior';
         }
         // ====================================================
-        
+
         // Exterior items (pools, sprinklers, etc.)
         if (/pool|pump|sprinkler|irrigation|outdoor|patio|deck|fence|roof|gutter|siding/.test(searchText)) {
             console.log(`   ✅ Inferred: Exterior`);
             return 'Exterior';
         }
-        
+
         console.log(`   ❌ No inference possible, returning: "${aiGuess || 'General'}"`);
         return aiGuess || 'General';
     };
@@ -154,10 +154,10 @@ export const useGemini = () => {
     // --- Bulletproof Address Check Helper ---
     const isSameAddress = (vendorAddr, userStreet, fullUserAddress = '') => {
         if (!vendorAddr) return false;
-        
+
         const normalize = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         const vendorNorm = normalize(vendorAddr);
-        
+
         // Check 1: Does vendor address contain the user's street?
         if (userStreet) {
             const streetNorm = normalize(userStreet);
@@ -166,7 +166,7 @@ export const useGemini = () => {
                 return true;
             }
         }
-        
+
         // Check 2: Does vendor address match the full user address?
         if (fullUserAddress) {
             const fullNorm = normalize(fullUserAddress);
@@ -176,21 +176,21 @@ export const useGemini = () => {
                 return true;
             }
         }
-        
+
         // Check 3: Extract and compare street numbers + first part of street name
         const extractStreetNum = (str) => {
             const match = (str || '').match(/^(\d+)/);
             return match ? match[1] : null;
         };
-        
+
         const vendorNum = extractStreetNum(vendorAddr);
         const userNum = extractStreetNum(userStreet || fullUserAddress);
-        
+
         if (vendorNum && userNum && vendorNum === userNum) {
             // Same street number - do a more careful comparison
             const vendorWords = vendorNorm.replace(/\d/g, '').trim();
             const userWords = normalize(userStreet || fullUserAddress).replace(/\d/g, '').trim();
-            
+
             if (vendorWords.length > 5 && userWords.length > 5) {
                 // Check if first significant portion matches (e.g., "sanharoldoway")
                 const vendorStart = vendorWords.substring(0, 12);
@@ -201,19 +201,26 @@ export const useGemini = () => {
                 }
             }
         }
-        
+
         return false;
+    };
+
+    // --- Helper: Check if contact info matches user ---
+    const isSameContact = (vendorVal, userVal) => {
+        if (!vendorVal || !userVal) return false;
+        const normalize = s => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+        return normalize(vendorVal) === normalize(userVal);
     };
     // ---------------------------------------------
 
     // ============================================
     // WARRANTY PROCESSING HELPERS (NEW)
     // ============================================
-    
+
     // Helper to format structured warranty back to string (for backwards compatibility)
     const formatWarrantyString = (details) => {
         if (!details?.hasCoverage) return '';
-        
+
         const parts = [];
         if (details.partsMonths) {
             const years = details.partsMonths >= 12 ? Math.floor(details.partsMonths / 12) : null;
@@ -229,7 +236,7 @@ export const useGemini = () => {
     // Helper to parse legacy string into structured format (best effort)
     const parseWarrantyString = (str, installDate) => {
         if (!str) return null;
-        
+
         const lower = str.toLowerCase();
         const result = {
             hasCoverage: true,
@@ -245,44 +252,44 @@ export const useGemini = () => {
             startDate: installDate || new Date().toISOString().split('T')[0],
             notes: str // Keep original text
         };
-        
+
         // Parse years/months for parts
         const partsMatch = lower.match(/(\d+)\s*year\s*parts?/);
         if (partsMatch) result.partsMonths = parseInt(partsMatch[1]) * 12;
-        
+
         const partsMonthMatch = lower.match(/(\d+)\s*month\s*parts?/);
         if (partsMonthMatch) result.partsMonths = parseInt(partsMonthMatch[1]);
-        
+
         // Parse years/months for labor
         const laborMatch = lower.match(/(\d+)\s*year\s*labor/);
         if (laborMatch) result.laborMonths = parseInt(laborMatch[1]) * 12;
-        
+
         const laborMonthMatch = lower.match(/(\d+)\s*month\s*labor/);
         if (laborMonthMatch) result.laborMonths = parseInt(laborMonthMatch[1]);
-        
+
         // Generic "X year warranty" without type
         if (result.partsMonths === 0 && result.laborMonths === 0) {
             const genericMatch = lower.match(/(\d+)\s*year/);
             if (genericMatch) result.partsMonths = parseInt(genericMatch[1]) * 12;
         }
-        
+
         // Detect type
         if (result.partsMonths > 0 && result.laborMonths > 0) {
             result.type = 'parts_and_labor';
         } else if (result.laborMonths > 0) {
             result.type = 'labor_only';
         }
-        
+
         // Check for transferable
         if (/transferable|transfers?/i.test(lower)) {
             result.transferable = true;
         }
-        
+
         // Check for service requirements
         if (/annual\s+service|service\s+required|maintain/i.test(lower)) {
             result.requiresService = true;
         }
-        
+
         return result;
     };
 
@@ -300,7 +307,7 @@ export const useGemini = () => {
                 warranty: data.warranty || formatWarrantyString(wd)
             };
         }
-        
+
         // Fallback: if AI returned legacy string format only
         if (data.warranty && typeof data.warranty === 'string' && data.warranty.trim()) {
             return {
@@ -308,7 +315,7 @@ export const useGemini = () => {
                 warrantyDetails: parseWarrantyString(data.warranty, data.date)
             };
         }
-        
+
         return { warranty: '', warrantyDetails: null };
     };
     // ============================================
@@ -324,19 +331,24 @@ export const useGemini = () => {
             const base64Data = getBase64Data(base64Str);
             const mimeType = file.type || "image/jpeg";
             const categoriesStr = CATEGORIES.join(', ');
-            const roomsStr = ROOMS.join(', '); 
+            const roomsStr = ROOMS.join(', ');
 
-            // Address Context
+            // Address & Contact Context
             let userStreet = "";
             let fullUserAddress = "";
-            
+            let userEmail = "";
+            let userPhone = "";
+
             if (userAddress) {
                 if (typeof userAddress === 'string') {
                     fullUserAddress = userAddress;
-                    userStreet = userAddress.split(',')[0]; 
+                    userStreet = userAddress.split(',')[0];
                 } else if (typeof userAddress === 'object') {
                     fullUserAddress = `${userAddress.street || ''} ${userAddress.city || ''} ${userAddress.state || ''} ${userAddress.zip || ''}`.trim();
                     userStreet = userAddress.street || "";
+                    // Capture contact info if available in the address object
+                    userEmail = userAddress.email || "";
+                    userPhone = userAddress.phone || "";
                 }
             }
 
@@ -346,9 +358,11 @@ export const useGemini = () => {
                 1. **IDENTIFY VENDOR (CONTRACTOR)**:
                    - Vendor is the company PERFORMING the service.
                    - **CONTEXT CLUES**: Vendor address is usually at the TOP (near logo) or BOTTOM (footer).
-                   - **USER ADDRESS**: The address "${fullUserAddress}" is the Homeowner. It will likely appear under "Bill To", "Ship To", or "Service Address".
-                   - **EXCLUSION LOGIC**: 
-                     - Do NOT return an address if it is explicitly labeled "Bill To" or "Service Location".
+                   - **USER/HOMEOWNER**: The address "${fullUserAddress}" is the User. 
+                   - **CRITICAL EXCLUSION**: 
+                     - **NEVER** return Name, Phone, or Email found under "Bill To", "Ship To", "Customer", or "Service Address".
+                     - **NEVER** return the homeowner's name as the Vendor.
+                   - **ADDRESS LOGIC**: 
                      - Do NOT return an address if it starts with "${userStreet}" (Street Number + Name match).
                      - **ALLOW**: You MUST allow addresses in the same City/State/Zip as the user, as long as the street is different.
                    - **ADDRESS CLEANING**: Check for missing spaces (e.g. "123 Main StSanta Ana" -> "123 Main St, Santa Ana").
@@ -479,12 +493,12 @@ export const useGemini = () => {
                   ]
                 }
             `;
-            
+
             const result = await geminiModel.generateContent([
                 prompt,
                 { inlineData: { data: base64Data, mimeType: mimeType } }
             ]);
-            
+
             const text = result.response.text().replace(/```json|```/g, '').trim();
 
             let data;
@@ -507,11 +521,11 @@ export const useGemini = () => {
                         item.category || '',                // Category
                         data.primaryJobDescription || ''    // THIS is the context - e.g., "Installation of 4 ton Heat-pump system in attic"
                     );
-                    
+
                     if (item.area !== resolvedArea) {
                         console.log(`📍 LOCATION CORRECTED: "${item.item}" from "${item.area}" → "${resolvedArea}"`);
                     }
-                    
+
                     return { ...item, area: resolvedArea };
                 });
             }
@@ -519,26 +533,34 @@ export const useGemini = () => {
             // Continue with existing code...
             console.log("📍 AI returned these areas for items:");
             // ===== END DEBUG =====
-            
+
             // Validate Structure
             if (!Array.isArray(data.items)) data.items = [];
             data.vendorName = String(data.vendorName || '');
             data.totalAmount = data.totalAmount || 0;
 
-            // === BULLETPROOF CHECK: Remove Vendor Address if it matches User Address ===
+            // === BULLETPROOF CHECK: Remove Vendor Info if it matches User ===
             if (data.vendorAddress && userStreet && isSameAddress(data.vendorAddress, userStreet)) {
                 console.warn(`⚠️ Safety Trigger: AI identified user address (${userStreet}) as vendor address. Clearing field.`);
-                data.vendorAddress = ''; 
+                data.vendorAddress = '';
+            }
+            if (data.vendorEmail && userEmail && isSameContact(data.vendorEmail, userEmail)) {
+                console.warn(`⚠️ Safety Trigger: AI identified user email as vendor. Clearing.`);
+                data.vendorEmail = '';
+            }
+            if (data.vendorPhone && userPhone && isSameContact(data.vendorPhone, userPhone)) {
+                console.warn(`⚠️ Safety Trigger: AI identified user phone as vendor. Clearing.`);
+                data.vendorPhone = '';
             }
             // ===========================================================================
-            
+
             // ===== PROCESS WARRANTY DATA (NEW) =====
             const warrantyData = processWarrantyData(data);
             data.warranty = warrantyData.warranty;
             data.warrantyDetails = warrantyData.warrantyDetails;
             console.log("🛡️ PROCESSED WARRANTY:", { warranty: data.warranty, warrantyDetails: data.warrantyDetails });
             // ========================================
-            
+
             // Clean up items
             data.items = data.items.map(item => {
                 const itemName = toProperCase(String(item.item || 'Unknown Item'));

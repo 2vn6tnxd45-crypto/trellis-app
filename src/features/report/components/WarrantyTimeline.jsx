@@ -19,12 +19,12 @@ const calculateWarrantyStatus = (warranty, installDate) => {
   }
 
   const isStructured = typeof warranty === 'object' && warranty !== null;
-  
+
   // Parse dates
   const startDate = new Date(isStructured ? (warranty.startDate || installDate) : installDate);
   const now = new Date();
-  const monthsElapsed = Math.max(0, 
-    (now.getFullYear() - startDate.getFullYear()) * 12 + 
+  const monthsElapsed = Math.max(0,
+    (now.getFullYear() - startDate.getFullYear()) * 12 +
     (now.getMonth() - startDate.getMonth())
   );
 
@@ -37,15 +37,22 @@ const calculateWarrantyStatus = (warranty, installDate) => {
     laborMonths = warranty.laborMonths || 0;
   } else if (typeof warranty === 'string') {
     // Parse string like "10 year parts, 1 year labor"
-    const partsMatch = warranty.match(/(\d+)\s*year\s*parts?/i);
-    const laborMatch = warranty.match(/(\d+)\s*year\s*labor/i);
-    const genericMatch = warranty.match(/(\d+)\s*year/i);
-    
+    // Regex improvements to handle "warranty on labor", "limited warranty", etc.
+    const partsMatch = warranty.match(/(\d+)\s*years?[\s\w]*(?:parts|shingles|materials|composition|limited)/i);
+    const laborMatch = warranty.match(/(\d+)\s*years?[\s\w]*labor/i);
+    const genericMatch = warranty.match(/(\d+)\s*years?/i);
+
+
     if (partsMatch) partsMonths = parseInt(partsMatch[1]) * 12;
     if (laborMatch) laborMonths = parseInt(laborMatch[1]) * 12;
+
+    // Fallback: if we found a generic "50 years" but didn't explicitly find "parts" or "labor" keywords,
+    // assume it's the main parts coverage (unless we already found parts coverage)
     if (!partsMatch && !laborMatch && genericMatch) {
       partsMonths = parseInt(genericMatch[1]) * 12;
     }
+    // Edge case: We found labor, but no specific parts keyword, but there is a generic number left?
+    // For now, this logic is safe for "50 year shingles, 10 year labor" -> parts gets 50 (via partsMatch/shingles), labor gets 10.
   }
 
   const partsRemaining = Math.max(0, partsMonths - monthsElapsed);
@@ -137,7 +144,7 @@ const WarrantyBar = ({ item, isExpanded, onToggle, isPrintMode = false }) => {
   const StatusIcon = config.icon;
 
   const isStructured = typeof warranty === 'object' && warranty !== null;
-  
+
   // Always expanded in print mode
   const showExpanded = isPrintMode || isExpanded;
 
@@ -170,7 +177,7 @@ const WarrantyBar = ({ item, isExpanded, onToggle, isPrintMode = false }) => {
         {/* Progress Bar */}
         <div className="hidden sm:block flex-1 max-w-[200px]">
           <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
-            <div 
+            <div
               className={`h-full ${config.color} rounded-full transition-all duration-500`}
               style={{ width: `${Math.max(calc.percentRemaining, 2)}%` }}
             />
@@ -222,7 +229,7 @@ const WarrantyBar = ({ item, isExpanded, onToggle, isPrintMode = false }) => {
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Coverage Started</p>
               <p className="text-lg font-bold text-slate-800">
-                {item.dateInstalled 
+                {item.dateInstalled
                   ? new Date(item.dateInstalled).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
                   : '--'
                 }
@@ -235,10 +242,10 @@ const WarrantyBar = ({ item, isExpanded, onToggle, isPrintMode = false }) => {
               <p className={`text-lg font-bold ${calc.status === 'expired' ? 'text-slate-400' : config.text}`}>
                 {calc.partsMonths > 0 && item.dateInstalled
                   ? (() => {
-                      const expDate = new Date(item.dateInstalled);
-                      expDate.setMonth(expDate.getMonth() + Math.max(calc.partsMonths, calc.laborMonths));
-                      return expDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-                    })()
+                    const expDate = new Date(item.dateInstalled);
+                    expDate.setMonth(expDate.getMonth() + Math.max(calc.partsMonths, calc.laborMonths));
+                    return expDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                  })()
                   : '--'
                 }
               </p>
@@ -295,7 +302,7 @@ export const WarrantyTimeline = ({ records, className = '' }) => {
   React.useEffect(() => {
     const mediaQuery = window.matchMedia('print');
     setIsPrintMode(mediaQuery.matches);
-    
+
     const handler = (e) => setIsPrintMode(e.matches);
     mediaQuery.addEventListener('change', handler);
     return () => mediaQuery.removeEventListener('change', handler);

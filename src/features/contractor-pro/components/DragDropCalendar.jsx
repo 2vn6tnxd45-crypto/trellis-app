@@ -6,15 +6,16 @@
 // UPDATED: Displays pending/offered slots
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { 
+import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon
+    Navigation, Users as UsersIcon, Globe
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+import { getTimezoneAbbreviation } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
@@ -398,12 +399,15 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
 
 export const DragDropCalendar = ({
     jobs = [],
-    evaluations = [],  // NEW: Scheduled evaluations to display
+    evaluations = [],  // Scheduled evaluations to display
     preferences = {},
+    timezone,  // IANA timezone identifier
     onJobUpdate,
     onJobClick,
-    onEvaluationClick  // NEW: Handler for evaluation clicks
+    onEvaluationClick  // Handler for evaluation clicks
 }) => {
+    // Get timezone abbreviation for display
+    const timezoneAbbr = timezone ? getTimezoneAbbreviation(timezone) : null;
     const [currentDate, setCurrentDate] = useState(new Date());
     const [draggedJob, setDraggedJob] = useState(null);
     const [dropTarget, setDropTarget] = useState(null);
@@ -681,6 +685,12 @@ export const DragDropCalendar = ({
                             <ChevronRight size={20} className="text-slate-600" />
                         </button>
                         <h2 className="text-lg font-bold text-slate-800 ml-2">{monthLabel}</h2>
+                        {timezoneAbbr && (
+                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-lg flex items-center gap-1">
+                                <Globe size={12} />
+                                {timezoneAbbr}
+                            </span>
+                        )}
                     </div>
                     <button
                         onClick={goToToday}
