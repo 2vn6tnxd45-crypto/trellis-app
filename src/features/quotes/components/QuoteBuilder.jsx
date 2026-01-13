@@ -17,6 +17,8 @@ import toast from 'react-hot-toast';
 
 // NEW: Import the Google Maps hook
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
+import { usePropertyData } from '../../../hooks/usePropertyData';
+import ContractorPropertyIntel from '../../contractor-pro/components/ContractorPropertyIntel';
 // Price Book Integration
 import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
 
@@ -498,8 +500,8 @@ const LineItemsSection = ({
                                                         updateItem(item.id, 'inventoryIntent', newIntent);
                                                     }}
                                                     className={`p-1.5 rounded-lg transition-all ${item.addToHomeRecord
-                                                            ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                                                            : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
+                                                        ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
+                                                        : 'text-slate-300 hover:text-emerald-500 hover:bg-emerald-50'
                                                         }`}
                                                     title={item.addToHomeRecord ? "Will be added to customer's home record" : "Add to customer's home record"}
                                                 >
@@ -660,8 +662,8 @@ const LineItemsSection = ({
                                                                                     });
                                                                                 }}
                                                                                 className={`px-2 py-1 text-[10px] rounded-full transition-colors ${task.selected !== false
-                                                                                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                                                                                        : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                                                                    ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                                                                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
                                                                                     }`}
                                                                             >
                                                                                 {task.selected !== false ? '✓ ' : ''}{task.task}
@@ -883,6 +885,22 @@ export const QuoteBuilder = ({
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
     const [templateName, setTemplateName] = useState('');
     const [savingTemplate, setSavingTemplate] = useState(false);
+
+    // Debounced address for property data
+    const [debouncedAddress, setDebouncedAddress] = useState(formData.customer?.address || '');
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const addr = formData.customer?.address;
+            if (addr && addr.length > 5) { // Only fetch if meaningful length
+                setDebouncedAddress(addr);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [formData.customer?.address]);
+
+    // Fetch property data for contractor intel
+    const { propertyData: quotePropertyData } = usePropertyData(debouncedAddress);
     const [errors, setErrors] = useState({});
     const [showPriceBook, setShowPriceBook] = useState(false);
     // REMOVED: const [isEstimating, setIsEstimating] = useState(false);
@@ -1285,6 +1303,11 @@ export const QuoteBuilder = ({
                         existingCustomers={customers}
                         errors={errors}
                     />
+
+                    {/* Property Intel (New) */}
+                    {quotePropertyData && (
+                        <ContractorPropertyIntel className="mb-6" propertyData={quotePropertyData} />
+                    )}
 
                     {/* Quote Details */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-6">
