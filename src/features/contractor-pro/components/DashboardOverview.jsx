@@ -13,6 +13,7 @@ import {
     Building2, ArrowUpRight, Calendar
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatCurrency } from '../../../utils/formatCurrency';
 
 // Native helper to replace date-fns formatDistanceToNow
 const formatTimeAgo = (date) => {
@@ -117,7 +118,7 @@ const ActivityItem = ({ invitation, onClick }) => {
                         {invitation.recordCount || 0} item{invitation.recordCount !== 1 ? 's' : ''}
                         {invitation.totalValue > 0 && (
                             <span className="ml-2 font-medium text-slate-600">
-                                ${invitation.totalValue.toLocaleString()}
+                                {formatCurrency(invitation.totalValue)}
                             </span>
                         )}
                     </p>
@@ -315,7 +316,7 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
 
                             {stage.value !== undefined && stage.value > 0 && (
                                 <p className={`text-sm font-medium ${stage.textColor} mt-1`}>
-                                    ${stage.value.toLocaleString()}
+                                    {formatCurrency(stage.value)}
                                 </p>
                             )}
 
@@ -331,13 +332,13 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
             <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-3 gap-4 text-center">
                 <div>
                     <p className="text-lg font-bold text-slate-800">
-                        ${(pendingQuoteValue + activeJobValue).toLocaleString()}
+                        {formatCurrency(pendingQuoteValue + activeJobValue)}
                     </p>
                     <p className="text-xs text-slate-500">Pipeline Value</p>
                 </div>
                 <div>
                     <p className="text-lg font-bold text-emerald-600">
-                        ${completedJobValue.toLocaleString()}
+                        {formatCurrency(completedJobValue)}
                     </p>
                     <p className="text-xs text-slate-500">Completed Revenue</p>
                 </div>
@@ -662,7 +663,7 @@ export const DashboardOverview = ({
                                                     {customer.totalJobs || 1} job{customer.totalJobs !== 1 ? 's' : ''}
                                                     {customer.totalSpend > 0 && (
                                                         <span className="ml-2">
-                                                            • ${customer.totalSpend.toLocaleString()}
+                                                            • {formatCurrency(customer.totalSpend)}
                                                         </span>
                                                     )}
                                                 </p>
