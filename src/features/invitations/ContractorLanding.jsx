@@ -6,7 +6,7 @@
 // free alternative to Housecall Pro, Jobber, etc.
 
 import React from 'react';
-import { 
+import {
     ArrowRight, CheckCircle, X,
     FileText, Calendar, Users, Receipt,
     MessageSquare, ClipboardCheck, Camera, Search,
@@ -25,7 +25,7 @@ const FeatureCard = ({ icon: Icon, title, description, color = 'emerald' }) => {
         purple: 'bg-purple-100 text-purple-600',
         amber: 'bg-amber-100 text-amber-600',
     };
-    
+
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:border-emerald-200 transition-all">
             <div className={`inline-flex p-3 rounded-xl mb-4 ${colors[color]}`}>
@@ -52,7 +52,7 @@ const ComparisonTable = () => {
         { name: 'Customer Home Records', krib: true, housecall: false, jobber: false },
         { name: 'Builds Customer Loyalty', krib: true, housecall: false, jobber: false },
     ];
-    
+
     return (
         <div className="overflow-x-auto">
             <table className="w-full">
@@ -138,19 +138,19 @@ const FAQItem = ({ question, answer }) => (
 // MAIN COMPONENT
 // ============================================
 export const ContractorLanding = () => {
-    
+
     const handleGetStarted = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'dashboard');
         window.location.href = url.toString();
     };
-    
+
     const handleSignIn = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'dashboard');
         window.location.href = url.toString();
     };
-    
+
     return (
         <div className="contractor-page min-h-screen bg-white">
             {/* Header */}
@@ -182,26 +182,26 @@ export const ContractorLanding = () => {
                     </div>
                 </div>
             </header>
-            
+
             {/* Hero Section */}
             <section className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white py-20 md:py-28">
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="max-w-3xl">
                         <div className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-500/20 rounded-full text-emerald-400 text-sm font-medium mb-6">
                             <Sparkles size={14} />
-                            100% Free — No credit card required
+                            No monthly fee — No credit card required
                         </div>
-                        
+
                         <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight">
                             The free alternative to<br />
                             <span className="text-emerald-400">Housecall Pro</span>
                         </h1>
-                        
+
                         <p className="text-xl text-slate-300 mb-8 leading-relaxed">
-                            Quotes, scheduling, invoices, and customer management. 
+                            Quotes, scheduling, invoices, and customer management.
                             Everything you need to run your business — without the $100/month price tag.
                         </p>
-                        
+
                         <div className="flex flex-col sm:flex-row gap-4">
                             <button
                                 onClick={handleGetStarted}
@@ -217,21 +217,21 @@ export const ContractorLanding = () => {
                                 Compare to Housecall Pro
                             </a>
                         </div>
-                        
+
                         <p className="mt-6 text-sm text-slate-400">
                             Join 500+ contractors already using Krib Pro
                         </p>
                     </div>
                 </div>
             </section>
-            
+
             {/* Social Proof Bar */}
             <section className="bg-slate-50 border-y border-slate-200 py-6">
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="flex flex-wrap justify-center gap-8 md:gap-16 text-center">
                         <div>
                             <p className="text-2xl font-bold text-slate-800">$0/mo</p>
-                            <p className="text-sm text-slate-500">Forever free</p>
+                            <p className="text-sm text-slate-500">No monthly fee</p>
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-slate-800">2 min</p>
@@ -244,7 +244,7 @@ export const ContractorLanding = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Features Grid */}
             <section id="features" className="py-20">
                 <div className="max-w-6xl mx-auto px-4">
@@ -256,7 +256,7 @@ export const ContractorLanding = () => {
                             Professional tools built for contractors who want to grow their business without the overhead.
                         </p>
                     </div>
-                    
+
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <FeatureCard
                             icon={FileText}
@@ -309,7 +309,7 @@ export const ContractorLanding = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Differentiator Section */}
             <section className="bg-emerald-600 text-white py-20">
                 <div className="max-w-6xl mx-auto px-4">
@@ -318,8 +318,8 @@ export const ContractorLanding = () => {
                             The difference: Every job builds your customer network
                         </h2>
                         <p className="text-emerald-100 text-lg mb-8 leading-relaxed">
-                            Other tools just help you manage jobs. Krib Pro creates a lasting connection. 
-                            Every quote you send, every job you complete — it all becomes part of your 
+                            Other tools just help you manage jobs. Krib Pro creates a lasting connection.
+                            Every quote you send, every job you complete — it all becomes part of your
                             customer's permanent home record. When they need service again, you're already there.
                         </p>
                         <div className="grid md:grid-cols-3 gap-8 mt-12">
@@ -339,7 +339,7 @@ export const ContractorLanding = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Comparison Section */}
             <section className="py-20 bg-slate-50">
                 <div className="max-w-4xl mx-auto px-4">
@@ -350,20 +350,20 @@ export const ContractorLanding = () => {
                         <p className="text-slate-500 mb-4">
                             Same features. Better price. Unique benefits.
                         </p>
-                        <a 
-                            href="?pro=compare" 
+                        <a
+                            href="?pro=compare"
                             className="text-emerald-600 font-medium hover:text-emerald-700 underline"
                         >
                             View full comparison with savings calculator →
                         </a>
                     </div>
-                    
+
                     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
                         <ComparisonTable />
                     </div>
                 </div>
             </section>
-            
+
             {/* FAQ Section */}
             <section className="py-20">
                 <div className="max-w-3xl mx-auto px-4">
@@ -372,7 +372,7 @@ export const ContractorLanding = () => {
                             Frequently asked questions
                         </h2>
                     </div>
-                    
+
                     <div>
                         <FAQItem
                             question="Why is Krib Pro free?"
@@ -380,7 +380,7 @@ export const ContractorLanding = () => {
                         />
                         <FAQItem
                             question="What's the catch?"
-                            answer="No catch. The core tools — quotes, scheduling, invoicing, customer management — are free forever. We'll eventually offer premium add-ons for larger teams, but the features you see today will always be free."
+                            answer="No catch. The core tools — quotes, scheduling, invoicing, customer management — have no monthly fee. We'll eventually offer premium add-ons for larger teams, but the features you see today won't have a monthly fee."
                         />
                         <FAQItem
                             question="How is this different from other contractor software?"
@@ -397,7 +397,7 @@ export const ContractorLanding = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Final CTA */}
             <section className="bg-slate-900 text-white py-20">
                 <div className="max-w-4xl mx-auto px-4 text-center">
@@ -405,7 +405,7 @@ export const ContractorLanding = () => {
                         Ready to stop paying for contractor software?
                     </h2>
                     <p className="text-slate-400 text-lg mb-8">
-                        Join hundreds of contractors who've made the switch. Free forever.
+                        Join hundreds of contractors who've made the switch. No monthly fee.
                     </p>
                     <button
                         onClick={handleGetStarted}
@@ -418,7 +418,7 @@ export const ContractorLanding = () => {
                     </p>
                 </div>
             </section>
-            
+
             {/* Footer */}
             <footer className="bg-slate-950 text-slate-400 py-12">
                 <div className="max-w-6xl mx-auto px-4">

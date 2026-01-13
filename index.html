@@ -1,125 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+
     <title>Krib | Your Home's Complete History, Built Automatically</title>
     <meta name="title" content="Krib | Your Home's Complete History, Built Automatically" />
-    <meta name="description" content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically. For homeowners and the pros who serve them." />
-    
+    <meta name="description"
+        content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically. For homeowners and the pros who serve them." />
+
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://mykrib.app/" />
     <meta property="og:title" content="Krib | Your Home's Complete History, Built Automatically" />
-    <meta property="og:description" content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically." />
+    <meta property="og:description"
+        content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically." />
     <meta property="og:image" content="/og-image.png" />
 
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content="https://mykrib.app/" />
     <meta property="twitter:title" content="Krib | Your Home's Complete History, Built Automatically" />
-    <meta property="twitter:description" content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically." />
+    <meta property="twitter:description"
+        content="Every repair, every contractor, every detail — remembered. Krib is the free app that builds your home's permanent record automatically." />
     <meta property="twitter:image" content="/og-image.png" />
 
     <meta name="theme-color" content="#10b981" />
-    
+
     <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
     <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800,900&display=swap" rel="stylesheet" />
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              'sans': ['Satoshi', 'system-ui', 'sans-serif'],
-              'display': ['Satoshi', 'system-ui', 'sans-serif'],
-            },
-            colors: {
-              'krib': {
-                50: '#ecfdf5',
-                100: '#d1fae5',
-                200: '#a7f3d0',
-                300: '#6ee7b7',
-                400: '#34d399',
-                500: '#10b981',
-                600: '#059669',
-                700: '#047857',
-                800: '#065f46',
-                900: '#064e3b',
-                950: '#022c22',
-              }
-            },
-            animation: {
-              'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
-              'fade-in': 'fadeIn 0.6s ease-out forwards',
-            },
-            keyframes: {
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(20px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-            },
-          }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Satoshi', 'system-ui', 'sans-serif'],
+                        'display': ['Satoshi', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        'krib': {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            300: '#6ee7b7',
+                            400: '#34d399',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                            950: '#022c22',
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                        'fade-in': 'fadeIn 0.6s ease-out forwards',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                    },
+                }
+            }
         }
-      }
     </script>
 
     <style>
-      /* Base */
-      body {
-        font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
-        -webkit-font-smoothing: antialiased;
-      }
+        /* Base */
+        body {
+            font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
 
-      /* Wordmark - using dotless i */
-      .wordmark {
-        font-weight: 800;
-        letter-spacing: -0.03em;
-      }
+        /* Wordmark - using dotless i */
+        .wordmark {
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
 
-      /* Glass navigation */
-      .glass-nav {
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-      }
+        /* Glass navigation */
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
 
-      /* Hero pattern */
-      .hero-pattern {
-        background-color: #ecfdf5;
-        background-image: 
-          radial-gradient(at 20% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
-          radial-gradient(at 80% 70%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-      }
+        /* Hero pattern */
+        .hero-pattern {
+            background-color: #ecfdf5;
+            background-image:
+                radial-gradient(at 20% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 50%),
+                radial-gradient(at 80% 70%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+        }
 
-      /* Animation delays */
-      .delay-100 { animation-delay: 0.1s; }
-      .delay-200 { animation-delay: 0.2s; }
-      .delay-300 { animation-delay: 0.3s; }
-      .delay-400 { animation-delay: 0.4s; }
+        /* Animation delays */
+        .delay-100 {
+            animation-delay: 0.1s;
+        }
 
-      /* Initially hidden for animation */
-      .animate-fade-in-up {
-        opacity: 0;
-      }
+        .delay-200 {
+            animation-delay: 0.2s;
+        }
 
-      /* Flywheel animation */
-      .flywheel-step {
-        transition: all 0.3s ease;
-      }
-      .flywheel-step:hover {
-        transform: translateY(-4px);
-      }
+        .delay-300 {
+            animation-delay: 0.3s;
+        }
+
+        .delay-400 {
+            animation-delay: 0.4s;
+        }
+
+        /* Initially hidden for animation */
+        .animate-fade-in-up {
+            opacity: 0;
+        }
+
+        /* Flywheel animation */
+        .flywheel-step {
+            transition: all 0.3s ease;
+        }
+
+        .flywheel-step:hover {
+            transform: translateY(-4px);
+        }
     </style>
 
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  </head>
+</head>
 
 <body class="bg-white text-slate-800 antialiased">
 
@@ -130,13 +146,20 @@
         <div class="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
             <!-- Logo: Text wordmark with dot above dotless i -->
             <a href="/" class="flex items-center">
-                <span class="text-2xl wordmark text-slate-900">kr<span class="relative text-slate-900">ı<span class="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full"></span></span>b</span>
+                <span class="text-2xl wordmark text-slate-900">kr<span class="relative text-slate-900">ı<span
+                            class="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-emerald-500 rounded-full"></span></span>b</span>
             </a>
-            
+
             <div class="flex items-center space-x-3">
-                <a href="/app?pro" class="text-sm font-semibold text-slate-600 hover:text-emerald-700 px-4 py-2 transition-colors">For Contractors</a>
-                <a href="/app" class="text-sm font-semibold text-slate-600 hover:text-emerald-700 px-4 py-2 transition-colors">Log In</a>
-                <a href="/app" class="text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-full shadow-lg shadow-emerald-600/20 transition-all hover:scale-105">Get Started Free</a>
+                <a href="/app?pro"
+                    class="text-sm font-semibold text-slate-600 hover:text-emerald-700 px-4 py-2 transition-colors">For
+                    Contractors</a>
+                <a href="/app"
+                    class="text-sm font-semibold text-slate-600 hover:text-emerald-700 px-4 py-2 transition-colors">Log
+                    In</a>
+                <a href="/app"
+                    class="text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-5 py-2.5 rounded-full shadow-lg shadow-emerald-600/20 transition-all hover:scale-105">Get
+                    Started Free</a>
             </div>
         </div>
     </nav>
@@ -146,28 +169,32 @@
     <!-- ============================================ -->
     <header class="hero-pattern pt-32 pb-20 md:pt-44 md:pb-32">
         <div class="max-w-6xl mx-auto px-6 text-center">
-            
-            <h1 class="text-5xl md:text-7xl font-extrabold text-slate-900 leading-tight mb-6 animate-fade-in-up tracking-tight">
+
+            <h1
+                class="text-5xl md:text-7xl font-extrabold text-slate-900 leading-tight mb-6 animate-fade-in-up tracking-tight">
                 Your Home's Complete History.<br class="hidden md:block" />
                 <span class="text-emerald-600">Built Automatically.</span>
             </h1>
-            
+
             <p class="text-lg md:text-xl text-slate-600 max-w-2xl mx-auto mb-10 animate-fade-in-up delay-100">
-                Every repair, every contractor, every detail — remembered forever. 
+                Every repair, every contractor, every detail — remembered forever.
                 Snap a receipt or finish a job, and Krib builds your home's permanent record.
             </p>
-            
+
             <!-- Dual CTA -->
             <div class="flex flex-col sm:flex-row justify-center items-center gap-4 animate-fade-in-up delay-200">
-                <a href="/app" class="w-full sm:w-auto text-center font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-full text-lg shadow-xl shadow-emerald-600/30 transition-all hover:scale-105">
+                <a href="/app"
+                    class="w-full sm:w-auto text-center font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-full text-lg shadow-xl shadow-emerald-600/30 transition-all hover:scale-105">
                     I'm a Homeowner
                 </a>
-                <a href="/app?pro" class="w-full sm:w-auto text-center font-bold text-emerald-700 bg-white hover:bg-emerald-50 px-8 py-4 rounded-full text-lg border-2 border-emerald-200 transition-all hover:scale-105">
+                <a href="/app?pro"
+                    class="w-full sm:w-auto text-center font-bold text-emerald-700 bg-white hover:bg-emerald-50 px-8 py-4 rounded-full text-lg border-2 border-emerald-200 transition-all hover:scale-105">
                     I'm a Contractor
                 </a>
             </div>
-            
-            <p class="text-sm text-slate-500 mt-6 animate-fade-in-up delay-300">Free forever. No credit card required.</p>
+
+            <p class="text-sm text-slate-500 mt-6 animate-fade-in-up delay-300">No monthly fee. No credit card required.
+            </p>
         </div>
     </header>
 
@@ -180,39 +207,48 @@
                 <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">How Krib Works</h2>
                 <p class="text-slate-500 max-w-xl mx-auto">Your home's history grows with every job — automatically.</p>
             </div>
-            
+
             <!-- Flywheel Steps -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <!-- Step 1 -->
                 <div class="flywheel-step bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
-                    <div class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">1</div>
+                    <div
+                        class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">
+                        1</div>
                     <h3 class="font-bold text-slate-900 mb-2">Work Gets Done</h3>
                     <p class="text-slate-600 text-sm">A contractor completes a job, or you snap a receipt</p>
                 </div>
-                
+
                 <!-- Step 2 -->
                 <div class="flywheel-step bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
-                    <div class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">2</div>
+                    <div
+                        class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">
+                        2</div>
                     <h3 class="font-bold text-slate-900 mb-2">Record Created</h3>
                     <p class="text-slate-600 text-sm">AI extracts warranty, model, and contractor info</p>
                 </div>
-                
+
                 <!-- Step 3 -->
                 <div class="flywheel-step bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
-                    <div class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">3</div>
+                    <div
+                        class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">
+                        3</div>
                     <h3 class="font-bold text-slate-900 mb-2">Get Reminded</h3>
                     <p class="text-slate-600 text-sm">Smart maintenance alerts when it's time to service</p>
                 </div>
-                
+
                 <!-- Step 4 -->
                 <div class="flywheel-step bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center">
-                    <div class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">4</div>
+                    <div
+                        class="bg-emerald-600 text-white h-10 w-10 rounded-full flex items-center justify-center mx-auto mb-4 font-bold">
+                        4</div>
                     <h3 class="font-bold text-slate-900 mb-2">Rebook in One Tap</h3>
                     <p class="text-slate-600 text-sm">Your contractor is saved — message them instantly</p>
                 </div>
             </div>
-            
-            <p class="text-center text-emerald-600 font-semibold text-sm">↻ And the cycle continues — your home gets smarter over time</p>
+
+            <p class="text-center text-emerald-600 font-semibold text-sm">↻ And the cycle continues — your home gets
+                smarter over time</p>
         </div>
     </section>
 
@@ -223,46 +259,64 @@
         <div class="max-w-6xl mx-auto px-6">
             <div class="text-center mb-16">
                 <span class="text-emerald-600 font-bold text-sm uppercase tracking-wider">For Homeowners</span>
-                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 tracking-tight mt-2">Finally know your home</h2>
-                <p class="text-slate-500 max-w-xl mx-auto">No more digging through drawers for warranties. No more forgetting who fixed what.</p>
+                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 tracking-tight mt-2">Finally know
+                    your home</h2>
+                <p class="text-slate-500 max-w-xl mx-auto">No more digging through drawers for warranties. No more
+                    forgetting who fixed what.</p>
             </div>
-            
+
             <div class="grid md:grid-cols-3 gap-8">
                 <!-- Feature 1: AI Scanning -->
-                <div class="bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1">
+                <div
+                    class="bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1">
                     <div class="bg-emerald-100 h-14 w-14 rounded-2xl flex items-center justify-center mb-6">
-                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
                         </svg>
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-2">Snap & Done</h3>
-                    <p class="text-slate-600 text-sm leading-relaxed">Take a photo of any receipt. Our AI extracts the warranty, model number, install date, and contractor — instantly.</p>
+                    <p class="text-slate-600 text-sm leading-relaxed">Take a photo of any receipt. Our AI extracts the
+                        warranty, model number, install date, and contractor — instantly.</p>
                 </div>
-                
+
                 <!-- Feature 2: Contractor Rolodex -->
-                <div class="bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1">
+                <div
+                    class="bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1">
                     <div class="bg-emerald-100 h-14 w-14 rounded-2xl flex items-center justify-center mb-6">
-                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
                         </svg>
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-2">Your Pro Network</h3>
-                    <p class="text-slate-600 text-sm leading-relaxed">Every contractor who works on your home is saved automatically. Need them again? One tap to message.</p>
+                    <p class="text-slate-600 text-sm leading-relaxed">Every contractor who works on your home is saved
+                        automatically. Need them again? One tap to message.</p>
                 </div>
-                
+
                 <!-- Feature 3: Krib Report -->
-                <a href="/pedigree_report.html" target="_blank" class="block bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1 group">
-                    <div class="bg-emerald-100 h-14 w-14 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                <a href="/pedigree_report.html" target="_blank"
+                    class="block bg-white p-8 rounded-3xl border border-slate-200 hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:-translate-y-1 group">
+                    <div
+                        class="bg-emerald-100 h-14 w-14 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="h-7 w-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                     </div>
                     <div class="flex items-center justify-between mb-2">
                         <h3 class="text-xl font-bold text-slate-900">Krib Report</h3>
-                        <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">View Sample</span>
+                        <span
+                            class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 group-hover:bg-emerald-600 group-hover:text-white transition-colors">View
+                            Sample</span>
                     </div>
-                    <p class="text-slate-600 text-sm leading-relaxed">Generate a beautiful PDF of your home's complete history. Perfect for selling, insurance claims, or peace of mind.</p>
+                    <p class="text-slate-600 text-sm leading-relaxed">Generate a beautiful PDF of your home's complete
+                        history. Perfect for selling, insurance claims, or peace of mind.</p>
                 </a>
             </div>
         </div>
@@ -275,64 +329,77 @@
         <div class="max-w-6xl mx-auto px-6">
             <div class="text-center mb-16">
                 <span class="text-emerald-600 font-bold text-sm uppercase tracking-wider">For Contractors</span>
-                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 tracking-tight mt-2">Free tools. Repeat customers.</h2>
-                <p class="text-slate-500 max-w-xl mx-auto">Professional quoting, scheduling, and invoicing — all free. Plus, every completed job means a customer who can rebook you in one tap.</p>
+                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 mb-4 tracking-tight mt-2">Free tools.
+                    Repeat customers.</h2>
+                <p class="text-slate-500 max-w-xl mx-auto">Professional quoting, scheduling, and invoicing — all free.
+                    Plus, every completed job means a customer who can rebook you in one tap.</p>
             </div>
-            
+
             <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Tool 1 -->
                 <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <div class="bg-white h-12 w-12 rounded-xl flex items-center justify-center mb-4 shadow-sm">
-                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
                     </div>
                     <h3 class="font-bold text-slate-900 mb-1">Quotes</h3>
                     <p class="text-slate-500 text-sm">Professional estimates in minutes</p>
                 </div>
-                
+
                 <!-- Tool 2 -->
                 <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <div class="bg-white h-12 w-12 rounded-xl flex items-center justify-center mb-4 shadow-sm">
-                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                         </svg>
                     </div>
                     <h3 class="font-bold text-slate-900 mb-1">Scheduling</h3>
                     <p class="text-slate-500 text-sm">Manage your calendar easily</p>
                 </div>
-                
+
                 <!-- Tool 3 -->
                 <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <div class="bg-white h-12 w-12 rounded-xl flex items-center justify-center mb-4 shadow-sm">
-                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
                         </svg>
                     </div>
                     <h3 class="font-bold text-slate-900 mb-1">Invoicing</h3>
                     <p class="text-slate-500 text-sm">Get paid faster with online payments</p>
                 </div>
-                
+
                 <!-- Tool 4 -->
                 <div class="bg-slate-50 p-6 rounded-2xl border border-slate-200">
                     <div class="bg-white h-12 w-12 rounded-xl flex items-center justify-center mb-4 shadow-sm">
-                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                        <svg class="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke-width="2"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                         </svg>
                     </div>
                     <h3 class="font-bold text-slate-900 mb-1">Messaging</h3>
                     <p class="text-slate-500 text-sm">Chat with customers in-app</p>
                 </div>
             </div>
-            
+
             <!-- The Value Prop -->
             <div class="mt-12 bg-emerald-50 rounded-3xl p-8 md:p-12 border border-emerald-100">
                 <div class="md:flex items-center justify-between">
                     <div class="mb-6 md:mb-0">
                         <h3 class="text-2xl font-bold text-slate-900 mb-2">The Krib difference for pros</h3>
-                        <p class="text-slate-600 max-w-lg">Every job you complete becomes a permanent record on your customer's home. When they need service again, you're one tap away — not lost in a pile of business cards.</p>
+                        <p class="text-slate-600 max-w-lg">Every job you complete becomes a permanent record on your
+                            customer's home. When they need service again, you're one tap away — not lost in a pile of
+                            business cards.</p>
                     </div>
-                    <a href="/app?pro" class="inline-block font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-full shadow-lg shadow-emerald-600/20 transition-all hover:scale-105">
+                    <a href="/app?pro"
+                        class="inline-block font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-8 py-4 rounded-full shadow-lg shadow-emerald-600/20 transition-all hover:scale-105">
                         Join Krib Pro — Free
                     </a>
                 </div>
@@ -345,8 +412,10 @@
     <!-- ============================================ -->
     <section class="py-16 bg-slate-50 border-y border-slate-100">
         <div class="max-w-4xl mx-auto px-6 text-center">
-            <p class="text-slate-400 text-sm uppercase tracking-wider font-semibold mb-4">Trusted by homeowners and contractors</p>
-            <p class="text-2xl md:text-3xl font-bold text-slate-900">"Finally, one place for everything about my home."</p>
+            <p class="text-slate-400 text-sm uppercase tracking-wider font-semibold mb-4">Trusted by homeowners and
+                contractors</p>
+            <p class="text-2xl md:text-3xl font-bold text-slate-900">"Finally, one place for everything about my home."
+            </p>
             <p class="text-slate-500 mt-2">— Happy Krib user</p>
         </div>
     </section>
@@ -357,19 +426,23 @@
     <section class="py-20 bg-emerald-950 relative overflow-hidden">
         <div class="absolute inset-0 opacity-10">
             <svg class="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <polygon points="0,100 100,0 100,100" fill="white"/>
+                <polygon points="0,100 100,0 100,100" fill="white" />
             </svg>
         </div>
-        
+
         <div class="max-w-4xl mx-auto px-6 text-center relative z-10">
-            <h2 class="text-3xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">Start building your home's history today</h2>
-            <p class="text-emerald-200 text-lg mb-10 max-w-xl mx-auto">It's free, it takes 2 minutes, and your future self will thank you.</p>
-            
+            <h2 class="text-3xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">Start building your home's
+                history today</h2>
+            <p class="text-emerald-200 text-lg mb-10 max-w-xl mx-auto">It's free, it takes 2 minutes, and your future
+                self will thank you.</p>
+
             <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
-                <a href="/app" class="w-full sm:w-auto text-center font-bold text-emerald-950 bg-white hover:bg-emerald-50 px-10 py-4 rounded-full text-lg shadow-xl transition-all hover:scale-105">
+                <a href="/app"
+                    class="w-full sm:w-auto text-center font-bold text-emerald-950 bg-white hover:bg-emerald-50 px-10 py-4 rounded-full text-lg shadow-xl transition-all hover:scale-105">
                     Create Your Krib
                 </a>
-                <a href="/app?pro" class="w-full sm:w-auto text-center font-bold text-white border-2 border-white/30 hover:bg-white/10 px-10 py-4 rounded-full text-lg transition-all hover:scale-105">
+                <a href="/app?pro"
+                    class="w-full sm:w-auto text-center font-bold text-white border-2 border-white/30 hover:bg-white/10 px-10 py-4 rounded-full text-lg transition-all hover:scale-105">
                     I'm a Contractor
                 </a>
             </div>
@@ -384,9 +457,10 @@
             <div class="flex flex-col md:flex-row justify-between items-center gap-6">
                 <!-- Logo -->
                 <div class="flex items-center">
-                    <span class="text-xl wordmark text-slate-900">kr<span class="relative text-slate-900">ı<span class="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full"></span></span>b</span>
+                    <span class="text-xl wordmark text-slate-900">kr<span class="relative text-slate-900">ı<span
+                                class="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 bg-emerald-500 rounded-full"></span></span>b</span>
                 </div>
-                
+
                 <!-- Links -->
                 <div class="flex items-center space-x-6 text-sm text-slate-500">
                     <a href="/app?pro" class="hover:text-emerald-700 transition-colors">For Contractors</a>
@@ -400,4 +474,5 @@
     </footer>
 
 </body>
+
 </html>

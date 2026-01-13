@@ -6,8 +6,8 @@
 // UPDATED: Use ISO time storage
 
 import React, { useState } from 'react';
-import { 
-    Calendar, Clock, CheckCircle, X, MapPin, 
+import {
+    Calendar, Clock, CheckCircle, X, MapPin,
     User, DollarSign, ArrowRight, AlertCircle
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -17,26 +17,26 @@ import toast from 'react-hot-toast';
 
 const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
+    return date.toLocaleDateString('en-US', {
         weekday: 'long',
-        month: 'long', 
-        day: 'numeric' 
+        month: 'long',
+        day: 'numeric'
     });
 };
 
 const formatTimeRange = (start, end) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
-    
-    const startTime = startDate.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
+
+    const startTime = startDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
         minute: '2-digit'
     });
-    const endTime = endDate.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
+    const endTime = endDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
         minute: '2-digit'
     });
-    
+
     return `${startTime} - ${endTime}`;
 };
 
@@ -55,13 +55,13 @@ const formatScheduledTime = (isoString) => {
     });
 };
 
-export const SlotPicker = ({ 
-    job, 
-    onClose, 
+export const SlotPicker = ({
+    job,
+    onClose,
     onSuccess,
-    onRequestNewTimes 
+    onRequestNewTimes
 }) => {
-    const [selectedSlotId, setSelectedSlotId] = useState(null);
+    const [selectedSlotIds, setSelectedSlotIds] = useState([]); // Changed to array for multi-selection
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const offeredSlots = job.scheduling?.offeredSlots?.filter(s => s.status === 'offered') || [];
@@ -69,74 +69,91 @@ export const SlotPicker = ({
 
     // Handle slot selection confirmation
     const handleConfirm = async () => {
-        if (!selectedSlotId) {
-            toast.error('Please select a time slot');
+        if (selectedSlotIds.length === 0) {
+            toast.error('Please select at least one time slot');
             return;
         }
 
-        const selectedSlot = offeredSlots.find(s => s.id === selectedSlotId);
-        if (!selectedSlot) return;
+        const selectedSlots = offeredSlots.filter(s => selectedSlotIds.includes(s.id));
+        if (selectedSlots.length === 0) return;
 
         setIsSubmitting(true);
         try {
-            // Update all slots - mark selected one, expire others
+            // Update all slots - mark selected ones, expire others
             const updatedSlots = job.scheduling.offeredSlots.map(slot => ({
                 ...slot,
-                status: slot.id === selectedSlotId ? 'selected' : 'expired'
+                status: selectedSlotIds.includes(slot.id) ? 'selected' : 'expired'
             }));
 
-            // Use consistent ISO strings
-            const startISO = new Date(selectedSlot.start).toISOString();
-            const endISO = new Date(selectedSlot.end).toISOString();
+            // For multiple slots, we'll store all of them
+            const confirmedSlots = selectedSlots.map(slot => ({
+                id: slot.id,
+                start: new Date(slot.start).toISOString(),
+                end: new Date(slot.end).toISOString()
+            }));
+
+            // Use the first slot's start time as the primary scheduledTime
+            const primarySlot = selectedSlots[0];
+            const startISO = new Date(primarySlot.start).toISOString();
+            const endISO = new Date(primarySlot.end).toISOString();
 
             await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
                 // Update scheduling object
                 'scheduling.offeredSlots': updatedSlots,
-                'scheduling.selectedSlotId': selectedSlotId,
+                'scheduling.selectedSlotIds': selectedSlotIds, // Array of selected IDs
                 'scheduling.selectedAt': serverTimestamp(),
-                'scheduling.confirmedSlot': {
+                'scheduling.confirmedSlots': confirmedSlots, // Array of all selected slots
+                'scheduling.confirmedSlot': { // Keep single slot for backward compatibility
                     start: startISO,
                     end: endISO
                 },
                 'scheduling.confirmedAt': serverTimestamp(),
-                
-                // Set the top-level scheduled fields for easier queries
+
+                // Set the top-level scheduled fields for easier queries (use first slot)
                 scheduledTime: startISO,
                 scheduledDate: startISO,
-                
+
                 // Update status
                 status: 'scheduled',
-                
+
                 lastActivity: serverTimestamp()
             });
 
-            toast.success('Appointment confirmed!');
-            
+            const successMessage = selectedSlotIds.length === 1
+                ? 'Appointment confirmed!'
+                : `${selectedSlotIds.length} appointments confirmed!`;
+            toast.success(successMessage);
+
             // Send email notification to customer (non-blocking)
             if (job.customer?.email) {
-                fetch('/api/send-job-scheduled', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        customerEmail: job.customer.email,
-                        customerName: job.customer.name || 'there',
-                        contractorName: job.contractorName || 'Your contractor',
-                        contractorPhone: job.contractorPhone || null,
-                        contractorEmail: job.contractorEmail || null,
-                        jobTitle: job.title || 'Service',
-                        jobNumber: job.jobNumber || null,
-                        scheduledDate: startISO,
-                        scheduledTime: new Date(startISO).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                        estimatedDuration: null,
-                        serviceAddress: job.serviceAddress?.formatted || job.customer?.address || null,
-                        notes: null,
-                        jobLink: 'https://mykrib.app/app/'
-                    })
-                }).then(res => {
-                    if (res.ok) console.log('[SlotPicker] Confirmation email sent');
-                }).catch(err => console.warn('[SlotPicker] Email error:', err));
+                // Send email for each selected slot
+                selectedSlots.forEach(slot => {
+                    const slotStartISO = new Date(slot.start).toISOString();
+
+                    fetch('/api/send-job-scheduled', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            customerEmail: job.customer.email,
+                            customerName: job.customer.name || 'there',
+                            contractorName: job.contractorName || 'Your contractor',
+                            contractorPhone: job.contractorPhone || null,
+                            contractorEmail: job.contractorEmail || null,
+                            jobTitle: job.title || 'Service',
+                            jobNumber: job.jobNumber || null,
+                            scheduledDate: slotStartISO,
+                            scheduledTime: new Date(slotStartISO).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                            estimatedDuration: null,
+                            serviceAddress: job.serviceAddress?.formatted || job.customer?.address || null,
+                            notes: selectedSlotIds.length > 1 ? `This is ${selectedSlots.indexOf(slot) + 1} of ${selectedSlotIds.length} scheduled appointments` : null,
+                            jobLink: 'https://mykrib.app/app/'
+                        })
+                    }).then(res => {
+                        if (res.ok) console.log('[SlotPicker] Confirmation email sent');
+                    }).catch(err => console.warn('[SlotPicker] Email error:', err));
+                });
             }
-            
+
             if (onSuccess) onSuccess();
             onClose();
         } catch (error) {
@@ -168,8 +185,13 @@ export const SlotPicker = ({
                         <Calendar className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div>
-                        <h3 className="font-bold text-slate-800">Pick a Time</h3>
-                        <p className="text-xs text-slate-500">Select the option that works best</p>
+                        <h3 className="font-bold text-slate-800">Pick Your Times</h3>
+                        <p className="text-xs text-slate-500">
+                            {selectedSlotIds.length === 0
+                                ? 'Select one or more time slots'
+                                : `${selectedSlotIds.length} slot${selectedSlotIds.length > 1 ? 's' : ''} selected`
+                            }
+                        </p>
                     </div>
                 </div>
             </div>
@@ -208,17 +230,23 @@ export const SlotPicker = ({
                 <p className="text-sm font-bold text-slate-700 mb-3">Available Times:</p>
                 <div className="space-y-2">
                     {offeredSlots.map(slot => {
-                        const isSelected = selectedSlotId === slot.id;
-                        
+                        const isSelected = selectedSlotIds.includes(slot.id);
+
                         return (
                             <button
                                 key={slot.id}
-                                onClick={() => setSelectedSlotId(slot.id)}
-                                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                                    isSelected
-                                        ? 'border-emerald-500 bg-emerald-50'
-                                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                                }`}
+                                onClick={() => {
+                                    // Toggle selection
+                                    if (isSelected) {
+                                        setSelectedSlotIds(selectedSlotIds.filter(id => id !== slot.id));
+                                    } else {
+                                        setSelectedSlotIds([...selectedSlotIds, slot.id]);
+                                    }
+                                }}
+                                className={`w-full p-4 rounded-xl border-2 text-left transition-all ${isSelected
+                                    ? 'border-emerald-500 bg-emerald-50'
+                                    : 'border-slate-200 hover:border-slate-300 bg-white'
+                                    }`}
                             >
                                 <div className="flex items-center justify-between">
                                     <div>
@@ -229,11 +257,10 @@ export const SlotPicker = ({
                                             {formatTimeRange(slot.start, slot.end)}
                                         </p>
                                     </div>
-                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                                        isSelected
-                                            ? 'border-emerald-500 bg-emerald-500'
-                                            : 'border-slate-300'
-                                    }`}>
+                                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center ${isSelected
+                                        ? 'border-emerald-500 bg-emerald-500'
+                                        : 'border-slate-300'
+                                        }`}>
                                         {isSelected && <CheckCircle size={14} className="text-white" />}
                                     </div>
                                 </div>
@@ -256,7 +283,7 @@ export const SlotPicker = ({
             <div className="p-4 border-t border-slate-100 bg-slate-50">
                 <button
                     onClick={handleConfirm}
-                    disabled={isSubmitting || !selectedSlotId}
+                    disabled={isSubmitting || selectedSlotIds.length === 0}
                     className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {isSubmitting ? (
@@ -267,7 +294,12 @@ export const SlotPicker = ({
                     ) : (
                         <>
                             <CheckCircle size={18} />
-                            Confirm Appointment
+                            {selectedSlotIds.length === 0
+                                ? 'Select Time Slots'
+                                : selectedSlotIds.length === 1
+                                    ? 'Confirm Appointment'
+                                    : `Confirm ${selectedSlotIds.length} Appointments`
+                            }
                         </>
                     )}
                 </button>

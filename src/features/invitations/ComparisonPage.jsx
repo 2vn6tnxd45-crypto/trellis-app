@@ -6,7 +6,7 @@
 // "free contractor software" "Jobber vs" etc.
 
 import React from 'react';
-import { 
+import {
     CheckCircle, X, ArrowRight,
     DollarSign, Users, Calendar, FileText,
     Receipt, MessageSquare, Camera, Clock,
@@ -22,9 +22,9 @@ const DetailedComparison = () => {
         {
             name: 'Pricing',
             features: [
-                { name: 'Monthly Cost', krib: 'Free forever', housecall: '$79 - $189/mo', jobber: '$39 - $249/mo' },
+                { name: 'Monthly Cost', krib: 'No monthly fee', housecall: '$79 - $189/mo', jobber: '$39 - $249/mo' },
                 { name: 'Per-User Fees', krib: 'None', housecall: '$40/user', jobber: '$29/user' },
-                { name: 'Free Trial', krib: 'N/A (always free)', housecall: '14 days', jobber: '14 days' },
+                { name: 'Free Trial', krib: 'N/A (no monthly fee)', housecall: '14 days', jobber: '14 days' },
                 { name: 'Hidden Fees', krib: 'None', housecall: 'Payment processing', jobber: 'Payment processing' },
             ]
         },
@@ -110,17 +110,17 @@ const DetailedComparison = () => {
 // ============================================
 const SavingsCalculator = () => {
     const [users, setUsers] = React.useState(1);
-    
+
     const housecallCost = 79 + (users > 1 ? (users - 1) * 40 : 0);
     const jobberCost = 39 + (users > 1 ? (users - 1) * 29 : 0);
     const avgCompetitorCost = Math.round((housecallCost + jobberCost) / 2);
     const yearlySavings = avgCompetitorCost * 12;
-    
+
     return (
         <div className="bg-gradient-to-br from-emerald-600 to-teal-600 rounded-2xl p-8 text-white">
             <h3 className="text-2xl font-bold mb-2">Calculate Your Savings</h3>
             <p className="text-emerald-100 mb-6">See how much you'd save by switching to Krib Pro</p>
-            
+
             <div className="bg-white/10 rounded-xl p-6 mb-6">
                 <label className="block text-emerald-100 text-sm mb-2">How many users do you need?</label>
                 <div className="flex items-center gap-4">
@@ -135,7 +135,7 @@ const SavingsCalculator = () => {
                     <span className="text-2xl font-bold w-12 text-center">{users}</span>
                 </div>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-emerald-200 text-sm">Housecall Pro</p>
@@ -146,7 +146,7 @@ const SavingsCalculator = () => {
                     <p className="text-2xl font-bold">${jobberCost}/mo</p>
                 </div>
             </div>
-            
+
             <div className="bg-white rounded-xl p-6 text-center">
                 <p className="text-slate-500 text-sm mb-1">Your yearly savings with Krib Pro</p>
                 <p className="text-4xl font-extrabold text-emerald-600">${yearlySavings.toLocaleString()}</p>
@@ -164,13 +164,13 @@ const SavingsCalculator = () => {
 // MAIN PAGE COMPONENT
 // ============================================
 export const ComparisonPage = () => {
-    
+
     const handleGetStarted = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('pro', 'dashboard');
         window.location.href = url.toString();
     };
-    
+
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
@@ -191,7 +191,7 @@ export const ComparisonPage = () => {
                     </button>
                 </div>
             </header>
-            
+
             {/* Hero */}
             <section className="bg-white py-16 md:py-24 border-b border-slate-200">
                 <div className="max-w-4xl mx-auto px-4 text-center">
@@ -200,8 +200,8 @@ export const ComparisonPage = () => {
                         <span className="text-emerald-600">Housecall Pro & Jobber</span>
                     </h1>
                     <p className="text-xl text-slate-600 mb-8 max-w-2xl mx-auto">
-                        Why pay $100+/month for contractor software? Krib Pro gives you quotes, 
-                        scheduling, invoicing, and customer management — completely free.
+                        Why pay $100+/month for contractor software? Krib Pro gives you quotes,
+                        scheduling, invoicing, and customer management — with no monthly fee.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <button
@@ -214,7 +214,7 @@ export const ComparisonPage = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Trust Signals */}
             <section className="bg-emerald-600 py-6">
                 <div className="max-w-6xl mx-auto px-4">
@@ -238,7 +238,7 @@ export const ComparisonPage = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Why Switch */}
             <section className="py-16 md:py-24">
                 <div className="max-w-6xl mx-auto px-4">
@@ -250,7 +250,7 @@ export const ComparisonPage = () => {
                             Same professional features. Zero monthly cost. Plus unique benefits you won't find anywhere else.
                         </p>
                     </div>
-                    
+
                     <div className="grid md:grid-cols-3 gap-8">
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow">
                             <div className="bg-emerald-100 text-emerald-600 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
@@ -258,36 +258,36 @@ export const ComparisonPage = () => {
                             </div>
                             <h3 className="font-bold text-slate-800 text-lg mb-2">Save $1,200+/year</h3>
                             <p className="text-slate-500">
-                                Stop paying monthly fees for basic tools. Krib Pro is free forever — 
+                                Stop paying monthly fees for basic tools. Krib Pro has no monthly fee —
                                 we make money other ways, never by charging you.
                             </p>
                         </div>
-                        
+
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow">
                             <div className="bg-blue-100 text-blue-600 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
                                 <Users size={24} />
                             </div>
                             <h3 className="font-bold text-slate-800 text-lg mb-2">Build Lifetime Relationships</h3>
                             <p className="text-slate-500">
-                                Every job you complete becomes part of your customer's home record. 
+                                Every job you complete becomes part of your customer's home record.
                                 When they need service again, you're already there.
                             </p>
                         </div>
-                        
+
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-shadow">
                             <div className="bg-purple-100 text-purple-600 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
                                 <Zap size={24} />
                             </div>
                             <h3 className="font-bold text-slate-800 text-lg mb-2">Get Started in 2 Minutes</h3>
                             <p className="text-slate-500">
-                                No complex setup. No training required. Sign up, create your first quote, 
+                                No complex setup. No training required. Sign up, create your first quote,
                                 and you're in business.
                             </p>
                         </div>
                     </div>
                 </div>
             </section>
-            
+
             {/* Detailed Comparison */}
             <section className="py-16 md:py-24 bg-white">
                 <div className="max-w-5xl mx-auto px-4">
@@ -299,11 +299,11 @@ export const ComparisonPage = () => {
                             See exactly what you get with each platform
                         </p>
                     </div>
-                    
+
                     <DetailedComparison />
                 </div>
             </section>
-            
+
             {/* Savings Calculator */}
             <section className="py-16 md:py-24">
                 <div className="max-w-4xl mx-auto px-4">
@@ -313,7 +313,7 @@ export const ComparisonPage = () => {
                                 See how much you'll save
                             </h2>
                             <p className="text-slate-500 mb-6">
-                                Most contractors save $500 to $2,000+ per year by switching to Krib Pro. 
+                                Most contractors save $500 to $2,000+ per year by switching to Krib Pro.
                                 The bigger your team, the more you save.
                             </p>
                             <ul className="space-y-3">
@@ -335,9 +335,9 @@ export const ComparisonPage = () => {
                     </div>
                 </div>
             </section>
-            
-        
-            
+
+
+
             {/* FAQ */}
             <section className="py-16 md:py-24">
                 <div className="max-w-3xl mx-auto px-4">
@@ -346,23 +346,23 @@ export const ComparisonPage = () => {
                             Common questions about switching
                         </h2>
                     </div>
-                    
+
                     <div className="space-y-6">
                         <div className="bg-white rounded-xl border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-800 mb-2">Can I import my data from Housecall Pro or Jobber?</h3>
                             <p className="text-slate-600">We're building import tools now. In the meantime, most contractors just start fresh — it only takes a few minutes to add your customers as you work with them.</p>
                         </div>
-                        
+
                         <div className="bg-white rounded-xl border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-800 mb-2">Why is Krib Pro free when others charge $50-200/month?</h3>
-                            <p className="text-slate-600">We make money through optional premium features and partnerships — not by charging you monthly fees for basic tools every contractor needs. The core platform will always be free.</p>
+                            <p className="text-slate-600">We make money through optional premium features and partnerships — not by charging you monthly fees for basic tools every contractor needs. The core platform won't have a monthly fee.</p>
                         </div>
-                        
+
                         <div className="bg-white rounded-xl border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-800 mb-2">Is Krib Pro really as good as the paid options?</h3>
                             <p className="text-slate-600">For most contractors, yes. We have quotes, scheduling, invoicing, customer management, and team dispatch. Some enterprise features are still coming, but for small to mid-size operations, you won't miss anything.</p>
                         </div>
-                        
+
                         <div className="bg-white rounded-xl border border-slate-200 p-6">
                             <h3 className="font-bold text-slate-800 mb-2">What's the catch?</h3>
                             <p className="text-slate-600">No catch. We want Krib to be on every job you complete. The more contractors using Krib, the more valuable our homeowner network becomes. That's our business model — not monthly fees.</p>
@@ -370,7 +370,7 @@ export const ComparisonPage = () => {
                     </div>
                 </div>
             </section>
-            
+
             {/* Final CTA */}
             <section className="bg-slate-900 text-white py-20">
                 <div className="max-w-4xl mx-auto px-4 text-center">
@@ -378,7 +378,7 @@ export const ComparisonPage = () => {
                         Ready to stop paying for contractor software?
                     </h2>
                     <p className="text-slate-400 text-lg mb-8">
-                        Join hundreds of contractors who've made the switch. Free forever.
+                        Join hundreds of contractors who've made the switch. No monthly fee.
                     </p>
                     <button
                         onClick={handleGetStarted}
@@ -391,7 +391,7 @@ export const ComparisonPage = () => {
                     </p>
                 </div>
             </section>
-            
+
             {/* Footer */}
             <footer className="bg-slate-950 text-slate-400 py-12">
                 <div className="max-w-6xl mx-auto px-4">
