@@ -129,8 +129,10 @@ export function PropertyProvider({ children, propertyProfile }) {
         const currentYear = new Date().getFullYear();
         const homeAge = propertyData.yearBuilt ? currentYear - propertyData.yearBuilt : null;
 
-        const pricePerSqft = propertyData.taxAssessment && propertyData.squareFootage
-            ? Math.round(propertyData.taxAssessment / propertyData.squareFootage)
+        // Use estimated value if available, fallback to tax assessment
+        const bestValue = propertyData.estimatedValue || propertyData.taxAssessment;
+        const pricePerSqft = bestValue && propertyData.squareFootage
+            ? Math.round(bestValue / propertyData.squareFootage)
             : null;
 
         // Generate dynamic room options based on property data
@@ -143,34 +145,112 @@ export function PropertyProvider({ children, propertyProfile }) {
         };
     }, [propertyData]);
 
-    // Context value
+    // Context value - expose ALL property data with elegant null fallbacks
     const value = useMemo(() => ({
-        // Raw data
+        // ============================================
+        // RAW DATA
+        // ============================================
         propertyData,
         floodData,
         loading,
         error,
-        
-        // Computed values
+
+        // ============================================
+        // COMPUTED VALUES
+        // ============================================
         pricePerSqft: computed.pricePerSqft,
         homeAge: computed.homeAge,
-        
-        // Dynamic room options
         roomOptions: computed.roomOptions,
-        
-        // Property features (convenient access)
-        bedrooms: propertyData?.bedrooms || null,
-        bathrooms: propertyData?.bathrooms || null,
-        squareFootage: propertyData?.squareFootage || null,
-        yearBuilt: propertyData?.yearBuilt || null,
-        hasGarage: propertyData?.features?.garage || false,
-        hasPool: propertyData?.features?.pool || false,
-        hasFireplace: propertyData?.features?.fireplace || false,
-        
-        // Source indicator
-        dataSource: propertyData?.source || null,
+
+        // ============================================
+        // BASIC PROPERTY INFO
+        // ============================================
+        bedrooms: propertyData?.bedrooms ?? null,
+        bathrooms: propertyData?.bathrooms ?? null,
+        squareFootage: propertyData?.squareFootage ?? null,
+        lotSize: propertyData?.lotSize ?? null,
+        yearBuilt: propertyData?.yearBuilt ?? null,
+        propertyType: propertyData?.propertyType ?? null,
+
+        // ============================================
+        // BUILDING DETAILS (NEW)
+        // ============================================
+        stories: propertyData?.stories ?? null,
+        roomCount: propertyData?.roomCount ?? null,
+        architectureType: propertyData?.architectureType ?? null,
+        foundationType: propertyData?.foundationType ?? null,
+        roofType: propertyData?.roofType ?? null,
+        exteriorType: propertyData?.exteriorType ?? null,
+        constructionType: propertyData?.constructionType ?? null,
+        quality: propertyData?.quality ?? null,
+        condition: propertyData?.condition ?? null,
+
+        // ============================================
+        // UTILITIES (NEW - Critical for contractors!)
+        // ============================================
+        waterSource: propertyData?.waterSource ?? null,
+        sewerType: propertyData?.sewerType ?? null,
+
+        // ============================================
+        // PARKING (NEW)
+        // ============================================
+        parkingType: propertyData?.parkingType ?? null,
+        parkingSpaces: propertyData?.parkingSpaces ?? null,
+        garageType: propertyData?.garageType ?? null,
+        garageSpaces: propertyData?.garageSpaces ?? null,
+
+        // ============================================
+        // FEATURES (Expanded)
+        // ============================================
+        hasGarage: !!(propertyData?.garageSpaces || propertyData?.parkingType === 'Garage'),
+        hasPool: !!propertyData?.features?.pool,
+        hasFireplace: !!propertyData?.features?.fireplace,
+        hasSpa: !!propertyData?.features?.spa,
+        coolingType: propertyData?.features?.coolingType ?? null,
+        heatingType: propertyData?.features?.heatingType ?? null,
+        poolType: propertyData?.features?.poolType ?? null,
+        features: propertyData?.features ?? {},
+
+        // ============================================
+        // OWNER INFORMATION (NEW)
+        // ============================================
+        ownerNames: propertyData?.ownerNames ?? [],
+        ownerType: propertyData?.ownerType ?? null,
+        ownerOccupied: propertyData?.ownerOccupied ?? null,
+
+        // ============================================
+        // FINANCIAL - VALUES (NEW)
+        // ============================================
+        estimatedValue: propertyData?.estimatedValue ?? null,
+        estimatedValueLow: propertyData?.estimatedValueLow ?? null,
+        estimatedValueHigh: propertyData?.estimatedValueHigh ?? null,
+        taxAssessment: propertyData?.taxAssessment ?? null,
+        lastSalePrice: propertyData?.lastSalePrice ?? null,
+        lastSaleDate: propertyData?.lastSaleDate ?? null,
+        rentEstimate: propertyData?.rentEstimate ?? null,
+        annualPropertyTax: propertyData?.annualPropertyTax ?? null,
+
+        // ============================================
+        // LEGAL (NEW)
+        // ============================================
+        zoning: propertyData?.zoning ?? null,
+        assessorID: propertyData?.assessorID ?? null,
+        subdivision: propertyData?.subdivision ?? null,
+
+        // ============================================
+        // HOA (Expanded)
+        // ============================================
+        hoaFee: propertyData?.hoaFee ?? null,
+        hoaFrequency: propertyData?.hoaFrequency ?? null,
+        hoaName: propertyData?.hoaName ?? null,
+
+        // ============================================
+        // SOURCE INDICATORS
+        // ============================================
+        dataSource: propertyData?.source ?? null,
         isRealData: propertyData?.source === 'rentcast',
-        isMockData: propertyData?.source === 'mock-data'
+        isMockData: propertyData?.source === 'mock-data',
+        fetchedAt: propertyData?.fetchedAt ?? null
     }), [propertyData, floodData, loading, error, computed]);
 
     return (
@@ -185,30 +265,94 @@ export function PropertyProvider({ children, propertyProfile }) {
  */
 export function useProperty() {
     const context = useContext(PropertyContext);
-    
+
     if (context === null) {
         // Return defaults if used outside provider (e.g., contractor invite page)
+        // All fields have null/empty fallbacks for elegant handling
         return {
+            // Raw data
             propertyData: null,
             floodData: null,
             loading: false,
             error: null,
+
+            // Computed
             pricePerSqft: null,
             homeAge: null,
             roomOptions: getDefaultRoomOptions(),
+
+            // Basic info
             bedrooms: null,
             bathrooms: null,
             squareFootage: null,
+            lotSize: null,
             yearBuilt: null,
+            propertyType: null,
+
+            // Building details
+            stories: null,
+            roomCount: null,
+            architectureType: null,
+            foundationType: null,
+            roofType: null,
+            exteriorType: null,
+            constructionType: null,
+            quality: null,
+            condition: null,
+
+            // Utilities
+            waterSource: null,
+            sewerType: null,
+
+            // Parking
+            parkingType: null,
+            parkingSpaces: null,
+            garageType: null,
+            garageSpaces: null,
+
+            // Features
             hasGarage: false,
             hasPool: false,
             hasFireplace: false,
+            hasSpa: false,
+            coolingType: null,
+            heatingType: null,
+            poolType: null,
+            features: {},
+
+            // Owner info
+            ownerNames: [],
+            ownerType: null,
+            ownerOccupied: null,
+
+            // Financial
+            estimatedValue: null,
+            estimatedValueLow: null,
+            estimatedValueHigh: null,
+            taxAssessment: null,
+            lastSalePrice: null,
+            lastSaleDate: null,
+            rentEstimate: null,
+            annualPropertyTax: null,
+
+            // Legal
+            zoning: null,
+            assessorID: null,
+            subdivision: null,
+
+            // HOA
+            hoaFee: null,
+            hoaFrequency: null,
+            hoaName: null,
+
+            // Source
             dataSource: null,
             isRealData: false,
-            isMockData: false
+            isMockData: false,
+            fetchedAt: null
         };
     }
-    
+
     return context;
 }
 
