@@ -70,10 +70,6 @@ const getDateKey = (date, timezone) => {
 // NOTE: calculateEventsForDate logic moved to efficient Map generation inside component
 // providing backward compat if needed, but intended to be replaced.
 
-
-// Backward compatibility alias
-const getJobsForDate = getEventsForDate;
-
 const getEventStatus = (event) => {
     // Handle evaluations
     if (event.type === 'evaluation') return 'evaluation';
