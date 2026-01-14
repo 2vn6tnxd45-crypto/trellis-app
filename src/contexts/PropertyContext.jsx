@@ -24,12 +24,27 @@ export function PropertyProvider({ children, propertyProfile }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Extract address from property profile
+    // Extract address from property profile - handle multiple formats
     const addressString = useMemo(() => {
         const address = propertyProfile?.address;
         if (!address) return null;
+
+        // If it's already a string, use it directly
         if (typeof address === 'string') return address;
-        const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
+
+        // Try common address formats
+        // 1. Formatted/full address (from Google Places or pre-formatted)
+        if (address.formatted) return address.formatted;
+        if (address.full) return address.full;
+        if (address.formattedAddress) return address.formattedAddress;
+
+        // 2. Standard fields (street, city, state, zip)
+        const street = address.street || address.line1 || address.addressLine1 || '';
+        const city = address.city || '';
+        const state = address.state || '';
+        const zip = address.zip || address.zipCode || address.postalCode || '';
+
+        const parts = [street, city, state, zip].filter(Boolean);
         return parts.length >= 3 ? parts.join(', ') : null;
     }, [propertyProfile?.address]);
 
