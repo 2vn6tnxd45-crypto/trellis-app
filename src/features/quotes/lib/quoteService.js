@@ -1,18 +1,18 @@
 // src/features/quotes/lib/quoteService.js
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
+import {
+    doc,
+    getDoc,
+    setDoc,
     updateDoc,
     deleteDoc,
     addDoc,
-    collection, 
-    query, 
-    where, 
-    orderBy, 
-    limit, 
-    getDocs, 
-    onSnapshot, 
+    collection,
+    query,
+    where,
+    orderBy,
+    limit,
+    getDocs,
+    onSnapshot,
     serverTimestamp,
     increment,
     writeBatch
@@ -58,22 +58,22 @@ export async function createQuote(contractorId, quoteData) {
     console.log('createQuote called:', contractorId);
     const quoteNumber = await generateQuoteNumber(contractorId);
     const year = new Date().getFullYear();
-    
+
     const subtotal = (quoteData.lineItems || []).reduce(
         (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0
     );
     const taxAmount = subtotal * ((quoteData.taxRate || 0) / 100);
     const total = subtotal + taxAmount;
-    
+
     let depositAmount = 0;
     if (quoteData.depositRequired) {
-        depositAmount = quoteData.depositType === 'percentage' 
+        depositAmount = quoteData.depositType === 'percentage'
             ? total * ((quoteData.depositValue || 0) / 100)
             : quoteData.depositValue || 0;
     }
 
     const quoteRef = doc(collection(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION));
-    
+
     // Extract inventory intents from line items that have "Add to Home Record" enabled
     const inventoryIntents = (quoteData.lineItems || [])
         .filter(item => item.addToHomeRecord && item.inventoryIntent)
@@ -117,7 +117,7 @@ export async function createQuote(contractorId, quoteData) {
         clientWarranty: quoteData.clientWarranty || '',
         terms: quoteData.terms || 'Quote valid for 14 days.',
         estimatedDuration: quoteData.estimatedDuration || '',
-        
+
         // FINANCING: Ready for future integration with GreenSky, Wisetack, Hearth, etc.
         financing: {
             offered: false,
@@ -130,7 +130,7 @@ export async function createQuote(contractorId, quoteData) {
             approvedAt: null,
             fundedAt: null
         },
-        
+
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         expiresAt: quoteData.expiresAt || null,
@@ -143,7 +143,7 @@ export async function createQuote(contractorId, quoteData) {
         convertedToInvoiceId: null,
         convertedToJobId: null
     });
-    
+
     return { success: true, quoteId: quoteRef.id, quoteNumber };
 }
 
@@ -191,33 +191,33 @@ export function subscribeToQuotes(contractorId, callback) {
 
 export async function sendQuote(contractorId, quoteId) {
     console.log('sendQuote called:', contractorId, quoteId);
-    
+
     // Get the quote data first
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
     const quoteSnap = await getDoc(quoteRef);
-    
+
     if (!quoteSnap.exists()) {
         throw new Error('Quote not found');
     }
-    
+
     const quote = quoteSnap.data();
-    
+
     // Get contractor profile for name/phone
     const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
     const contractorSnap = await getDoc(contractorRef);
     const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : null;
-    
+
     // Update quote status
     await updateDoc(quoteRef, {
         status: 'sent',
         sentAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     });
-    
+
     // Send email notification to customer (non-blocking)
     if (quote.customer?.email) {
         const quoteLink = `https://mykrib.app/app/?quote=${contractorId}_${quoteId}`;
-        
+
         fetch('/api/send-quote', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -244,7 +244,7 @@ export async function sendQuote(contractorId, quoteId) {
     } else {
         console.warn('[sendQuote] No customer email - skipping notification');
     }
-    
+
     return { success: true };
 }
 
@@ -265,52 +265,52 @@ export async function markQuoteViewed(contractorId, quoteId) {
 // ============================================
 export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
     const batch = writeBatch(db);
-    
+
     try {
         // STEP 1: Get the quote data
         const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
         const quoteSnap = await getDoc(quoteRef);
-        
+
         if (!quoteSnap.exists()) {
             throw new Error('Quote not found');
         }
-        
+
         const quote = quoteSnap.data();
-        
+
         // Prevent double-acceptance
         if (quote.status === 'accepted') {
             throw new Error('Quote has already been accepted');
         }
-        
+
         // STEP 2: Get Contractor Profile
         const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
         const contractorSnap = await getDoc(contractorRef);
         const contractorProfile = contractorSnap.exists() ? contractorSnap.data().profile : null;
-        
+
         // STEP 3: Create the Job
         const jobNumber = await generateJobNumber();
         const jobRef = doc(collection(db, REQUESTS_COLLECTION_PATH));
-        
+
         const jobData = {
             // Identity
             id: jobRef.id,
             jobNumber,
-            
+
             // Link to source
             sourceType: 'quote',
             sourceQuoteId: quoteId,
             sourceQuoteNumber: quote.quoteNumber,
-            
+
             // Contractor ownership
             contractorId,
             contractorName: contractorProfile?.companyName || contractorProfile?.displayName || 'Contractor',
             contractorPhone: contractorProfile?.phone || null,
             contractorEmail: contractorProfile?.email || null,
-            
+
             // Stripe info for payment processing on job completion
-            stripeAccountId: contractorSnap.exists() ? contractorSnap.data().stripe?.accountId : null,
-            stripeReady: contractorSnap.exists() ? (contractorSnap.data().stripe?.isComplete && contractorSnap.data().stripe?.chargesEnabled) : false,
-            
+            stripeAccountId: contractorSnap.exists() ? (contractorSnap.data().stripe?.accountId || null) : null,
+            stripeReady: contractorSnap.exists() ? Boolean(contractorSnap.data().stripe?.isComplete && contractorSnap.data().stripe?.chargesEnabled) : false,
+
             // Customer info (copied from quote)
             customer: {
                 name: quote.customer?.name || '',
@@ -320,29 +320,29 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             },
             customerId: quote.customerId || null,
             createdBy: quote.customerId || null,
-            
+
             // Service address
             serviceAddress: quote.customer?.address ? {
                 formatted: quote.customer.address,
                 street: quote.customer.address,
             } : null,
-            
+
             // Job details
             title: quote.title,
             description: quote.notes || '',
             lineItems: quote.lineItems || [],
-            
+
             // INVENTORY INTENTS: Items that will become home records on completion
             // These flow from Quote → Job → Completion → House Record
             inventoryIntents: quote.inventoryIntents || [],
-            
+
             // Financials
             // Financials
             subtotal: quote.subtotal || 0,
             taxRate: quote.taxRate || 0,
             taxAmount: quote.taxAmount || 0,
             total: quote.total || 0,
-            
+
             // Financing (carried from quote)
             financing: quote.financing || {
                 offered: false,
@@ -355,19 +355,19 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
                 approvedAt: null,
                 fundedAt: null
             },
-            
+
             // Status - PENDING_SCHEDULE so homeowner sees it in Active Projects
             status: JOB_STATUSES.PENDING_SCHEDULE,
-            
+
             // Scheduling (to be filled later)
             scheduledDate: null,
             scheduledTime: null,
             estimatedDuration: quote.estimatedDuration || null,
-            
+
             // Work tracking
             workNotes: [],
             attachments: [],
-            
+
             // Timestamps
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -376,14 +376,14 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             scheduledAt: null,
             startedAt: null,
             completedAt: null,
-            
+
             // Customer message on acceptance
             customerAcceptanceMessage: customerMessage || null
         };
-        
+
         batch.set(jobRef, jobData);
         console.log('Creating job with customerId:', quote.customerId, 'createdBy:', quote.customerId);
-        
+
         // STEP 4: Update the Quote
         batch.update(quoteRef, {
             status: 'accepted',
@@ -392,16 +392,16 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             convertedToJobId: jobRef.id,
             updatedAt: serverTimestamp()
         });
-        
+
         // STEP 5: Upsert Customer Record
-        const customerId = quote.customerId || 
-            (quote.customer?.email 
+        const customerId = quote.customerId ||
+            (quote.customer?.email
                 ? quote.customer.email.toLowerCase().replace(/[^a-z0-9]/g, '_')
                 : `customer_${Date.now()}`);
-        
+
         const customerRef = doc(db, CONTRACTORS_COLLECTION, contractorId, CUSTOMERS_SUBCOLLECTION, customerId);
         const customerSnap = await getDoc(customerRef);
-        
+
         if (customerSnap.exists()) {
             batch.update(customerRef, {
                 totalJobs: increment(1),
@@ -424,7 +424,7 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
                 updatedAt: serverTimestamp()
             });
         }
-        
+
         // STEP 6: Update Contractor Stats
         batch.update(contractorRef, {
             'profile.stats.acceptedQuotes': increment(1),
@@ -432,13 +432,13 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             'profile.stats.activeJobs': increment(1),
             updatedAt: serverTimestamp()
         });
-        
+
         // STEP 7: Commit the batch
         // STEP 7: Commit the batch
         await batch.commit();
-        
+
         console.log(`✅ Quote ${quoteId} accepted → Job ${jobRef.id} created`);
-        
+
         // STEP 8: Send email notification to contractor (non-blocking)
         if (contractorProfile?.email) {
             fetch('/api/send-quote-accepted', {
@@ -469,14 +469,14 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
         } else {
             console.warn('[acceptQuote] No contractor email - skipping notification');
         }
-        
-        return { 
-            success: true, 
+
+        return {
+            success: true,
             jobId: jobRef.id,
             jobNumber,
             customerId
         };
-        
+
     } catch (error) {
         console.error('Error accepting quote:', error);
         throw error;
@@ -580,17 +580,17 @@ export async function getQuoteStats(contractorId) {
 export async function getQuoteByShareToken(shareToken) {
     const [contractorId, quoteId] = shareToken.split('_');
     if (!contractorId || !quoteId) throw new Error('Invalid share token');
-    
+
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
     const quoteSnap = await getDoc(quoteRef);
     if (!quoteSnap.exists()) return null;
-    
+
     const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
     const contractorSnap = await getDoc(contractorRef);
-    
+
     // Get both profile and stripe data for payment processing
     const contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
-    
+
     return {
         quote: { id: quoteSnap.id, ...quoteSnap.data() },
         contractor: contractorData ? {
@@ -608,10 +608,10 @@ export function generateQuoteShareLink(contractorId, quoteId) {
 export async function claimQuote(contractorId, quoteId, userId, propertyId = null) {
     console.log('claimQuote called:', { contractorId, quoteId, userId, propertyId });
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
-    const updateData = { 
-        customerId: userId, 
-        claimedAt: serverTimestamp(), 
-        updatedAt: serverTimestamp() 
+    const updateData = {
+        customerId: userId,
+        claimedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
     };
     if (propertyId) updateData.propertyId = propertyId;
     await updateDoc(quoteRef, updateData);
@@ -640,16 +640,16 @@ export async function addContractorToProsList(userId, contractorData, quoteTitle
 
     try {
         const prosRef = collection(db, 'artifacts', appId, 'users', userId, 'pros');
-        
+
         // Check if this contractor already exists in pros list
         const existingQuery = query(prosRef, where('contractorId', '==', contractorData.contractorId));
         const existingSnap = await getDocs(existingQuery);
-        
+
         if (!existingSnap.empty) {
             console.log('Contractor already in pros list, skipping add');
             return { success: true, alreadyExists: true };
         }
-        
+
         // Add to pros list
         await addDoc(prosRef, {
             name: contractorData.companyName || contractorData.displayName || 'Contractor',
@@ -662,10 +662,10 @@ export async function addContractorToProsList(userId, contractorData, quoteTitle
             addedAt: serverTimestamp(),
             addedFrom: 'quote'
         });
-        
+
         console.log('✅ Contractor added to pros list:', contractorData.companyName);
         return { success: true, alreadyExists: false };
-        
+
     } catch (error) {
         console.warn('Could not add contractor to pros list:', error);
         return { success: false, error: error.message };
@@ -680,9 +680,9 @@ export async function addContractorToProsList(userId, contractorData, quoteTitle
  * This enables messaging before quote acceptance (negotiation).
  */
 export async function createQuoteChatChannel(
-    homeownerId, 
-    contractorId, 
-    contractorName, 
+    homeownerId,
+    contractorId,
+    contractorName,
     homeownerName,
     quoteId,
     quoteTitle
@@ -696,10 +696,10 @@ export async function createQuoteChatChannel(
         // Channel ID format: homeownerId_contractorId
         const channelId = `${homeownerId}_${contractorId}`;
         const channelRef = doc(db, 'channels', channelId);
-        
+
         // Check if channel already exists
         const channelSnap = await getDoc(channelRef);
-        
+
         const channelData = {
             channelId,
             participants: [homeownerId, contractorId],
@@ -712,12 +712,12 @@ export async function createQuoteChatChannel(
             createdAt: channelSnap.exists() ? channelSnap.data().createdAt : serverTimestamp(),
             updatedAt: serverTimestamp()
         };
-        
+
         await setDoc(channelRef, channelData, { merge: true });
-        
+
         console.log('✅ Chat channel created/updated:', channelId);
         return { success: true, channelId };
-        
+
     } catch (error) {
         console.warn('Could not create chat channel:', error);
         return { success: false, error: error.message };
