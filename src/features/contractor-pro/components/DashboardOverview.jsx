@@ -5,7 +5,7 @@
 // Main dashboard showing stats, recent activity, and quick actions
 // FIXED: Added defensive null checking for stats prop
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Users, FileText, TrendingUp, Clock, Plus,
     CheckCircle, AlertCircle, ChevronRight, Copy,
