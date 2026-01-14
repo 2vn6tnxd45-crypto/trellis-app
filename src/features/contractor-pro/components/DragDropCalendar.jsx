@@ -9,8 +9,9 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon, Globe
+    Navigation, Users as UsersIcon, Globe, RotateCcw
 } from 'lucide-react';
+import { isRecurringJob } from '../../recurring';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
@@ -114,9 +115,16 @@ const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
             <div className="flex items-start gap-2">
                 <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-slate-800 text-sm truncate">
-                        {job.title || job.description || 'Service'}
-                    </h4>
+                    <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-slate-800 text-sm truncate">
+                            {job.title || job.description || 'Service'}
+                        </h4>
+                        {isRecurringJob(job) && (
+                            <span className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded shrink-0">
+                                <RotateCcw size={8} />
+                            </span>
+                        )}
+                    </div>
                     <p className="text-xs text-slate-500 truncate">
                         {job.customer?.name || 'Customer'}
                     </p>
@@ -213,6 +221,11 @@ const TimeSlot = ({
                 >
                     <div className="flex items-center justify-between gap-1 mb-0.5">
                         <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
+                        {isRecurringJob(job) && (
+                            <span className="text-[9px] bg-white/30 px-1 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5">
+                                <RotateCcw size={8} />
+                            </span>
+                        )}
                         {job._multiDayInfo && (
                             <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold shrink-0">
                                 {job._multiDayInfo.label}

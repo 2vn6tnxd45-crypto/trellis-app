@@ -5,6 +5,15 @@ export const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 export const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/requests`;
 export const INVITATIONS_COLLECTION_PATH = `/artifacts/${appId}/public/data/invitations`;
 export const CONTRACTORS_COLLECTION_PATH = `/artifacts/${appId}/public/data/contractors`;
+export const RECURRING_SERVICES_PATH = `/artifacts/${appId}/public/data/recurringServices`;
+
+// Recurring service frequency options
+export const RECURRING_FREQUENCIES = [
+    { value: 'weekly', label: 'Weekly', days: 7 },
+    { value: 'biweekly', label: 'Every 2 weeks', days: 14 },
+    { value: 'monthly', label: 'Monthly', days: 30 },
+    { value: 'quarterly', label: 'Quarterly', days: 90 },
+];
 export const STANDARD_MAINTENANCE_ITEMS = [
     { category: "HVAC & Systems", item: "Replace HVAC Filters", maintenanceFrequency: "quarterly", tasks: ["Check filter size", "Replace if dirty", "Mark installation date"] },
     { category: "HVAC & Systems", item: "Clean AC Condenser Unit", maintenanceFrequency: "annual", tasks: ["Remove leaves/debris", "Spray down fins with water", "Check for damage"] },

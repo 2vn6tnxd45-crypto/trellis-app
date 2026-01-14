@@ -10,8 +10,9 @@ import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, Users, AlertCircle, CheckCircle, Sparkles,
     GripVertical, Filter, Eye, EyeOff, Loader2,
-    Video, ClipboardList, MoreHorizontal
+    Video, ClipboardList, MoreHorizontal, RotateCcw
 } from 'lucide-react';
+import { isRecurringJob } from '../../recurring';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
@@ -160,6 +161,7 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
     const styles = STATUS_STYLES[status];
     const isEvaluation = event.type === 'evaluation';
     const isMultiDay = event._multiDayInfo != null;
+    const isRecurring = isRecurringJob(event);
     const duration = event.duration || parseDurationToMinutes(event.estimatedDuration) || 60;
 
     return (
@@ -187,6 +189,11 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
                         <p className={`font-medium ${styles.text} text-xs truncate`}>
                             {formatTime(event.start || event.scheduledTime)}
                         </p>
+                        {isRecurring && (
+                            <span className="text-[9px] bg-emerald-200 text-emerald-700 px-1 py-0.5 rounded font-bold flex items-center gap-0.5">
+                                <RotateCcw size={8} />
+                            </span>
+                        )}
                         {isMultiDay && (
                             <span className="text-[9px] bg-indigo-200 text-indigo-700 px-1 py-0.5 rounded font-bold">
                                 {event._multiDayInfo.label}

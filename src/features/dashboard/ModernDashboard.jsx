@@ -39,6 +39,10 @@ import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
 // NEW: Job Completion Review
 import { JobCompletionReview } from '../jobs/components/completion';
 
+// NEW: Recurring Services
+import { useCustomerRecurringServices, RecurringServiceCard } from '../recurring';
+import { RotateCcw } from 'lucide-react';
+
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -763,6 +767,44 @@ const PendingEvaluationsSection = ({ userId }) => {
     );
 };
 
+// --- RECURRING SERVICES SECTION ---
+const RecurringServicesSection = ({ userId }) => {
+    const { services, activeServices, pausedServices, loading, error, skip, pause, resume } = useCustomerRecurringServices(userId);
+
+    if (loading) return null; // Don't show loading state for this section
+    if (services.length === 0) return null; // Don't show section if no recurring services
+
+    // Calculate summary for the section header
+    const getSummary = () => {
+        if (pausedServices.length > 0) {
+            return <span className="text-xs text-amber-600 font-bold">{pausedServices.length} paused</span>;
+        }
+        return <span className="text-xs text-emerald-600 font-bold">{activeServices.length} active</span>;
+    };
+
+    return (
+        <DashboardSection
+            title="Recurring Services"
+            icon={RotateCcw}
+            defaultOpen={true}
+            summary={getSummary()}
+        >
+            <div className="space-y-3">
+                {services.map(service => (
+                    <RecurringServiceCard
+                        key={service.id}
+                        service={service}
+                        variant="homeowner"
+                        onSkip={() => skip(service.id)}
+                        onPause={() => pause(service.id)}
+                        onResume={() => resume(service.id)}
+                    />
+                ))}
+            </div>
+        </DashboardSection>
+    );
+};
+
 // --- MAIN COMPONENT ---
 export const ModernDashboard = ({
     records = [],
@@ -896,6 +938,9 @@ export const ModernDashboard = ({
 
             {/* ACTIVE PROJECTS SECTION - First! (shows if user has any) */}
             <ActiveProjectsSection userId={userId} />
+
+            {/* RECURRING SERVICES SECTION (shows if user has any) */}
+            <RecurringServicesSection userId={userId} />
 
             {/* MY QUOTES SECTION (shows if user has any) */}
             <MyQuotesSection userId={userId} />

@@ -9,8 +9,9 @@ import {
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
     AlertTriangle, Wrench, Info, MessageSquare,
-    ClipboardCheck  // NEW: Added for completion review
+    ClipboardCheck, RotateCcw  // NEW: Added for completion review and recurring
 } from 'lucide-react';
+import { isRecurringJob } from '../recurring/lib/recurringService';
 
 // Status configuration
 const STATUS_CONFIG = {
@@ -204,9 +205,18 @@ export const HomeownerJobCard = ({
                 {/* Header Row */}
                 <div className="flex justify-between items-start mb-3">
                     <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-slate-800 truncate">
-                            {job.title || job.description || 'Service Request'}
-                        </h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-slate-800 truncate">
+                                {job.title || job.description || 'Service Request'}
+                            </h3>
+                            {/* Recurring Badge */}
+                            {isRecurringJob(job) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md shrink-0">
+                                    <RotateCcw size={10} />
+                                    Recurring
+                                </span>
+                            )}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                             <Building2 size={14} className="text-slate-400 shrink-0" />
                             <span className="text-sm text-slate-600 truncate">
