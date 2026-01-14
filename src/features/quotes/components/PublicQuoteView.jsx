@@ -39,6 +39,7 @@ import {
 import { QuoteAuthScreen } from './QuoteAuthScreen';
 import toast from 'react-hot-toast';
 import { createPaymentCheckout, formatCurrency as formatStripeCurrency } from '../../../lib/stripeService';
+import { parseAddressString, addressesMatch } from '../../../lib/addressUtils';
 
 // ============================================
 // HELPERS
@@ -56,72 +57,7 @@ const formatCurrency = (amount) => {
     }).format(amount || 0);
 };
 
-// Parse a formatted address string into components
-// Handles formats like "123 Main St, Springfield, IL 62701"
-const parseAddressString = (addressStr) => {
-    if (!addressStr || typeof addressStr !== 'string') {
-        return { street: '', city: '', state: '', zip: '' };
-    }
-
-    // Split by comma and clean up
-    const parts = addressStr.split(',').map(p => p.trim());
-
-    if (parts.length === 0) {
-        return { street: addressStr, city: '', state: '', zip: '' };
-    }
-
-    // First part is usually the street
-    const street = parts[0] || '';
-
-    // Second part is usually the city
-    const city = parts.length > 1 ? parts[1] : '';
-
-    // Third part usually contains "State ZIP" or just "State"
-    let state = '';
-    let zip = '';
-
-    if (parts.length > 2) {
-        const stateZip = parts[2].trim();
-        // Match pattern like "IL 62701" or "Illinois 62701"
-        const stateZipMatch = stateZip.match(/^([A-Za-z\s]+?)?\s*(\d{5}(?:-\d{4})?)?$/);
-        if (stateZipMatch) {
-            state = (stateZipMatch[1] || '').trim();
-            zip = (stateZipMatch[2] || '').trim();
-        } else {
-            state = stateZip;
-        }
-    }
-
-    // Handle case where ZIP is in a 4th part (e.g., "123 Main, City, State, 62701")
-    if (!zip && parts.length > 3) {
-        const possibleZip = parts[3].trim();
-        if (/^\d{5}(?:-\d{4})?$/.test(possibleZip)) {
-            zip = possibleZip;
-        }
-    }
-
-    return { street, city, state, zip };
-};
-
-// Check if two addresses are similar (fuzzy match)
-const addressesMatch = (addr1, addr2) => {
-    if (!addr1 || !addr2) return false;
-    
-    const normalize = (str) => {
-        if (!str) return '';
-        if (typeof str === 'object') {
-            str = str.street || str.formatted || '';
-        }
-        return str.toLowerCase()
-            .replace(/[^a-z0-9]/g, '')
-            .replace(/street|st|avenue|ave|road|rd|drive|dr|lane|ln|court|ct|boulevard|blvd/g, '');
-    };
-    
-    const n1 = normalize(addr1);
-    const n2 = normalize(addr2);
-    
-    return n1.includes(n2) || n2.includes(n1) || n1 === n2;
-};
+// parseAddressString and addressesMatch are now imported from lib/addressUtils
 
 // ============================================
 // LOADING STATE

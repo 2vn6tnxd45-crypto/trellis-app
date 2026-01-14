@@ -18,6 +18,7 @@ import {
     writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { parseAddressString } from '../../../lib/addressUtils';
 
 // HARDCODED to avoid circular dependency issues
 const appId = 'krib-app';
@@ -28,45 +29,6 @@ const QUOTE_TEMPLATES_SUBCOLLECTION = 'quoteTemplates';
 const CUSTOMERS_SUBCOLLECTION = 'customers';
 
 console.log('✅ quoteService.js loaded successfully');
-
-// Parse a formatted address string into components
-// Handles formats like "123 Main St, Springfield, IL 62701"
-const parseAddressString = (addressStr) => {
-    if (!addressStr || typeof addressStr !== 'string') {
-        return { street: '', city: '', state: '', zip: '' };
-    }
-
-    const parts = addressStr.split(',').map(p => p.trim());
-
-    if (parts.length === 0) {
-        return { street: addressStr, city: '', state: '', zip: '' };
-    }
-
-    const street = parts[0] || '';
-    const city = parts.length > 1 ? parts[1] : '';
-    let state = '';
-    let zip = '';
-
-    if (parts.length > 2) {
-        const stateZip = parts[2].trim();
-        const stateZipMatch = stateZip.match(/^([A-Za-z\s]+?)?\s*(\d{5}(?:-\d{4})?)?$/);
-        if (stateZipMatch) {
-            state = (stateZipMatch[1] || '').trim();
-            zip = (stateZipMatch[2] || '').trim();
-        } else {
-            state = stateZip;
-        }
-    }
-
-    if (!zip && parts.length > 3) {
-        const possibleZip = parts[3].trim();
-        if (/^\d{5}(?:-\d{4})?$/.test(possibleZip)) {
-            zip = possibleZip;
-        }
-    }
-
-    return { street, city, state, zip };
-};
 
 export const JOB_STATUSES = {
     PENDING_SCHEDULE: 'pending_schedule',

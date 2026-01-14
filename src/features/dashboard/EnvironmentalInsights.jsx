@@ -3,20 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { Map as MapIcon, Wind, Sun, ExternalLink, ShoppingBag, Loader2, AlertCircle } from 'lucide-react';
 import { googleMapsApiKey } from '../../config/constants';
 import { NeighborhoodData } from './NeighborhoodData';
+import { formatAddress } from '../../lib/addressUtils';
 
 const PropertyMap = ({ address }) => {
-    // Build query string, handling both object and string addresses gracefully
-    const buildMapQuery = () => {
-        if (!address) return "Home";
-        // If address is a string (legacy), use it directly
-        if (typeof address === 'string') return address;
-        // If it has a formatted field, use that
-        if (address.formatted) return address.formatted;
-        // Otherwise build from components, filtering out empty parts
-        const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
-        return parts.length > 0 ? parts.join(', ') : "Home";
-    };
-    const mapQuery = buildMapQuery();
+    // Use shared formatAddress utility which handles string, object, and empty addresses
+    const mapQuery = formatAddress(address) || "Home";
     const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(mapQuery)}`;
 
     return (
@@ -44,16 +35,8 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Build address query string for geocoding, handling various formats
-        const buildGeoQuery = () => {
-            if (!address) return null;
-            if (typeof address === 'string') return address;
-            if (address.formatted) return address.formatted;
-            const parts = [address.street, address.city, address.state].filter(Boolean);
-            return parts.length > 0 ? parts.join(', ') : null;
-        };
-
-        const geoQuery = buildGeoQuery();
+        // Use shared formatAddress utility for geocoding query
+        const geoQuery = formatAddress(address);
         if (!geoQuery && !coordinates?.lat) return;
 
         const fetchData = async () => {

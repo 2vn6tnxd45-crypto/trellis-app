@@ -15,6 +15,7 @@ import {
     MAX_RETRY_ATTEMPTS
 } from '../config/constants';
 import { calculateNextDate, removeUndefined } from '../lib/utils';
+import { normalizeAddress } from '../lib/addressUtils';
 import { Check, RotateCcw } from 'lucide-react';
 // NEW: Import Chat Service Logic for Badge Counts
 import { subscribeToGlobalUnreadCount } from '../lib/chatService';
@@ -369,17 +370,11 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
         // Firebase rejects undefined values, so we must clean them
         // =====================================================
 
-        // Helper to sanitize address specifically
+        // Helper to sanitize address - now uses shared normalizeAddress utility
+        // which handles both string and object addresses properly
         const sanitizeAddress = (addr) => {
-            if (!addr) return '';
-            if (typeof addr === 'string') return addr;
-            return {
-                street: addr.street || '',
-                city: addr.city || '',
-                state: addr.state || '',
-                zip: addr.zip || '',
-                placeId: addr.placeId || ''
-            };
+            if (!addr) return { street: '', city: '', state: '', zip: '' };
+            return normalizeAddress(addr);
         };
         
         // Retry logic for new user permission issues
