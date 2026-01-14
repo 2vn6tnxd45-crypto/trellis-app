@@ -24,15 +24,26 @@ export function PropertyProvider({ children, propertyProfile }) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Extract address from property profile - handle multiple formats
+    // Extract address from property profile - handle multiple formats and locations
     const addressString = useMemo(() => {
-        const address = propertyProfile?.address;
-        if (!address) return null;
+        console.log('[PropertyContext] Extracting address from:', JSON.stringify(propertyProfile, null, 2));
+
+        // Try multiple possible address locations
+        const address = propertyProfile?.address
+            || propertyProfile?.serviceAddress
+            || propertyProfile?.propertyAddress;
+
+        if (!address) {
+            // Maybe the address is stored as a top-level string field
+            if (propertyProfile?.formattedAddress) return propertyProfile.formattedAddress;
+            if (propertyProfile?.fullAddress) return propertyProfile.fullAddress;
+            return null;
+        }
 
         // If it's already a string, use it directly
         if (typeof address === 'string') return address;
 
-        // Try common address formats
+        // Try common address object formats
         // 1. Formatted/full address (from Google Places or pre-formatted)
         if (address.formatted) return address.formatted;
         if (address.full) return address.full;
@@ -46,9 +57,9 @@ export function PropertyProvider({ children, propertyProfile }) {
 
         const parts = [street, city, state, zip].filter(Boolean);
         return parts.length >= 3 ? parts.join(', ') : null;
-    }, [propertyProfile?.address]);
+    }, [propertyProfile]);
 
-    const coordinates = propertyProfile?.coordinates;
+    const coordinates = propertyProfile?.coordinates || propertyProfile?.serviceAddress?.coordinates;
 
     // Fetch property data
     useEffect(() => {
