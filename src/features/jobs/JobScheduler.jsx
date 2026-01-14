@@ -1,14 +1,16 @@
 // src/features/jobs/JobScheduler.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     Calendar, Clock, CheckCircle, XCircle, MessageSquare,
-    DollarSign, Send, AlertCircle, ChevronRight
+    DollarSign, Send, AlertCircle, ChevronRight, Trash2
 } from 'lucide-react';
 import { updateDoc, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
 import { SlotPicker } from './SlotPicker';
+import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarningModal';
+import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
 
 // Helper to format scheduled time with range (handles multi-day jobs)
 const formatScheduledTimeRange = (job) => {
@@ -54,13 +56,22 @@ const formatScheduledTimeRange = (job) => {
 };
 
 // ADD: contractorId prop to link the schedule to the specific pro
-export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
+// ADD: allJobs prop for cascade warning impact analysis
+export const JobScheduler = ({ job, userType, contractorId, allJobs = [], onUpdate, onClose }) => {
     // userType: 'homeowner' | 'contractor'
     const [isProposing, setIsProposing] = useState(false);
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
     const [estimateAmount, setEstimateAmount] = useState('');
     const [showEstimateInput, setShowEstimateInput] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
+
+    // Analyze cancellation impact for cascade warning
+    const cancellationImpact = useMemo(() => {
+        if (!job || userType !== 'contractor' || !job.scheduledTime) return null;
+        return analyzeCancellationImpact(job, allJobs);
+    }, [job, allJobs, userType]);
 
     // EDGE CASE: Handle null/undefined job
     if (!job) {
@@ -238,6 +249,38 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
         }
     };
 
+    // CONTRACTOR: Cancel job handler
+    const handleCancelJob = async () => {
+        if (isCancelling) return;
+        setIsCancelling(true);
+
+        try {
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+                status: 'cancelled',
+                cancellation: {
+                    cancelledAt: serverTimestamp(),
+                    cancelledBy: 'contractor',
+                    reason: 'Cancelled by contractor'
+                },
+                scheduledTime: null,
+                scheduledDate: null,
+                scheduledEndTime: null,
+                multiDaySchedule: null,
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Job cancelled');
+            setShowCancelConfirm(false);
+            if (onUpdate) onUpdate();
+            if (onClose) onClose();
+        } catch (error) {
+            console.error('Error cancelling job:', error);
+            toast.error('Failed to cancel job');
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
     // -- RENDER HELPERS --
 
     const renderTimeline = () => {
@@ -326,12 +369,25 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
             {/* Actions Area */}
             <div className="p-4 border-t border-slate-100 bg-white shrink-0">
                 {job.scheduledTime ? (
-                    <div className="flex items-center gap-2 text-emerald-800 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                        <CheckCircle size={24} className="text-emerald-600 shrink-0" />
-                        <div>
-                            <p className="font-bold">Appointment Confirmed</p>
-                            <p className="text-sm opacity-80">See you on {formatScheduledTimeRange(job)}</p>
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-emerald-800 bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                            <CheckCircle size={24} className="text-emerald-600 shrink-0" />
+                            <div>
+                                <p className="font-bold">Appointment Confirmed</p>
+                                <p className="text-sm opacity-80">See you on {formatScheduledTimeRange(job)}</p>
+                            </div>
                         </div>
+
+                        {/* Contractor Cancel Button */}
+                        {userType === 'contractor' && (
+                            <button
+                                onClick={() => setShowCancelConfirm(true)}
+                                className="w-full py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={16} />
+                                Cancel This Job
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="space-y-3">
@@ -412,6 +468,18 @@ export const JobScheduler = ({ job, userType, contractorId, onUpdate }) => {
                     </div>
                 )}
             </div>
+
+            {/* Cascade Warning Modal for Contractor Cancellations */}
+            {showCancelConfirm && cancellationImpact && (
+                <CascadeWarningModal
+                    impact={cancellationImpact}
+                    actionType="cancel"
+                    job={job}
+                    onConfirm={handleCancelJob}
+                    onCancel={() => setShowCancelConfirm(false)}
+                    isProcessing={isCancelling}
+                />
+            )}
         </div>
     );
 };

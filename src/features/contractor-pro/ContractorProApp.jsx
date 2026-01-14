@@ -2201,9 +2201,12 @@ export const ContractorProApp = () => {
                         <div className="p-4 overflow-y-auto flex-1">
                             <JobScheduler
                                 job={selectedJob}
+                                userType="contractor"
                                 contractorId={contractorId}
                                 contractorProfile={profile}
+                                allJobs={jobs}
                                 onClose={() => setSelectedJob(null)}
+                                onUpdate={() => setSelectedJob(null)}
                             />
                         </div>
                     </div>
