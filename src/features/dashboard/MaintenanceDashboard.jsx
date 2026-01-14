@@ -13,6 +13,18 @@ import { TaskCompletionModal } from '../../components/common/TaskCompletionModal
 
 // --- HELPER FUNCTIONS ---
 
+// Format date for timeline display
+const formatTimelineDate = (date) => {
+    const now = new Date();
+    const d = new Date(date);
+    const diffDays = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Tomorrow';
+    if (diffDays < 7) return d.toLocaleDateString('en-US', { weekday: 'short' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 const getNextServiceDate = (record) => {
     if (!record.dateInstalled || record.maintenanceFrequency === 'none') return null;
     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === record.maintenanceFrequency);
@@ -28,6 +40,116 @@ const getNextServiceDate = (record) => {
 const cleanPhoneForLink = (phone) => {
     if (!phone) return '';
     return phone.replace(/[^\d+]/g, '');
+};
+
+// --- NEW: Next 30 Days Timeline Strip ---
+const TimelineStrip = ({ tasks, onTaskClick }) => {
+    // Get tasks within next 30 days, sorted by date
+    const timelineTasks = useMemo(() => {
+        const now = new Date();
+        const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+        return tasks
+            .filter(t => {
+                const taskDate = t.nextDate || (t.scheduledDate ? new Date(t.scheduledDate) : null);
+                if (!taskDate) return false;
+                return taskDate >= now && taskDate <= thirtyDaysFromNow;
+            })
+            .sort((a, b) => {
+                const dateA = a.nextDate || new Date(a.scheduledDate);
+                const dateB = b.nextDate || new Date(b.scheduledDate);
+                return dateA - dateB;
+            })
+            .slice(0, 5); // Show max 5 tasks
+    }, [tasks]);
+
+    // Get overdue count
+    const overdueCount = tasks.filter(t => t.daysUntil < 0).length;
+
+    if (timelineTasks.length === 0 && overdueCount === 0) return null;
+
+    return (
+        <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-2xl p-4 mb-6 text-white overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                    <Calendar size={16} className="text-emerald-400" />
+                    <span className="text-sm font-bold">Next 30 Days</span>
+                </div>
+                {overdueCount > 0 && (
+                    <span className="text-xs font-bold bg-red-500 px-2 py-0.5 rounded-full">
+                        {overdueCount} overdue
+                    </span>
+                )}
+            </div>
+
+            {/* Timeline */}
+            {timelineTasks.length > 0 ? (
+                <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute top-3 left-0 right-0 h-0.5 bg-slate-600" />
+
+                    {/* Timeline items */}
+                    <div className="flex justify-between relative">
+                        {timelineTasks.map((task, index) => {
+                            const isScheduled = task.scheduledDate && new Date(task.scheduledDate) > new Date();
+                            const displayDate = isScheduled ? new Date(task.scheduledDate) : task.nextDate;
+
+                            return (
+                                <button
+                                    key={task.id}
+                                    onClick={() => onTaskClick && onTaskClick(task)}
+                                    className="flex flex-col items-center group relative"
+                                    style={{ flex: 1 }}
+                                >
+                                    {/* Dot */}
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${
+                                        isScheduled
+                                            ? 'bg-blue-500'
+                                            : task.daysUntil <= 7
+                                                ? 'bg-amber-500'
+                                                : 'bg-emerald-500'
+                                    }`}>
+                                        {isScheduled ? (
+                                            <CalendarClock size={12} />
+                                        ) : (
+                                            <Wrench size={12} />
+                                        )}
+                                    </div>
+
+                                    {/* Date label */}
+                                    <span className="text-[10px] font-bold mt-1.5 text-slate-300">
+                                        {formatTimelineDate(displayDate)}
+                                    </span>
+
+                                    {/* Task name (truncated) */}
+                                    <span className="text-[10px] text-slate-400 truncate max-w-[60px] text-center mt-0.5 group-hover:text-white transition-colors">
+                                        {task.taskName.split(' ')[0]}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : (
+                <div className="text-center py-2">
+                    <p className="text-sm text-slate-400">No tasks in the next 30 days</p>
+                </div>
+            )}
+
+            {/* Quick summary */}
+            {timelineTasks.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-600 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">
+                        {timelineTasks.length} task{timelineTasks.length !== 1 ? 's' : ''} coming up
+                    </span>
+                    <span className="text-emerald-400 font-medium">
+                        Next: {timelineTasks[0].taskName}
+                    </span>
+                </div>
+            )}
+        </div>
+    );
 };
 
 // --- NEW: Snooze Options Menu ---
@@ -304,13 +426,16 @@ const MaintenanceCard = ({
 
     return (
         <>
-            <div className={`p-4 rounded-2xl border ${
-                isScheduled 
-                    ? 'bg-blue-50 border-blue-100' 
-                    : isOverdue 
-                        ? 'bg-red-50 border-red-100' 
-                        : 'bg-white border-slate-100'
-            } transition-all hover:shadow-sm`}>
+            <div
+                id={`task-${task.id}`}
+                className={`p-4 rounded-2xl border transition-all hover:shadow-sm ${
+                    isScheduled
+                        ? 'bg-blue-50 border-blue-100'
+                        : isOverdue
+                            ? 'bg-red-50 border-red-100'
+                            : 'bg-white border-slate-100'
+                }`}
+            >
                 <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-3">
                         <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
@@ -756,6 +881,22 @@ export const MaintenanceDashboard = ({
                     </button>
                 </div>
             </div>
+
+            {/* Timeline Strip (shows upcoming tasks visually) */}
+            {viewMode === 'upcoming' && allActiveTasks.length > 0 && (
+                <TimelineStrip
+                    tasks={allActiveTasks}
+                    onTaskClick={(task) => {
+                        // Scroll to the task or highlight it
+                        const element = document.getElementById(`task-${task.id}`);
+                        if (element) {
+                            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            element.classList.add('ring-2', 'ring-emerald-500');
+                            setTimeout(() => element.classList.remove('ring-2', 'ring-emerald-500'), 2000);
+                        }
+                    }}
+                />
+            )}
 
             {/* UPCOMING VIEW */}
             {viewMode === 'upcoming' ? (

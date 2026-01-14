@@ -383,7 +383,7 @@ export const CreateEvaluationRequest = ({
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Job Description *
+                                    What's the issue? *
                                 </label>
                                 <textarea
                                     value={formData.jobDescription}
@@ -392,8 +392,11 @@ export const CreateEvaluationRequest = ({
                                     className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
                                         errors.jobDescription ? 'border-red-300 bg-red-50' : 'border-gray-300'
                                     }`}
-                                    placeholder="Describe what the customer needs..."
+                                    placeholder="Briefly describe what the customer told you (e.g., 'AC not cooling, making loud noise when running')"
                                 />
+                                <p className="text-xs text-gray-400 mt-1">
+                                    This helps the customer understand what info you need from them
+                                </p>
                                 {errors.jobDescription && (
                                     <p className="text-red-500 text-xs mt-1">{errors.jobDescription}</p>
                                 )}
