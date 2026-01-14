@@ -19,6 +19,7 @@ import {
     ChevronDown, ChevronRight, Receipt, Camera,
     Check, AlertCircle, Loader2, Download
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../../../lib/utils';
 
@@ -58,7 +59,7 @@ const formatDate = (dateStr) => {
 const getDateRange = (filterId) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    
+
     switch (filterId) {
         case 'this_week': {
             const start = new Date(now);
@@ -111,9 +112,8 @@ const StatCard = ({ icon: Icon, label, value, subValue, color = 'emerald', trend
                     <Icon size={20} />
                 </div>
                 {trend !== undefined && (
-                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                        trend >= 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
-                    }`}>
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${trend >= 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                        }`}>
                         {trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                         {Math.abs(trend).toFixed(0)}%
                     </div>
@@ -170,11 +170,11 @@ const CategoryBreakdown = ({ expenses, stats }) => {
                                     <span className="text-sm font-bold text-slate-800">{formatCurrency(cat.amount)}</span>
                                 </div>
                                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div 
+                                    <div
                                         className="h-full rounded-full transition-all duration-500"
-                                        style={{ 
+                                        style={{
                                             width: `${cat.percentage}%`,
-                                            backgroundColor: cat.color 
+                                            backgroundColor: cat.color
                                         }}
                                     />
                                 </div>
@@ -208,13 +208,12 @@ const JobProfitCard = ({ job, expenses }) => {
                     <p className="font-bold text-slate-800 truncate">{job.title || 'Job'}</p>
                     <p className="text-sm text-slate-500">{job.customer?.name || 'Customer'}</p>
                 </div>
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    isProfit ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                }`}>
+                <span className={`text-xs font-bold px-2 py-1 rounded-full ${isProfit ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                    }`}>
                     {profitMargin.toFixed(0)}% margin
                 </span>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-slate-50 rounded-lg p-2">
                     <p className="text-xs text-slate-500">Revenue</p>
@@ -352,11 +351,10 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
                                         key={cat.id}
                                         type="button"
                                         onClick={() => setFormData({ ...formData, category: cat.id })}
-                                        className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${
-                                            isSelected 
-                                                ? 'border-emerald-500 bg-emerald-50' 
+                                        className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${isSelected
+                                                ? 'border-emerald-500 bg-emerald-50'
                                                 : 'border-slate-200 hover:border-slate-300'
-                                        }`}
+                                            }`}
                                     >
                                         <Icon size={18} style={{ color: cat.color }} />
                                         <span className="text-xs font-medium text-slate-600 truncate w-full text-center">
@@ -387,18 +385,17 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
                         <label className="block text-sm font-bold text-slate-700 mb-1">
                             Link to Job (optional)
                         </label>
-                        <select
+                        <Select
                             value={formData.jobId}
-                            onChange={(e) => setFormData({ ...formData, jobId: e.target.value })}
-                            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
-                        >
-                            <option value="">-- General Business Expense --</option>
-                            {jobs?.map(job => (
-                                <option key={job.id} value={job.id}>
-                                    {job.title || 'Job'} - {job.customer?.name || 'Customer'}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => setFormData({ ...formData, jobId: val })}
+                            options={[
+                                { value: '', label: '-- General Business Expense --' },
+                                ...(jobs || []).map(job => ({
+                                    value: job.id,
+                                    label: `${job.title || 'Job'} - ${job.customer?.name || 'Customer'}`
+                                }))
+                            ]}
+                        />
                         <p className="text-xs text-slate-400 mt-1">
                             Link to a job to track profit margins
                         </p>
@@ -571,7 +568,7 @@ export const ExpenseTracker = ({
         // Search
         if (searchQuery) {
             const query = searchQuery.toLowerCase();
-            result = result.filter(e => 
+            result = result.filter(e =>
                 e.description?.toLowerCase().includes(query) ||
                 e.vendor?.toLowerCase().includes(query)
             );
@@ -584,11 +581,11 @@ export const ExpenseTracker = ({
     const stats = useMemo(() => {
         const total = filteredExpenses.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
         const byCategory = {};
-        
+
         EXPENSE_CATEGORIES.forEach(cat => {
             byCategory[cat.id] = 0;
         });
-        
+
         filteredExpenses.forEach(e => {
             const cat = e.category || 'other';
             byCategory[cat] = (byCategory[cat] || 0) + (parseFloat(e.amount) || 0);
@@ -711,21 +708,19 @@ export const ExpenseTracker = ({
                 <div className="flex bg-slate-100 rounded-xl p-1">
                     <button
                         onClick={() => setViewMode('expenses')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            viewMode === 'expenses'
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'expenses'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
-                        }`}
+                            }`}
                     >
                         Expenses
                     </button>
                     <button
                         onClick={() => setViewMode('profits')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            viewMode === 'profits'
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'profits'
                                 ? 'bg-white text-slate-800 shadow-sm'
                                 : 'text-slate-500 hover:text-slate-700'
-                        }`}
+                            }`}
                     >
                         Job Profits
                     </button>
@@ -765,9 +760,8 @@ export const ExpenseTracker = ({
                                             setTimeFilter(filter.id);
                                             setShowFilters(false);
                                         }}
-                                        className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                                            timeFilter === filter.id ? 'text-emerald-600 font-medium bg-emerald-50' : 'text-slate-600'
-                                        }`}
+                                        className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${timeFilter === filter.id ? 'text-emerald-600 font-medium bg-emerald-50' : 'text-slate-600'
+                                            }`}
                                     >
                                         {filter.label}
                                     </button>
@@ -778,16 +772,16 @@ export const ExpenseTracker = ({
                 </div>
 
                 {/* Category Filter */}
-                <select
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-700 hover:border-emerald-300 outline-none"
-                >
-                    <option value="all">All Categories</option>
-                    {EXPENSE_CATEGORIES.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.label}</option>
-                    ))}
-                </select>
+                <div className="w-48">
+                    <Select
+                        value={categoryFilter}
+                        onChange={(val) => setCategoryFilter(val)}
+                        options={[
+                            { value: 'all', label: 'All Categories' },
+                            ...EXPENSE_CATEGORIES.map(cat => ({ value: cat.id, label: cat.label }))
+                        ]}
+                    />
+                </div>
             </div>
 
             {/* Content */}
@@ -827,10 +821,10 @@ export const ExpenseTracker = ({
                     ) : (
                         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {stats.jobsWithExpenses.map(job => (
-                                <JobProfitCard 
-                                    key={job.id} 
-                                    job={job} 
-                                    expenses={filteredExpenses} 
+                                <JobProfitCard
+                                    key={job.id}
+                                    job={job}
+                                    expenses={filteredExpenses}
                                 />
                             ))}
                         </div>

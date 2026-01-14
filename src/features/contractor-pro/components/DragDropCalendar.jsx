@@ -11,6 +11,7 @@ import {
     User, GripVertical, Check, X, AlertCircle, Sparkles,
     Navigation, Users as UsersIcon, Globe, RotateCcw
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -372,37 +373,33 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                 {/* Time Selection */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
-                    <select
+                    <Select
                         value={selectedTime}
-                        onChange={(e) => setSelectedTime(e.target.value)}
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                        {timeOptions.map(t => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setSelectedTime(val)}
+                        options={timeOptions}
+                    />
                 </div>
 
                 {/* Duration */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
-                    <select
+                    <Select
                         value={duration}
-                        onChange={(e) => setDuration(parseInt(e.target.value))}
-                        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                    >
-                        <option value={30}>30 minutes</option>
-                        <option value={60}>1 hour</option>
-                        <option value={90}>1.5 hours</option>
-                        <option value={120}>2 hours</option>
-                        <option value={180}>3 hours</option>
-                        <option value={240}>4 hours</option>
-                        <option value={480}>Full day (8 hours)</option>
-                        <option value={960}>2 days</option>
-                        <option value={1440}>3 days</option>
-                        <option value={1920}>4 days</option>
-                        <option value={2400}>5 days</option>
-                    </select>
+                        onChange={(val) => setDuration(parseInt(val))}
+                        options={[
+                            { value: 30, label: '30 minutes' },
+                            { value: 60, label: '1 hour' },
+                            { value: 90, label: '1.5 hours' },
+                            { value: 120, label: '2 hours' },
+                            { value: 180, label: '3 hours' },
+                            { value: 240, label: '4 hours' },
+                            { value: 480, label: 'Full day (8 hours)' },
+                            { value: 960, label: '2 days' },
+                            { value: 1440, label: '3 days' },
+                            { value: 1920, label: '4 days' },
+                            { value: 2400, label: '5 days' }
+                        ]}
+                    />
                 </div>
 
                 {/* Multi-day info */}
@@ -428,18 +425,17 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Assign To
                         </label>
-                        <select
+                        <Select
                             value={selectedTech}
-                            onChange={(e) => setSelectedTech(e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        >
-                            <option value="">Unassigned</option>
-                            {teamMembers.map(member => (
-                                <option key={member.id} value={member.id}>
-                                    {member.name} ({member.role})
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => setSelectedTech(val)}
+                            options={[
+                                { value: '', label: 'Unassigned' },
+                                ...teamMembers.map(member => ({
+                                    value: member.id,
+                                    label: `${member.name} (${member.role})`
+                                }))
+                            ]}
+                        />
                     </div>
                 )}
 

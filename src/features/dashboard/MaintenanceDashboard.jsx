@@ -917,7 +917,7 @@ export const MaintenanceDashboard = ({
     title = "Maintenance",  // Customizable title with default
     userId  // NEW: Required for photo uploads in TaskCompletionModal
 }) => {
-    const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'calendar' | 'history'
+    const [viewMode, setViewMode] = useState('calendar'); // 'upcoming' | 'calendar' | 'history'
     const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
     const [showSuggestions, setShowSuggestions] = useState(false);
 

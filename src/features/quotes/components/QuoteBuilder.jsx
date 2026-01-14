@@ -11,6 +11,7 @@ import {
     Link as LinkIcon, Sparkles, Copy, Printer, MapPin, AlertCircle, Shield, Info, Users, Timer,
     Home, CheckSquare, Square
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import toast from 'react-hot-toast';
 
 // REMOVED: import { estimateDuration } from '../lib/durationEstimator';
@@ -445,15 +446,12 @@ const LineItemsSection = ({
                                             </button>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <select
+                                            <Select
                                                 value={item.type}
-                                                onChange={(e) => updateItem(item.id, 'type', e.target.value)}
+                                                onChange={(val) => updateItem(item.id, 'type', val)}
+                                                options={LINE_ITEM_TYPES}
                                                 className={`px-2 py-1 text-xs font-medium rounded ${itemType.color} border-0 focus:ring-2 focus:ring-emerald-500`}
-                                            >
-                                                {LINE_ITEM_TYPES.map(t => (
-                                                    <option key={t.value} value={t.value}>{t.label}</option>
-                                                ))}
-                                            </select>
+                                            />
                                         </td>
                                         <td className="px-4 py-3">
                                             <input
@@ -619,10 +617,10 @@ const LineItemsSection = ({
                                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                                 <div>
                                                                     <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
-                                                                    <select
+                                                                    <Select
                                                                         value={item.inventoryIntent?.category || 'Other'}
-                                                                        onChange={(e) => {
-                                                                            const newCategory = e.target.value;
+                                                                        onChange={(val) => {
+                                                                            const newCategory = val;
                                                                             const newTasks = getDefaultMaintenanceTasks(newCategory);
                                                                             updateItem(item.id, 'inventoryIntent', {
                                                                                 ...item.inventoryIntent,
@@ -630,19 +628,19 @@ const LineItemsSection = ({
                                                                                 maintenanceTasks: newTasks
                                                                             });
                                                                         }}
-                                                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                                                    >
-                                                                        <option value="HVAC & Systems">HVAC & Systems</option>
-                                                                        <option value="Plumbing">Plumbing</option>
-                                                                        <option value="Electrical">Electrical</option>
-                                                                        <option value="Appliances">Appliances</option>
-                                                                        <option value="Roof & Exterior">Roof & Exterior</option>
-                                                                        <option value="Interior">Interior</option>
-                                                                        <option value="Safety">Safety</option>
-                                                                        <option value="Landscaping">Landscaping</option>
-                                                                        <option value="Service & Repairs">Service & Repairs</option>
-                                                                        <option value="Other">Other</option>
-                                                                    </select>
+                                                                        options={[
+                                                                            { value: 'HVAC & Systems', label: 'HVAC & Systems' },
+                                                                            { value: 'Plumbing', label: 'Plumbing' },
+                                                                            { value: 'Electrical', label: 'Electrical' },
+                                                                            { value: 'Appliances', label: 'Appliances' },
+                                                                            { value: 'Roof & Exterior', label: 'Roof & Exterior' },
+                                                                            { value: 'Interior', label: 'Interior' },
+                                                                            { value: 'Safety', label: 'Safety' },
+                                                                            { value: 'Landscaping', label: 'Landscaping' },
+                                                                            { value: 'Service & Repairs', label: 'Service & Repairs' },
+                                                                            { value: 'Other', label: 'Other' }
+                                                                        ]}
+                                                                    />
                                                                 </div>
                                                                 <div>
                                                                     <label className="text-[10px] font-bold text-slate-500 uppercase">Room/Area</label>
@@ -719,14 +717,14 @@ const LineItemsSection = ({
                     {depositRequired && (
                         <div className="mt-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100 space-y-3">
                             <div className="flex items-center gap-2">
-                                <select
+                                <Select
                                     value={depositType}
-                                    onChange={(e) => onDepositChange('depositType', e.target.value)}
-                                    className="px-2 py-1 border border-slate-200 rounded-lg text-sm"
-                                >
-                                    <option value="percentage">Percentage</option>
-                                    <option value="fixed">Fixed Amount</option>
-                                </select>
+                                    onChange={(val) => onDepositChange('depositType', val)}
+                                    options={[
+                                        { value: 'percentage', label: 'Percentage' },
+                                        { value: 'fixed', label: 'Fixed Amount' }
+                                    ]}
+                                />
                                 <span className="text-sm text-slate-600">
                                     {depositType === 'percentage' ? 'Percent:' : 'Amount:'}
                                 </span>

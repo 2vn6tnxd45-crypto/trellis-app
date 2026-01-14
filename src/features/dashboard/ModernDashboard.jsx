@@ -609,10 +609,15 @@ const ActiveProjectsSectionInline = ({ userId }) => {
 const MyQuotesSection = ({ userId, onCountChange }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
 
+    // Filter out accepted/declined quotes - they become jobs in ActiveProjectsSection
+    const activeQuotes = quotes.filter(q =>
+        !['accepted', 'declined', 'expired', 'cancelled'].includes(q.status)
+    );
+
     // Report count to parent for smart hierarchy
     useEffect(() => {
-        if (onCountChange && !loading) onCountChange(quotes.length);
-    }, [quotes.length, loading, onCountChange]);
+        if (onCountChange && !loading) onCountChange(activeQuotes.length);
+    }, [activeQuotes.length, loading, onCountChange]);
 
     const handleDelete = async (e, quote) => {
         e.preventDefault();
@@ -628,14 +633,14 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
         }
     };
 
-    if (loading || (!quotes.length && error !== 'missing-index')) return null;
+    if (loading || (!activeQuotes.length && error !== 'missing-index')) return null;
 
     return (
         <DashboardSection
             title="My Quotes & Estimates"
             icon={FileText}
             defaultOpen={true}
-            summary={<span className="text-xs text-emerald-600 font-bold">{quotes.length} Active</span>}
+            summary={<span className="text-xs text-emerald-600 font-bold">{activeQuotes.length} Active</span>}
         >
             {error === 'missing-index' ? (
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
@@ -648,7 +653,7 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                 </div>
             ) : (
                 <div className="grid gap-3 md:grid-cols-2">
-                    {quotes.map(quote => (
+                    {activeQuotes.map(quote => (
                         <a
                             key={quote.id}
                             href={`/app/?quote=${quote.contractorId}_${quote.id}`}

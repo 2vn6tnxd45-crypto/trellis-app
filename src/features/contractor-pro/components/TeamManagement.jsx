@@ -12,6 +12,7 @@ import {
     ChevronDown, ChevronUp, CheckCircle, AlertCircle,
     User, Phone, Mail, Palette
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import toast from 'react-hot-toast';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -45,7 +46,7 @@ const DEFAULT_HOURS = {
 };
 
 const COLORS = [
-    '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', 
+    '#10B981', '#3B82F6', '#8B5CF6', '#EC4899',
     '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'
 ];
 
@@ -70,11 +71,11 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
         defaultBufferMinutes: tech?.defaultBufferMinutes || 30,
         workingHours: tech?.workingHours || { ...DEFAULT_HOURS }
     });
-    
+
     const [activeTab, setActiveTab] = useState('basic');
     const [newSkill, setNewSkill] = useState('');
     const [newCert, setNewCert] = useState('');
-    
+
     const handleSave = () => {
         if (!formData.name.trim()) {
             toast.error('Name is required');
@@ -82,7 +83,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
         }
         onSave(formData);
     };
-    
+
     const toggleSkill = (skill) => {
         setFormData(prev => ({
             ...prev,
@@ -91,7 +92,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                 : [...prev.skills, skill]
         }));
     };
-    
+
     const addCustomSkill = () => {
         if (newSkill.trim() && !formData.skills.includes(newSkill.trim())) {
             setFormData(prev => ({
@@ -101,7 +102,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
             setNewSkill('');
         }
     };
-    
+
     const toggleCert = (cert) => {
         setFormData(prev => ({
             ...prev,
@@ -110,7 +111,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                 : [...prev.certifications, cert]
         }));
     };
-    
+
     const updateHours = (day, field, value) => {
         setFormData(prev => ({
             ...prev,
@@ -123,7 +124,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
             }
         }));
     };
-    
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -137,7 +138,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                         <X size={20} />
                     </button>
                 </div>
-                
+
                 {/* Tabs */}
                 <div className="flex border-b border-slate-100 shrink-0">
                     {[
@@ -149,18 +150,17 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
-                                activeTab === tab.id
+                            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${activeTab === tab.id
                                     ? 'text-emerald-600 border-b-2 border-emerald-600'
                                     : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                                }`}
                         >
                             <tab.icon size={16} />
                             {tab.label}
                         </button>
                     ))}
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-4">
                     {/* Basic Info Tab */}
@@ -175,9 +175,8 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                             <button
                                                 key={color}
                                                 onClick={() => setFormData(prev => ({ ...prev, color }))}
-                                                className={`w-8 h-8 rounded-full transition-transform ${
-                                                    formData.color === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
-                                                }`}
+                                                className={`w-8 h-8 rounded-full transition-transform ${formData.color === color ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : ''
+                                                    }`}
                                                 style={{ backgroundColor: color }}
                                             />
                                         ))}
@@ -194,7 +193,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                     />
                                 </div>
                             </div>
-                            
+
                             {/* Contact */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -224,22 +223,22 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                     </div>
                                 </div>
                             </div>
-                            
+
                             {/* Role */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Role</label>
-                                <select
+                                <Select
                                     value={formData.role}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
-                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                                >
-                                    <option value="technician">Technician</option>
-                                    <option value="senior_tech">Senior Technician</option>
-                                    <option value="lead">Team Lead</option>
-                                    <option value="apprentice">Apprentice</option>
-                                </select>
+                                    onChange={(val) => setFormData(prev => ({ ...prev, role: val }))}
+                                    options={[
+                                        { value: 'technician', label: 'Technician' },
+                                        { value: 'senior_tech', label: 'Senior Technician' },
+                                        { value: 'lead', label: 'Team Lead' },
+                                        { value: 'apprentice', label: 'Apprentice' }
+                                    ]}
+                                />
                             </div>
-                            
+
                             {/* Location */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -270,7 +269,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Skills Tab */}
                     {activeTab === 'skills' && (
                         <div className="space-y-6">
@@ -282,17 +281,16 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                         <button
                                             key={skill}
                                             onClick={() => toggleSkill(skill)}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                formData.skills.includes(skill)
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${formData.skills.includes(skill)
                                                     ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-300'
                                                     : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:border-slate-300'
-                                            }`}
+                                                }`}
                                         >
                                             {skill}
                                         </button>
                                     ))}
                                 </div>
-                                
+
                                 {/* Custom skill */}
                                 <div className="flex gap-2">
                                     <input
@@ -310,7 +308,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                         <Plus size={16} />
                                     </button>
                                 </div>
-                                
+
                                 {/* Custom skills list */}
                                 {formData.skills.filter(s => !SKILL_OPTIONS.includes(s)).length > 0 && (
                                     <div className="mt-2 flex flex-wrap gap-2">
@@ -325,7 +323,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* Certifications */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Certifications</label>
@@ -334,11 +332,10 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                         <button
                                             key={cert}
                                             onClick={() => toggleCert(cert)}
-                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                formData.certifications.includes(cert)
+                                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${formData.certifications.includes(cert)
                                                     ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
                                                     : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:border-slate-300'
-                                            }`}
+                                                }`}
                                         >
                                             {cert}
                                         </button>
@@ -347,20 +344,19 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Schedule Tab */}
                     {activeTab === 'schedule' && (
                         <div className="space-y-3">
                             <p className="text-sm text-slate-500 mb-4">
                                 Set individual working hours. Leave disabled for days off.
                             </p>
-                            
+
                             {Object.entries(formData.workingHours).map(([day, hours]) => (
-                                <div 
-                                    key={day} 
-                                    className={`flex items-center gap-4 p-3 rounded-xl transition-colors ${
-                                        hours.enabled ? 'bg-emerald-50' : 'bg-slate-50'
-                                    }`}
+                                <div
+                                    key={day}
+                                    className={`flex items-center gap-4 p-3 rounded-xl transition-colors ${hours.enabled ? 'bg-emerald-50' : 'bg-slate-50'
+                                        }`}
                                 >
                                     <label className="flex items-center gap-3 cursor-pointer">
                                         <input
@@ -373,7 +369,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                             {day}
                                         </span>
                                     </label>
-                                    
+
                                     {hours.enabled && (
                                         <div className="flex items-center gap-2">
                                             <input
@@ -395,7 +391,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                             ))}
                         </div>
                     )}
-                    
+
                     {/* Capacity Tab */}
                     {activeTab === 'capacity' && (
                         <div className="space-y-6">
@@ -412,7 +408,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                     />
                                     <p className="text-xs text-slate-400 mt-1">Maximum jobs to assign per day</p>
                                 </div>
-                                
+
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Max Hours per Day</label>
                                     <input
@@ -426,7 +422,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                     <p className="text-xs text-slate-400 mt-1">Total work hours limit</p>
                                 </div>
                             </div>
-                            
+
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Buffer Between Jobs (minutes)</label>
                                 <input
@@ -443,7 +439,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                         </div>
                     )}
                 </div>
-                
+
                 {/* Footer */}
                 <div className="p-4 border-t border-slate-100 flex gap-3 shrink-0">
                     <button
@@ -471,23 +467,23 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
 
 const TechCard = ({ tech, onEdit, onDelete }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    
+
     const workDays = Object.entries(tech.workingHours || {})
         .filter(([_, h]) => h.enabled)
         .map(([day]) => day.substring(0, 3))
         .join(', ');
-    
+
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start gap-3">
                 {/* Avatar */}
-                <div 
+                <div
                     className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0"
                     style={{ backgroundColor: tech.color || '#10B981' }}
                 >
                     {tech.name?.charAt(0) || 'T'}
                 </div>
-                
+
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -496,7 +492,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                             {tech.role?.replace('_', ' ') || 'Technician'}
                         </span>
                     </div>
-                    
+
                     {/* Skills preview */}
                     {tech.skills?.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -510,7 +506,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                             )}
                         </div>
                     )}
-                    
+
                     {/* Capacity */}
                     <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
@@ -529,7 +525,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                         )}
                     </div>
                 </div>
-                
+
                 {/* Actions */}
                 <div className="flex gap-1">
                     <button
@@ -546,7 +542,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                     </button>
                 </div>
             </div>
-            
+
             {/* Delete confirmation */}
             {showDeleteConfirm && (
                 <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -583,34 +579,34 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
     const [editingTech, setEditingTech] = useState(null);
     const [isAddingNew, setIsAddingNew] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    
+
     // Sync with props
     useEffect(() => {
         setMembers(teamMembers);
     }, [teamMembers]);
-    
+
     const handleSaveTech = async (techData) => {
         setIsSaving(true);
         try {
             let updatedMembers;
-            
+
             if (editingTech) {
                 // Update existing
-                updatedMembers = members.map(m => 
+                updatedMembers = members.map(m =>
                     m.id === techData.id ? techData : m
                 );
             } else {
                 // Add new
                 updatedMembers = [...members, techData];
             }
-            
+
             // Save to Firestore
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId);
             await updateDoc(contractorRef, {
                 'scheduling.teamMembers': updatedMembers,
                 updatedAt: serverTimestamp()
             });
-            
+
             setMembers(updatedMembers);
             setEditingTech(null);
             setIsAddingNew(false);
@@ -623,17 +619,17 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
             setIsSaving(false);
         }
     };
-    
+
     const handleDeleteTech = async (techId) => {
         try {
             const updatedMembers = members.filter(m => m.id !== techId);
-            
+
             const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId);
             await updateDoc(contractorRef, {
                 'scheduling.teamMembers': updatedMembers,
                 updatedAt: serverTimestamp()
             });
-            
+
             setMembers(updatedMembers);
             toast.success('Team member removed');
             onUpdate?.(updatedMembers);
@@ -642,7 +638,7 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
             toast.error('Failed to delete');
         }
     };
-    
+
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -664,7 +660,7 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
                     Add Tech
                 </button>
             </div>
-            
+
             {/* Team List */}
             {members.length === 0 ? (
                 <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
@@ -692,7 +688,7 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
                     ))}
                 </div>
             )}
-            
+
             {/* Editor Modal */}
             {(editingTech || isAddingNew) && (
                 <TechEditorModal

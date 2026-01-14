@@ -10,6 +10,7 @@ import {
     ChevronDown, ChevronUp, Save, Info, Building2,
     Plus, Trash2, Check, FileText, Globe
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
@@ -47,7 +48,7 @@ for (let h = 6; h <= 21; h++) {
 // Section wrapper with collapse
 const SettingsSection = ({ title, icon: Icon, children, defaultOpen = true, badge }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
-    
+
     return (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <button
@@ -94,7 +95,7 @@ const AIInsightBanner = ({ completionPercent }) => (
                         <span className="font-bold">{completionPercent}%</span>
                     </div>
                     <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                        <div 
+                        <div
                             className="h-full bg-white rounded-full transition-all duration-500"
                             style={{ width: `${completionPercent}%` }}
                         />
@@ -130,13 +131,13 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         defaultTaxRate: profile?.scheduling?.defaultTaxRate !== undefined ? profile?.scheduling?.defaultTaxRate : 8.75,
         defaultDepositType: profile?.scheduling?.defaultDepositType || 'percentage',
         defaultDepositValue: profile?.scheduling?.defaultDepositValue !== undefined ? profile?.scheduling?.defaultDepositValue : 15,
-        
+
         // Home base
         homeBase: profile?.scheduling?.homeBase || {
             address: profile?.profile?.address || '',
             // coordinates would be added via geocoding
         },
-        
+
         // Team members (if not solo)
         teamMembers: profile?.scheduling?.teamMembers || []
     });
@@ -172,10 +173,10 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                     if (place.formatted_address && place.geometry?.location) {
                         const lat = place.geometry.location.lat();
                         const lng = place.geometry.location.lng();
-                        
-                        setSettings(s => ({ 
-                            ...s, 
-                            homeBase: { 
+
+                        setSettings(s => ({
+                            ...s,
+                            homeBase: {
                                 address: place.formatted_address,
                                 coordinates: { lat, lng } // Save exact coordinates
                             }
@@ -194,7 +195,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
     const calculateCompleteness = () => {
         let score = 0;
         let total = 8; // Increased total to account for quote defaults
-        
+
         if (settings.teamType) score++;
         if (settings.teamSize > 0) score++;
         if (settings.vehicles > 0) score++;
@@ -203,7 +204,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         if (Object.values(settings.workingHours).some(d => d.enabled)) score++;
         if (settings.bufferMinutes >= 0) score++;
         if (settings.defaultLaborWarranty || settings.defaultTaxRate) score++; // Bonus for quote defaults
-        
+
         return Math.round((score / total) * 100);
     };
 
@@ -212,12 +213,12 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         try {
             const COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
             const contractorRef = doc(db, COLLECTION, contractorId);
-            
+
             await updateDoc(contractorRef, {
                 'scheduling': settings,
                 'updatedAt': serverTimestamp()
             });
-            
+
             toast.success('Settings saved!');
             if (onUpdate) onUpdate(settings);
         } catch (error) {
@@ -250,7 +251,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                     id: `member_${Date.now()}`,
                     name: '',
                     role: 'technician',
-                    color: `#${Math.floor(Math.random()*16777215).toString(16)}`
+                    color: `#${Math.floor(Math.random() * 16777215).toString(16)}`
                 }
             ]
         }));
@@ -259,7 +260,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
     const updateTeamMember = (id, field, value) => {
         setSettings(prev => ({
             ...prev,
-            teamMembers: prev.teamMembers.map(m => 
+            teamMembers: prev.teamMembers.map(m =>
                 m.id === id ? { ...m, [field]: value } : m
             )
         }));
@@ -292,11 +293,10 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => setSettings(s => ({ ...s, teamType: 'solo', teamSize: 1 }))}
-                                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                                    settings.teamType === 'solo'
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${settings.teamType === 'solo'
                                         ? 'border-emerald-500 bg-emerald-50'
                                         : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <Users size={18} className={settings.teamType === 'solo' ? 'text-emerald-600' : 'text-slate-400'} />
@@ -306,11 +306,10 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             </button>
                             <button
                                 onClick={() => setSettings(s => ({ ...s, teamType: 'team' }))}
-                                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                                    settings.teamType === 'team'
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${settings.teamType === 'team'
                                         ? 'border-emerald-500 bg-emerald-50'
                                         : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 <div className="flex items-center gap-2 mb-1">
                                     <Users size={18} className={settings.teamType === 'team' ? 'text-emerald-600' : 'text-slate-400'} />
@@ -327,29 +326,27 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 {settings.teamType === 'solo' ? 'Technicians' : 'Team Size'}
                             </label>
-                            <select
+                            <Select
                                 value={settings.teamSize}
-                                onChange={(e) => setSettings(s => ({ ...s, teamSize: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                {[1,2,3,4,5,6,7,8,9,10,15,20,25,30].map(n => (
-                                    <option key={n} value={n}>{n} {n === 1 ? 'person' : 'people'}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, teamSize: parseInt(val) }))}
+                                options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30].map(n => ({
+                                    value: n,
+                                    label: `${n} ${n === 1 ? 'person' : 'people'}`
+                                }))}
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 Service Vehicles
                             </label>
-                            <select
+                            <Select
                                 value={settings.vehicles}
-                                onChange={(e) => setSettings(s => ({ ...s, vehicles: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                                    <option key={n} value={n}>{n} {n === 1 ? 'vehicle' : 'vehicles'}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, vehicles: parseInt(val) }))}
+                                options={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({
+                                    value: n,
+                                    label: `${n} ${n === 1 ? 'vehicle' : 'vehicles'}`
+                                }))}
+                            />
                         </div>
                     </div>
 
@@ -370,7 +367,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             <div className="space-y-2">
                                 {settings.teamMembers.map(member => (
                                     <div key={member.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg">
-                                        <div 
+                                        <div
                                             className="w-3 h-3 rounded-full shrink-0"
                                             style={{ backgroundColor: member.color }}
                                         />
@@ -381,15 +378,17 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                                             placeholder="Name"
                                             className="flex-1 px-2 py-1 text-sm border border-slate-200 rounded-lg"
                                         />
-                                        <select
-                                            value={member.role}
-                                            onChange={(e) => updateTeamMember(member.id, 'role', e.target.value)}
-                                            className="px-2 py-1 text-sm border border-slate-200 rounded-lg"
-                                        >
-                                            <option value="technician">Technician</option>
-                                            <option value="lead">Lead Tech</option>
-                                            <option value="apprentice">Apprentice</option>
-                                        </select>
+                                        <div className="w-32">
+                                            <Select
+                                                value={member.role}
+                                                onChange={(val) => updateTeamMember(member.id, 'role', val)}
+                                                options={[
+                                                    { value: 'technician', label: 'Technician' },
+                                                    { value: 'lead', label: 'Lead Tech' },
+                                                    { value: 'apprentice', label: 'Apprentice' }
+                                                ]}
+                                            />
+                                        </div>
                                         <button
                                             onClick={() => removeTeamMember(member.id)}
                                             className="p-1 text-slate-400 hover:text-red-500"
@@ -411,7 +410,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                     <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-xl">
                         <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
                         <p className="text-xs text-blue-700">
-                            Team size and vehicles help us suggest optimal scheduling. 
+                            Team size and vehicles help us suggest optimal scheduling.
                             With 2 vehicles, we can suggest parallel jobs in different areas.
                         </p>
                     </div>
@@ -435,36 +434,29 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                         <div key={day} className="flex items-center gap-3">
                             <button
                                 onClick={() => updateWorkingHours(day, 'enabled', !settings.workingHours[day]?.enabled)}
-                                className={`w-12 text-xs font-bold py-1.5 rounded-lg transition-colors ${
-                                    settings.workingHours[day]?.enabled
+                                className={`w-12 text-xs font-bold py-1.5 rounded-lg transition-colors ${settings.workingHours[day]?.enabled
                                         ? 'bg-emerald-100 text-emerald-700'
                                         : 'bg-slate-100 text-slate-400'
-                                }`}
+                                    }`}
                             >
                                 {DAY_LABELS[idx]}
                             </button>
-                            
+
                             {settings.workingHours[day]?.enabled ? (
                                 <div className="flex items-center gap-2 flex-1">
-                                    <select
+                                    <Select
                                         value={settings.workingHours[day]?.start || '08:00'}
-                                        onChange={(e) => updateWorkingHours(day, 'start', e.target.value)}
-                                        className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                    >
-                                        {TIME_OPTIONS.map(t => (
-                                            <option key={t.value} value={t.value}>{t.label}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => updateWorkingHours(day, 'start', val)}
+                                        options={TIME_OPTIONS}
+                                        className="w-32"
+                                    />
                                     <span className="text-slate-400">to</span>
-                                    <select
+                                    <Select
                                         value={settings.workingHours[day]?.end || '17:00'}
-                                        onChange={(e) => updateWorkingHours(day, 'end', e.target.value)}
-                                        className="px-2 py-1.5 text-sm border border-slate-200 rounded-lg"
-                                    >
-                                        {TIME_OPTIONS.map(t => (
-                                            <option key={t.value} value={t.value}>{t.label}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => updateWorkingHours(day, 'end', val)}
+                                        options={TIME_OPTIONS}
+                                        className="w-32"
+                                    />
                                 </div>
                             ) : (
                                 <span className="text-sm text-slate-400">Closed</span>
@@ -482,37 +474,37 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 Buffer Between Jobs
                             </label>
-                            <select
+                            <Select
                                 value={settings.bufferMinutes}
-                                onChange={(e) => setSettings(s => ({ ...s, bufferMinutes: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                <option value={0}>No buffer</option>
-                                <option value={15}>15 minutes</option>
-                                <option value={30}>30 minutes</option>
-                                <option value={45}>45 minutes</option>
-                                <option value={60}>1 hour</option>
-                                <option value={90}>1.5 hours</option>
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, bufferMinutes: parseInt(val) }))}
+                                options={[
+                                    { value: 0, label: 'No buffer' },
+                                    { value: 15, label: '15 minutes' },
+                                    { value: 30, label: '30 minutes' },
+                                    { value: 45, label: '45 minutes' },
+                                    { value: 60, label: '1 hour' },
+                                    { value: 90, label: '1.5 hours' }
+                                ]}
+                            />
                             <p className="text-xs text-slate-400 mt-1">Travel/prep time between jobs</p>
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 Default Job Duration
                             </label>
-                            <select
+                            <Select
                                 value={settings.defaultJobDuration}
-                                onChange={(e) => setSettings(s => ({ ...s, defaultJobDuration: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                <option value={30}>30 minutes</option>
-                                <option value={60}>1 hour</option>
-                                <option value={90}>1.5 hours</option>
-                                <option value={120}>2 hours</option>
-                                <option value={180}>3 hours</option>
-                                <option value={240}>4 hours</option>
-                                <option value={480}>Full day</option>
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, defaultJobDuration: parseInt(val) }))}
+                                options={[
+                                    { value: 30, label: '30 minutes' },
+                                    { value: 60, label: '1 hour' },
+                                    { value: 90, label: '1.5 hours' },
+                                    { value: 120, label: '2 hours' },
+                                    { value: 180, label: '3 hours' },
+                                    { value: 240, label: '4 hours' },
+                                    { value: 480, label: 'Full day' }
+                                ]}
+                            />
                             <p className="text-xs text-slate-400 mt-1">For jobs without estimates</p>
                         </div>
                     </div>
@@ -522,32 +514,31 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 Service Radius
                             </label>
-                            <select
+                            <Select
                                 value={settings.serviceRadiusMiles}
-                                onChange={(e) => setSettings(s => ({ ...s, serviceRadiusMiles: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                <option value={10}>10 miles</option>
-                                <option value={15}>15 miles</option>
-                                <option value={25}>25 miles</option>
-                                <option value={50}>50 miles</option>
-                                <option value={75}>75 miles</option>
-                                <option value={100}>100+ miles</option>
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, serviceRadiusMiles: parseInt(val) }))}
+                                options={[
+                                    { value: 10, label: '10 miles' },
+                                    { value: 15, label: '15 miles' },
+                                    { value: 25, label: '25 miles' },
+                                    { value: 50, label: '50 miles' },
+                                    { value: 75, label: '75 miles' },
+                                    { value: 100, label: '100+ miles' }
+                                ]}
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-2">
                                 Max Jobs Per Day
                             </label>
-                            <select
+                            <Select
                                 value={settings.maxJobsPerDay}
-                                onChange={(e) => setSettings(s => ({ ...s, maxJobsPerDay: parseInt(e.target.value) }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                {[1,2,3,4,5,6,7,8,10,12,15,20].map(n => (
-                                    <option key={n} value={n}>{n} jobs</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setSettings(s => ({ ...s, maxJobsPerDay: parseInt(val) }))}
+                                options={[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(n => ({
+                                    value: n,
+                                    label: `${n} jobs`
+                                }))}
+                            />
                         </div>
                     </div>
                 </div>
@@ -563,9 +554,9 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                         <input
                             type="text"
                             value={settings.defaultLaborWarranty || ''}
-                            onChange={(e) => setSettings(s => ({ 
-                                ...s, 
-                                defaultLaborWarranty: e.target.value 
+                            onChange={(e) => setSettings(s => ({
+                                ...s,
+                                defaultLaborWarranty: e.target.value
                             }))}
                             placeholder="e.g., 1 Year Labor Warranty on all work"
                             className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -574,7 +565,7 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             Auto-filled on new quotes
                         </p>
                     </div>
-                    
+
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
                             Default Tax Rate (%)
@@ -583,36 +574,38 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             type="number"
                             step="0.01"
                             value={settings.defaultTaxRate}
-                            onChange={(e) => setSettings(s => ({ 
-                                ...s, 
-                                defaultTaxRate: parseFloat(e.target.value) 
+                            onChange={(e) => setSettings(s => ({
+                                ...s,
+                                defaultTaxRate: parseFloat(e.target.value)
                             }))}
                             className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                         />
                     </div>
-                    
+
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-2">
                             Default Deposit Requirement
                         </label>
                         <div className="flex items-center gap-3">
-                            <select
-                                value={settings.defaultDepositType || 'percentage'}
-                                onChange={(e) => setSettings(s => ({ 
-                                    ...s, 
-                                    defaultDepositType: e.target.value 
-                                }))}
-                                className="px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                <option value="percentage">Percentage</option>
-                                <option value="fixed">Fixed Amount</option>
-                            </select>
+                            <div className="w-40">
+                                <Select
+                                    value={settings.defaultDepositType || 'percentage'}
+                                    onChange={(val) => setSettings(s => ({
+                                        ...s,
+                                        defaultDepositType: val
+                                    }))}
+                                    options={[
+                                        { value: 'percentage', label: 'Percentage' },
+                                        { value: 'fixed', label: 'Fixed Amount' }
+                                    ]}
+                                />
+                            </div>
                             <input
                                 type="number"
                                 value={settings.defaultDepositValue}
-                                onChange={(e) => setSettings(s => ({ 
-                                    ...s, 
-                                    defaultDepositValue: parseFloat(e.target.value) 
+                                onChange={(e) => setSettings(s => ({
+                                    ...s,
+                                    defaultDepositValue: parseFloat(e.target.value)
                                 }))}
                                 className="w-32 px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                             />
@@ -625,9 +618,9 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
             </SettingsSection>
 
             {/* Stripe Connect - Payment Processing */}
-            <StripeConnectCard 
-                contractorId={contractorId} 
-                profile={profile} 
+            <StripeConnectCard
+                contractorId={contractorId}
+                profile={profile}
             />
 
             {/* Home Base */}
@@ -641,8 +634,8 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                             ref={addressInputRef}
                             type="text"
                             value={settings.homeBase?.address || ''}
-                            onChange={(e) => setSettings(s => ({ 
-                                ...s, 
+                            onChange={(e) => setSettings(s => ({
+                                ...s,
                                 homeBase: { ...s.homeBase, address: e.target.value }
                             }))}
                             placeholder="e.g., 123 Business Ave, La Mirada, CA"
