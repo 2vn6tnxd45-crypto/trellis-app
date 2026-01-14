@@ -72,8 +72,8 @@ import { ContractorLeadDashboard } from '../marketplace';
 import { JobScheduler } from '../jobs/JobScheduler';
 import { CancellationApprovalModal } from '../jobs/CancellationApprovalModal';
 
-// Job Completion Components - uncomment if available
-// import { JobCompletionForm } from '../jobs/components/completion';
+// Job Completion Components
+import { JobCompletionForm } from '../jobs/components/completion';
 
 // Chat Service
 import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
@@ -169,8 +169,8 @@ const NavItem = ({ icon: Icon, label, active, onClick, badge }) => (
     <button
         onClick={onClick}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${active
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'text-slate-600 hover:bg-slate-100'
+            ? 'bg-emerald-100 text-emerald-700'
+            : 'text-slate-600 hover:bg-slate-100'
             }`}
     >
         <Icon size={20} />
@@ -279,8 +279,8 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                     key={item.id}
                     onClick={() => onNavigate(item.id)}
                     className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
-                            ? 'text-emerald-600'
-                            : 'text-slate-400'
+                        ? 'text-emerald-600'
+                        : 'text-slate-400'
                         }`}
                 >
                     <item.icon size={22} />
@@ -945,8 +945,8 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                 <div className="flex flex-wrap gap-3">
                     <label
                         className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.insured
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 hover:border-slate-300'
                             }`}
                     >
                         <input
@@ -962,8 +962,8 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
 
                     <label
                         className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.bonded
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 hover:border-slate-300'
                             }`}
                     >
                         <input
@@ -1039,8 +1039,8 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                         <label
                             key={method}
                             className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${formData.paymentMethods.includes(method)
-                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                    : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-200 hover:border-slate-300 text-slate-600'
                                 }`}
                         >
                             <input
@@ -1855,8 +1855,8 @@ export const ContractorProApp = () => {
                                         <button
                                             onClick={() => setScheduleView('calendar')}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
+                                                ? 'bg-white text-slate-800 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
                                             Calendar
@@ -1864,8 +1864,8 @@ export const ContractorProApp = () => {
                                         <button
                                             onClick={() => setScheduleView('dispatch')}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
+                                                ? 'bg-white text-slate-800 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
                                             Dispatch
@@ -1873,8 +1873,8 @@ export const ContractorProApp = () => {
                                         <button
                                             onClick={() => setScheduleView('team')}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
+                                                ? 'bg-white text-slate-800 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
                                             Assignment
@@ -1882,8 +1882,8 @@ export const ContractorProApp = () => {
                                         <button
                                             onClick={() => setScheduleView('team-calendar')}
                                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
+                                                ? 'bg-white text-slate-800 shadow-sm'
+                                                : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
                                             Team Calendar
@@ -2241,8 +2241,8 @@ export const ContractorProApp = () => {
                 />
             )}
 
-            {/* Job Completion Modal - uncomment when JobCompletionForm is available */}
-            {/* completingJob && (
+            {/* Job Completion Modal */}
+            {completingJob && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setCompletingJob(null)} />
                     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
@@ -2254,7 +2254,7 @@ export const ContractorProApp = () => {
                         />
                     </div>
                 </div>
-            ) */}
+            )}
 
             {/* Rate Homeowner Modal */}
             {ratingHomeowner && (
