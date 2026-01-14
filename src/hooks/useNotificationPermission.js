@@ -8,7 +8,8 @@ import {
     requestPermission,
     initializePushNotifications,
     onForegroundMessage,
-    removeTokenFromFirestore
+    removeTokenFromFirestore,
+    refreshFCMToken
 } from '../services/notificationService';
 
 // Local storage key for tracking if user has dismissed the prompt
@@ -144,6 +145,30 @@ export const useNotificationPermission = (userId, options = {}) => {
     }, [userId, isInitialized, fcmToken]);
 
     /**
+     * Force refresh the token
+     */
+    const refresh = useCallback(async () => {
+        setIsInitializing(true);
+        setError(null);
+
+        try {
+            const result = await refreshFCMToken(userId);
+            if (result.success) {
+                setFcmToken(result.token);
+                setIsInitialized(true);
+            } else {
+                setError(result.reason);
+            }
+            setIsInitializing(false);
+            return result;
+        } catch (e) {
+            setError(e.message);
+            setIsInitializing(false);
+            return { success: false, reason: e.message };
+        }
+    }, [userId]);
+
+    /**
      * Dismiss the permission prompt temporarily
      */
     const dismissPrompt = useCallback(() => {
@@ -209,7 +234,8 @@ export const useNotificationPermission = (userId, options = {}) => {
         initializeNotifications,
         dismissPrompt,
         clearDismissed,
-        cleanup
+        cleanup,
+        refresh
     };
 };
 

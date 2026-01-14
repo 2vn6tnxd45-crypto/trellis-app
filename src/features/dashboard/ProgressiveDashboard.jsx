@@ -62,7 +62,7 @@ const formatYear = (dateString) => {
 // ============================================
 // ACTIVE PROJECTS SECTION (Progressive Style)
 // ============================================
-const ActiveProjectsSection = ({ userId }) => {
+const ActiveProjectsSection = ({ userId, timezone }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [cancellingJob, setCancellingJob] = useState(null);
@@ -212,6 +212,7 @@ const ActiveProjectsSection = ({ userId }) => {
                             }}
                             onCancel={(jobToCancel) => setCancellingJob(jobToCancel)}
                             onRequestNewTimes={(jobForTimes) => setRequestingTimesJob(jobForTimes)}
+                            timezone={timezone}
                         />
                     ))}
                 </div>
@@ -232,7 +233,12 @@ const ActiveProjectsSection = ({ userId }) => {
                             </button>
                         </div>
                         <div className="flex-grow overflow-hidden bg-slate-50">
-                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => { }} />
+                            <JobScheduler
+                                job={projects.find(p => p.id === selectedJob.id) || selectedJob}
+                                userType="homeowner"
+                                onUpdate={() => { }}
+                                timezone={timezone}
+                            />
                         </div>
                         <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-white shrink-0">
                             <button
@@ -799,7 +805,7 @@ const GettingStartedDashboard = ({
                 </div>
             </div>
 
-            <ActiveProjectsSection userId={userId} />
+            <ActiveProjectsSection userId={userId} timezone={activeProperty?.timezone} />
             <MyQuotesSection userId={userId} />
             <PendingEvaluationsSection userId={userId} />
 
@@ -876,7 +882,7 @@ const EmptyHomeState = ({ propertyName, activeProperty, userId, onAddItem, onSca
             </div>
 
             {/* ACTIVE PROJECTS & QUOTES */}
-            <ActiveProjectsSection userId={userId} />
+            <ActiveProjectsSection userId={userId} timezone={activeProperty?.timezone} />
             <MyQuotesSection userId={userId} />
             <PendingEvaluationsSection userId={userId} />
 

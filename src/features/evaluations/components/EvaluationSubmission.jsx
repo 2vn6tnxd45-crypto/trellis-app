@@ -11,8 +11,9 @@ import {
     Camera, Video, FileText, Upload, X, Check, Clock, AlertCircle,
     ChevronRight, Loader2, CheckCircle, Home, User, Phone, Mail,
     MessageSquare, Send, Image, Play, Trash2, AlertTriangle,
-    Lock, Eye, EyeOff, MapPin, Sparkles
+    Lock, Eye, EyeOff, MapPin, Sparkles, WifiOff
 } from 'lucide-react';
+import { useFormDraft } from '../../../hooks/useFormDraft';
 import { useSingleEvaluation, useEvaluationCountdown } from '../hooks/useEvaluations';
 import { PROMPT_TYPES } from '../lib/evaluationTemplates';
 import { EVALUATION_STATUS, uploadEvaluationFile } from '../lib/evaluationService';
@@ -51,7 +52,7 @@ export const EvaluationSubmission = ({
         markComplete
     } = useSingleEvaluation(contractorId, evaluationId);
 
-    const [submissions, setSubmissions] = useState({
+    const [submissions, setSubmissions, clearDraft] = useFormDraft(`evaluation_draft_${evaluationId}`, {
         photos: [],
         videos: [],
         answers: {}
@@ -369,12 +370,22 @@ export const EvaluationSubmission = ({
     };
 
     const handleSubmit = async () => {
+        // 1. Offline Check
+        if (!navigator.onLine) {
+            setSubmitError('You are currently offline. Please check your internet connection and try again.');
+            return;
+        }
+
         setIsSubmitting(true);
         setSubmitError(null);
 
         try {
             await submitMedia(submissions);
             await markComplete();
+
+            // Clear local draft on success
+            clearDraft();
+
             setSubmitted(true);
 
             // Trigger AI analysis (non-blocking)
@@ -607,6 +618,12 @@ export const EvaluationSubmission = ({
     // ----------------------------------------
     return (
         <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+            {!navigator.onLine && (
+                <div className="bg-red-500 text-white text-center py-2 px-4 text-sm font-bold flex items-center justify-center gap-2">
+                    <WifiOff size={16} />
+                    You are offline. Your changes are saved to your device.
+                </div>
+            )}
             <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
                 <div className="max-w-2xl mx-auto px-4 py-4">
                     <div className="flex items-center justify-between">

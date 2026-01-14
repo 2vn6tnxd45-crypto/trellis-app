@@ -1,26 +1,29 @@
 // src/features/settings/SettingsPage.jsx
 import React, { useState, useCallback } from 'react';
-import { 
+import {
     User, Mail, Shield, Bell, Palette, Moon, Sun, Monitor,
     Download, Trash2, LogOut, ChevronRight, Check, X,
-    Home, Building2, MapPin, ExternalLink, FileText, 
+    Home, Building2, MapPin, ExternalLink, FileText,
     HelpCircle, MessageSquare, Star, Bug, Smartphone,
     ToggleLeft, ToggleRight, Clock, Calendar, Lock,
-    AlertTriangle, Loader2, Copy, CheckCircle2
+    AlertTriangle, Loader2, Copy, CheckCircle2,
+    BellOff // Added BellOff
 } from 'lucide-react';
-import { 
-    signOut, 
-    deleteUser, 
-    EmailAuthProvider, 
-    reauthenticateWithCredential, 
-    GoogleAuthProvider, 
-    reauthenticateWithPopup, 
-    OAuthProvider 
+import {
+    signOut,
+    deleteUser,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    GoogleAuthProvider,
+    reauthenticateWithPopup,
+    OAuthProvider
 } from 'firebase/auth';
 import { doc, deleteDoc, collection, getDocs, writeBatch, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { appId } from '../../config/constants';
 import toast from 'react-hot-toast';
+import { useNotificationPermission } from '../../hooks/useNotificationPermission';
+import { NotificationPermissionDenied } from '../../components/common/NotificationPermissionPrompt';
 
 // ============================================
 // TOGGLE COMPONENT
@@ -29,13 +32,11 @@ const Toggle = ({ enabled, onChange, disabled = false }) => (
     <button
         onClick={() => !disabled && onChange(!enabled)}
         disabled={disabled}
-        className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${
-            disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-        } ${enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
+        className={`relative w-12 h-7 rounded-full transition-colors duration-200 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+            } ${enabled ? 'bg-emerald-600' : 'bg-slate-300'}`}
     >
-        <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-            enabled ? 'translate-x-5' : 'translate-x-0'
-        }`} />
+        <div className={`absolute top-1 left-1 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-0'
+            }`} />
     </button>
 );
 
@@ -59,24 +60,23 @@ const SettingsSection = ({ title, icon: Icon, children, danger = false }) => (
 // ============================================
 // SETTINGS ROW COMPONENT
 // ============================================
-const SettingsRow = ({ 
-    label, 
-    description, 
-    children, 
-    onClick, 
+const SettingsRow = ({
+    label,
+    description,
+    children,
+    onClick,
     icon: Icon,
     danger = false,
-    disabled = false 
+    disabled = false
 }) => {
     const Wrapper = onClick ? 'button' : 'div';
-    
+
     return (
         <Wrapper
             onClick={disabled ? undefined : onClick}
             disabled={disabled}
-            className={`w-full px-5 py-4 flex items-center justify-between gap-4 text-left ${
-                onClick && !disabled ? 'hover:bg-slate-50 transition-colors cursor-pointer' : ''
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`w-full px-5 py-4 flex items-center justify-between gap-4 text-left ${onClick && !disabled ? 'hover:bg-slate-50 transition-colors cursor-pointer' : ''
+                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             <div className="flex items-center gap-3 flex-1 min-w-0">
                 {Icon && (
@@ -141,31 +141,31 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
 
     const handleDelete = async () => {
         if (confirmText !== 'DELETE') return;
-        
+
         setIsDeleting(true);
         setError('');
-        
+
         try {
             // Delete user data from Firestore
             const batch = writeBatch(db);
-            
+
             // Delete all records
             const recordsRef = collection(db, 'artifacts', appId, 'users', user.uid, 'house_records');
             const recordsSnap = await getDocs(recordsRef);
             recordsSnap.forEach(doc => batch.delete(doc.ref));
-            
+
             // Delete profile
             const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
             batch.delete(profileRef);
-            
+
             await batch.commit();
-            
+
             // Delete Firebase Auth user
             // Critical fix: Use auth.currentUser to ensure we have the fresh token
             if (auth.currentUser) {
                 await deleteUser(auth.currentUser);
             }
-            
+
             toast.success('Account deleted successfully');
             onDeleteSuccess();
         } catch (err) {
@@ -220,17 +220,17 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
                             <p className="text-slate-600">
                                 To delete your account, please verify your identity first.
                             </p>
-                            
+
                             {isGoogleUser ? (
                                 <button
                                     onClick={handleReauthenticate}
                                     className="w-full p-3 border border-slate-300 rounded-xl flex items-center justify-center gap-3 hover:bg-slate-50 transition-colors font-medium"
                                 >
                                     <svg className="h-5 w-5" viewBox="0 0 24 24">
-                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                     </svg>
                                     Verify with Google
                                 </button>
@@ -283,7 +283,7 @@ const DeleteAccountModal = ({ isOpen, onClose, user, onDeleteSuccess }) => {
                                     <li>• Your account and profile</li>
                                 </ul>
                             </div>
-                            
+
                             <div className="space-y-2">
                                 <label className="block">
                                     <span className="text-sm font-medium text-slate-700">
@@ -343,7 +343,7 @@ const ExportDataModal = ({ isOpen, onClose, records, profile, properties }) => {
 
     const handleExport = async () => {
         setIsExporting(true);
-        
+
         try {
             const exportData = {
                 exportDate: new Date().toISOString(),
@@ -422,11 +422,10 @@ const ExportDataModal = ({ isOpen, onClose, records, profile, properties }) => {
                         <div className="grid grid-cols-2 gap-3">
                             <button
                                 onClick={() => setFormat('json')}
-                                className={`p-4 rounded-xl border-2 transition-all ${
-                                    format === 'json' 
-                                        ? 'border-emerald-500 bg-emerald-50' 
+                                className={`p-4 rounded-xl border-2 transition-all ${format === 'json'
+                                        ? 'border-emerald-500 bg-emerald-50'
                                         : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 <FileText className={`h-6 w-6 mx-auto mb-2 ${format === 'json' ? 'text-emerald-600' : 'text-slate-400'}`} />
                                 <p className={`font-medium ${format === 'json' ? 'text-emerald-700' : 'text-slate-600'}`}>JSON</p>
@@ -434,11 +433,10 @@ const ExportDataModal = ({ isOpen, onClose, records, profile, properties }) => {
                             </button>
                             <button
                                 onClick={() => setFormat('csv')}
-                                className={`p-4 rounded-xl border-2 transition-all ${
-                                    format === 'csv' 
-                                        ? 'border-emerald-500 bg-emerald-50' 
+                                className={`p-4 rounded-xl border-2 transition-all ${format === 'csv'
+                                        ? 'border-emerald-500 bg-emerald-50'
                                         : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                    }`}
                             >
                                 <FileText className={`h-6 w-6 mx-auto mb-2 ${format === 'csv' ? 'text-emerald-600' : 'text-slate-400'}`} />
                                 <p className={`font-medium ${format === 'csv' ? 'text-emerald-700' : 'text-slate-600'}`}>CSV</p>
@@ -513,19 +511,18 @@ const ManagePropertiesModal = ({ isOpen, onClose, properties, activePropertyId, 
                                     onSwitchProperty(p.id);
                                     onClose();
                                 }}
-                                className={`w-full p-4 rounded-xl flex items-center gap-3 transition-colors ${
-                                    p.id === activePropertyId 
-                                        ? 'bg-emerald-50 border-2 border-emerald-500' 
+                                className={`w-full p-4 rounded-xl flex items-center gap-3 transition-colors ${p.id === activePropertyId
+                                        ? 'bg-emerald-50 border-2 border-emerald-500'
                                         : 'bg-slate-50 border-2 border-transparent hover:border-slate-200'
-                                }`}
+                                    }`}
                             >
                                 <Home size={20} className={p.id === activePropertyId ? 'text-emerald-600' : 'text-slate-400'} />
                                 <div className="text-left flex-1">
                                     <p className="font-bold text-slate-800">{p.name}</p>
                                     {p.address && (
                                         <p className="text-xs text-slate-500">
-                                            {typeof p.address === 'string' 
-                                                ? p.address 
+                                            {typeof p.address === 'string'
+                                                ? p.address
                                                 : `${p.address.city}, ${p.address.state}`}
                                         </p>
                                     )}
@@ -567,6 +564,12 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
     });
     const [isSaving, setIsSaving] = useState(false);
 
+    // NEW: Check actual browser permission
+    const { permission, requestAndInitialize } = useNotificationPermission(profile?.id, { autoInitialize: false });
+    const isDenied = permission === 'denied';
+    const isDefault = permission === 'default';
+    const isGranted = permission === 'granted';
+
     const handleSave = async () => {
         setIsSaving(true);
         try {
@@ -580,6 +583,16 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
         }
     };
 
+    // Handler to enable from settings
+    const handleEnable = async () => {
+        const result = await requestAndInitialize();
+        if (result.success) {
+            toast.success('Notifications enabled!');
+        } else {
+            toast.error('Could not enable notifications: ' + result.reason);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -588,8 +601,12 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 border-b border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-3 bg-emerald-100 rounded-full">
-                            <Bell className="h-6 w-6 text-emerald-600" />
+                        <div className={`p-3 rounded-full ${isDenied ? 'bg-red-100' : 'bg-emerald-100'}`}>
+                            {isDenied ? (
+                                <BellOff className="h-6 w-6 text-red-600" />
+                            ) : (
+                                <Bell className="h-6 w-6 text-emerald-600" />
+                            )}
                         </div>
                         <h2 className="text-xl font-bold text-slate-800">Notifications</h2>
                     </div>
@@ -599,32 +616,46 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
                 </div>
 
                 <div className="p-6 space-y-6">
+                    {/* Permission Status/Check */}
+                    {isDenied && (
+                        <NotificationPermissionDenied onOpenSettings={() => { }} />
+                    )}
+
+                    {isDefault && (
+                        <button
+                            onClick={handleEnable}
+                            className="w-full p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-2 text-emerald-700 font-bold hover:bg-emerald-100 transition-colors"
+                        >
+                            <Bell size={18} />
+                            Enable Push Notifications
+                        </button>
+                    )}
+
                     {/* Maintenance Reminders */}
-                    <div className="flex items-center justify-between">
+                    <div className={`flex items-center justify-between ${!isGranted ? 'opacity-50 pointer-events-none' : ''}`}>
                         <div>
                             <p className="font-medium text-slate-800">Maintenance Reminders</p>
                             <p className="text-sm text-slate-500">Get notified when tasks are due</p>
                         </div>
-                        <Toggle 
-                            enabled={settings.maintenanceReminders} 
-                            onChange={(v) => setSettings(s => ({ ...s, maintenanceReminders: v }))} 
+                        <Toggle
+                            enabled={settings.maintenanceReminders}
+                            onChange={(v) => setSettings(s => ({ ...s, maintenanceReminders: v }))}
                         />
                     </div>
 
                     {/* Reminder Timing */}
                     {settings.maintenanceReminders && (
-                        <div className="pl-4 border-l-2 border-emerald-200">
+                        <div className={`pl-4 border-l-2 border-emerald-200 ${!isGranted ? 'opacity-50 pointer-events-none' : ''}`}>
                             <p className="text-sm font-medium text-slate-700 mb-2">Remind me</p>
                             <div className="flex gap-2 flex-wrap">
                                 {[3, 7, 14, 30].map(days => (
                                     <button
                                         key={days}
                                         onClick={() => setSettings(s => ({ ...s, reminderDays: days }))}
-                                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            settings.reminderDays === days
+                                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${settings.reminderDays === days
                                                 ? 'bg-emerald-600 text-white'
                                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                        }`}
+                                            }`}
                                     >
                                         {days} days before
                                     </button>
@@ -639,21 +670,21 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
                             <p className="font-medium text-slate-800">Weekly Email Digest</p>
                             <p className="text-sm text-slate-500">Summary of upcoming tasks</p>
                         </div>
-                        <Toggle 
-                            enabled={settings.emailDigest} 
-                            onChange={(v) => setSettings(s => ({ ...s, emailDigest: v }))} 
+                        <Toggle
+                            enabled={settings.emailDigest}
+                            onChange={(v) => setSettings(s => ({ ...s, emailDigest: v }))}
                         />
                     </div>
 
                     {/* Contractor Messages */}
-                    <div className="flex items-center justify-between">
+                    <div className={`flex items-center justify-between ${!isGranted ? 'opacity-50 pointer-events-none' : ''}`}>
                         <div>
                             <p className="font-medium text-slate-800">Contractor Messages</p>
                             <p className="text-sm text-slate-500">When contractors respond</p>
                         </div>
-                        <Toggle 
-                            enabled={settings.contractorMessages} 
-                            onChange={(v) => setSettings(s => ({ ...s, contractorMessages: v }))} 
+                        <Toggle
+                            enabled={settings.contractorMessages}
+                            onChange={(v) => setSettings(s => ({ ...s, contractorMessages: v }))}
                         />
                     </div>
                 </div>
@@ -682,10 +713,10 @@ const NotificationSettingsModal = ({ isOpen, onClose, profile, onSave }) => {
 // ============================================
 // MAIN SETTINGS PAGE COMPONENT
 // ============================================
-export const SettingsPage = ({ 
-    user, 
-    profile, 
-    properties, 
+export const SettingsPage = ({
+    user,
+    profile,
+    properties,
     activePropertyId,
     records,
     useEnhancedCards,
@@ -700,7 +731,7 @@ export const SettingsPage = ({
     const [showExportModal, setShowExportModal] = useState(false);
     const [showPropertiesModal, setShowPropertiesModal] = useState(false);
     const [showNotificationsModal, setShowNotificationsModal] = useState(false);
-    
+
     // Local settings state
     const [theme, setTheme] = useState(localStorage.getItem('krib-theme') || 'system');
 
@@ -714,7 +745,7 @@ export const SettingsPage = ({
     const handleThemeChange = (newTheme) => {
         setTheme(newTheme);
         localStorage.setItem('krib-theme', newTheme);
-        
+
         // Apply theme
         if (newTheme === 'dark') {
             document.documentElement.classList.add('dark');
@@ -728,7 +759,7 @@ export const SettingsPage = ({
                 document.documentElement.classList.remove('dark');
             }
         }
-        
+
         toast.success(`Theme set to ${newTheme}`);
     };
 
@@ -762,12 +793,12 @@ export const SettingsPage = ({
 
             {/* Account Section */}
             <SettingsSection title="Account" icon={User}>
-                <SettingsRow 
+                <SettingsRow
                     icon={Mail}
-                    label="Email" 
+                    label="Email"
                     description={user?.email || 'Not set'}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={Shield}
                     label="Linked Accounts"
                     description={[
@@ -780,7 +811,7 @@ export const SettingsPage = ({
 
             {/* Properties Section */}
             <SettingsSection title="Properties" icon={Building2}>
-                <SettingsRow 
+                <SettingsRow
                     icon={Home}
                     label="Manage Properties"
                     description={`${properties.length} ${properties.length === 1 ? 'property' : 'properties'}`}
@@ -790,7 +821,7 @@ export const SettingsPage = ({
 
             {/* Notifications Section */}
             <SettingsSection title="Notifications" icon={Bell}>
-                <SettingsRow 
+                <SettingsRow
                     icon={Clock}
                     label="Notification Settings"
                     description="Reminders, digests, and alerts"
@@ -800,26 +831,26 @@ export const SettingsPage = ({
 
             {/* Appearance Section */}
             <SettingsSection title="Appearance" icon={Palette}>
-                <SettingsRow 
+                <SettingsRow
                     label="Enhanced Cards"
                     description="Rich inventory cards with quick actions"
                 >
-                    <Toggle 
-                        enabled={useEnhancedCards} 
-                        onChange={setUseEnhancedCards} 
+                    <Toggle
+                        enabled={useEnhancedCards}
+                        onChange={setUseEnhancedCards}
                     />
                 </SettingsRow>
             </SettingsSection>
 
             {/* Data & Privacy Section */}
             <SettingsSection title="Data & Privacy" icon={Shield}>
-                <SettingsRow 
+                <SettingsRow
                     icon={Download}
                     label="Export My Data"
                     description={`${records.length} records`}
                     onClick={() => setShowExportModal(true)}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={FileText}
                     label="Privacy Policy"
                     onClick={() => window.open('/privacy_policy.html', '_blank')}
@@ -828,18 +859,18 @@ export const SettingsPage = ({
 
             {/* Help & Support Section */}
             <SettingsSection title="Help & Support" icon={HelpCircle}>
-                <SettingsRow 
+                <SettingsRow
                     icon={MessageSquare}
                     label="Contact Support"
                     description="support@mykrib.app"
                     onClick={() => window.location.href = 'mailto:support@mykrib.app'}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={Bug}
                     label="Report a Bug"
                     onClick={() => window.location.href = 'mailto:support@mykrib.app?subject=Bug%20Report'}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={Star}
                     label="Rate the App"
                     onClick={() => toast('App store link coming soon!')}
@@ -848,7 +879,7 @@ export const SettingsPage = ({
 
             {/* About Section */}
             <SettingsSection title="About" icon={Smartphone}>
-                <SettingsRow 
+                <SettingsRow
                     label="Version"
                     description="1.0.0"
                 >
@@ -858,13 +889,13 @@ export const SettingsPage = ({
 
             {/* Danger Zone */}
             <SettingsSection title="Account Actions" icon={AlertTriangle} danger>
-                <SettingsRow 
+                <SettingsRow
                     icon={LogOut}
                     label="Sign Out"
                     description="You can sign back in anytime"
                     onClick={handleSignOut}
                 />
-                <SettingsRow 
+                <SettingsRow
                     icon={Trash2}
                     label="Delete Account"
                     description="Permanently delete all your data"
@@ -879,7 +910,7 @@ export const SettingsPage = ({
             </div>
 
             {/* Modals */}
-            <DeleteAccountModal 
+            <DeleteAccountModal
                 isOpen={showDeleteModal}
                 onClose={() => setShowDeleteModal(false)}
                 user={user}
@@ -889,7 +920,7 @@ export const SettingsPage = ({
                 }}
             />
 
-            <ExportDataModal 
+            <ExportDataModal
                 isOpen={showExportModal}
                 onClose={() => setShowExportModal(false)}
                 records={records}
@@ -897,7 +928,7 @@ export const SettingsPage = ({
                 properties={properties}
             />
 
-            <ManagePropertiesModal 
+            <ManagePropertiesModal
                 isOpen={showPropertiesModal}
                 onClose={() => setShowPropertiesModal(false)}
                 properties={properties}
@@ -906,7 +937,7 @@ export const SettingsPage = ({
                 onAddProperty={onAddProperty}
             />
 
-            <NotificationSettingsModal 
+            <NotificationSettingsModal
                 isOpen={showNotificationsModal}
                 onClose={() => setShowNotificationsModal(false)}
                 profile={profile}

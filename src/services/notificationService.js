@@ -1,7 +1,7 @@
 // src/services/notificationService.js
 // Push Notification Service - Handles FCM initialization, tokens, and messaging
 
-import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
+import { getMessaging, getToken, onMessage, isSupported, deleteToken } from 'firebase/messaging';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { app, db } from '../config/firebase';
 import { appId } from '../config/constants';
@@ -315,6 +315,32 @@ export const initializePushNotifications = async (userId) => {
 };
 
 /**
+ * Force refresh the FCM token
+ * Useful if notifications stop working
+ */
+export const refreshFCMToken = async (userId) => {
+    try {
+        const messaging = await initializeMessaging();
+        if (!messaging) return { success: false, reason: 'Messaging not initialized' };
+
+        // 1. Delete current token
+        await deleteToken(messaging);
+        console.log('[Notifications] Token deleted for refresh');
+
+        // 2. Remove from Firestore
+        if (userId) {
+            await removeTokenFromFirestore(userId);
+        }
+
+        // 3. Re-initialize (gets new token and saves it)
+        return await initializePushNotifications(userId);
+    } catch (e) {
+        console.error('[Notifications] Refresh failed:', e);
+        return { success: false, reason: e.message };
+    }
+};
+
+/**
  * Show a local notification (for testing or app-triggered notifications)
  */
 export const showLocalNotification = async (title, options = {}) => {
@@ -346,5 +372,6 @@ export default {
     removeTokenFromFirestore,
     onForegroundMessage,
     initializePushNotifications,
+    refreshFCMToken,
     showLocalNotification
 };

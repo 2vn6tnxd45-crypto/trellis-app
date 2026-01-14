@@ -101,9 +101,12 @@ const STATUS_STYLES = {
         bg: 'bg-amber-500',
         bgLight: 'bg-amber-50',
         border: 'border-amber-200',
-        borderDashed: 'border-dashed border-2', // Added for visual distinction
+        borderDashed: 'border-dashed border-2',
         text: 'text-amber-700',
-        label: 'Awaiting Response'
+        label: 'Awaiting Response',
+        style: {
+            backgroundImage: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.1) 0px, rgba(245, 158, 11, 0.1) 10px, transparent 10px, transparent 20px)'
+        }
     },
     in_progress: {
         bg: 'bg-blue-500',
@@ -229,10 +232,26 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                         displayTime = slot?.start;
                                     }
 
+                                    // Multi-day info for Detail View
+                                    let multiDayInfo = null;
+                                    if (event.isMultiDay && event.multiDaySchedule) {
+                                        const start = new Date(event.multiDaySchedule.startDate);
+                                        const current = new Date(selectedDate);
+                                        // Normalize to midnight UTC for diff
+                                        const startMidnight = new Date(Date.UTC(start.getFullYear(), start.getMonth(), start.getDate()));
+                                        const currentMidnight = new Date(Date.UTC(current.getFullYear(), current.getMonth(), current.getDate()));
+
+                                        const diffTime = Math.abs(currentMidnight - startMidnight);
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+                                        multiDayInfo = `Day ${diffDays} of ${event.multiDaySchedule.totalDays}`;
+                                    }
+
                                     return (
                                         <button
                                             key={event.id}
                                             onClick={() => onSelectJob(event)}
+                                            style={status === 'pending' ? styles.style : {}}
                                             className={`w-full p-3 rounded-xl border ${styles.border} ${status === 'pending' ? styles.borderDashed : ''} ${styles.bgLight} text-left hover:shadow-md transition-all`}
                                         >
                                             <div className="flex items-start justify-between">
@@ -245,6 +264,11 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                                         {status === 'pending' && (
                                                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
                                                                 OFFERED
+                                                            </span>
+                                                        )}
+                                                        {multiDayInfo && (
+                                                            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-medium">
+                                                                {multiDayInfo}
                                                             </span>
                                                         )}
                                                         {isEvaluation && (
@@ -349,19 +373,31 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezon
 
                         // Multi-day styling logic
                         let multiDayClasses = 'rounded';
+                        let marginClass = '';
+
                         if (event.isMultiDay && event.multiDaySchedule) {
                             const isStart = isSameDayInTimezone(date, event.multiDaySchedule.startDate, timezone);
                             const isEnd = isSameDayInTimezone(date, event.multiDaySchedule.endDate, timezone);
 
-                            if (!isStart && !isEnd) multiDayClasses = 'rounded-none opacity-75';
-                            else if (isStart && !isEnd) multiDayClasses = 'rounded-l rounded-r-none';
-                            else if (!isStart && isEnd) multiDayClasses = 'rounded-l-none rounded-r opacity-75';
+                            if (!isStart && !isEnd) {
+                                multiDayClasses = 'rounded-none opacity-90';
+                                marginClass = '-mx-2.5';
+                            }
+                            else if (isStart && !isEnd) {
+                                multiDayClasses = 'rounded-l rounded-r-none';
+                                marginClass = '-mr-2.5';
+                            }
+                            else if (!isStart && isEnd) {
+                                multiDayClasses = 'rounded-l-none rounded-r opacity-90';
+                                marginClass = '-ml-2.5';
+                            }
                         }
 
                         return (
                             <div
                                 key={`${event.id}-${idx}`}
-                                className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-80' : ''} ${multiDayClasses}`}
+                                style={status === 'pending' ? styles.style : {}}
+                                className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-90' : ''} ${multiDayClasses} ${marginClass} relative`}
                             >
                                 {formatTime(displayTime)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
                             </div>
