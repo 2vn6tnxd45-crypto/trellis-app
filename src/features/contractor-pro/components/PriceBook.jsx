@@ -12,7 +12,7 @@ import {
     Wind, Droplets, Zap, Home, Refrigerator, Palette,
     Layers, Trees, Sparkles, MoreVertical, Copy, Check
 } from 'lucide-react';
-import { Select } from '../../../../components/ui/Select';
+import { Select } from '../../../components/ui/Select';
 import toast from 'react-hot-toast';
 import { usePriceBook } from '../hooks/usePriceBook';
 import { PRICE_BOOK_CATEGORIES, ITEM_TYPES } from '../lib/priceBookService';
