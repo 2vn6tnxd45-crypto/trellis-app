@@ -10,12 +10,37 @@ import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
 import { SlotPicker } from './SlotPicker';
 
-// Helper to format scheduled time with range
+// Helper to format scheduled time with range (handles multi-day jobs)
 const formatScheduledTimeRange = (job) => {
     if (!job.scheduledTime) return '';
 
+    // Check if this is a multi-day job
+    if (job.multiDaySchedule?.isMultiDay && job.multiDaySchedule?.segments?.length > 1) {
+        const schedule = job.multiDaySchedule;
+        const startDate = new Date(schedule.startDate);
+        const endDate = new Date(schedule.endDate);
+
+        const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        // Get the daily time from first segment
+        const firstSegment = schedule.segments[0];
+        const formatTime = (time) => {
+            const [h, m] = time.split(':').map(Number);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const hour = h % 12 || 12;
+            return m === 0 ? `${hour} ${ampm}` : `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+        };
+
+        const startTime = formatTime(firstSegment.startTime);
+        const endTime = formatTime(firstSegment.endTime);
+
+        // Format: "3 days • Jan 14 - Jan 16 • 8 AM - 4 PM daily"
+        return `${schedule.totalDays} days • ${formatDate(startDate)} - ${formatDate(endDate)} • ${startTime} - ${endTime} daily`;
+    }
+
+    // Regular single-day job
     const startDate = new Date(job.scheduledTime);
-    const dateStr = startDate.toLocaleDateString();
+    const dateStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const startTime = startDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
     // Check if we have an end time from slot selection
