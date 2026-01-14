@@ -12,6 +12,7 @@ import {
     Wind, Droplets, Zap, Home, Refrigerator, Palette,
     Layers, Trees, Sparkles, MoreVertical, Copy, Check
 } from 'lucide-react';
+import { Select } from '../../../../components/ui/Select';
 import toast from 'react-hot-toast';
 import { usePriceBook } from '../hooks/usePriceBook';
 import { PRICE_BOOK_CATEGORIES, ITEM_TYPES } from '../lib/priceBookService';
@@ -64,7 +65,7 @@ const PriceBookItemCard = ({
             minimumFractionDigits: 0,
             maximumFractionDigits: 2,
         }).format(price || 0);
-        
+
         if (unit && unit !== 'each') {
             return `${formatted}/${unit}`;
         }
@@ -72,7 +73,7 @@ const PriceBookItemCard = ({
     };
 
     // Calculate margin if cost is set
-    const margin = item.costPrice > 0 
+    const margin = item.costPrice > 0
         ? ((item.unitPrice - item.costPrice) / item.unitPrice * 100).toFixed(0)
         : null;
 
@@ -85,7 +86,7 @@ const PriceBookItemCard = ({
                     <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
                         <CategoryIcon size={20} className="text-slate-600" />
                     </div>
-                    
+
                     {/* Name & Description */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -141,7 +142,7 @@ const PriceBookItemCard = ({
                         <span>Used {item.usageCount}x</span>
                     )}
                 </div>
-                
+
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                         onClick={() => onToggleFavorite(item.id, !item.isFavorite)}
@@ -208,19 +209,19 @@ const ItemModal = ({ item, onSave, onClose }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!formData.name.trim()) {
             toast.error('Name is required');
             return;
         }
-        
+
         if (!formData.unitPrice || parseFloat(formData.unitPrice) <= 0) {
             toast.error('Price is required');
             return;
         }
 
         setSaving(true);
-        
+
         const dataToSave = {
             ...formData,
             unitPrice: parseFloat(formData.unitPrice) || 0,
@@ -257,7 +258,7 @@ const ItemModal = ({ item, onSave, onClose }) => {
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <form onSubmit={handleSubmit} className="p-6 space-y-4 pb-32">
                     {/* Name */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -293,29 +294,25 @@ const ItemModal = ({ item, onSave, onClose }) => {
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Type
                             </label>
-                            <select
+                            <Select
                                 value={formData.type}
-                                onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                <option value={ITEM_TYPES.SERVICE}>Service (Material + Labor)</option>
-                                <option value={ITEM_TYPES.MATERIAL}>Material Only</option>
-                                <option value={ITEM_TYPES.LABOR}>Labor Only</option>
-                            </select>
+                                onChange={(val) => setFormData(prev => ({ ...prev, type: val }))}
+                                options={[
+                                    { value: ITEM_TYPES.SERVICE, label: 'Service (Material + Labor)' },
+                                    { value: ITEM_TYPES.MATERIAL, label: 'Material Only' },
+                                    { value: ITEM_TYPES.LABOR, label: 'Labor Only' }
+                                ]}
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Category
                             </label>
-                            <select
+                            <Select
                                 value={formData.category}
-                                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                {PRICE_BOOK_CATEGORIES.map(cat => (
-                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+                                options={PRICE_BOOK_CATEGORIES}
+                            />
                         </div>
                     </div>
 
@@ -342,15 +339,11 @@ const ItemModal = ({ item, onSave, onClose }) => {
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Unit
                             </label>
-                            <select
+                            <Select
                                 value={formData.unit}
-                                onChange={(e) => setFormData(prev => ({ ...prev, unit: e.target.value }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                            >
-                                {unitOptions.map(opt => (
-                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setFormData(prev => ({ ...prev, unit: val }))}
+                                options={unitOptions}
+                            />
                         </div>
                     </div>
 
@@ -515,7 +508,7 @@ const EmptyState = ({ onAddItem, onSeedStarters }) => (
         </div>
         <h3 className="text-xl font-bold text-slate-800 mb-2">Your Price Book is Empty</h3>
         <p className="text-slate-500 mb-8 max-w-md mx-auto">
-            Add your commonly used items and services with standard pricing. 
+            Add your commonly used items and services with standard pricing.
             This makes creating quotes much faster!
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -604,8 +597,8 @@ export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems
                         <h2 className="text-lg font-bold text-slate-800">Add from Price Book</h2>
                         <p className="text-sm text-slate-500">Click items to add them to your quote</p>
                     </div>
-                    <button 
-                        onClick={onClose} 
+                    <button
+                        onClick={onClose}
                         className="p-2 hover:bg-slate-100 rounded-lg"
                     >
                         <X size={20} className="text-slate-400" />
@@ -613,7 +606,7 @@ export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems
                 </div>
 
                 {/* Search & Tabs */}
-                <div className="p-4 border-b border-slate-100 space-y-3">
+                <div className="p-4 border-b border-slate-100 space-y-3 relative z-10">
                     {/* Search */}
                     <div className="relative">
                         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -639,39 +632,39 @@ export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems
                     <div className="flex gap-2">
                         <button
                             onClick={() => setActiveTab('all')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                                activeTab === 'all'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'text-slate-500 hover:bg-slate-100'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'all'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'text-slate-500 hover:bg-slate-100'
+                                }`}
                         >
                             All Items
                         </button>
                         {favorites.length > 0 && (
                             <button
                                 onClick={() => setActiveTab('favorites')}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${
-                                    activeTab === 'favorites'
-                                        ? 'bg-amber-100 text-amber-700'
-                                        : 'text-slate-500 hover:bg-slate-100'
-                                }`}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 ${activeTab === 'favorites'
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'text-slate-500 hover:bg-slate-100'
+                                    }`}
                             >
                                 <Star size={14} />
                                 Favorites
                             </button>
                         )}
-                        
+
                         {/* Category filter */}
-                        <select
-                            value={selectedCategory || ''}
-                            onChange={(e) => setSelectedCategory(e.target.value || null)}
-                            className="ml-auto px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                        >
-                            <option value="">All Categories</option>
-                            {categories.map(cat => (
-                                <option key={cat.value} value={cat.value}>{cat.label}</option>
-                            ))}
-                        </select>
+                        <div className="ml-auto w-40">
+                            <Select
+                                value={selectedCategory || ''}
+                                onChange={(val) => setSelectedCategory(val || null)}
+                                options={[
+                                    { value: '', label: 'All Categories' },
+                                    ...categories
+                                ]}
+                                placeholder="All Categories"
+                                className="text-sm"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -689,17 +682,16 @@ export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems
                             {displayItems.map(item => {
                                 const alreadyAdded = isSelected(item.id);
                                 const typeConfig = TYPE_CONFIG[item.type] || TYPE_CONFIG[ITEM_TYPES.MATERIAL];
-                                
+
                                 return (
                                     <button
                                         key={item.id}
                                         onClick={() => !alreadyAdded && handleSelect(item)}
                                         disabled={alreadyAdded}
-                                        className={`w-full p-3 rounded-xl border text-left transition-all ${
-                                            alreadyAdded
-                                                ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
-                                                : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md'
-                                        }`}
+                                        className={`w-full p-3 rounded-xl border text-left transition-all ${alreadyAdded
+                                            ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
+                                            : 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-md'
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="flex-1 min-w-0">
@@ -718,7 +710,7 @@ export const PriceBookPicker = ({ contractorId, onSelect, onClose, selectedItems
                                                     <p className="text-xs text-slate-500 truncate">{item.description}</p>
                                                 )}
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-3 shrink-0">
                                                 <span className="font-bold text-emerald-600">
                                                     ${item.unitPrice?.toFixed(2)}
@@ -901,16 +893,17 @@ export const PriceBook = ({ contractorId }) => {
                     </div>
 
                     {/* Category Filter */}
-                    <select
+                    {/* Category Filter */}
+                    <Select
+                        className="w-full sm:w-48"
                         value={selectedCategory || ''}
-                        onChange={(e) => setSelectedCategory(e.target.value || null)}
-                        className="px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                    >
-                        <option value="">All Categories</option>
-                        {categories.map(cat => (
-                            <option key={cat.value} value={cat.value}>{cat.label}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setSelectedCategory(val || null)}
+                        options={[
+                            { value: '', label: 'All Categories' },
+                            ...categories
+                        ]}
+                        placeholder="All Categories"
+                    />
                 </div>
             )}
 
@@ -939,8 +932,8 @@ export const PriceBook = ({ contractorId }) => {
             {/* Main Items Grid */}
             {filteredItems.length === 0 ? (
                 stats.total === 0 ? (
-                    <EmptyState 
-                        onAddItem={() => setShowModal(true)} 
+                    <EmptyState
+                        onAddItem={() => setShowModal(true)}
                         onSeedStarters={handleSeedStarters}
                     />
                 ) : (
