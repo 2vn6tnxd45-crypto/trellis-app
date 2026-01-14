@@ -338,22 +338,32 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
             setActiveSection('photos');
             return;
         }
-        
+
         setIsSubmitting(true);
         const loadingToast = toast.loading('Submitting completion...');
-        
+
         try {
-            await submitJobCompletion(job.id, {
+            const result = await submitJobCompletion(job.id, {
                 photos,
                 invoice,
                 items,
                 notes,
                 recommendations
             }, contractorId);
-            
+
             toast.dismiss(loadingToast);
             toast.success('Job completion submitted!', { icon: '🎉' });
-            
+
+            // Show invoice notification if one was auto-generated
+            if (result.invoiceGenerated) {
+                setTimeout(() => {
+                    toast.success(
+                        `Draft invoice ${result.invoiceNumber} created! Review it in your Invoices tab.`,
+                        { icon: '📄', duration: 5000 }
+                    );
+                }, 1000);
+            }
+
             if (onSuccess) {
                 onSuccess();
             }

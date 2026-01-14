@@ -11,23 +11,30 @@ import toast from 'react-hot-toast';
 import { SlotPicker } from './SlotPicker';
 import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarningModal';
 import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
-import { detectTimezone, createDateInTimezone, isSameDayInTimezone } from '../contractor-pro/lib/timezoneUtils';
+import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTimezone } from '../contractor-pro/lib/timezoneUtils';
 
-// Helper to format scheduled time with range (handles multi-day jobs)
-const formatScheduledTimeRange = (job) => {
+// Helper to format scheduled time with range (handles multi-day jobs) - Timezone Aware
+const formatScheduledTimeRange = (job, timezone) => {
     if (!job.scheduledTime) return '';
+
+    // Default to detected timezone if not provided
+    const displayTimezone = timezone || detectTimezone();
 
     // Check if this is a multi-day job
     if (job.multiDaySchedule?.isMultiDay && job.multiDaySchedule?.segments?.length > 1) {
         const schedule = job.multiDaySchedule;
-        const startDate = new Date(schedule.startDate);
-        const endDate = new Date(schedule.endDate);
 
-        const formatDate = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        // Format dates in target timezone
+        const startDateStr = formatInTimezone(schedule.startDate, 'MMM d', displayTimezone);
+        const endDateStr = formatInTimezone(schedule.endDate, 'MMM d', displayTimezone);
 
         // Get the daily time from first segment
         const firstSegment = schedule.segments[0];
         const formatTime = (time) => {
+            // Build a dummy date string with this time to format it correctly? 
+            // Or just format the HH:mm string MANUALLY if we assume the time string "09:00" is ALREADY relative to the timezone.
+            // CAUTION: The segments store "startTime": "09:00". This string IS relative to the job's timezone by definition.
+            // So we don't convert it. We just format "09:00" to "9:00 AM".
             const [h, m] = time.split(':').map(Number);
             const ampm = h >= 12 ? 'PM' : 'AM';
             const hour = h % 12 || 12;
@@ -38,17 +45,18 @@ const formatScheduledTimeRange = (job) => {
         const endTime = formatTime(firstSegment.endTime);
 
         // Format: "3 days • Jan 14 - Jan 16 • 8 AM - 4 PM daily"
-        return `${schedule.totalDays} days • ${formatDate(startDate)} - ${formatDate(endDate)} • ${startTime} - ${endTime} daily`;
+        return `${schedule.totalDays} days • ${startDateStr} - ${endDateStr} • ${startTime} - ${endTime} daily`;
     }
 
     // Regular single-day job
-    const startDate = new Date(job.scheduledTime);
-    const dateStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const startTime = startDate.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const dateStr = formatInTimezone(job.scheduledTime, 'MMM d, yyyy', displayTimezone);
+    const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
 
     // Check if we have an end time from slot selection
     if (job.scheduling?.confirmedSlot?.end) {
-        const endTime = new Date(job.scheduling.confirmedSlot.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        // Construct end time. confirmedSlot.end is likely an ISO string or just a time?
+        // Let's assume ISO string since scheduling usually stores full dates.
+        const endTime = formatInTimezone(job.scheduling.confirmedSlot.end, 'h:mm a', displayTimezone);
         return `${dateStr} • ${startTime} - ${endTime}`;
     }
 
@@ -385,7 +393,7 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                             <CheckCircle size={24} className="text-emerald-600 shrink-0" />
                             <div>
                                 <p className="font-bold">Appointment Confirmed</p>
-                                <p className="text-sm opacity-80">See you on {formatScheduledTimeRange(job)}</p>
+                                <p className="text-sm opacity-80">See you on {formatScheduledTimeRange(job, timezone)}</p>
                             </div>
                         </div>
 

@@ -17,6 +17,7 @@ import {
     isMultiDayJob as checkIsMultiDay,
     calculateDaysNeeded
 } from '../contractor-pro/lib/multiDayUtils';
+import { formatInTimezone, detectTimezone } from '../contractor-pro/lib/timezoneUtils';
 
 // Status configuration
 const STATUS_CONFIG = {
@@ -106,9 +107,13 @@ export const HomeownerJobCard = ({
     onSelect,
     onCancel,
     onRequestNewTimes,
-    compact = false
+    compact = false,
+    timezone // New prop for timezone awareness
 }) => {
     const [showActions, setShowActions] = useState(false);
+
+    // Fallback to detected timezone if none provided
+    const displayTimezone = timezone || detectTimezone();
 
     // EDGE CASE: Handle null/undefined job
     if (!job) {
@@ -174,7 +179,8 @@ export const HomeownerJobCard = ({
         if (jobIsMultiDay(job)) {
             return {
                 isMultiDay: true,
-                totalDays: job.multiDaySchedule?.totalDays || 2
+                totalDays: job.multiDaySchedule?.totalDays || 2,
+                endDate: job.multiDaySchedule?.endDate // Capture end date for display
             };
         }
         const duration = job.estimatedDuration || job.scheduling?.estimatedDuration || 0;
@@ -187,24 +193,15 @@ export const HomeownerJobCard = ({
         return { isMultiDay: false, totalDays: 1 };
     }, [job]);
 
-    // Format date for display (Consistently handle ISO strings)
+    // Format date for display (Timezone Aware!)
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString([], {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric'
-        });
+        return formatInTimezone(dateStr, 'EEE, MMM d', displayTimezone);
     };
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
-        return date.toLocaleTimeString([], {
-            hour: 'numeric',
-            minute: '2-digit'
-        });
+        return formatInTimezone(dateStr, 'h:mm a', displayTimezone);
     };
 
     const formatTimeRange = (start, end) => {
@@ -336,8 +333,18 @@ export const HomeownerJobCard = ({
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-500">Scheduled:</span>
                             <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
-                                {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
-                                {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
+                                {multiDayInfo.isMultiDay && multiDayInfo.endDate ? (
+                                    // Multi-day: Show date range
+                                    <>
+                                        {formatDate(job.scheduledTime)} - {formatDate(multiDayInfo.endDate)}
+                                    </>
+                                ) : (
+                                    // Single-day: Show date + time info
+                                    <>
+                                        {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
+                                        {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
+                                    </>
+                                )}
                             </span>
                         </div>
                     )}
@@ -439,11 +446,10 @@ export const HomeownerJobCard = ({
                     )}
                     <button
                         onClick={() => onSelect?.(job)}
-                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                            multiDayInfo.isMultiDay
-                                ? 'bg-indigo-500 hover:bg-indigo-600'
-                                : 'bg-amber-500 hover:bg-amber-600'
-                        }`}
+                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${multiDayInfo.isMultiDay
+                            ? 'bg-indigo-500 hover:bg-indigo-600'
+                            : 'bg-amber-500 hover:bg-amber-600'
+                            }`}
                     >
                         <Calendar size={16} />
                         {multiDayInfo.isMultiDay ? 'Select Start Date' : 'Pick a Time'}

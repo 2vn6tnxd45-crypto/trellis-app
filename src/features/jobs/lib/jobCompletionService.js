@@ -4,26 +4,27 @@
 // ============================================
 // All database operations for job completion flow
 
-import { 
-    doc, 
-    getDoc, 
+import {
+    doc,
+    getDoc,
     updateDoc,
     addDoc,
-    collection, 
-    query, 
-    where, 
-    getDocs, 
+    collection,
+    query,
+    where,
+    getDocs,
     serverTimestamp,
     writeBatch,
     Timestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../../config/firebase';
-import { 
-    REQUESTS_COLLECTION_PATH, 
+import {
+    REQUESTS_COLLECTION_PATH,
     CONTRACTORS_COLLECTION_PATH,
-    appId 
+    appId
 } from '../../../config/constants';
+import { formatAddress } from '../../../lib/addressUtils';
 
 // ============================================
 // CONSTANTS
@@ -41,6 +42,100 @@ export const COMPLETION_STATUS = {
 export const RATING_CATEGORIES = {
     homeownerToContractor: ['quality', 'timeliness', 'communication', 'value'],
     contractorToHomeowner: ['propertyAccess', 'communication', 'payment']
+};
+
+// ============================================
+// INVOICE GENERATION
+// ============================================
+
+/**
+ * Generate a draft invoice from job data
+ * Called automatically when contractor submits job completion
+ * @param {object} jobData - The job document data
+ * @param {string} jobId - The job document ID
+ * @param {string} contractorId - The contractor's ID
+ * @returns {object} - { invoiceId, invoiceNumber } or null if no line items
+ */
+const generateDraftInvoiceFromJob = async (jobData, jobId, contractorId) => {
+    try {
+        // Only generate if job has line items with pricing
+        const lineItems = jobData.lineItems || jobData.quoteItems || [];
+        if (lineItems.length === 0) {
+            console.log('No line items found, skipping invoice generation');
+            return null;
+        }
+
+        // Generate invoice number
+        const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
+
+        // Map line items to invoice format
+        const invoiceItems = lineItems.map((item, idx) => {
+            const quantity = item.quantity || 1;
+            const unitPrice = item.unitPrice || item.price || 0;
+            const totalCost = item.amount || item.cost || (unitPrice * quantity);
+
+            return {
+                id: idx + 1,
+                description: item.description || item.item || item.name || 'Service',
+                cost: totalCost.toString(),
+                notes: item.notes || ''
+            };
+        });
+
+        // Calculate total
+        const total = invoiceItems.reduce((sum, item) => sum + (parseFloat(item.cost) || 0), 0);
+
+        // Get customer info from job
+        const customerName = jobData.customerName || jobData.customer?.name || 'Customer';
+        const customerEmail = jobData.customerEmail || jobData.customer?.email || '';
+        const customerAddress = jobData.serviceAddress
+            ? formatAddress(jobData.serviceAddress)
+            : (jobData.propertyName || '');
+
+        // Set due date to 7 days from now
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+
+        // Create the invoice document
+        const invoiceData = {
+            invoiceNumber,
+            customerId: jobData.createdBy || '',
+            customerName,
+            customerEmail,
+            customerAddress,
+            date: new Date().toISOString().split('T')[0],
+            dueDate: dueDate.toISOString().split('T')[0],
+            items: invoiceItems,
+            taxRate: 0,
+            notes: 'Thank you for your business!',
+            status: 'draft',
+            total,
+            contractorId,
+            contractorName: jobData.contractorName || jobData.contractor || '',
+            // Link back to job
+            sourceJobId: jobId,
+            sourceQuoteId: jobData.sourceQuoteId || null,
+            createdAt: serverTimestamp(),
+            generatedFrom: 'job_completion'
+        };
+
+        // Save to contractor's invoices collection
+        const invoiceCollectionRef = collection(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'invoices');
+        const invoiceDocRef = await addDoc(invoiceCollectionRef, invoiceData);
+
+        console.log('Draft invoice generated:', invoiceDocRef.id);
+
+        return {
+            invoiceId: invoiceDocRef.id,
+            invoiceNumber,
+            total
+        };
+
+    } catch (error) {
+        // Log but don't throw - invoice generation is non-critical
+        console.error('Error generating draft invoice:', error);
+        return null;
+    }
 };
 
 // ============================================
@@ -117,15 +212,32 @@ export const submitJobCompletion = async (jobId, completionData, contractorId) =
                 followUpJobId: null
             };
         }
-        
+
+        // Generate draft invoice from job line items (if available)
+        const invoiceResult = await generateDraftInvoiceFromJob(jobData, jobId, contractorId);
+
         // Update the job document
-        await updateDoc(jobRef, {
+        const updateData = {
             status: COMPLETION_STATUS.PENDING_COMPLETION,
             completion: completion,
             lastActivity: serverTimestamp()
-        });
-        
-        return { success: true, jobId };
+        };
+
+        // If invoice was generated, link it to the job
+        if (invoiceResult) {
+            updateData.generatedInvoiceId = invoiceResult.invoiceId;
+            updateData.generatedInvoiceNumber = invoiceResult.invoiceNumber;
+        }
+
+        await updateDoc(jobRef, updateData);
+
+        return {
+            success: true,
+            jobId,
+            invoiceGenerated: !!invoiceResult,
+            invoiceId: invoiceResult?.invoiceId || null,
+            invoiceNumber: invoiceResult?.invoiceNumber || null
+        };
         
     } catch (error) {
         console.error('Error submitting job completion:', error);
