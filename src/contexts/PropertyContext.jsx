@@ -61,6 +61,12 @@ export function PropertyProvider({ children, propertyProfile }) {
         const state = address.state || '';
         const zip = address.zip || address.zipCode || address.postalCode || '';
 
+        // If street contains commas, it might be a full formatted address already
+        if (street && street.includes(',')) {
+            console.log('[PropertyContext] Street contains full address:', street);
+            return street;
+        }
+
         const parts = [street, city, state, zip].filter(Boolean);
         return parts.length >= 3 ? parts.join(', ') : null;
     }, [propertyProfile]);
