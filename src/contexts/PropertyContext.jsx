@@ -33,8 +33,9 @@ export function PropertyProvider({ children, propertyProfile }) {
             || propertyProfile?.serviceAddress
             || propertyProfile?.propertyAddress;
 
-        if (!address) {
+        if (!address || (typeof address === 'object' && Object.keys(address).length === 0)) {
             // Maybe the address is stored as a top-level string field
+            if (propertyProfile?.street) return propertyProfile.street;
             if (propertyProfile?.formattedAddress) return propertyProfile.formattedAddress;
             if (propertyProfile?.fullAddress) return propertyProfile.fullAddress;
             return null;
