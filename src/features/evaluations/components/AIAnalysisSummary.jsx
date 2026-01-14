@@ -173,8 +173,11 @@ export const AIAnalysisSummary = ({
                         <Sparkles size={16} className="text-indigo-600" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="text-xs font-bold text-indigo-600 uppercase tracking-wide">AI Summary</span>
+                            {analysis.usedVision && (
+                                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Vision</span>
+                            )}
                             <SeverityBadge severity={analysis.severity} />
                         </div>
                         <p className="text-sm text-slate-700 line-clamp-2">{analysis.summary}</p>
@@ -199,12 +202,18 @@ export const AIAnalysisSummary = ({
                     <div>
                         <h3 className="font-bold text-slate-800 flex items-center gap-2">
                             AI Problem Analysis
+                            {analysis.usedVision && (
+                                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Vision</span>
+                            )}
                             {analysis.isBasicSummary && (
                                 <span className="text-xs font-normal text-slate-500">(Basic)</span>
                             )}
                         </h3>
                         <p className="text-xs text-slate-500">
-                            Analyzed {analysis.photoCount || 0} photo{analysis.photoCount !== 1 ? 's' : ''} 
+                            {analysis.usedVision
+                                ? `Analyzed ${analysis.photosAnalyzed || analysis.photoCount || 0} photo${(analysis.photosAnalyzed || analysis.photoCount) !== 1 ? 's' : ''} with AI vision`
+                                : `${analysis.photoCount || 0} photo${analysis.photoCount !== 1 ? 's' : ''} submitted`
+                            }
                             {analysis.videoCount > 0 && ` + ${analysis.videoCount} video${analysis.videoCount !== 1 ? 's' : ''}`}
                         </p>
                     </div>

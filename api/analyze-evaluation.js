@@ -3,7 +3,8 @@
 // AI EVALUATION ANALYSIS API
 // ============================================
 // Analyzes homeowner-submitted photos and descriptions
-// to generate a smart summary for contractors.
+// using Gemini's vision capabilities to generate
+// smart summaries for contractors.
 //
 // Input: photos (URLs), description, answers to prompts
 // Output: AI-generated problem summary, severity, suggestions
@@ -19,6 +20,40 @@ const SEVERITY_LEVELS = {
     HIGH: 'high',         // Should be addressed soon
     URGENT: 'urgent'      // Safety concern or major damage
 };
+
+// ============================================
+// FETCH IMAGE AS BASE64
+// ============================================
+async function fetchImageAsBase64(url, timeoutMs = 10000) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept': 'image/*' }
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        const arrayBuffer = await response.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+        return {
+            inlineData: {
+                mimeType: contentType,
+                data: base64
+            }
+        };
+    } catch (error) {
+        console.warn(`[analyze-evaluation] Failed to fetch image: ${error.message}`);
+        return null;
+    }
+}
 
 // ============================================
 // MAIN HANDLER
@@ -37,9 +72,9 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const { 
+    const {
         photos = [],           // Array of { url, name, caption }
-        videos = [],           // Array of { url, name } (we'll note these but not analyze)
+        videos = [],           // Array of { url, name } (noted but not analyzed)
         description = '',      // Main problem description from homeowner
         answers = {},          // Answers to contractor's prompts { promptId: answer }
         prompts = [],          // Original prompts for context
@@ -49,8 +84,8 @@ export default async function handler(req, res) {
 
     // Validate we have something to analyze
     if (photos.length === 0 && !description && Object.keys(answers).length === 0) {
-        return res.status(400).json({ 
-            error: 'No content to analyze. Provide photos, description, or answers.' 
+        return res.status(400).json({
+            error: 'No content to analyze. Provide photos, description, or answers.'
         });
     }
 
@@ -59,30 +94,61 @@ export default async function handler(req, res) {
 
         if (!apiKey) {
             console.warn('[analyze-evaluation] No Gemini API key - returning basic summary');
-            return res.status(200).json(getBasicSummary(description, answers, photos.length));
+            return res.status(200).json({
+                success: true,
+                analysis: getBasicSummary(description, answers, photos.length),
+                warning: 'AI analysis unavailable (no API key)'
+            });
         }
 
         const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-        // Build the analysis prompt
-        const prompt = buildAnalysisPrompt({
+        // Fetch actual images for vision analysis (limit to first 5 for performance)
+        const photosToAnalyze = photos.slice(0, 5);
+        console.log(`[analyze-evaluation] Fetching ${photosToAnalyze.length} images for vision analysis...`);
+
+        const imagePromises = photosToAnalyze.map(photo => fetchImageAsBase64(photo.url));
+        const imageResults = await Promise.all(imagePromises);
+        const validImages = imageResults.filter(img => img !== null);
+
+        console.log(`[analyze-evaluation] Successfully fetched ${validImages.length}/${photosToAnalyze.length} images`);
+
+        // Build the text prompt
+        const textPrompt = buildAnalysisPrompt({
             photos,
             videos,
             description,
             answers,
             prompts,
             jobCategory,
-            propertyType
+            propertyType,
+            imageCount: validImages.length
         });
 
-        // If we have photo URLs, we need to fetch and convert them
-        // For now, we'll analyze based on descriptions and any captions
-        // In a production system, you'd fetch the images and send as base64
-        
-        const result = await model.generateContent(prompt);
+        // Build multimodal content array
+        const contentParts = [];
+
+        // Add images first (Gemini processes them in order)
+        if (validImages.length > 0) {
+            contentParts.push({ text: `I'm providing ${validImages.length} photo(s) of the issue. Please analyze them carefully:\n\n` });
+            validImages.forEach((img, idx) => {
+                contentParts.push(img);
+                const caption = photosToAnalyze[idx]?.caption || photosToAnalyze[idx]?.name || '';
+                if (caption) {
+                    contentParts.push({ text: `\n[Photo ${idx + 1} caption: ${caption}]\n` });
+                }
+            });
+            contentParts.push({ text: '\n\n' });
+        }
+
+        // Add the main analysis prompt
+        contentParts.push({ text: textPrompt });
+
+        // Generate content with vision
+        const result = await model.generateContent(contentParts);
         const responseText = result.response.text();
-        
+
         // Parse the AI response
         let analysis;
         try {
@@ -103,41 +169,44 @@ export default async function handler(req, res) {
         const sanitizedAnalysis = {
             summary: analysis.summary || 'Unable to generate summary',
             issues: Array.isArray(analysis.issues) ? analysis.issues : [],
-            severity: Object.values(SEVERITY_LEVELS).includes(analysis.severity) 
-                ? analysis.severity 
+            severity: Object.values(SEVERITY_LEVELS).includes(analysis.severity)
+                ? analysis.severity
                 : SEVERITY_LEVELS.MEDIUM,
-            suggestedQuestions: Array.isArray(analysis.suggestedQuestions) 
-                ? analysis.suggestedQuestions 
+            suggestedQuestions: Array.isArray(analysis.suggestedQuestions)
+                ? analysis.suggestedQuestions
                 : [],
             recommendations: analysis.recommendations || '',
-            readyToQuote: typeof analysis.readyToQuote === 'boolean' 
-                ? analysis.readyToQuote 
+            readyToQuote: typeof analysis.readyToQuote === 'boolean'
+                ? analysis.readyToQuote
                 : false,
-            confidence: typeof analysis.confidence === 'number' 
-                ? analysis.confidence 
+            confidence: typeof analysis.confidence === 'number'
+                ? analysis.confidence
                 : 0.7,
             analyzedAt: new Date().toISOString(),
             photoCount: photos.length,
-            videoCount: videos.length
+            photosAnalyzed: validImages.length,
+            videoCount: videos.length,
+            usedVision: validImages.length > 0
         };
 
         console.log('[analyze-evaluation] Analysis complete:', {
             severity: sanitizedAnalysis.severity,
             issueCount: sanitizedAnalysis.issues.length,
-            readyToQuote: sanitizedAnalysis.readyToQuote
+            readyToQuote: sanitizedAnalysis.readyToQuote,
+            photosAnalyzed: sanitizedAnalysis.photosAnalyzed
         });
 
-        return res.status(200).json({ 
-            success: true, 
-            analysis: sanitizedAnalysis 
+        return res.status(200).json({
+            success: true,
+            analysis: sanitizedAnalysis
         });
 
     } catch (error) {
         console.error('[analyze-evaluation] Error:', error);
-        
+
         // Return a graceful fallback
-        return res.status(200).json({ 
-            success: true, 
+        return res.status(200).json({
+            success: true,
             analysis: getBasicSummary(description, answers, photos.length),
             warning: 'AI analysis unavailable, showing basic summary'
         });
@@ -147,7 +216,7 @@ export default async function handler(req, res) {
 // ============================================
 // BUILD ANALYSIS PROMPT
 // ============================================
-function buildAnalysisPrompt({ photos, videos, description, answers, prompts, jobCategory, propertyType }) {
+function buildAnalysisPrompt({ photos, videos, description, answers, prompts, jobCategory, propertyType, imageCount }) {
     // Build context from answers
     const answersContext = Object.entries(answers)
         .map(([promptId, answer]) => {
@@ -157,20 +226,19 @@ function buildAnalysisPrompt({ photos, videos, description, answers, prompts, jo
         })
         .join('\n\n');
 
-    // Build photo descriptions
-    const photoContext = photos.length > 0
-        ? `\nPHOTOS SUBMITTED (${photos.length}):\n` + photos.map((p, i) => 
-            `- Photo ${i + 1}: ${p.caption || p.name || 'No description'}`
-          ).join('\n')
+    const videoContext = videos.length > 0
+        ? `\nVIDEOS SUBMITTED: ${videos.length} video(s) provided (not analyzed, contractor should review)`
         : '';
 
-    const videoContext = videos.length > 0
-        ? `\nVIDEOS SUBMITTED: ${videos.length} video(s) provided`
+    // Note about photos that weren't analyzed
+    const extraPhotosNote = photos.length > imageCount
+        ? `\nNote: ${photos.length - imageCount} additional photo(s) were submitted but not analyzed. Contractor should review all photos.`
         : '';
 
     return `You are an expert home service analyst helping contractors quickly understand customer problems.
 
 TASK: Analyze this home service evaluation request and provide a structured summary.
+${imageCount > 0 ? `\nIMPORTANT: You have been provided ${imageCount} actual photo(s) of the issue. Carefully examine the images to identify visible problems, damage, wear, or conditions that need attention.` : ''}
 
 ${jobCategory ? `SERVICE CATEGORY: ${jobCategory}` : ''}
 ${propertyType ? `PROPERTY TYPE: ${propertyType}` : ''}
@@ -179,25 +247,25 @@ CUSTOMER'S PROBLEM DESCRIPTION:
 ${description || 'No description provided'}
 
 ${answersContext ? `CUSTOMER'S ANSWERS TO QUESTIONS:\n${answersContext}` : ''}
-${photoContext}
 ${videoContext}
+${extraPhotosNote}
 
-Based on all the information provided, generate a JSON response with this exact structure:
+Based on ALL the information provided (especially the photos if available), generate a JSON response with this exact structure:
 {
-    "summary": "A clear 2-3 sentence summary of the problem that a contractor can quickly read",
+    "summary": "A clear 2-3 sentence summary of the problem that a contractor can quickly read. If you analyzed photos, describe what you observed.",
     "issues": [
-        "Issue 1 identified from the description/photos",
-        "Issue 2 if applicable",
-        "Issue 3 if applicable"
+        "Specific issue 1 identified from photos/description",
+        "Specific issue 2 if applicable",
+        "Specific issue 3 if applicable"
     ],
     "severity": "low|medium|high|urgent",
     "suggestedQuestions": [
         "Question the contractor might want to ask before quoting",
         "Another clarifying question if needed"
     ],
-    "recommendations": "Brief recommendation on next steps (e.g., 'Site visit recommended to assess damage' or 'Can likely quote from photos')",
+    "recommendations": "Brief recommendation on next steps (e.g., 'Site visit recommended to assess hidden damage' or 'Photos show enough detail to provide estimate')",
     "readyToQuote": true or false,
-    "confidence": 0.0 to 1.0 (how confident you are in this assessment)
+    "confidence": 0.0 to 1.0 (how confident you are in this assessment based on photo quality and information provided)
 }
 
 SEVERITY GUIDE:
@@ -206,7 +274,8 @@ SEVERITY GUIDE:
 - "high": Issues that could worsen significantly if not addressed soon
 - "urgent": Safety hazards, active leaks/damage, issues requiring immediate attention
 
-Be helpful and concise. Focus on information that helps the contractor give an accurate quote.
+Be specific about what you see in the photos. If you notice specific damage, discoloration, wear patterns, or conditions, describe them.
+Focus on information that helps the contractor give an accurate quote.
 Return ONLY the JSON object, no other text.`;
 }
 
@@ -216,7 +285,7 @@ Return ONLY the JSON object, no other text.`;
 function parseTextResponse(text) {
     // Try to extract meaningful content from unstructured response
     const lines = text.split('\n').filter(l => l.trim());
-    
+
     return {
         summary: lines[0] || 'Analysis completed',
         issues: lines.slice(1, 4).filter(l => l.length > 10),
@@ -259,7 +328,9 @@ function getBasicSummary(description, answers, photoCount) {
         confidence: 0.5,
         analyzedAt: new Date().toISOString(),
         photoCount,
+        photosAnalyzed: 0,
         videoCount: 0,
-        isBasicSummary: true
+        isBasicSummary: true,
+        usedVision: false
     };
 }
