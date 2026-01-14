@@ -4,14 +4,19 @@
 // ============================================
 // Enhanced job card with proper status display and action buttons
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
     AlertTriangle, Wrench, Info, MessageSquare,
-    ClipboardCheck, RotateCcw  // NEW: Added for completion review and recurring
+    ClipboardCheck, RotateCcw, CalendarDays  // NEW: Added for completion review, recurring, and multi-day
 } from 'lucide-react';
 import { isRecurringJob } from '../recurring/lib/recurringService';
+import {
+    jobIsMultiDay,
+    isMultiDayJob as checkIsMultiDay,
+    calculateDaysNeeded
+} from '../contractor-pro/lib/multiDayUtils';
 
 // Status configuration
 const STATUS_CONFIG = {
@@ -164,6 +169,24 @@ export const HomeownerJobCard = ({
     const offeredSlots = getOfferedSlots();
     const hasNewTimeRequest = job.scheduling?.requestedNewTimes;
 
+    // Detect multi-day job
+    const multiDayInfo = useMemo(() => {
+        if (jobIsMultiDay(job)) {
+            return {
+                isMultiDay: true,
+                totalDays: job.multiDaySchedule?.totalDays || 2
+            };
+        }
+        const duration = job.estimatedDuration || job.scheduling?.estimatedDuration || 0;
+        if (checkIsMultiDay(duration)) {
+            return {
+                isMultiDay: true,
+                totalDays: calculateDaysNeeded(duration)
+            };
+        }
+        return { isMultiDay: false, totalDays: 1 };
+    }, [job]);
+
     // Format date for display (Consistently handle ISO strings)
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
@@ -205,10 +228,17 @@ export const HomeownerJobCard = ({
                 {/* Header Row */}
                 <div className="flex justify-between items-start mb-3">
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-bold text-slate-800 truncate">
                                 {job.title || job.description || 'Service Request'}
                             </h3>
+                            {/* Multi-Day Badge */}
+                            {multiDayInfo.isMultiDay && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 text-[10px] font-bold rounded-md shrink-0">
+                                    <CalendarDays size={10} />
+                                    {multiDayInfo.totalDays}-Day Job
+                                </span>
+                            )}
                             {/* Recurring Badge */}
                             {isRecurringJob(job) && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md shrink-0">
@@ -400,13 +430,23 @@ export const HomeownerJobCard = ({
 
             {/* Quick Action Bar (for jobs needing action) */}
             {effectiveStatus === 'slots_offered' && offeredSlots.length > 0 && (
-                <div className="px-4 py-3 bg-amber-50 border-t border-amber-100">
+                <div className={`px-4 py-3 border-t ${multiDayInfo.isMultiDay ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
+                    {/* Multi-day warning hint */}
+                    {multiDayInfo.isMultiDay && (
+                        <p className="text-xs text-indigo-600 text-center mb-2 font-medium">
+                            This job spans {multiDayInfo.totalDays} consecutive work days
+                        </p>
+                    )}
                     <button
                         onClick={() => onSelect?.(job)}
-                        className="w-full py-2.5 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                            multiDayInfo.isMultiDay
+                                ? 'bg-indigo-500 hover:bg-indigo-600'
+                                : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
                     >
                         <Calendar size={16} />
-                        Pick a Time
+                        {multiDayInfo.isMultiDay ? 'Select Start Date' : 'Pick a Time'}
                     </button>
                 </div>
             )}
