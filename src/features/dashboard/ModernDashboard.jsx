@@ -174,12 +174,12 @@ const WelcomeCard = ({ propertyName, onScanReceipt, onAddRecord, onCreateContrac
 // UPDATED: ActiveProjectsSection with Job Completion Review
 // ============================================
 
-const ActiveProjectsSection = ({ userId }) => {
+const ActiveProjectsSection = ({ userId, onCountChange }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
     const [cancellingJob, setCancellingJob] = useState(null);
     const [requestingTimesJob, setRequestingTimesJob] = useState(null);
-    const [reviewingJob, setReviewingJob] = useState(null);  // NEW: For completion review
+    const [reviewingJob, setReviewingJob] = useState(null);  // For completion review
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -234,6 +234,8 @@ const ActiveProjectsSection = ({ userId }) => {
 
             setProjects(active);
             setLoading(false);
+            // Report count to parent for smart hierarchy
+            if (onCountChange) onCountChange(active.length);
         };
 
         const unsub1 = onSnapshot(q1, (snapshot) => {
@@ -604,8 +606,13 @@ const ActiveProjectsSectionInline = ({ userId }) => {
 };
 
 // --- QUOTES SECTION COMPONENT ---
-const MyQuotesSection = ({ userId }) => {
+const MyQuotesSection = ({ userId, onCountChange }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
+
+    // Report count to parent for smart hierarchy
+    useEffect(() => {
+        if (onCountChange && !loading) onCountChange(quotes.length);
+    }, [quotes.length, loading, onCountChange]);
 
     const handleDelete = async (e, quote) => {
         e.preventDefault();
@@ -686,7 +693,7 @@ const MyQuotesSection = ({ userId }) => {
 };
 
 // --- PENDING EVALUATIONS SECTION ---
-const PendingEvaluationsSection = ({ userId }) => {
+const PendingEvaluationsSection = ({ userId, onCountChange }) => {
     const [evaluations, setEvaluations] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -703,7 +710,10 @@ const PendingEvaluationsSection = ({ userId }) => {
 
                 if (profileSnap.exists()) {
                     const profile = profileSnap.data();
-                    setEvaluations(profile.pendingEvaluations || []);
+                    const evals = profile.pendingEvaluations || [];
+                    setEvaluations(evals);
+                    // Report count to parent for smart hierarchy
+                    if (onCountChange) onCountChange(evals.length);
                 }
             } catch (err) {
                 console.error('Error fetching pending evaluations:', err);
@@ -713,7 +723,7 @@ const PendingEvaluationsSection = ({ userId }) => {
         };
 
         fetchPendingEvaluations();
-    }, [userId]);
+    }, [userId, onCountChange]);
 
     if (loading || evaluations.length === 0) return null;
 
@@ -831,10 +841,15 @@ export const ModernDashboard = ({
     const greeting = getGreeting();
     const [showScoreDetails, setShowScoreDetails] = useState(false);
 
-    // NEW: Track if welcome card has been dismissed (persists via localStorage)
+    // Track if welcome card has been dismissed (persists via localStorage)
     const [welcomeDismissed, setWelcomeDismissed] = useState(() => {
         return localStorage.getItem('krib_welcome_dismissed') === 'true';
     });
+
+    // Track active project counts for smart hierarchy
+    const [activeProjectCount, setActiveProjectCount] = useState(0);
+    const [pendingQuoteCount, setPendingQuoteCount] = useState(0);
+    const [pendingEvalCount, setPendingEvalCount] = useState(0);
 
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
@@ -842,6 +857,17 @@ export const ModernDashboard = ({
     const totalSpent = useMemo(() => {
         return validRecords.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
     }, [validRecords]);
+
+    // Determine user state for smart hierarchy
+    const userState = useMemo(() => {
+        const hasActiveWork = activeProjectCount > 0 || pendingQuoteCount > 0 || pendingEvalCount > 0;
+        const hasEstablishedProfile = validRecords.length >= 3 || contractors.length >= 1;
+        const isNewUser = validRecords.length === 0 && contractors.length === 0;
+
+        if (hasActiveWork) return 'active-work'; // Show projects first
+        if (hasEstablishedProfile) return 'established'; // Show property intelligence first
+        return 'new-user'; // Show onboarding
+    }, [activeProjectCount, pendingQuoteCount, pendingEvalCount, validRecords.length, contractors.length]);
 
     const maintenanceSummary = useMemo(() => {
         let overdue = 0;
@@ -875,7 +901,7 @@ export const ModernDashboard = ({
         return <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> All Caught Up</span>;
     }, [validRecords]);
 
-    // NEW: Handle welcome card dismiss
+    // Handle welcome card dismiss
     const handleDismissWelcome = () => {
         setWelcomeDismissed(true);
         localStorage.setItem('krib_welcome_dismissed', 'true');
@@ -936,30 +962,38 @@ export const ModernDashboard = ({
                 </div>
             </div>
 
-            {/* ACTIVE PROJECTS SECTION - First! (shows if user has any) */}
-            <ActiveProjectsSection userId={userId} />
+            {/* ============================================ */}
+            {/* SMART HIERARCHY - Content order based on user state */}
+            {/* ============================================ */}
 
-            {/* RECURRING SERVICES SECTION (shows if user has any) */}
+            {/* ACTIVE WORK SECTIONS - Always show first when present */}
+            <ActiveProjectsSection userId={userId} onCountChange={setActiveProjectCount} />
             <RecurringServicesSection userId={userId} />
+            <MyQuotesSection userId={userId} onCountChange={setPendingQuoteCount} />
+            <PendingEvaluationsSection userId={userId} onCountChange={setPendingEvalCount} />
 
-            {/* MY QUOTES SECTION (shows if user has any) */}
-            <MyQuotesSection userId={userId} />
+            {/* MY CONTRACTORS - Show prominently when user has active work */}
+            {userState === 'active-work' && (
+                <MyContractorsSection
+                    contractors={contractors}
+                    userId={userId}
+                    onNavigateToContractors={onNavigateToContractors}
+                    onCreateContractorLink={onCreateContractorLink}
+                />
+            )}
 
-            {/* PENDING EVALUATIONS SECTION (shows if user has any) */}
-            <PendingEvaluationsSection userId={userId} />
-
-            {/* PROPERTY INTELLIGENCE SECTION */}
+            {/* PROPERTY INTELLIGENCE - Primary for established users, secondary for active work */}
             <DashboardSection
                 title="Property Intelligence"
                 icon={Home}
-                defaultOpen={true}
+                defaultOpen={userState !== 'active-work'}
                 summary={<span className="text-xs text-emerald-600 font-medium">✨ Auto-discovered</span>}
             >
                 <PropertyIntelligence propertyProfile={activeProperty} />
             </DashboardSection>
 
-            {/* WELCOME CARD - Only for 0 items, dismissible */}
-            {validRecords.length === 0 && !welcomeDismissed && (
+            {/* WELCOME/ONBOARDING - For new users or users without established profiles */}
+            {(userState === 'new-user' || (validRecords.length === 0 && !welcomeDismissed)) && (
                 <WelcomeCard
                     propertyName={activeProperty?.name}
                     onScanReceipt={onScanReceipt}
@@ -969,8 +1003,12 @@ export const ModernDashboard = ({
                 />
             )}
 
-            {/* QUICK ACTIONS SECTION */}
-            <DashboardSection title="Quick Actions" icon={Sparkles} defaultOpen={true}>
+            {/* QUICK ACTIONS - More prominent for new users, compact for established */}
+            <DashboardSection
+                title="Quick Actions"
+                icon={Sparkles}
+                defaultOpen={userState === 'new-user'}
+            >
                 <div className="grid grid-cols-2 gap-3">
                     <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
                     <ActionButton icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
@@ -979,19 +1017,21 @@ export const ModernDashboard = ({
                 </div>
             </DashboardSection>
 
-            {/* MY CONTRACTORS SECTION */}
-            <MyContractorsSection
-                contractors={contractors}
-                userId={userId}
-                onNavigateToContractors={onNavigateToContractors}
-                onCreateContractorLink={onCreateContractorLink}
-            />
+            {/* MY CONTRACTORS - Show here for established/new users (not active-work, shown above) */}
+            {userState !== 'active-work' && (
+                <MyContractorsSection
+                    contractors={contractors}
+                    userId={userId}
+                    onNavigateToContractors={onNavigateToContractors}
+                    onCreateContractorLink={onCreateContractorLink}
+                />
+            )}
 
-            {/* MAINTENANCE SCHEDULE SECTION */}
+            {/* MAINTENANCE SCHEDULE - Always important */}
             <DashboardSection
                 title="Maintenance Schedule"
                 icon={Calendar}
-                defaultOpen={true}
+                defaultOpen={userState === 'established'}
                 summary={maintenanceSummary}
             >
                 <MaintenanceDashboard
@@ -1009,7 +1049,7 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* HISTORY & ARCHIVE SECTION */}
+            {/* HISTORY & ARCHIVE */}
             <DashboardSection
                 title="History & Archive"
                 icon={Archive}

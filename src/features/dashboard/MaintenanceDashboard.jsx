@@ -4,7 +4,8 @@ import {
     Zap, Calendar, CheckCircle, Clock, PlusCircle, ChevronRight, ChevronDown,
     Wrench, AlertTriangle, Sparkles, TrendingUp, History, Archive,
     ArrowRight, Check, X, Phone, MessageCircle, Mail, User, Hourglass,
-    Trash2, RotateCcw, Layers, Filter, MoreHorizontal, CalendarClock, AlarmClock
+    Trash2, RotateCcw, Layers, Filter, MoreHorizontal, CalendarClock, AlarmClock,
+    ChevronLeft, Grid3X3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES, STANDARD_MAINTENANCE_ITEMS } from '../../config/constants';
@@ -152,7 +153,198 @@ const TimelineStrip = ({ tasks, onTaskClick }) => {
     );
 };
 
-// --- NEW: Snooze Options Menu ---
+// --- NEW: Month Calendar View ---
+const MaintenanceCalendar = ({ tasks, onTaskClick }) => {
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+
+    // Get calendar data for the current month
+    const calendarData = useMemo(() => {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth();
+
+        // First day of month and how many days
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+        const startingDayOfWeek = firstDay.getDay(); // 0 = Sunday
+
+        // Build task map by date
+        const tasksByDate = {};
+        tasks.forEach(task => {
+            const taskDate = task.scheduledDate
+                ? new Date(task.scheduledDate)
+                : task.nextDate;
+            if (!taskDate) return;
+
+            // Only include tasks for this month
+            if (taskDate.getFullYear() === year && taskDate.getMonth() === month) {
+                const dateKey = taskDate.getDate();
+                if (!tasksByDate[dateKey]) tasksByDate[dateKey] = [];
+                tasksByDate[dateKey].push(task);
+            }
+        });
+
+        // Build weeks array
+        const weeks = [];
+        let currentWeek = [];
+
+        // Add empty cells for days before month starts
+        for (let i = 0; i < startingDayOfWeek; i++) {
+            currentWeek.push(null);
+        }
+
+        // Add days of month
+        for (let day = 1; day <= daysInMonth; day++) {
+            currentWeek.push({
+                day,
+                date: new Date(year, month, day),
+                tasks: tasksByDate[day] || [],
+                isToday: new Date().toDateString() === new Date(year, month, day).toDateString()
+            });
+
+            if (currentWeek.length === 7) {
+                weeks.push(currentWeek);
+                currentWeek = [];
+            }
+        }
+
+        // Add empty cells for days after month ends
+        if (currentWeek.length > 0) {
+            while (currentWeek.length < 7) {
+                currentWeek.push(null);
+            }
+            weeks.push(currentWeek);
+        }
+
+        return { weeks, monthName: firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) };
+    }, [currentMonth, tasks]);
+
+    const goToPrevMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    };
+
+    const goToNextMonth = () => {
+        setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    };
+
+    const goToToday = () => {
+        setCurrentMonth(new Date());
+    };
+
+    const getTaskColor = (task) => {
+        if (task.scheduledDate) return 'bg-blue-500'; // Scheduled
+        if (task.daysUntil < 0) return 'bg-red-500'; // Overdue
+        if (task.daysUntil <= 7) return 'bg-amber-500'; // Due soon
+        return 'bg-emerald-500'; // Future
+    };
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            {/* Calendar Header */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+                <button
+                    onClick={goToPrevMonth}
+                    className="p-2 hover:bg-white rounded-lg transition-colors text-slate-600"
+                >
+                    <ChevronLeft size={20} />
+                </button>
+                <div className="text-center">
+                    <h3 className="font-bold text-slate-800">{calendarData.monthName}</h3>
+                    <button
+                        onClick={goToToday}
+                        className="text-xs text-emerald-600 font-medium hover:underline"
+                    >
+                        Today
+                    </button>
+                </div>
+                <button
+                    onClick={goToNextMonth}
+                    className="p-2 hover:bg-white rounded-lg transition-colors text-slate-600"
+                >
+                    <ChevronRight size={20} />
+                </button>
+            </div>
+
+            {/* Day Headers */}
+            <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wide">
+                        {day}
+                    </div>
+                ))}
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="divide-y divide-slate-100">
+                {calendarData.weeks.map((week, weekIdx) => (
+                    <div key={weekIdx} className="grid grid-cols-7 divide-x divide-slate-100">
+                        {week.map((day, dayIdx) => (
+                            <div
+                                key={dayIdx}
+                                className={`min-h-[70px] p-1 ${
+                                    day?.isToday ? 'bg-emerald-50' : 'bg-white'
+                                } ${day ? 'hover:bg-slate-50' : ''} transition-colors`}
+                            >
+                                {day && (
+                                    <>
+                                        <div className={`text-xs font-bold mb-1 ${
+                                            day.isToday
+                                                ? 'text-emerald-600'
+                                                : day.tasks.some(t => t.daysUntil < 0)
+                                                    ? 'text-red-600'
+                                                    : 'text-slate-600'
+                                        }`}>
+                                            {day.day}
+                                        </div>
+                                        <div className="space-y-0.5">
+                                            {day.tasks.slice(0, 3).map((task, taskIdx) => (
+                                                <button
+                                                    key={taskIdx}
+                                                    onClick={() => onTaskClick && onTaskClick(task)}
+                                                    className={`w-full text-left px-1 py-0.5 rounded text-[10px] font-medium text-white truncate ${getTaskColor(task)} hover:opacity-80 transition-opacity`}
+                                                    title={task.taskName}
+                                                >
+                                                    {task.taskName.split(' ')[0]}
+                                                </button>
+                                            ))}
+                                            {day.tasks.length > 3 && (
+                                                <div className="text-[10px] text-slate-400 font-medium px-1">
+                                                    +{day.tasks.length - 3} more
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                ))}
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-4 p-3 bg-slate-50 border-t border-slate-100">
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                    <span>Overdue</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <span>Due Soon</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                    <span>Scheduled</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span>Future</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- Snooze Options Menu ---
 const SnoozeMenu = ({ onSnooze, onClose }) => {
     const menuRef = useRef(null);
     
@@ -725,7 +917,7 @@ export const MaintenanceDashboard = ({
     title = "Maintenance",  // Customizable title with default
     userId  // NEW: Required for photo uploads in TaskCompletionModal
 }) => {
-    const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'history'
+    const [viewMode, setViewMode] = useState('upcoming'); // 'upcoming' | 'calendar' | 'history'
     const [sortMode, setSortMode] = useState('timeline'); // 'timeline' | 'system'
     const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -863,17 +1055,23 @@ export const MaintenanceDashboard = ({
 
     return (
         <div className="space-y-6">
-            {/* EXISTING: Header with View Toggle (UPDATED to use title prop) */}
+            {/* Header with View Toggle */}
             <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-                <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
-                    <button 
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                    <button
                         onClick={() => setViewMode('upcoming')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${viewMode === 'upcoming' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
-                        Upcoming
+                        List
                     </button>
-                    <button 
+                    <button
+                        onClick={() => setViewMode('calendar')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${viewMode === 'calendar' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Grid3X3 size={12} /> Calendar
+                    </button>
+                    <button
                         onClick={() => setViewMode('history')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 ${viewMode === 'history' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                     >
@@ -882,7 +1080,7 @@ export const MaintenanceDashboard = ({
                 </div>
             </div>
 
-            {/* Timeline Strip (shows upcoming tasks visually) */}
+            {/* Timeline Strip (shows upcoming tasks visually) - only on list view */}
             {viewMode === 'upcoming' && allActiveTasks.length > 0 && (
                 <TimelineStrip
                     tasks={allActiveTasks}
@@ -898,7 +1096,26 @@ export const MaintenanceDashboard = ({
                 />
             )}
 
-            {/* UPCOMING VIEW */}
+            {/* CALENDAR VIEW */}
+            {viewMode === 'calendar' && (
+                <MaintenanceCalendar
+                    tasks={allActiveTasks}
+                    onTaskClick={(task) => {
+                        // Switch to list view and scroll to task
+                        setViewMode('upcoming');
+                        setTimeout(() => {
+                            const element = document.getElementById(`task-${task.id}`);
+                            if (element) {
+                                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                element.classList.add('ring-2', 'ring-emerald-500');
+                                setTimeout(() => element.classList.remove('ring-2', 'ring-emerald-500'), 2000);
+                            }
+                        }, 100);
+                    }}
+                />
+            )}
+
+            {/* LIST VIEW */}
             {viewMode === 'upcoming' ? (
                 <div className="space-y-6">
                     {/* EXISTING: Sort Mode Toggle (UNCHANGED) */}
