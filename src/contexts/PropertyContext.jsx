@@ -52,7 +52,10 @@ export function PropertyProvider({ children, propertyProfile }) {
 
     // Fetch property data
     useEffect(() => {
+        console.log('[PropertyContext] Effect triggered, addressString:', addressString);
+
         if (!addressString) {
+            console.log('[PropertyContext] No addressString, skipping fetch');
             setLoading(false);
             return;
         }
@@ -69,6 +72,7 @@ export function PropertyProvider({ children, propertyProfile }) {
                     const cacheData = JSON.parse(cached);
                     const entry = cacheData[addressString];
                     if (entry && (Date.now() - entry.timestamp) < CACHE_DURATION) {
+                        console.log('[PropertyContext] Using cached data for:', addressString, 'source:', entry.property?.source);
                         if (!cancelled) {
                             setPropertyData(entry.property);
                             setFloodData(entry.flood);
@@ -89,10 +93,12 @@ export function PropertyProvider({ children, propertyProfile }) {
                     params.append('lon', coordinates.lon);
                 }
 
+                console.log('[PropertyContext] Fetching from API:', `/api/property-data?${params}`);
                 const response = await fetch(`/api/property-data?${params}`);
 
                 if (response.ok) {
                     const result = await response.json();
+                    console.log('[PropertyContext] API response:', result.property?.source, 'hasData:', !!result.property);
                     if (!cancelled) {
                         setPropertyData(result.property);
                         setFloodData(result.flood);
@@ -115,7 +121,7 @@ export function PropertyProvider({ children, propertyProfile }) {
                     throw new Error(`API returned ${response.status}`);
                 }
             } catch (err) {
-                console.warn('Property API error:', err.message);
+                console.warn('[PropertyContext] Property API error:', err.message);
                 if (!cancelled) {
                     setError(err.message);
                 }
