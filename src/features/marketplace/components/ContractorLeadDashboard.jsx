@@ -11,13 +11,14 @@ import {
     AlertTriangle, Shield, Award, Eye, MessageSquare, Send,
     Loader2, RefreshCw, Star, X, CheckCircle, Camera
 } from 'lucide-react';
-import { 
+import {
     SERVICE_CATEGORIES,
     URGENCY_LEVELS,
     getOpenRequestsForContractor,
     subscribeToOpenRequests,
     submitContractorResponse,
-    incrementRequestView
+    incrementRequestView,
+    expireOldRequests
 } from '../lib/serviceRequestService';
 
 const ContractorLeadDashboard = ({ 
@@ -39,13 +40,16 @@ const ContractorLeadDashboard = ({
     
     useEffect(() => {
         if (!contractorProfile) return;
-        
+
+        // Clean up expired requests on mount (fire and forget)
+        expireOldRequests().catch(console.warn);
+
         // Real-time subscription
         const unsubscribe = subscribeToOpenRequests(contractorProfile, (newRequests) => {
             setRequests(newRequests);
             setLoading(false);
         });
-        
+
         return () => unsubscribe();
     }, [contractorProfile]);
     
@@ -139,13 +143,51 @@ const ContractorLeadDashboard = ({
             
             {/* Request List */}
             {sortedRequests.length === 0 ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center">
-                    <Bell className="mx-auto text-slate-300 mb-4" size={48} />
-                    <h3 className="text-lg font-bold text-slate-800 mb-2">No Leads Right Now</h3>
-                    <p className="text-slate-500 max-w-md mx-auto">
-                        When homeowners in your area post requests that match your services, 
-                        they'll appear here. Check back soon!
+                <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Bell className="text-emerald-600" size={28} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">
+                        {selectedCategory ? 'No Leads in This Category' : 'No Leads Right Now'}
+                    </h3>
+                    <p className="text-slate-500 max-w-md mx-auto mb-6">
+                        {selectedCategory
+                            ? `There are no open ${SERVICE_CATEGORIES.find(c => c.id === selectedCategory)?.label || selectedCategory} requests in your area right now.`
+                            : 'When homeowners in your area post requests that match your services, they\'ll appear here.'
+                        }
                     </p>
+
+                    {/* Actionable Tips */}
+                    <div className="bg-slate-50 rounded-xl p-4 max-w-md mx-auto text-left">
+                        <p className="text-sm font-bold text-slate-700 mb-3">Tips to get more leads:</p>
+                        <ul className="space-y-2 text-sm text-slate-600">
+                            <li className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                <span>Complete your profile with photos and reviews</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                <span>Add more service categories to your profile</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                <span>Increase your travel radius in settings</span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                                <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                <span>Respond quickly when leads appear - fast response times win jobs!</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    {selectedCategory && (
+                        <button
+                            onClick={() => setSelectedCategory(null)}
+                            className="mt-4 px-4 py-2 text-emerald-600 font-medium hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                            Clear filter to see all leads
+                        </button>
+                    )}
                 </div>
             ) : (
                 <div className="space-y-4">

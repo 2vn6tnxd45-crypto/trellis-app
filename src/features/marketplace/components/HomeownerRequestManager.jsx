@@ -11,14 +11,15 @@ import {
     ChevronRight, Check, X, Loader2, Eye, DollarSign, Shield,
     Award, User, Calendar, AlertTriangle, Trash2, CheckCircle
 } from 'lucide-react';
-import { 
+import {
     SERVICE_CATEGORIES,
     URGENCY_LEVELS,
     REQUEST_STATUS,
     getHomeownerRequests,
     getRequestResponses,
     selectContractor,
-    cancelRequest
+    cancelRequest,
+    expireOldRequests
 } from '../lib/serviceRequestService';
 
 const HomeownerRequestManager = ({ 
@@ -40,9 +41,10 @@ const HomeownerRequestManager = ({
     // ============================================
     
     useEffect(() => {
-        loadRequests();
+        // Clean up expired requests on mount, then load
+        expireOldRequests().catch(console.warn).finally(loadRequests);
     }, [userId]);
-    
+
     const loadRequests = async () => {
         setLoading(true);
         const result = await getHomeownerRequests(userId);

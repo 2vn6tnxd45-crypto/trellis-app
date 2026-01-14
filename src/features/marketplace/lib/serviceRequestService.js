@@ -6,13 +6,14 @@
 // service needs to matching contractors in the marketplace.
 // FREE tier - ad-supported model, no lead fees.
 
-import { 
+import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, limit, serverTimestamp, arrayUnion, increment,
     onSnapshot, Timestamp
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
+import { updateResponseMetrics } from './contractorMarketplaceService';
 
 // ============================================
 // CONSTANTS
@@ -379,13 +380,28 @@ export const submitContractorResponse = async (requestId, contractorId, response
         };
         
         await setDoc(responseRef, response);
-        
+
         // Update request response count
         await updateDoc(requestRef, {
             responseCount: increment(1),
             updatedAt: serverTimestamp()
         });
-        
+
+        // Calculate response time and update contractor metrics
+        try {
+            const requestCreatedAt = request.createdAt?.toDate?.() || new Date(request.createdAt);
+            const responseTime = new Date();
+            const hoursToRespond = (responseTime - requestCreatedAt) / (1000 * 60 * 60);
+
+            // Only track if response was within reasonable time (< 7 days)
+            if (hoursToRespond > 0 && hoursToRespond < 168) {
+                await updateResponseMetrics(contractorId, hoursToRespond);
+            }
+        } catch (metricsError) {
+            // Non-critical - log but don't fail the response
+            console.warn('Failed to update response metrics:', metricsError);
+        }
+
         return { success: true, responseId: responseRef.id };
     } catch (error) {
         console.error('Error submitting response:', error);
@@ -474,6 +490,52 @@ export const incrementRequestView = async (requestId) => {
 };
 
 // ============================================
+// AUTO-EXPIRE OLD REQUESTS
+// ============================================
+
+/**
+ * Check and expire any service requests past their expiration date
+ * Call this on component mount to clean up stale data
+ * @returns {object} - { success, expiredCount }
+ */
+export const expireOldRequests = async () => {
+    try {
+        const now = Timestamp.now();
+
+        // Query for open requests that have expired
+        const q = query(
+            collection(db, getServiceRequestsPath()),
+            where('status', '==', REQUEST_STATUS.OPEN),
+            where('expiresAt', '<=', now)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return { success: true, expiredCount: 0 };
+        }
+
+        // Expire each request
+        const expirePromises = snapshot.docs.map(async (docSnap) => {
+            const requestRef = doc(db, getServiceRequestsPath(), docSnap.id);
+            await updateDoc(requestRef, {
+                status: REQUEST_STATUS.EXPIRED,
+                visibility: VISIBILITY_TYPES.PRIVATE,
+                updatedAt: serverTimestamp()
+            });
+        });
+
+        await Promise.all(expirePromises);
+
+        console.log(`Auto-expired ${snapshot.size} old service requests`);
+        return { success: true, expiredCount: snapshot.size };
+    } catch (error) {
+        console.error('Error expiring old requests:', error);
+        return { success: false, expiredCount: 0, error: error.message };
+    }
+};
+
+// ============================================
 // CANCEL/EXPIRE REQUEST
 // ============================================
 
@@ -534,6 +596,7 @@ export default {
     getRequestResponses,
     selectContractor,
     incrementRequestView,
+    expireOldRequests,
     cancelRequest,
     linkToJob
 };
