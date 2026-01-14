@@ -26,7 +26,6 @@ export function PropertyProvider({ children, propertyProfile }) {
 
     // Extract address from property profile - handle multiple formats and locations
     const addressString = useMemo(() => {
-        console.log('[PropertyContext] Extracting address from:', JSON.stringify(propertyProfile, null, 2));
 
         // Try multiple possible address locations
         const address = propertyProfile?.address
@@ -34,15 +33,10 @@ export function PropertyProvider({ children, propertyProfile }) {
             || propertyProfile?.propertyAddress;
 
         if (!address || (typeof address === 'object' && Object.keys(address).length === 0)) {
-            console.log('[PropertyContext] Address is empty/null, checking fallbacks. street:', propertyProfile?.street);
             // Maybe the address is stored as a top-level string field
-            if (propertyProfile?.street) {
-                console.log('[PropertyContext] Using street field:', propertyProfile.street);
-                return propertyProfile.street;
-            }
+            if (propertyProfile?.street) return propertyProfile.street;
             if (propertyProfile?.formattedAddress) return propertyProfile.formattedAddress;
             if (propertyProfile?.fullAddress) return propertyProfile.fullAddress;
-            console.log('[PropertyContext] No address found, returning null');
             return null;
         }
 
@@ -63,7 +57,6 @@ export function PropertyProvider({ children, propertyProfile }) {
 
         // If street contains commas, it might be a full formatted address already
         if (street && street.includes(',')) {
-            console.log('[PropertyContext] Street contains full address:', street);
             return street;
         }
 
