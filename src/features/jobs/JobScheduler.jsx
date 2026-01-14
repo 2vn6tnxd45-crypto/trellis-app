@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { SlotPicker } from './SlotPicker';
 import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarningModal';
 import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
+import { detectTimezone, createDateInTimezone, isSameDayInTimezone } from '../contractor-pro/lib/timezoneUtils';
 
 // Helper to format scheduled time with range (handles multi-day jobs)
 const formatScheduledTimeRange = (job) => {
@@ -57,7 +58,8 @@ const formatScheduledTimeRange = (job) => {
 
 // ADD: contractorId prop to link the schedule to the specific pro
 // ADD: allJobs prop for cascade warning impact analysis
-export const JobScheduler = ({ job, userType, contractorId, allJobs = [], onUpdate, onClose }) => {
+// ADD: timezone prop to ensure scheduling happens in the correct zone (e.g. valid even if user is traveling)
+export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezone, onUpdate, onClose }) => {
     // userType: 'homeowner' | 'contractor'
     const [isProposing, setIsProposing] = useState(false);
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
@@ -116,8 +118,17 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], onUpda
     const handleProposeTime = async () => {
         if (!proposal.date || !proposal.time) return toast.error("Please pick a date and time");
 
-        // Validate date is in the future
-        const timestamp = new Date(`${proposal.date}T${proposal.time}`);
+        // Resolve timezone: Use provided prop, or fallback to browser
+        // Ideally, for a contractor, this should be THEIR field timezone.
+        const targetTimezone = timezone || detectTimezone();
+
+        // Parse inputs
+        const [year, month, day] = proposal.date.split('-').map(Number);
+        const [hours, minutes] = proposal.time.split(':').map(Number);
+
+        // Create date in the target timezone
+        // This ensures if I select "9:00", it means "9:00 in the project's timezone", not "9:00 where I am currently sitting"
+        const timestamp = createDateInTimezone(year, month - 1, day, hours, minutes, targetTimezone);
         const now = new Date();
 
         if (isNaN(timestamp.getTime())) {

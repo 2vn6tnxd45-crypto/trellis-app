@@ -11,6 +11,7 @@ import {
     Plus, Filter, List, Grid3X3, AlertCircle, CheckCircle,
     User, DollarSign, ArrowRight, Sparkles, X, ClipboardList, Video
 } from 'lucide-react';
+import { isSameDayInTimezone, createDateInTimezone, formatDateInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -21,10 +22,10 @@ const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
 
 const formatDate = (date) => {
-    return new Intl.DateTimeFormat('en-US', { 
-        weekday: 'short', 
-        month: 'short', 
-        day: 'numeric' 
+    return new Intl.DateTimeFormat('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
     }).format(date);
 };
 
@@ -34,52 +35,41 @@ const formatTime = (dateStr) => {
     return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const isSameDay = (date1, date2) => {
-    if (!date1 || !date2) return false;
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
-};
 
-const getWeekDates = (date) => {
+
+const getWeekDates = (date, timezone) => {
+    // Ensure we start from the correct day in the target timezone
     const start = new Date(date);
     start.setDate(start.getDate() - start.getDay()); // Start from Sunday
-    
+
     const dates = [];
     for (let i = 0; i < 7; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
+
+        // Reconstruction in target timezone if needed, but since we are just deriving
+        // 7 consecutive days from a valid 'date' object (which we assume is already valid in TZ due to navigation)
+        // we might just need to ensure consistency. 
+        // Better: Explicitly construct them.
+        // However, 'start' is a timestamp. 
+        // Let's rely on the input 'date' being already "centered" in the right timezone (handled by navigation/init).
         dates.push(d);
     }
     return dates;
 };
 
-// UPDATED: Include jobs with offered slots (pending) and evaluations
-const getEventsForDate = (events, date) => {
-    return events.filter(event => {
-        // Handle evaluations (type === 'evaluation')
-        if (event.type === 'evaluation') {
-            return event.start && isSameDay(event.start, date);
-        }
-
-        // Handle jobs - confirmed time
-        if (event.scheduledTime) {
-            return isSameDay(event.scheduledTime, date);
-        }
-        if (event.scheduledDate) {
-            return isSameDay(event.scheduledDate, date);
-        }
-        // Pending slots logic
-        if (event.scheduling?.offeredSlots?.length > 0) {
-            return event.scheduling.offeredSlots.some(slot =>
-                slot.status === 'offered' && isSameDay(slot.start, date)
-            );
-        }
-        return false;
-    });
+// UPDATED: Helper to generate consistent keys for the event map
+const getDateKey = (date, timezone) => {
+    // using 'medium' format from timezoneUtils (which matches isSameDayInTimezone logic)
+    // We could use isSameDayInTimezone logic directly but we need a string key.
+    // formatDateInTimezone(..., 'medium') returns "Jan 1, 2024" type string which is a stable key.
+    // We import formatDateInTimezone for this.
+    return formatDateInTimezone(date, timezone, 'medium');
 };
+
+// NOTE: calculateEventsForDate logic moved to efficient Map generation inside component
+// providing backward compat if needed, but intended to be replaced.
+
 
 // Backward compatibility alias
 const getJobsForDate = getEventsForDate;
@@ -147,8 +137,8 @@ const STATUS_STYLES = {
 // WEEK VIEW COMPONENT
 // ============================================
 
-const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }) => {
-    const weekDates = getWeekDates(currentDate);
+const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedDate, timezone }) => {
+    const weekDates = getWeekDates(currentDate, timezone);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -157,9 +147,9 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
             {/* Week Header */}
             <div className="grid grid-cols-7 border-b border-slate-100">
                 {weekDates.map((date, idx) => {
-                    const isToday = isSameDay(date, today);
-                    const isSelected = isSameDay(date, selectedDate);
-                    const dayEvents = getJobsForDate(jobs, date);
+                    const isToday = isSameDayInTimezone(date, today, timezone);
+                    const isSelected = isSameDayInTimezone(date, selectedDate, timezone);
+                    const dayEvents = getEvents(date);
                     const hasConfirmed = dayEvents.some(e => getJobStatus(e) === 'confirmed');
                     const hasPending = dayEvents.some(e => getJobStatus(e) === 'pending');
                     const hasEvaluation = dayEvents.some(e => e.type === 'evaluation');
@@ -169,24 +159,21 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                         <button
                             key={idx}
                             onClick={() => onSelectDate(date)}
-                            className={`p-3 text-center transition-colors relative ${
-                                isSelected
-                                    ? 'bg-emerald-50'
-                                    : 'hover:bg-slate-50'
-                            }`}
+                            className={`p-3 text-center transition-colors relative ${isSelected
+                                ? 'bg-emerald-50'
+                                : 'hover:bg-slate-50'
+                                }`}
                         >
-                            <p className={`text-xs font-medium ${
-                                isToday ? 'text-emerald-600' : 'text-slate-500'
-                            }`}>
+                            <p className={`text-xs font-medium ${isToday ? 'text-emerald-600' : 'text-slate-500'
+                                }`}>
                                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]}
                             </p>
-                            <p className={`text-lg font-bold mt-1 ${
-                                isToday
-                                    ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto'
-                                    : isSelected
-                                        ? 'text-emerald-600'
-                                        : 'text-slate-800'
-                            }`}>
+                            <p className={`text-lg font-bold mt-1 ${isToday
+                                ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto'
+                                : isSelected
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-800'
+                                }`}>
                                 {date.getDate()}
                             </p>
                             {/* Event indicators */}
@@ -213,23 +200,23 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                             {formatDate(selectedDate)}
                         </h3>
                         <span className="text-xs text-slate-500">
-                            {getJobsForDate(jobs, selectedDate).length} events
+                            {getEvents(selectedDate).length} events
                         </span>
                     </div>
 
                     <div className="space-y-2">
-                        {getJobsForDate(jobs, selectedDate).length === 0 ? (
+                        {getEvents(selectedDate).length === 0 ? (
                             <div className="text-center py-8 text-slate-400">
                                 <Calendar size={24} className="mx-auto mb-2 opacity-50" />
                                 <p className="text-sm">No events scheduled</p>
                             </div>
                         ) : (
-                            getJobsForDate(jobs, selectedDate)
+                            getEvents(selectedDate)
                                 .sort((a, b) => {
                                     const timeA = a.start || a.scheduledTime || a.scheduledDate ||
-                                        (a.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
+                                        (a.scheduling?.offeredSlots?.find(s => isSameDayInTimezone(s.start, selectedDate, timezone))?.start);
                                     const timeB = b.start || b.scheduledTime || b.scheduledDate ||
-                                        (b.scheduling?.offeredSlots?.find(s => isSameDay(s.start, selectedDate))?.start);
+                                        (b.scheduling?.offeredSlots?.find(s => isSameDayInTimezone(s.start, selectedDate, timezone))?.start);
                                     return new Date(timeA) - new Date(timeB);
                                 })
                                 .map(event => {
@@ -241,7 +228,7 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
                                     let displayTime = event.start || event.scheduledTime;
                                     if (status === 'pending') {
                                         const slot = event.scheduling?.offeredSlots?.find(s =>
-                                            s.status === 'offered' && isSameDay(s.start, selectedDate)
+                                            s.status === 'offered' && isSameDayInTimezone(s.start, selectedDate, timezone)
                                         );
                                         displayTime = slot?.start;
                                     }
@@ -310,7 +297,7 @@ const WeekView = ({ currentDate, jobs, onSelectDate, onSelectJob, selectedDate }
 // MONTH VIEW COMPONENT
 // ============================================
 
-const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
+const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezone }) => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = getDaysInMonth(year, month);
@@ -319,35 +306,35 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
     today.setHours(0, 0, 0, 0);
 
     const days = [];
-    
+
     // Empty cells before first day
     for (let i = 0; i < firstDay; i++) {
         days.push(<div key={`empty-${i}`} className="p-2 h-24" />);
     }
-    
+
     // Days of month
     for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(year, month, day);
-        const isToday = isSameDay(date, today);
-        const isSelected = isSameDay(date, selectedDate);
-        const dayJobs = getJobsForDate(jobs, date);
-        
+        // Use noon in the target timezone to avoid DST midnight edge cases
+        // and ensure the date "lands" on the correct day in that zone
+        const date = createDateInTimezone(year, month, day, 12, 0, timezone || 'UTC');
+        const isToday = isSameDayInTimezone(date, today, timezone);
+        const isSelected = isSameDayInTimezone(date, selectedDate, timezone);
+        const dayJobs = getEvents(date);
+
         days.push(
             <button
                 key={day}
                 onClick={() => onSelectDate(date)}
-                className={`p-2 h-24 border-b border-r border-slate-100 text-left hover:bg-slate-50 transition-colors relative ${
-                    isSelected ? 'bg-emerald-50' : ''
-                }`}
+                className={`p-2 h-24 border-b border-r border-slate-100 text-left hover:bg-slate-50 transition-colors relative ${isSelected ? 'bg-emerald-50' : ''
+                    }`}
             >
-                <span className={`text-sm font-medium ${
-                    isToday 
-                        ? 'bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center' 
-                        : 'text-slate-700'
-                }`}>
+                <span className={`text-sm font-medium ${isToday
+                    ? 'bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center'
+                    : 'text-slate-700'
+                    }`}>
                     {day}
                 </span>
-                
+
                 {/* Event pills */}
                 <div className="mt-1 space-y-0.5 overflow-hidden">
                     {dayJobs.slice(0, 2).map((event, idx) => {
@@ -359,15 +346,26 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
                         let displayTime = event.start || event.scheduledTime;
                         if (status === 'pending') {
                             const slot = event.scheduling?.offeredSlots?.find(s =>
-                                s.status === 'offered' && isSameDay(s.start, date)
+                                s.status === 'offered' && isSameDayInTimezone(s.start, date, timezone)
                             );
                             displayTime = slot?.start;
+                        }
+
+                        // Multi-day styling logic
+                        let multiDayClasses = 'rounded';
+                        if (event.isMultiDay && event.multiDaySchedule) {
+                            const isStart = isSameDayInTimezone(date, event.multiDaySchedule.startDate, timezone);
+                            const isEnd = isSameDayInTimezone(date, event.multiDaySchedule.endDate, timezone);
+
+                            if (!isStart && !isEnd) multiDayClasses = 'rounded-none opacity-75';
+                            else if (isStart && !isEnd) multiDayClasses = 'rounded-l rounded-r-none';
+                            else if (!isStart && isEnd) multiDayClasses = 'rounded-l-none rounded-r opacity-75';
                         }
 
                         return (
                             <div
                                 key={`${event.id}-${idx}`}
-                                className={`text-[10px] px-1.5 py-0.5 rounded truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-80' : ''}`}
+                                className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-80' : ''} ${multiDayClasses}`}
                             >
                                 {formatTime(displayTime)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
                             </div>
@@ -393,7 +391,7 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
                     </div>
                 ))}
             </div>
-            
+
             {/* Calendar grid */}
             <div className="grid grid-cols-7">
                 {days}
@@ -409,22 +407,22 @@ const MonthView = ({ currentDate, jobs, onSelectDate, selectedDate }) => {
 const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
     // Only show jobs that have NO confirmed time AND NO pending offers
     // If pending, they show on calendar now (in amber)
-    const unscheduledJobs = jobs.filter(job => 
-        !job.scheduledTime && 
+    const unscheduledJobs = jobs.filter(job =>
+        !job.scheduledTime &&
         !job.scheduledDate &&
-        (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) && 
+        (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) &&
         !['completed', 'cancelled'].includes(job.status)
     );
 
     // Jobs where customer requested new times (Urgent)
-    const needsNewTimes = jobs.filter(job => 
+    const needsNewTimes = jobs.filter(job =>
         job.scheduling?.requestedNewTimes || job.schedulingStatus === 'needs_new_times'
     );
 
     // Jobs awaiting customer response (but maybe not showing on calendar if data malformed, keeping safe)
     const awaitingResponse = jobs.filter(job =>
-        (job.proposedTimes?.length > 0 || job.scheduling?.offeredSlots?.length > 0) && 
-        !job.scheduledTime && 
+        (job.proposedTimes?.length > 0 || job.scheduling?.offeredSlots?.length > 0) &&
+        !job.scheduledTime &&
         !job.scheduling?.requestedNewTimes
     );
 
@@ -441,7 +439,7 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
     const JobCard = ({ job, urgent }) => {
         const customerName = job.customer?.name || 'Customer';
         const address = job.serviceAddress?.formatted || job.customer?.address || '';
-        
+
         return (
             <div className={`p-4 rounded-xl border ${urgent ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                 <div className="flex justify-between items-start mb-2">
@@ -460,7 +458,7 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
                         </span>
                     )}
                 </div>
-                
+
                 {address && (
                     <div className="flex items-center gap-1 text-xs text-slate-400 mb-3">
                         <MapPin size={12} />
@@ -474,7 +472,7 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
                         <span className="font-medium">Customer requested new times</span>
                     </div>
                 )}
-                
+
                 <div className="flex gap-2">
                     <button
                         onClick={() => onOfferTimes(job)}
@@ -533,15 +531,65 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
 // MAIN CALENDAR COMPONENT
 // ============================================
 
-export const ContractorCalendar = ({ 
-    jobs = [], 
-    onSelectJob, 
+export const ContractorCalendar = ({
+    jobs = [],
+    onSelectJob,
     onOfferTimes,
-    onCreateJob 
+    onCreateJob,
+    timezone
 }) => {
     const [viewMode, setViewMode] = useState('week'); // 'week' | 'month'
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
+
+    // PERFORMANCE: Create O(1) lookup map for events
+    const eventMap = useMemo(() => {
+        const map = new Map();
+        const addToMap = (dateStr, event) => {
+            if (!dateStr) return;
+            // Key must be in target timezone
+            const key = formatDateInTimezone(dateStr, timezone, 'medium');
+            if (!map.has(key)) map.set(key, []);
+
+            // Deduplicate: Check if event already in list for this key
+            const list = map.get(key);
+            if (!list.some(e => e.id === event.id)) {
+                list.push(event);
+            }
+        };
+
+        jobs.forEach(event => {
+            // 1. Confirmed Time
+            if (event.start || event.scheduledTime || event.scheduledDate) {
+                const start = event.start || event.scheduledTime || event.scheduledDate;
+                addToMap(start, event);
+
+                // 2. Multi-day Segments
+                if (event.isMultiDay && event.multiDaySchedule?.segments) {
+                    event.multiDaySchedule.segments.forEach(seg => {
+                        addToMap(seg.date, event);
+                    });
+                }
+            }
+
+            // 3. Pending Slots
+            if (event.scheduling?.offeredSlots?.length > 0) {
+                event.scheduling.offeredSlots.forEach(slot => {
+                    if (slot.status === 'offered') {
+                        addToMap(slot.start, event);
+                    }
+                });
+            }
+        });
+
+        return map;
+    }, [jobs, timezone]);
+
+    // Efficient lookup function passed to views
+    const getEvents = (date) => {
+        const key = getDateKey(date, timezone);
+        return eventMap.get(key) || [];
+    };
 
     // Navigation
     const navigatePrev = () => {
@@ -573,11 +621,11 @@ export const ContractorCalendar = ({
     // Get month/year label
     const getHeaderLabel = () => {
         if (viewMode === 'week') {
-            const weekDates = getWeekDates(currentDate);
+            const weekDates = getWeekDates(currentDate, timezone || 'UTC');
             const startMonth = weekDates[0].toLocaleDateString('en-US', { month: 'short' });
             const endMonth = weekDates[6].toLocaleDateString('en-US', { month: 'short' });
             const year = weekDates[0].getFullYear();
-            
+
             if (startMonth === endMonth) {
                 return `${startMonth} ${year}`;
             }
@@ -587,8 +635,8 @@ export const ContractorCalendar = ({
     };
 
     // Count pure unscheduled (not pending)
-    const unscheduledCount = jobs.filter(job => 
-        !job.scheduledTime && 
+    const unscheduledCount = jobs.filter(job =>
+        !job.scheduledTime &&
         !job.scheduledDate &&
         (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) &&
         !['completed', 'cancelled'].includes(job.status)
@@ -640,26 +688,24 @@ export const ContractorCalendar = ({
                     >
                         Today
                     </button>
-                    
+
                     {/* View Toggle */}
                     <div className="flex bg-slate-100 rounded-lg p-1">
                         <button
                             onClick={() => setViewMode('week')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                viewMode === 'week'
-                                    ? 'bg-white text-slate-800 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'week'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
                         >
                             Week
                         </button>
                         <button
                             onClick={() => setViewMode('month')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                viewMode === 'month'
-                                    ? 'bg-white text-slate-800 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'month'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
                         >
                             Month
                         </button>
@@ -694,17 +740,19 @@ export const ContractorCalendar = ({
                     {viewMode === 'week' ? (
                         <WeekView
                             currentDate={currentDate}
-                            jobs={jobs}
+                            getEvents={getEvents}
                             onSelectDate={setSelectedDate}
                             onSelectJob={onSelectJob}
                             selectedDate={selectedDate}
+                            timezone={timezone}
                         />
                     ) : (
                         <MonthView
                             currentDate={currentDate}
-                            jobs={jobs}
+                            getEvents={getEvents}
                             onSelectDate={setSelectedDate}
                             selectedDate={selectedDate}
+                            timezone={timezone}
                         />
                     )}
                 </div>
@@ -722,7 +770,7 @@ export const ContractorCalendar = ({
                                 )}
                             </h3>
                         </div>
-                        <UnscheduledJobsPanel 
+                        <UnscheduledJobsPanel
                             jobs={jobs}
                             onSelectJob={onSelectJob}
                             onOfferTimes={onOfferTimes}

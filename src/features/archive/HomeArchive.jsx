@@ -35,10 +35,13 @@ import {
     ExternalLink,
     Loader2,
     Package,
-    AlertTriangle
+    AlertTriangle,
+    Eye,
+    Camera
 } from 'lucide-react';
 import { useHomeArchive, ARCHIVE_TYPES } from './useHomeArchive';
 import { RebookProButton } from '../../components/common/RebookProButton';
+import { CompletionDetailsModal } from './CompletionDetailsModal';
 import { formatCurrency } from '../../lib/utils';
 
 // ============================================
@@ -329,6 +332,28 @@ const ArchiveItemCard = ({
                             <p className="text-sm text-slate-700">{item.cancellationReason}</p>
                         </div>
                     )}
+
+                    {/* View Completion Details Button - for completed jobs */}
+                    {isCompleted && item.completion && (
+                        <div className="mt-4 pt-4 border-t border-slate-100">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onViewDetails) onViewDetails(item);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors"
+                            >
+                                <Eye className="w-4 h-4" />
+                                View Completion Details
+                                {item.completion.photos?.length > 0 && (
+                                    <span className="flex items-center gap-1 ml-1 px-2 py-0.5 bg-white/20 rounded-full text-xs">
+                                        <Camera className="w-3 h-3" />
+                                        {item.completion.photos.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -405,14 +430,15 @@ const EmptyState = ({ filter }) => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-export const HomeArchive = ({ 
-    userId, 
-    userProfile, 
+export const HomeArchive = ({
+    userId,
+    userProfile,
     propertyAddress,
     variant = 'full' // 'full' | 'compact' | 'section'
 }) => {
     const [activeFilter, setActiveFilter] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedJobForDetails, setSelectedJobForDetails] = useState(null);
     
     const { 
         allItems, 
@@ -508,14 +534,23 @@ export const HomeArchive = ({
                             userId={userId}
                             userProfile={userProfile}
                             propertyAddress={propertyAddress}
+                            onViewDetails={setSelectedJobForDetails}
                         />
                     ))}
                 </div>
-                
+
                 {allItems.length > 3 && (
                     <p className="text-center text-sm text-slate-400">
                         +{allItems.length - 3} more in history
                     </p>
+                )}
+
+                {/* Completion Details Modal */}
+                {selectedJobForDetails && (
+                    <CompletionDetailsModal
+                        job={selectedJobForDetails}
+                        onClose={() => setSelectedJobForDetails(null)}
+                    />
                 )}
             </div>
         );
@@ -625,9 +660,18 @@ export const HomeArchive = ({
                             userId={userId}
                             userProfile={userProfile}
                             propertyAddress={propertyAddress}
+                            onViewDetails={setSelectedJobForDetails}
                         />
                     ))}
                 </div>
+            )}
+
+            {/* Completion Details Modal */}
+            {selectedJobForDetails && (
+                <CompletionDetailsModal
+                    job={selectedJobForDetails}
+                    onClose={() => setSelectedJobForDetails(null)}
+                />
             )}
         </div>
     );

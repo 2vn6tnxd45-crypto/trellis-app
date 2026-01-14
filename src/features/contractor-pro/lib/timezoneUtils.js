@@ -261,8 +261,9 @@ export const parseTimeInTimezone = (timeStr, baseDate, timezone) => {
 export const isSameDayInTimezone = (date1, date2, timezone) => {
     if (!date1 || !date2) return false;
 
-    const d1 = formatDateInTimezone(date1, timezone, 'short');
-    const d2 = formatDateInTimezone(date2, timezone, 'short');
+    // Use 'medium' format which includes year, month, and day
+    const d1 = formatDateInTimezone(date1, timezone, 'medium');
+    const d2 = formatDateInTimezone(date2, timezone, 'medium');
 
     return d1 === d2;
 };
@@ -323,8 +324,8 @@ export const getEndOfDayInTimezone = (date, timezone) => {
  */
 export const getContractorTimezone = (contractorProfile) => {
     return contractorProfile?.scheduling?.timezone ||
-           contractorProfile?.settings?.timezone ||
-           detectTimezone();
+        contractorProfile?.settings?.timezone ||
+        detectTimezone();
 };
 
 /**

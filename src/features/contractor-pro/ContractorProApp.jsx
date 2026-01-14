@@ -18,6 +18,7 @@ import {
     AlertTriangle, Loader2, Trash2, MessageSquare,
     ClipboardCheck, Camera, Package
 } from 'lucide-react';
+import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
 
 // Components
@@ -1475,18 +1476,27 @@ export const ContractorProApp = () => {
     // Calculate jobs scheduled for today
     const todaysJobs = useMemo(() => {
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const timezone = profile?.scheduling?.timezone;
 
         return jobs?.filter(job => {
             if (!job.scheduledTime && !job.scheduledDate) return false;
             const jobDate = job.scheduledTime
                 ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
                 : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
-            return jobDate >= today && jobDate < tomorrow;
+
+            // Use timezone aware check if available
+            if (timezone) {
+                return isSameDayInTimezone(jobDate, today, timezone);
+            }
+
+            // Fallback to local time check
+            const dLocal = new Date(jobDate);
+            const todayLocal = new Date();
+            return dLocal.getDate() === todayLocal.getDate() &&
+                dLocal.getMonth() === todayLocal.getMonth() &&
+                dLocal.getFullYear() === todayLocal.getFullYear();
         }) || [];
-    }, [jobs]);
+    }, [jobs, profile?.scheduling?.timezone]);
 
     // Calculate needs attention count for badge
     const needsAttentionCount = useMemo(() => {
@@ -1931,6 +1941,7 @@ export const ContractorProApp = () => {
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                     initialDate={selectedDate}
+                                    timezone={profile?.scheduling?.timezone}
                                     onJobUpdate={() => {
                                         // Jobs will auto-refresh via subscription
                                     }}

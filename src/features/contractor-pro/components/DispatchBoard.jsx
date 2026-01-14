@@ -23,16 +23,17 @@ import {
     checkConflicts,
     parseDurationToMinutes
 } from '../lib/schedulingAI';
+import { isSameDayInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
 // ============================================
 
 const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        month: 'short', 
-        day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
     });
 };
 
@@ -44,20 +45,16 @@ const formatTime = (time) => {
     return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
 };
 
-const isSameDay = (d1, d2) => {
-    return d1.getDate() === d2.getDate() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getFullYear() === d2.getFullYear();
-};
+
 
 // ============================================
 // JOB CARD COMPONENT
 // ============================================
 
-const JobCard = ({ 
-    job, 
-    isDragging, 
-    onDragStart, 
+const JobCard = ({
+    job,
+    isDragging,
+    onDragStart,
     onDragEnd,
     showSuggestions,
     suggestions,
@@ -70,10 +67,10 @@ const JobCard = ({
     const duration = parseDurationToMinutes(job.estimatedDuration);
     const hours = Math.floor(duration / 60);
     const mins = duration % 60;
-    const durationStr = hours > 0 
+    const durationStr = hours > 0
         ? `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
         : `${mins}m`;
-    
+
     return (
         <div
             draggable
@@ -112,7 +109,7 @@ const JobCard = ({
                     </button>
                 )}
             </div>
-            
+
             {/* Details */}
             <div className={`mt-2 flex flex-wrap gap-2 ${compact ? 'text-xs' : 'text-sm'}`}>
                 {job.scheduledTime && (
@@ -132,7 +129,7 @@ const JobCard = ({
                     </span>
                 )}
             </div>
-            
+
             {/* AI Suggestions (when in unassigned column) */}
             {showSuggestions && suggestions?.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-slate-100">
@@ -144,7 +141,7 @@ const JobCard = ({
                         AI Suggestions
                         {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                     </button>
-                    
+
                     {expanded && (
                         <div className="mt-2 space-y-1">
                             {suggestions.slice(0, 3).map((suggestion, idx) => (
@@ -157,7 +154,7 @@ const JobCard = ({
                                     `}
                                 >
                                     <div className="flex items-center gap-2">
-                                        <div 
+                                        <div
                                             className="w-2 h-2 rounded-full"
                                             style={{ backgroundColor: suggestion.techColor || '#10B981' }}
                                         />
@@ -183,9 +180,9 @@ const JobCard = ({
 // TECH COLUMN COMPONENT
 // ============================================
 
-const TechColumn = ({ 
-    tech, 
-    jobs, 
+const TechColumn = ({
+    tech,
+    jobs,
     date,
     onDrop,
     onUnassign,
@@ -193,7 +190,7 @@ const TechColumn = ({
     allJobs
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
-    
+
     // Calculate capacity
     const maxJobs = tech.maxJobsPerDay || 4;
     const maxHours = tech.maxHoursPerDay || 8;
@@ -201,23 +198,23 @@ const TechColumn = ({
     const totalHours = jobs.reduce((sum, j) => {
         return sum + (parseDurationToMinutes(j.estimatedDuration) / 60);
     }, 0);
-    
+
     const capacityPercent = Math.min(100, (jobCount / maxJobs) * 100);
     const hoursPercent = Math.min(100, (totalHours / maxHours) * 100);
-    
+
     // Check if tech works today
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const worksToday = tech.workingHours?.[dayName]?.enabled !== false;
-    
+
     const handleDragOver = (e) => {
         e.preventDefault();
         setIsDragOver(true);
     };
-    
+
     const handleDragLeave = () => {
         setIsDragOver(false);
     };
-    
+
     const handleDrop = (e) => {
         e.preventDefault();
         setIsDragOver(false);
@@ -226,9 +223,9 @@ const TechColumn = ({
             onDrop?.(jobId, tech.id, tech.name);
         }
     };
-    
+
     return (
-        <div 
+        <div
             className={`
                 flex flex-col bg-white rounded-xl border-2 min-w-[280px] max-w-[320px] transition-all
                 ${isDragOver ? 'border-emerald-400 bg-emerald-50/50 shadow-lg' : 'border-slate-200'}
@@ -241,7 +238,7 @@ const TechColumn = ({
             {/* Tech Header */}
             <div className="p-3 border-b border-slate-100">
                 <div className="flex items-center gap-3">
-                    <div 
+                    <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
                         style={{ backgroundColor: tech.color || '#10B981' }}
                     >
@@ -257,18 +254,17 @@ const TechColumn = ({
                         </span>
                     )}
                 </div>
-                
+
                 {/* Capacity Bars */}
                 {worksToday && (
                     <div className="mt-3 space-y-1.5">
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500 w-12">Jobs</span>
                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full rounded-full transition-all ${
-                                        capacityPercent >= 100 ? 'bg-red-500' : 
+                                <div
+                                    className={`h-full rounded-full transition-all ${capacityPercent >= 100 ? 'bg-red-500' :
                                         capacityPercent >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
-                                    }`}
+                                        }`}
                                     style={{ width: `${capacityPercent}%` }}
                                 />
                             </div>
@@ -279,11 +275,10 @@ const TechColumn = ({
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500 w-12">Hours</span>
                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full rounded-full transition-all ${
-                                        hoursPercent >= 100 ? 'bg-red-500' : 
+                                <div
+                                    className={`h-full rounded-full transition-all ${hoursPercent >= 100 ? 'bg-red-500' :
                                         hoursPercent >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
-                                    }`}
+                                        }`}
                                     style={{ width: `${hoursPercent}%` }}
                                 />
                             </div>
@@ -294,7 +289,7 @@ const TechColumn = ({
                     </div>
                 )}
             </div>
-            
+
             {/* Jobs List */}
             <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[400px]">
                 {jobs.length === 0 ? (
@@ -326,8 +321,8 @@ const TechColumn = ({
 // UNASSIGNED COLUMN
 // ============================================
 
-const UnassignedColumn = ({ 
-    jobs, 
+const UnassignedColumn = ({
+    jobs,
     techs,
     allJobs,
     date,
@@ -336,7 +331,7 @@ const UnassignedColumn = ({
     isAutoAssigning
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
-    
+
     // Get suggestions for each job
     const jobsWithSuggestions = useMemo(() => {
         return jobs.map(job => {
@@ -344,7 +339,7 @@ const UnassignedColumn = ({
             return { job, suggestions };
         });
     }, [jobs, techs, allJobs, date]);
-    
+
     return (
         <div className="flex flex-col bg-amber-50 rounded-xl border-2 border-amber-200 min-w-[300px] max-w-[350px]">
             {/* Header */}
@@ -357,7 +352,7 @@ const UnassignedColumn = ({
                             <p className="text-xs text-amber-600">{jobs.length} jobs</p>
                         </div>
                     </div>
-                    
+
                     {jobs.length > 0 && (
                         <button
                             onClick={onAutoAssign}
@@ -379,7 +374,7 @@ const UnassignedColumn = ({
                     )}
                 </div>
             </div>
-            
+
             {/* Jobs List */}
             <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[500px]">
                 {jobs.length === 0 ? (
@@ -412,39 +407,40 @@ const UnassignedColumn = ({
 // MAIN DISPATCH BOARD
 // ============================================
 
-export const DispatchBoard = ({ 
-    jobs = [], 
+export const DispatchBoard = ({
+    jobs = [],
     teamMembers = [],
     initialDate = new Date(),
-    onJobUpdate
+    onJobUpdate,
+    timezone
 }) => {
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
-    
+
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
         return jobs.filter(job => {
             if (!job.scheduledDate) return false;
             const jobDate = job.scheduledDate.toDate ? job.scheduledDate.toDate() : new Date(job.scheduledDate);
-            return isSameDay(jobDate, selectedDate);
+            return isSameDayInTimezone(jobDate, selectedDate, timezone);
         });
-    }, [jobs, selectedDate]);
-    
+    }, [jobs, selectedDate, timezone]);
+
     // Also include unscheduled jobs that need assignment
     const unscheduledJobs = useMemo(() => {
-        return jobs.filter(job => 
-            !job.scheduledDate && 
+        return jobs.filter(job =>
+            !job.scheduledDate &&
             ['pending_schedule', 'slots_offered', 'accepted', 'quoted'].includes(job.status)
         );
     }, [jobs]);
-    
+
     // Split into assigned and unassigned
     const { assignedJobs, unassignedJobs } = useMemo(() => {
         const assigned = jobsForDate.filter(j => j.assignedTechId);
         const unassigned = [...jobsForDate.filter(j => !j.assignedTechId), ...unscheduledJobs];
         return { assignedJobs: assigned, unassignedJobs: unassigned };
     }, [jobsForDate, unscheduledJobs]);
-    
+
     // Group assigned jobs by tech
     const jobsByTech = useMemo(() => {
         const map = {};
@@ -453,18 +449,18 @@ export const DispatchBoard = ({
         });
         return map;
     }, [assignedJobs, teamMembers]);
-    
+
     // Navigation
     const goToDate = (days) => {
         const newDate = new Date(selectedDate);
         newDate.setDate(newDate.getDate() + days);
         setSelectedDate(newDate);
     };
-    
+
     const goToToday = () => {
         setSelectedDate(new Date());
     };
-    
+
     // Assignment handlers
     const handleAssign = useCallback(async (job, techId, techName) => {
         try {
@@ -475,15 +471,15 @@ export const DispatchBoard = ({
             toast.error('Failed to assign job');
         }
     }, [onJobUpdate]);
-    
+
     const handleDrop = useCallback(async (jobId, techId, techName) => {
         const job = jobs.find(j => j.id === jobId);
         if (!job) return;
-        
+
         // Check for conflicts
         const tech = teamMembers.find(t => t.id === techId);
         if (tech) {
-            const { hasErrors, conflicts } = checkConflicts(tech, job, jobsForDate, selectedDate);
+            const { hasErrors, conflicts } = checkConflicts(tech, job, jobsForDate, selectedDate, timezone);
             if (hasErrors) {
                 toast.error(conflicts.find(c => c.severity === 'error')?.message || 'Cannot assign');
                 return;
@@ -493,10 +489,10 @@ export const DispatchBoard = ({
                 toast(conflicts[0].message, { icon: '⚠️' });
             }
         }
-        
+
         await handleAssign(job, techId, techName);
     }, [jobs, teamMembers, jobsForDate, selectedDate, handleAssign]);
-    
+
     const handleUnassign = useCallback(async (job) => {
         try {
             await unassignJob(job.id);
@@ -506,10 +502,10 @@ export const DispatchBoard = ({
             toast.error('Failed to unassign');
         }
     }, [onJobUpdate]);
-    
+
     const handleAutoAssign = useCallback(async () => {
         if (unassignedJobs.length === 0) return;
-        
+
         setIsAutoAssigning(true);
         try {
             const result = autoAssignAll(
@@ -518,23 +514,23 @@ export const DispatchBoard = ({
                 assignedJobs,
                 selectedDate
             );
-            
+
             if (result.successful.length === 0) {
                 toast.error('No jobs could be assigned');
                 return;
             }
-            
+
             await bulkAssignJobs(result.successful);
-            
+
             toast.success(
                 `Assigned ${result.summary.assigned} of ${result.summary.total} jobs`,
                 { duration: 3000 }
             );
-            
+
             if (result.failed.length > 0) {
                 toast(`${result.failed.length} jobs couldn't be assigned`, { icon: '⚠️' });
             }
-            
+
             onJobUpdate?.();
         } catch (error) {
             toast.error('Auto-assign failed');
@@ -542,9 +538,9 @@ export const DispatchBoard = ({
             setIsAutoAssigning(false);
         }
     }, [unassignedJobs, teamMembers, assignedJobs, selectedDate, onJobUpdate]);
-    
-    const isToday = isSameDay(selectedDate, new Date());
-    
+
+    const isToday = isSameDayInTimezone(selectedDate, new Date(), timezone);
+
     return (
         <div className="space-y-4">
             {/* Header */}
@@ -556,7 +552,7 @@ export const DispatchBoard = ({
                     >
                         <ChevronLeft size={20} />
                     </button>
-                    
+
                     <div className="text-center min-w-[200px]">
                         <p className="text-xl font-bold text-slate-800">
                             {formatDate(selectedDate)}
@@ -570,7 +566,7 @@ export const DispatchBoard = ({
                             </button>
                         )}
                     </div>
-                    
+
                     <button
                         onClick={() => goToDate(1)}
                         className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
@@ -578,7 +574,7 @@ export const DispatchBoard = ({
                         <ChevronRight size={20} />
                     </button>
                 </div>
-                
+
                 <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-2 text-slate-600">
                         <Users size={16} />
@@ -596,7 +592,7 @@ export const DispatchBoard = ({
                     )}
                 </div>
             </div>
-            
+
             {/* Board */}
             <div className="flex gap-4 overflow-x-auto pb-4">
                 {/* Unassigned Column */}
@@ -609,7 +605,7 @@ export const DispatchBoard = ({
                     onAutoAssign={handleAutoAssign}
                     isAutoAssigning={isAutoAssigning}
                 />
-                
+
                 {/* Tech Columns */}
                 {teamMembers.map(tech => (
                     <TechColumn
@@ -622,7 +618,7 @@ export const DispatchBoard = ({
                         onUnassign={handleUnassign}
                     />
                 ))}
-                
+
                 {/* Empty state for no techs */}
                 {teamMembers.length === 0 && (
                     <div className="flex-1 flex items-center justify-center p-8 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
@@ -636,7 +632,7 @@ export const DispatchBoard = ({
                     </div>
                 )}
             </div>
-            
+
             {/* Legend / Help */}
             <div className="flex items-center gap-6 text-xs text-slate-500 border-t border-slate-100 pt-4">
                 <div className="flex items-center gap-1.5">

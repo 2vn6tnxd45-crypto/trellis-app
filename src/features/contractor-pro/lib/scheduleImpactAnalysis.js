@@ -7,6 +7,7 @@
 
 import { getDistance } from './distanceMatrixService';
 import { jobIsMultiDay, getMultiDayDates } from './multiDayUtils';
+import { detectTimezone, isSameDayInTimezone } from './timezoneUtils';
 
 /**
  * Analyze the impact of cancelling or rescheduling a job
@@ -48,10 +49,10 @@ export const analyzeCancellationImpact = (targetJob, allJobs, options = {}) => {
         };
     }
 
-    const targetJobDate = new Date(targetDate);
-    const targetJobDateStr = targetJobDate.toISOString().split('T')[0];
+    // Resolve timezone
+    const timezone = options.timezone || detectTimezone();
 
-    // Find same-day jobs for the same tech
+    // Find same-day jobs for the same tech in the correct timezone
     const sameDayJobs = allJobs.filter(job => {
         if (job.id === targetJob.id) return false;
         if (!['scheduled', 'in_progress'].includes(job.status)) return false;
@@ -63,8 +64,7 @@ export const analyzeCancellationImpact = (targetJob, allJobs, options = {}) => {
         const jobDate = job.scheduledTime || job.scheduledDate;
         if (!jobDate) return false;
 
-        const jobDateStr = new Date(jobDate).toISOString().split('T')[0];
-        return jobDateStr === targetJobDateStr;
+        return isSameDayInTimezone(jobDate, targetDate, timezone);
     });
 
     // Sort by scheduled time
@@ -177,16 +177,17 @@ export const analyzeCancellationImpact = (targetJob, allJobs, options = {}) => {
  * @param {Object} workingHours - Working hours config
  * @returns {Object} Reschedule impact analysis
  */
-export const analyzeRescheduleImpact = (job, newDate, allJobs, workingHours = {}) => {
-    const originalImpact = analyzeCancellationImpact(job, allJobs);
+export const analyzeRescheduleImpact = (job, newDate, allJobs, workingHours = {}, options = {}) => {
+    // Pass timezone option down
+    const originalImpact = analyzeCancellationImpact(job, allJobs, options);
+    const timezone = options.timezone || detectTimezone();
 
     // Analyze new date conflicts
-    const newDateStr = newDate.toISOString().split('T')[0];
     const newDayJobs = allJobs.filter(j => {
         if (j.id === job.id) return false;
         const jobDate = j.scheduledTime || j.scheduledDate;
         if (!jobDate) return false;
-        return new Date(jobDate).toISOString().split('T')[0] === newDateStr;
+        return isSameDayInTimezone(jobDate, newDate, timezone);
     });
 
     // Check for time conflicts
@@ -280,8 +281,8 @@ export const getImpactDisplaySummary = (impact) => {
         title: impact.severity === 'high'
             ? 'Warning: Significant Impact'
             : impact.severity === 'medium'
-            ? 'Notice: Route Impact'
-            : 'Confirm Action',
+                ? 'Notice: Route Impact'
+                : 'Confirm Action',
         message: impact.summary,
         bulletPoints,
         severity: impact.severity

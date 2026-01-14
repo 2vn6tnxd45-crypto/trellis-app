@@ -340,6 +340,16 @@ const LineItemsSection = ({
     onOpenPriceBook
 }) => {
     const updateItem = (id, field, value) => {
+        // Validation for numeric fields
+        if (field === 'quantity') {
+            const val = parseInt(value);
+            if (val < 1) return; // Prevent < 1
+        }
+        if (field === 'unitPrice') {
+            const val = parseFloat(value);
+            if (val < 0) return; // Prevent negative prices
+        }
+
         onUpdate(lineItems.map(item =>
             item.id === id ? { ...item, [field]: value } : item
         ));
@@ -352,12 +362,14 @@ const LineItemsSection = ({
     };
 
     // CALCS
-    const subtotal = lineItems.reduce(
+    const roundMoney = (amount) => Math.round(amount * 100) / 100;
+
+    const subtotal = roundMoney(lineItems.reduce(
         (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)),
         0
-    );
-    const tax = subtotal * (taxRate / 100);
-    const total = subtotal + tax;
+    ));
+    const tax = roundMoney(subtotal * (taxRate / 100));
+    const total = roundMoney(subtotal + tax);
 
     // Deposit Calc
     let depositAmount = 0;
@@ -458,7 +470,6 @@ const LineItemsSection = ({
                                                 type="number"
                                                 min="1"
                                                 value={item.quantity}
-                                                onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
                                                 className="w-full px-2 py-1 border border-slate-200 rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none"
                                             />
                                         </td>
@@ -470,7 +481,7 @@ const LineItemsSection = ({
                                                     min="0"
                                                     step="0.01"
                                                     value={item.unitPrice}
-                                                    onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                    onChange={(e) => updateItem(item.id, 'unitPrice', e.target.value === '' ? 0 : parseFloat(e.target.value))}
                                                     className={`w-full pl-6 pr-2 py-1 border rounded-lg text-right focus:ring-2 focus:ring-emerald-500 outline-none ${itemError ? 'border-red-400 bg-red-50' : 'border-slate-200'
                                                         }`}
                                                 />

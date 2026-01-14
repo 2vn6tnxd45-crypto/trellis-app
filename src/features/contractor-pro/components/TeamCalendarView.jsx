@@ -19,19 +19,15 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { parseDurationToMinutes } from '../lib/schedulingAI';
 import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
+import { analyzeRescheduleImpact } from '../lib/scheduleImpactAnalysis';
+import { useCascadeWarning } from './CascadeWarningModal';
+import { isSameDayInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
 // ============================================
 
-const isSameDay = (date1, date2) => {
-    if (!date1 || !date2) return false;
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() &&
-        d1.getMonth() === d2.getMonth() &&
-        d1.getDate() === d2.getDate();
-};
+
 
 const getWeekDates = (date) => {
     const start = new Date(date);
@@ -45,19 +41,34 @@ const getWeekDates = (date) => {
     return dates;
 };
 
-const formatTime = (dateStr) => {
+const formatTime = (dateStr, timeZone) => {
     if (!dateStr) return '';
     const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        timeZone
+    });
 };
 
 const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
-const getHourFromDate = (dateStr) => {
+const getHourFromDate = (dateStr, timeZone) => {
     if (!dateStr) return 8;
-    return new Date(dateStr).getHours();
+    // Create date object in target timezone to get correct hour
+    const date = new Date(dateStr);
+    if (timeZone) {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            hour12: false,
+            timeZone
+        }).formatToParts(date);
+        const hourPart = parts.find(p => p.type === 'hour');
+        return parseInt(hourPart.value) % 24;
+    }
+    return date.getHours();
 };
 
 // ============================================
@@ -83,11 +94,11 @@ const getEventStatus = (event) => {
 };
 
 // Get jobs for a date including multi-day segment info
-const getJobsForDateWithMultiDay = (jobs, date) => {
+const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
     return jobs.filter(job => {
         // Regular scheduled date check
         const jobDate = job.scheduledTime || job.scheduledDate;
-        if (jobDate && isSameDay(new Date(jobDate), date)) {
+        if (jobDate && isSameDayInTimezone(jobDate, date, timeZone)) {
             return true;
         }
 
@@ -156,7 +167,7 @@ const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility }) => 
 // EVENT CARD (for calendar cells)
 // ============================================
 
-const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, onDragEnd }) => {
+const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, onDragEnd, timeZone }) => {
     const status = getEventStatus(event);
     const styles = STATUS_STYLES[status];
     const isEvaluation = event.type === 'evaluation';
@@ -187,7 +198,7 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                         <p className={`font-medium ${styles.text} text-xs truncate`}>
-                            {formatTime(event.start || event.scheduledTime)}
+                            {formatTime(event.start || event.scheduledTime, timeZone)}
                         </p>
                         {isRecurring && (
                             <span className="text-[9px] bg-emerald-200 text-emerald-700 px-1 py-0.5 rounded font-bold flex items-center gap-0.5">
@@ -242,11 +253,12 @@ const TimeSlotCell = ({
     onDrop,
     onDragOver,
     onDragLeave,
-    onEventClick
+    onEventClick,
+    timeZone // Add timeZone prop
 }) => {
     // Filter events for this hour
     const slotEvents = events.filter(event => {
-        const eventHour = getHourFromDate(event.start || event.scheduledTime);
+        const eventHour = getHourFromDate(event.start || event.scheduledTime, timeZone);
         return eventHour === hour;
     });
 
@@ -278,6 +290,7 @@ const TimeSlotCell = ({
                     event={event}
                     onClick={onEventClick}
                     compact
+                    timeZone={timeZone}
                 />
             ))}
         </div>
@@ -329,10 +342,6 @@ const UnassignedJobsSidebar = ({ jobs, evaluations, onEventClick, draggedEvent, 
     );
 };
 
-// ============================================
-// MAIN TEAM CALENDAR VIEW
-// ============================================
-
 export const TeamCalendarView = ({
     jobs = [],
     evaluations = [],
@@ -348,6 +357,12 @@ export const TeamCalendarView = ({
     const [draggedEvent, setDraggedEvent] = useState(null);
     const [dropTarget, setDropTarget] = useState(null);
     const [assigning, setAssigning] = useState(false);
+
+    // Add warning modal hook
+    const { showWarning, WarningModal } = useCascadeWarning();
+
+    // Get business timezone
+    const businessTimezone = preferences?.businessTimezone || 'America/Los_Angeles';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -391,7 +406,7 @@ export const TeamCalendarView = ({
     // Get events for a specific tech and date (including multi-day job segments)
     const getEventsForTechAndDate = useCallback((techId, date) => {
         // Get jobs for this date (including multi-day segments)
-        const dateJobs = getJobsForDateWithMultiDay(jobs, date);
+        const dateJobs = getJobsForDateWithMultiDay(jobs, date, businessTimezone);
 
         // Filter to just this tech's jobs
         const techJobs = dateJobs.filter(job => {
@@ -401,7 +416,7 @@ export const TeamCalendarView = ({
         const techEvaluations = evaluations.filter(evaluation => {
             const isAssigned = evaluation.assignedTo === techId;
             const evalDate = evaluation.scheduling?.scheduledFor;
-            return isAssigned && evalDate && isSameDay(evalDate, date);
+            return isAssigned && evalDate && isSameDayInTimezone(evalDate, date, businessTimezone);
         }).map(e => ({
             ...e,
             type: 'evaluation',
@@ -410,7 +425,7 @@ export const TeamCalendarView = ({
         }));
 
         return [...techJobs, ...techEvaluations];
-    }, [jobs, evaluations]);
+    }, [jobs, evaluations, businessTimezone]);
 
     // Working hours
     const workingHours = useMemo(() => {
@@ -474,13 +489,40 @@ export const TeamCalendarView = ({
             return;
         }
 
+        // Calculate new time
+        const scheduledDate = new Date(date);
+        scheduledDate.setHours(hour, 0, 0, 0);
+
+        // Analyze impact
+        const impact = analyzeRescheduleImpact(
+            draggedEvent,
+            scheduledDate,
+            jobs,
+            teamMembers.find(t => t.id === techId)?.workingHours
+        );
+
+        if (impact.hasConflicts || impact.severity === 'high' || impact.severity === 'medium') {
+            showWarning(
+                impact,
+                draggedEvent,
+                'reschedule',
+                async () => {
+                    await performAssignment(draggedEvent, techId, scheduledDate);
+                }
+            );
+            return;
+        }
+
+        // Proceed directly if no conflicts
+        await performAssignment(draggedEvent, techId, scheduledDate);
+    };
+
+    const performAssignment = async (event, techId, scheduledDate) => {
         setAssigning(true);
         try {
-            // Create scheduled time
-            const scheduledDate = new Date(date);
-            scheduledDate.setHours(hour, 0, 0, 0);
+            // Create scheduled time (ensure it's preserved)
 
-            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, draggedEvent.id);
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, event.id);
             await updateDoc(jobRef, {
                 assignedTo: techId,
                 assignedTechId: techId,
@@ -554,8 +596,8 @@ export const TeamCalendarView = ({
                             <button
                                 onClick={() => setViewMode('day')}
                                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'day'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Day
@@ -563,8 +605,8 @@ export const TeamCalendarView = ({
                             <button
                                 onClick={() => setViewMode('week')}
                                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'week'
-                                        ? 'bg-white text-slate-800 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
                                 Week
@@ -644,7 +686,7 @@ export const TeamCalendarView = ({
                                         const isTarget = dropTarget &&
                                             dropTarget.techId === tech.id &&
                                             dropTarget.hour === hour &&
-                                            isSameDay(dropTarget.date, currentDate);
+                                            isSameDayInTimezone(dropTarget.date, currentDate, businessTimezone);
 
                                         return (
                                             <div key={tech.id} className="w-48 shrink-0">
@@ -661,6 +703,7 @@ export const TeamCalendarView = ({
                                                     }}
                                                     onDragLeave={handleDragLeave}
                                                     onEventClick={handleEventClick}
+                                                    timeZone={businessTimezone}
                                                 />
                                             </div>
                                         );
@@ -691,7 +734,7 @@ export const TeamCalendarView = ({
                                         <div className="flex">
                                             {weekDates.map((date, idx) => {
                                                 const events = getEventsForTechAndDate(tech.id, date);
-                                                const isToday = isSameDay(date, today);
+                                                const isToday = isSameDayInTimezone(date, today, businessTimezone);
 
                                                 return (
                                                     <div
@@ -711,6 +754,7 @@ export const TeamCalendarView = ({
                                                                     event={event}
                                                                     onClick={handleEventClick}
                                                                     compact
+                                                                    timeZone={businessTimezone}
                                                                 />
                                                             ))}
                                                             {events.length > 3 && (

@@ -16,8 +16,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
-import { getTimezoneAbbreviation } from '../lib/timezoneUtils';
-import { getSegmentForDate, getMultiDayLabel, jobIsMultiDay, isMultiDayJob } from '../lib/multiDayUtils';
+import { getTimezoneAbbreviation, isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
@@ -35,14 +34,7 @@ const getWeekDates = (date) => {
     return dates;
 };
 
-const isSameDay = (date1, date2) => {
-    if (!date1 || !date2) return false;
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
-};
+
 
 const formatTime = (hour) => {
     const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -50,11 +42,11 @@ const formatTime = (hour) => {
     return `${h} ${ampm}`;
 };
 
-const getJobsForDate = (jobs, date) => {
+const getJobsForDate = (jobs, date, timezone) => {
     return jobs.filter(job => {
         // Check regular scheduled date
         const jobDate = job.scheduledTime || job.scheduledDate;
-        if (jobDate && isSameDay(new Date(jobDate), date)) {
+        if (jobDate && isSameDayInTimezone(jobDate, date, timezone)) {
             return true;
         }
 
@@ -108,9 +100,8 @@ const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
             draggable
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`p-3 bg-white rounded-xl border border-slate-200 cursor-grab active:cursor-grabbing transition-all ${
-                isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'
-            }`}
+            className={`p-3 bg-white rounded-xl border border-slate-200 cursor-grab active:cursor-grabbing transition-all ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'
+                }`}
         >
             <div className="flex items-start gap-2">
                 <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
@@ -177,24 +168,36 @@ const TimeSlot = ({
     // NEW: Filter pending slots for this hour
     const slotPending = pendingSlots.filter(slot => {
         const slotDate = new Date(slot.slotStart);
-        return isSameDay(slotDate, date) && slotDate.getHours() === hour;
+        // Use timezone aware check if timezone is provided
+        // Note: slotDate is typically ISO UTC, date is current view date (local). 
+        // We rely on getHourFromDate logic usually, but here we just check day/hour match
+        // For robustness, we should use isSameDayInTimezone if timezone is available
+        const isSameDay = preferences?.businessTimezone
+            ? isSameDayInTimezone(slotDate, date, preferences.businessTimezone)
+            : isSameDayInTimezone(slotDate, date, 'UTC'); // fallback
+
+        return isSameDay && slotDate.getHours() === hour;
     });
 
     // NEW: Filter evaluations for this hour
     const slotEvaluations = evaluations.filter(evaluation => {
         const evalDate = new Date(evaluation.scheduledTime);
-        return isSameDay(evalDate, date) && evalDate.getHours() === hour;
+        const isSameDay = preferences?.businessTimezone
+            ? isSameDayInTimezone(evalDate, date, preferences.businessTimezone)
+            : isSameDayInTimezone(evalDate, date, 'UTC');
+
+        return isSameDay && evalDate.getHours() === hour;
     });
 
     // Check if this hour is within working hours
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const dayPrefs = preferences?.workingHours?.[dayName];
     const isWorkingHour = dayPrefs?.enabled !== false;
-    
+
     let startHour = 8, endHour = 17;
     if (dayPrefs?.start) startHour = parseInt(dayPrefs.start.split(':')[0]);
     if (dayPrefs?.end) endHour = parseInt(dayPrefs.end.split(':')[0]);
-    
+
     const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingHour;
 
     return (
@@ -202,22 +205,20 @@ const TimeSlot = ({
             onDrop={(e) => onDrop(e, date, hour)}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
-            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors flex flex-col gap-1 ${
-                isDropTarget 
-                    ? 'bg-emerald-100 border-emerald-300' 
-                    : isWithinWorkingHours
-                        ? 'bg-white hover:bg-slate-50'
-                        : 'bg-slate-50'
-            }`}
+            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors flex flex-col gap-1 ${isDropTarget
+                ? 'bg-emerald-100 border-emerald-300'
+                : isWithinWorkingHours
+                    ? 'bg-white hover:bg-slate-50'
+                    : 'bg-slate-50'
+                }`}
         >
             {/* Confirmed Jobs */}
             {slotJobs.map(job => (
                 <button
                     key={job.id}
                     onClick={() => onJobClick?.(job)}
-                    className={`w-full mb-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm ${
-                        job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
-                    }`}
+                    className={`w-full mb-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm ${job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                        }`}
                 >
                     <div className="flex items-center justify-between gap-1 mb-0.5">
                         <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
@@ -280,7 +281,7 @@ const TimeSlot = ({
 // DROP CONFIRMATION MODAL
 // ============================================
 
-const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers }) => {
+const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone }) => {
     const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
     const [selectedTech, setSelectedTech] = useState('');
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
@@ -301,8 +302,24 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
 
     const handleConfirm = () => {
         const [hours, minutes] = selectedTime.split(':').map(Number);
-        const scheduledDateTime = new Date(date);
-        scheduledDateTime.setHours(hours, minutes, 0, 0);
+
+        let scheduledDateTime;
+
+        if (timezone) {
+            // Use timezone utility if timezone is provided
+            scheduledDateTime = createDateInTimezone(
+                date.getFullYear(),
+                date.getMonth(),
+                date.getDate(),
+                hours,
+                minutes,
+                timezone
+            );
+        } else {
+            // Fallback to local time (naive)
+            scheduledDateTime = new Date(date);
+            scheduledDateTime.setHours(hours, minutes, 0, 0);
+        }
 
         // Calculate end time based on duration
         const endDateTime = new Date(scheduledDateTime);
@@ -322,10 +339,10 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
-            
+
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
                 <h3 className="font-bold text-lg text-slate-800 mb-4">Schedule Job</h3>
-                
+
                 {/* Job Info */}
                 <div className="bg-slate-50 rounded-xl p-4 mb-4">
                     <h4 className="font-bold text-slate-800">
@@ -344,10 +361,10 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
                     <div className="px-4 py-2.5 bg-slate-100 rounded-xl text-slate-800 font-medium">
-                        {date.toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            month: 'long', 
-                            day: 'numeric' 
+                        {date.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            month: 'long',
+                            day: 'numeric'
                         })}
                     </div>
                 </div>
@@ -453,11 +470,10 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers })
                     </button>
                     <button
                         onClick={handleConfirm}
-                        className={`flex-1 px-4 py-3 font-bold rounded-xl flex items-center justify-center gap-2 ${
-                            customerConfirmed 
-                                ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
-                                : 'bg-amber-500 text-white hover:bg-amber-600'
-                        }`}
+                        className={`flex-1 px-4 py-3 font-bold rounded-xl flex items-center justify-center gap-2 ${customerConfirmed
+                            ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                            : 'bg-amber-500 text-white hover:bg-amber-600'
+                            }`}
                     >
                         <Check size={18} />
                         {customerConfirmed ? 'Schedule' : 'Propose Time'}
@@ -497,10 +513,10 @@ export const DragDropCalendar = ({
         const scheduled = [];
         const unscheduled = [];
         const pending = [];
-        
+
         jobs.forEach(job => {
             if (['completed', 'cancelled'].includes(job.status)) return;
-            
+
             if (job.scheduledTime || job.scheduledDate) {
                 scheduled.push(job);
             } else if (job.scheduling?.offeredSlots?.length > 0) {
@@ -523,7 +539,7 @@ export const DragDropCalendar = ({
                 unscheduled.push(job);
             }
         });
-        
+
         return { scheduledJobs: scheduled, unscheduledJobs: unscheduled, pendingSlots: pending };
     }, [jobs]);
 
@@ -555,7 +571,7 @@ export const DragDropCalendar = ({
     // Working hours range
     const workingHours = useMemo(() => {
         let minHour = 8, maxHour = 18;
-        
+
         if (preferences?.workingHours) {
             Object.values(preferences.workingHours).forEach(day => {
                 if (day?.enabled && day?.start) {
@@ -566,7 +582,7 @@ export const DragDropCalendar = ({
                 }
             });
         }
-        
+
         const hours = [];
         for (let h = minHour; h <= maxHour; h++) {
             hours.push(h);
@@ -617,14 +633,14 @@ export const DragDropCalendar = ({
 
     const handleDrop = useCallback((e, date, hour) => {
         e.preventDefault();
-        
+
         const jobId = e.dataTransfer.getData('jobId');
         const jobData = JSON.parse(e.dataTransfer.getData('jobData') || '{}');
-        
+
         if (jobId && jobData) {
             setConfirmDrop({ job: jobData, date, hour });
         }
-        
+
         setDropTarget(null);
         setDraggedJob(null);
     }, []);
@@ -664,7 +680,7 @@ export const DragDropCalendar = ({
                 toast.success(scheduleData.isMultiDay
                     ? `Job scheduled for ${scheduleData.estimatedDays} days!`
                     : 'Job scheduled!');
-                
+
                 // Send email notification to customer (non-blocking)
                 if (confirmDrop.job.customer?.email) {
                     fetch('/api/send-job-scheduled', {
@@ -699,7 +715,7 @@ export const DragDropCalendar = ({
                     status: 'offered',
                     createdAt: new Date().toISOString()
                 };
-                
+
                 await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
                     'scheduling.offeredSlots': [offeredSlot],
                     'scheduling.offeredAt': serverTimestamp(),
@@ -710,7 +726,7 @@ export const DragDropCalendar = ({
                 });
                 toast.success('Time proposed! Waiting for customer confirmation.');
             }
-            
+
             if (onJobUpdate) onJobUpdate();
         } catch (error) {
             console.error('Error scheduling job:', error);
@@ -739,7 +755,7 @@ export const DragDropCalendar = ({
                         Drag jobs onto the calendar
                     </p>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
                     {unscheduledJobs.length === 0 ? (
                         <div className="text-center py-8 text-slate-400">
@@ -796,9 +812,9 @@ export const DragDropCalendar = ({
                 <div className="grid grid-cols-8 border-b border-slate-200">
                     <div className="w-16 shrink-0 bg-slate-50" /> {/* Time column header */}
                     {weekDates.map((date, idx) => {
-                        const isToday = isSameDay(date, today);
+                        const isToday = isSameDayInTimezone(date, today, timezone);
                         return (
-                            <div 
+                            <div
                                 key={idx}
                                 className={`p-2 text-center border-l border-slate-100 ${isToday ? 'bg-emerald-50' : ''}`}
                             >
@@ -821,19 +837,19 @@ export const DragDropCalendar = ({
                             <div className="w-16 shrink-0 p-2 text-xs text-slate-400 text-right pr-3 bg-slate-50 border-b border-slate-100">
                                 {formatTime(hour)}
                             </div>
-                            
+
                             {/* Day Slots */}
                             {weekDates.map((date, idx) => {
-                                const isTarget = dropTarget && 
-                                    isSameDay(dropTarget.date, date) && 
+                                const isTarget = dropTarget &&
+                                    isSameDayInTimezone(dropTarget.date, date, timezone) &&
                                     dropTarget.hour === hour;
-                                
+
                                 return (
                                     <TimeSlot
                                         key={idx}
                                         date={date}
                                         hour={hour}
-                                        jobs={getJobsForDate(scheduledJobs, date)}
+                                        jobs={getJobsForDate(scheduledJobs, date, timezone)}
                                         pendingSlots={pendingSlots}
                                         evaluations={scheduledEvaluations}
                                         isDropTarget={isTarget}
@@ -861,6 +877,7 @@ export const DragDropCalendar = ({
                     date={confirmDrop.date}
                     hour={confirmDrop.hour}
                     teamMembers={preferences?.teamMembers}
+                    timezone={timezone}
                     onConfirm={handleConfirmSchedule}
                     onCancel={() => setConfirmDrop(null)}
                 />

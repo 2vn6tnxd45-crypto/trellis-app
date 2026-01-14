@@ -3,6 +3,7 @@
 // CALENDAR EVENTS TRANSFORMER
 // ============================================
 // Transforms jobs and evaluations into unified calendar events
+import { isSameDayInTimezone } from './timezoneUtils';
 
 /**
  * Transform a job document into a calendar event
@@ -106,25 +107,26 @@ export const mergeCalendarEvents = (jobs = [], evaluations = []) => {
  * Filter calendar events for a specific date
  * @param {Array} events - Array of calendar events
  * @param {Date} date - The date to filter for
+ * @param {string} timezone - Target timezone (IANA)
  * @returns {Array} Events occurring on the specified date
  */
-export const getEventsForDate = (events, date) => {
+export const getEventsForDate = (events, date, timezone) => {
     return events.filter(event => {
         // Handle jobs with confirmed time
         if (event.type === 'job') {
             if (event.start) {
-                return isSameDay(event.start, date);
+                return isSameDayInTimezone(event.start, date, timezone);
             }
             // Check for pending offered slots
             if (event.scheduling?.offeredSlots?.length > 0) {
                 return event.scheduling.offeredSlots.some(slot =>
-                    slot.status === 'offered' && isSameDay(slot.start, date)
+                    slot.status === 'offered' && isSameDayInTimezone(slot.start, date, timezone)
                 );
             }
             // Check for multi-day schedule
             if (event.isMultiDay && event.multiDaySchedule?.segments) {
                 return event.multiDaySchedule.segments.some(segment =>
-                    isSameDay(segment.date, date)
+                    isSameDayInTimezone(segment.date, date, timezone)
                 );
             }
             return false;
@@ -132,7 +134,7 @@ export const getEventsForDate = (events, date) => {
 
         // Handle evaluations
         if (event.type === 'evaluation') {
-            return event.start && isSameDay(event.start, date);
+            return event.start && isSameDayInTimezone(event.start, date, timezone);
         }
 
         return false;
@@ -141,21 +143,17 @@ export const getEventsForDate = (events, date) => {
 
 /**
  * Check if two dates are the same day
+ * @deprecated Use isSameDayInTimezone from timezoneUtils instead
  */
 const isSameDay = (date1, date2) => {
-    if (!date1 || !date2) return false;
-    const d1 = new Date(date1);
-    const d2 = new Date(date2);
-    return d1.getFullYear() === d2.getFullYear() &&
-           d1.getMonth() === d2.getMonth() &&
-           d1.getDate() === d2.getDate();
+    return isSameDayInTimezone(date1, date2, 'UTC'); // Fallback to UTC if used without timezone
 };
 
 /**
  * Get display time for an event on a specific date
  * Handles pending slots that may have different times on different days
  */
-export const getEventDisplayTime = (event, date) => {
+export const getEventDisplayTime = (event, date, timezone) => {
     if (event.start) {
         return event.start;
     }
@@ -163,7 +161,7 @@ export const getEventDisplayTime = (event, date) => {
     // For pending jobs, find the slot for this specific date
     if (event.type === 'job' && event.scheduling?.offeredSlots?.length > 0) {
         const slot = event.scheduling.offeredSlots.find(s =>
-            s.status === 'offered' && isSameDay(s.start, date)
+            s.status === 'offered' && isSameDayInTimezone(s.start, date, timezone)
         );
         return slot?.start;
     }
@@ -171,7 +169,7 @@ export const getEventDisplayTime = (event, date) => {
     // For multi-day jobs, find the segment for this date
     if (event.isMultiDay && event.multiDaySchedule?.segments) {
         const segment = event.multiDaySchedule.segments.find(s =>
-            isSameDay(s.date, date)
+            isSameDayInTimezone(s.date, date, timezone)
         );
         if (segment) {
             // Construct datetime from date and start time

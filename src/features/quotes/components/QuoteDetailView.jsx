@@ -5,7 +5,7 @@
 // Display quote details with timeline and actions
 
 import React, { useState } from 'react';
-import { 
+import {
     ArrowLeft, Edit3, MoreHorizontal, Send, Mail, FileText,
     Copy, Printer, Trash2, CheckCircle, Eye, Clock, XCircle,
     User, MapPin, AlertCircle, Link as LinkIcon, Loader2,
@@ -19,9 +19,8 @@ import { QuoteStatusBadge } from './QuotesListView';
 // ============================================
 const TimelineStep = ({ icon: Icon, label, date, isActive, isComplete }) => (
     <div className="flex items-center gap-2">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            isComplete ? 'bg-emerald-100' : isActive ? 'bg-blue-100' : 'bg-slate-100'
-        }`}>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isComplete ? 'bg-emerald-100' : isActive ? 'bg-blue-100' : 'bg-slate-100'
+            }`}>
             <Icon size={16} className={
                 isComplete ? 'text-emerald-600' : isActive ? 'text-blue-600' : 'text-slate-400'
             } />
@@ -36,12 +35,17 @@ const TimelineStep = ({ icon: Icon, label, date, isActive, isComplete }) => (
 // ============================================
 // QUOTE PREVIEW (What customer sees)
 // ============================================
-const QuotePreview = ({ quote, contractorProfile }) => {
+const QuotePreview = ({ quote, contractorProfile, timeZone }) => {
     // Format date safely
     const formatDate = (timestamp) => {
         if (!timestamp) return '—';
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return date.toLocaleDateString();
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            timeZone
+        });
     };
 
     return (
@@ -68,7 +72,7 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                     </div>
                 </div>
             </div>
-            
+
             {/* Customer & Quote Info */}
             <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
@@ -93,13 +97,13 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                     </p>
                 </div>
             </div>
-            
+
             {/* Description */}
             <div className="mb-6">
                 <p className="text-xs font-bold text-slate-500 uppercase mb-2">Description</p>
                 <p className="text-slate-800 font-medium">{quote.title}</p>
             </div>
-            
+
             {/* Line Items */}
             <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
                 <table className="w-full">
@@ -117,9 +121,8 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                             <tr key={item.id || idx}>
                                 <td className="px-4 py-3 text-slate-800">{item.description}</td>
                                 <td className="px-4 py-3 text-center">
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                                        item.type === 'labor' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                                    }`}>
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${item.type === 'labor' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                        }`}>
                                         {item.type === 'labor' ? 'Labor' : 'Part'}
                                     </span>
                                 </td>
@@ -133,7 +136,7 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                     </tbody>
                 </table>
             </div>
-            
+
             {/* Totals */}
             <div className="flex justify-end">
                 <div className="w-64 space-y-2">
@@ -151,7 +154,7 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                     </div>
                 </div>
             </div>
-            
+
             {/* Notes */}
             {quote.notes && (
                 <div className="mt-6 pt-6 border-t border-slate-100">
@@ -159,7 +162,7 @@ const QuotePreview = ({ quote, contractorProfile }) => {
                     <p className="text-sm text-slate-600">{quote.notes}</p>
                 </div>
             )}
-            
+
             {/* Terms */}
             {quote.terms && (
                 <div className="mt-4">
@@ -183,42 +186,48 @@ export const QuoteDetailView = ({
     onSendReminder,
     onConvertToInvoice,
     onCopyLink,
-    getShareLink
+    getShareLink,
+    timeZone // Add timeZone prop
 }) => {
     const [showActions, setShowActions] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSendingReminder, setIsSendingReminder] = useState(false);
-    
+
     // Format date safely
     const formatDate = (timestamp) => {
         if (!timestamp) return null;
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return date.toLocaleDateString();
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            timeZone
+        });
     };
-    
+
     // Determine timeline state
     const getTimelineState = () => {
         const states = {
             created: { complete: true, date: formatDate(quote.createdAt) },
-            sent: { 
+            sent: {
                 complete: ['sent', 'viewed', 'accepted', 'declined', 'expired'].includes(quote.status),
                 date: formatDate(quote.sentAt)
             },
-            viewed: { 
+            viewed: {
                 complete: ['viewed', 'accepted', 'declined'].includes(quote.status),
                 active: quote.status === 'viewed',
                 date: formatDate(quote.viewedAt)
             },
-            accepted: { 
+            accepted: {
                 complete: quote.status === 'accepted',
                 date: formatDate(quote.acceptedAt)
             }
         };
         return states;
     };
-    
+
     const timeline = getTimelineState();
-    
+
     // Handle copy link
     const handleCopyLink = () => {
         const link = getShareLink ? getShareLink(quote.id) : '';
@@ -228,13 +237,13 @@ export const QuoteDetailView = ({
         }
         if (onCopyLink) onCopyLink(quote);
     };
-    
+
     // Handle delete
     const handleDelete = async () => {
         if (!window.confirm('Are you sure you want to delete this quote? This cannot be undone.')) {
             return;
         }
-        
+
         setIsDeleting(true);
         try {
             await onDelete(quote.id);
@@ -246,7 +255,7 @@ export const QuoteDetailView = ({
             setIsDeleting(false);
         }
     };
-    
+
     // Handle send reminder
     const handleSendReminder = async () => {
         setIsSendingReminder(true);
@@ -265,7 +274,7 @@ export const QuoteDetailView = ({
             {/* Header */}
             <div className="flex items-center justify-between flex-wrap gap-4">
                 <div className="flex items-center gap-4">
-                    <button 
+                    <button
                         onClick={onBack}
                         className="p-2 hover:bg-slate-100 rounded-xl transition-colors"
                     >
@@ -279,11 +288,11 @@ export const QuoteDetailView = ({
                         <p className="text-slate-500">{quote.title}</p>
                     </div>
                 </div>
-                
+
                 {/* Actions */}
                 <div className="flex items-center gap-3 flex-wrap">
                     {quote.status === 'accepted' && onConvertToInvoice && (
-                        <button 
+                        <button
                             onClick={() => onConvertToInvoice(quote)}
                             className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2 transition-colors"
                         >
@@ -298,7 +307,7 @@ export const QuoteDetailView = ({
                         </button>
                     )}
                     {['sent', 'viewed'].includes(quote.status) && (
-                        <button 
+                        <button
                             onClick={handleSendReminder}
                             disabled={isSendingReminder}
                             className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center gap-2 disabled:opacity-50 transition-colors"
@@ -311,17 +320,17 @@ export const QuoteDetailView = ({
                             Send Reminder
                         </button>
                     )}
-                    <button 
+                    <button
                         onClick={onEdit}
                         className="px-4 py-2 border border-slate-200 rounded-xl font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2 transition-colors"
                     >
                         <Edit3 size={16} />
                         Edit
                     </button>
-                    
+
                     {/* More Actions Dropdown */}
                     <div className="relative">
-                        <button 
+                        <button
                             onClick={() => setShowActions(!showActions)}
                             className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors"
                         >
@@ -329,12 +338,12 @@ export const QuoteDetailView = ({
                         </button>
                         {showActions && (
                             <>
-                                <div 
-                                    className="fixed inset-0 z-10" 
+                                <div
+                                    className="fixed inset-0 z-10"
                                     onClick={() => setShowActions(false)}
                                 />
                                 <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-20">
-                                    <button 
+                                    <button
                                         onClick={handleCopyLink}
                                         className="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2"
                                     >
@@ -350,7 +359,7 @@ export const QuoteDetailView = ({
                                         Download PDF
                                     </button>
                                     <hr className="my-2 border-slate-100" />
-                                    <button 
+                                    <button
                                         onClick={handleDelete}
                                         disabled={isDeleting}
                                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
@@ -368,7 +377,7 @@ export const QuoteDetailView = ({
                     </div>
                 </div>
             </div>
-            
+
             {/* Status Timeline */}
             {quote.status !== 'draft' && (
                 <div className="bg-white rounded-2xl border border-slate-200 p-6">
@@ -405,14 +414,14 @@ export const QuoteDetailView = ({
                     </div>
                 </div>
             )}
-            
+
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Quote Preview - Left 2 cols */}
                 <div className="lg:col-span-2">
-                    <QuotePreview quote={quote} contractorProfile={contractorProfile} />
+                    <QuotePreview quote={quote} contractorProfile={contractorProfile} timeZone={timeZone} />
                 </div>
-                
+
                 {/* Sidebar Info */}
                 <div className="space-y-4">
                     {/* Customer Card */}
@@ -441,7 +450,7 @@ export const QuoteDetailView = ({
                             )}
                         </div>
                     </div>
-                    
+
                     {/* View Stats */}
                     {quote.viewCount > 0 && (
                         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
@@ -458,7 +467,7 @@ export const QuoteDetailView = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Status-specific alerts */}
                     {quote.status === 'sent' && (
                         <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
@@ -473,7 +482,7 @@ export const QuoteDetailView = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {quote.status === 'viewed' && (
                         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
@@ -487,7 +496,7 @@ export const QuoteDetailView = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {quote.status === 'accepted' && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
@@ -501,7 +510,7 @@ export const QuoteDetailView = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {quote.status === 'declined' && (
                         <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
@@ -517,7 +526,7 @@ export const QuoteDetailView = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {quote.status === 'expired' && (
                         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                             <div className="flex items-start gap-3">
@@ -525,14 +534,14 @@ export const QuoteDetailView = ({
                                 <div>
                                     <p className="font-medium text-amber-800">Quote Expired</p>
                                     <p className="text-sm text-amber-700 mt-1">
-                                        This quote expired on {formatDate(quote.expiresAt)}. 
+                                        This quote expired on {formatDate(quote.expiresAt)}.
                                         You can duplicate it to create a new one.
                                     </p>
                                 </div>
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Conversion Links */}
                     {quote.convertedToInvoiceId && (
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
@@ -542,7 +551,7 @@ export const QuoteDetailView = ({
                             </p>
                         </div>
                     )}
-                    
+
                     {quote.convertedToJobId && (
                         <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
                             <p className="text-xs font-bold text-slate-500 uppercase mb-2">Linked Job</p>
