@@ -5,7 +5,18 @@ import { googleMapsApiKey } from '../../config/constants';
 import { NeighborhoodData } from './NeighborhoodData';
 
 const PropertyMap = ({ address }) => {
-    const mapQuery = address ? `${address.street}, ${address.city}, ${address.state} ${address.zip}` : "Home";
+    // Build query string, handling both object and string addresses gracefully
+    const buildMapQuery = () => {
+        if (!address) return "Home";
+        // If address is a string (legacy), use it directly
+        if (typeof address === 'string') return address;
+        // If it has a formatted field, use that
+        if (address.formatted) return address.formatted;
+        // Otherwise build from components, filtering out empty parts
+        const parts = [address.street, address.city, address.state, address.zip].filter(Boolean);
+        return parts.length > 0 ? parts.join(', ') : "Home";
+    };
+    const mapQuery = buildMapQuery();
     const mapUrl = `https://www.google.com/maps/embed/v1/place?key=${googleMapsApiKey}&q=${encodeURIComponent(mapQuery)}`;
 
     return (
@@ -33,8 +44,18 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        if (!address?.city && !coordinates?.lat) return;
-        
+        // Build address query string for geocoding, handling various formats
+        const buildGeoQuery = () => {
+            if (!address) return null;
+            if (typeof address === 'string') return address;
+            if (address.formatted) return address.formatted;
+            const parts = [address.street, address.city, address.state].filter(Boolean);
+            return parts.length > 0 ? parts.join(', ') : null;
+        };
+
+        const geoQuery = buildGeoQuery();
+        if (!geoQuery && !coordinates?.lat) return;
+
         const fetchData = async () => {
             setLoading(true);
             try {
@@ -42,13 +63,12 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                 let targetLat = coordinates?.lat;
                 let targetLon = coordinates?.lon;
 
-                if (!targetLat && address) {
+                if (!targetLat && geoQuery) {
                     try {
-                        const query = `${address.street}, ${address.city}, ${address.state}`;
-                        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleMapsApiKey}`;
+                        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geoQuery)}&key=${googleMapsApiKey}`;
                         const geoRes = await fetch(geoUrl);
                         const geoJson = await geoRes.json();
-                        
+
                         if (geoJson.results?.[0]?.geometry?.location) {
                             targetLat = geoJson.results[0].geometry.location.lat;
                             targetLon = geoJson.results[0].geometry.location.lng;

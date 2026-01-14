@@ -56,6 +56,53 @@ const formatCurrency = (amount) => {
     }).format(amount || 0);
 };
 
+// Parse a formatted address string into components
+// Handles formats like "123 Main St, Springfield, IL 62701"
+const parseAddressString = (addressStr) => {
+    if (!addressStr || typeof addressStr !== 'string') {
+        return { street: '', city: '', state: '', zip: '' };
+    }
+
+    // Split by comma and clean up
+    const parts = addressStr.split(',').map(p => p.trim());
+
+    if (parts.length === 0) {
+        return { street: addressStr, city: '', state: '', zip: '' };
+    }
+
+    // First part is usually the street
+    const street = parts[0] || '';
+
+    // Second part is usually the city
+    const city = parts.length > 1 ? parts[1] : '';
+
+    // Third part usually contains "State ZIP" or just "State"
+    let state = '';
+    let zip = '';
+
+    if (parts.length > 2) {
+        const stateZip = parts[2].trim();
+        // Match pattern like "IL 62701" or "Illinois 62701"
+        const stateZipMatch = stateZip.match(/^([A-Za-z\s]+?)?\s*(\d{5}(?:-\d{4})?)?$/);
+        if (stateZipMatch) {
+            state = (stateZipMatch[1] || '').trim();
+            zip = (stateZipMatch[2] || '').trim();
+        } else {
+            state = stateZip;
+        }
+    }
+
+    // Handle case where ZIP is in a 4th part (e.g., "123 Main, City, State, 62701")
+    if (!zip && parts.length > 3) {
+        const possibleZip = parts[3].trim();
+        if (/^\d{5}(?:-\d{4})?$/.test(possibleZip)) {
+            zip = possibleZip;
+        }
+    }
+
+    return { street, city, state, zip };
+};
+
 // Check if two addresses are similar (fuzzy match)
 const addressesMatch = (addr1, addr2) => {
     if (!addr1 || !addr2) return false;
@@ -286,15 +333,21 @@ const PropertyCreationForm = ({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        
+
         if (!address.street && !quoteAddress) {
             toast.error("Please enter your property address");
             return;
         }
-        
+
+        // If user hasn't entered/selected a new address via autocomplete,
+        // parse the quote address string into proper components
+        const finalAddress = address.street
+            ? address
+            : parseAddressString(quoteAddress);
+
         onComplete({
-            name: name || address.street || quoteAddress || 'My Home',
-            address: address.street ? address : { street: quoteAddress, city: '', state: '', zip: '' },
+            name: name || finalAddress.street || quoteAddress || 'My Home',
+            address: finalAddress,
             coordinates
         });
     };
