@@ -1728,6 +1728,19 @@ export const ContractorProApp = () => {
         setRatingHomeowner(job);
     }, []);
 
+    const handleDismissOnboarding = useCallback(async () => {
+        if (!user?.uid) return;
+        try {
+            await updateContractorSettings(user.uid, {
+                dismissedOnboarding: true
+            });
+            // Toast not needed as the UI will disappear
+        } catch (error) {
+            console.error('Error dismissing onboarding:', error);
+            toast.error('Failed to save preference');
+        }
+    }, [user?.uid]);
+
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
@@ -1829,7 +1842,8 @@ export const ContractorProApp = () => {
                             jobs={jobs}
                             quotes={quotes}
                             onNavigate={handleNavigate}
-                            onJobClick={handleJobClick}
+                            isDismissed={profile?.settings?.dismissedOnboarding}
+                            onDismissOnboarding={handleDismissOnboarding}
                         />
                     )}
 

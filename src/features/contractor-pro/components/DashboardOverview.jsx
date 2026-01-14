@@ -10,7 +10,7 @@ import {
     Users, FileText, TrendingUp, Clock, Plus,
     CheckCircle, AlertCircle, ChevronRight, Copy,
     ExternalLink, Bell, Settings, LogOut, Sparkles,
-    Building2, ArrowUpRight, Calendar
+    Building2, ArrowUpRight, Calendar, BadgeCheck, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../../../utils/formatCurrency';
@@ -37,7 +37,7 @@ const formatTimeAgo = (date) => {
 // ============================================
 // STAT CARD COMPONENT
 // ============================================
-const StatCard = ({ icon: Icon, label, value, subtext, color = 'emerald', trend }) => {
+const StatCard = ({ icon: Icon, label, value, subtext, color = 'emerald', trend, onClick }) => {
     const colorClasses = {
         emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
         blue: 'bg-blue-50 text-blue-600 border-blue-100',
@@ -46,7 +46,10 @@ const StatCard = ({ icon: Icon, label, value, subtext, color = 'emerald', trend 
     };
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
+        <div
+            onClick={onClick}
+            className={`bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow ${onClick ? 'cursor-pointer' : ''}`}
+        >
             <div className="flex items-start justify-between mb-3">
                 <div className={`p-2.5 rounded-xl ${colorClasses[color]}`}>
                     <Icon size={20} />
@@ -174,36 +177,12 @@ const EmptyState = ({ onCreateInvitation }) => (
     </div>
 );
 
-// ============================================
-// QUICK TIP CARD
-// ============================================
-// ============================================
-// QUICK TIP CARD
-// ============================================
-const QuickTip = ({ tip, onDismiss }) => (
-    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
-        <div className="bg-blue-100 p-1.5 rounded-lg text-blue-600 flex-shrink-0">
-            <Sparkles size={16} />
-        </div>
-        <div className="flex-1">
-            <p className="text-sm font-medium text-blue-800">{tip.title}</p>
-            <p className="text-sm text-blue-600 mt-0.5">{tip.message}</p>
-        </div>
-        {onDismiss && (
-            <button
-                onClick={onDismiss}
-                className="text-blue-400 hover:text-blue-600"
-            >
-                ×
-            </button>
-        )}
-    </div>
-);
+
 
 // ============================================
 // CUSTOMER JOURNEY PIPELINE
 // ============================================
-const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => {
+const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [], onNavigate }) => {
     // Calculate journey stages
     const pendingQuotes = quotes.filter(q => q.status === 'sent' || q.status === 'pending' || q.status === 'draft');
     const acceptedQuotes = quotes.filter(q => q.status === 'accepted' || q.status === 'approved');
@@ -227,15 +206,16 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
 
     const stages = [
         {
-            id: 'leads',
-            label: 'Leads',
+            id: 'customers',
+            label: 'Customers',
             sublabel: 'Connected',
             count: customers.length,
             icon: Users,
             color: 'slate',
             bgColor: 'bg-slate-100',
             textColor: 'text-slate-600',
-            borderColor: 'border-slate-200'
+            borderColor: 'border-slate-200',
+            action: () => onNavigate('customers')
         },
         {
             id: 'quoted',
@@ -248,7 +228,8 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
             color: 'amber',
             bgColor: 'bg-amber-50',
             textColor: 'text-amber-600',
-            borderColor: 'border-amber-200'
+            borderColor: 'border-amber-200',
+            action: () => onNavigate('quotes')
         },
         {
             id: 'active',
@@ -261,7 +242,8 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
             color: 'blue',
             bgColor: 'bg-blue-50',
             textColor: 'text-blue-600',
-            borderColor: 'border-blue-200'
+            borderColor: 'border-blue-200',
+            action: () => onNavigate('jobs')
         },
         {
             id: 'completed',
@@ -274,7 +256,8 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
             color: 'emerald',
             bgColor: 'bg-emerald-50',
             textColor: 'text-emerald-600',
-            borderColor: 'border-emerald-200'
+            borderColor: 'border-emerald-200',
+            action: () => onNavigate('jobs') // Or a 'completed' specific view if it existed, but jobs filter works
         }
     ];
 
@@ -292,7 +275,8 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
                     return (
                         <div
                             key={stage.id}
-                            className={`relative p-4 rounded-xl border-2 ${stage.bgColor} ${stage.borderColor}`}
+                            onClick={stage.action}
+                            className={`relative p-4 rounded-xl border-2 ${stage.bgColor} ${stage.borderColor} cursor-pointer hover:shadow-md transition-all active:scale-[0.98]`}
                         >
                             {/* Arrow connector (hidden on first item and mobile) */}
                             {idx > 0 && (
@@ -358,9 +342,7 @@ const CustomerJourneyPipeline = ({ quotes = [], jobs = [], customers = [] }) => 
 // ============================================
 // ONBOARDING CHECKLIST
 // ============================================
-const OnboardingChecklist = ({ profile, quotes = [], jobs = [], onNavigate }) => {
-    const [dismissed, setDismissed] = useState(false);
-
+const OnboardingChecklist = ({ profile, quotes = [], jobs = [], onNavigate, onDismiss, isDismissed }) => {
     // Define checklist items with completion checks
     const checklistItems = [
         {
@@ -401,7 +383,7 @@ const OnboardingChecklist = ({ profile, quotes = [], jobs = [], onNavigate }) =>
     const allComplete = completedCount === totalCount;
 
     // Don't show if dismissed or all complete
-    if (dismissed || allComplete) return null;
+    if (isDismissed || allComplete) return null;
 
     return (
         <div className="bg-gradient-to-br from-emerald-50 via-white to-teal-50 rounded-2xl border-2 border-emerald-200 p-6 shadow-sm">
@@ -411,7 +393,7 @@ const OnboardingChecklist = ({ profile, quotes = [], jobs = [], onNavigate }) =>
                     <p className="text-slate-500 text-sm">Complete your profile to look professional to customers</p>
                 </div>
                 <button
-                    onClick={() => setDismissed(true)}
+                    onClick={onDismiss}
                     className="text-slate-400 hover:text-slate-600 p-1"
                     title="Dismiss"
                 >
@@ -486,10 +468,10 @@ export const DashboardOverview = ({
     onViewAllInvitations,
     onViewAllCustomers,
     onViewInvitation,
-    onNavigate
+    onNavigate,
+    isDismissed,
+    onDismissOnboarding
 }) => {
-    const [showTip, setShowTip] = useState(true);
-
     const companyName = profile?.profile?.companyName || profile?.profile?.displayName || 'Your Business';
     // Updated: Include quotes and jobs in hasData check
     const hasData = invitations.length > 0 || customers.length > 0 || quotes.length > 0 || jobs.length > 0;
@@ -546,18 +528,13 @@ export const DashboardOverview = ({
                 quotes={quotes}
                 jobs={jobs}
                 onNavigate={onNavigate}
+                onDismiss={onDismissOnboarding}
+                isDismissed={isDismissed}
             />
 
             {/* Quick Tip - only show after onboarding complete and has data */}
-            {showTip && hasData && (
-                <QuickTip
-                    tip={{
-                        title: 'Pro Tip',
-                        message: "Share your invitation link via text or email after completing a job. When customers need service again, you're one tap away!"
-                    }}
-                    onDismiss={() => setShowTip(false)}
-                />
-            )}
+            {/* Quick Tip - shows daily tip unless dismissed */}
+            {hasData && <SmartTip />}
 
             {/* Stats Grid - FIX: Added optional chaining for all stats properties */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -567,6 +544,7 @@ export const DashboardOverview = ({
                     value={stats?.totalCustomers || 0}
                     subtext="have your info saved"
                     color="emerald"
+                    onClick={() => onNavigate('customers')}
                 />
                 <StatCard
                     icon={FileText}
@@ -574,6 +552,7 @@ export const DashboardOverview = ({
                     value={stats?.totalInvitations || 0}
                     subtext={`${stats?.pendingInvitations || 0} pending`}
                     color="blue"
+                    onClick={() => onNavigate('invitations')}
                 />
                 <StatCard
                     icon={TrendingUp}
@@ -588,6 +567,7 @@ export const DashboardOverview = ({
                     value={stats?.pendingInvitations || 0}
                     subtext="awaiting claim"
                     color="amber"
+                    onClick={() => onNavigate('invitations')}
                 />
             </div>
 
@@ -597,6 +577,7 @@ export const DashboardOverview = ({
                     quotes={quotes}
                     jobs={jobs}
                     customers={customers}
+                    onNavigate={onNavigate}
                 />
             )}
 
@@ -688,6 +669,65 @@ export const DashboardOverview = ({
                 className="md:hidden fixed bottom-24 right-4 p-4 bg-emerald-600 text-white rounded-full shadow-xl shadow-emerald-600/30 hover:bg-emerald-700 transition-colors z-50"
             >
                 <Plus size={24} />
+            </button>
+        </div>
+    );
+};
+
+// ============================================
+// SMART TIP COMPONENT
+// ============================================
+const SmartTip = () => {
+    const [visible, setVisible] = useState(false);
+    const [tip, setTip] = useState(null);
+
+    const TIPS = [
+        { id: 1, text: "Adding photos to your invoices increases payment speed by 40%." },
+        { id: 2, text: "Follow up on quotes within 24 hours to double your win rate." },
+        { id: 3, text: "Complete your business profile to rank higher in homeowner searches." },
+        { id: 4, text: "Use the 'Needs Attention' tab to catch slipping leads before they're lost." },
+        { id: 5, text: "Schedule jobs directly from accepted quotes to save time on data entry." }
+    ];
+
+    useEffect(() => {
+        // Select tip based on day of month to rotate daily
+        const day = new Date().getDate();
+        const tipIndex = day % TIPS.length;
+        const selectedTip = TIPS[tipIndex];
+
+        // Check if dismissed today
+        const dismissedKey = `krib-tip-dismissed-${day}`;
+        const isDismissed = localStorage.getItem(dismissedKey);
+
+        if (!isDismissed) {
+            setTip(selectedTip);
+            setVisible(true);
+        }
+    }, []);
+
+    const dismiss = () => {
+        const day = new Date().getDate();
+        localStorage.setItem(`krib-tip-dismissed-${day}`, 'true');
+        setVisible(false);
+    };
+
+    if (!visible || !tip) return null;
+
+    return (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shrink-0">
+                <BadgeCheck size={20} />
+            </div>
+            <div className="flex-1 min-w-0 pr-6">
+                <p className="font-bold text-blue-800 text-sm mb-1">Pro Tip of the Day</p>
+                <p className="text-blue-700 text-sm">{tip.text}</p>
+            </div>
+            <button
+                onClick={dismiss}
+                className="absolute top-2 right-2 text-blue-400 hover:text-blue-600 cursor-pointer p-1 rounded-full hover:bg-blue-100 transition-colors"
+                title="Dismiss"
+            >
+                <X size={16} />
             </button>
         </div>
     );
