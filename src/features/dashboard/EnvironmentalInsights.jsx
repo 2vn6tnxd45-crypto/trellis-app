@@ -4,6 +4,7 @@ import { Map as MapIcon, Wind, Sun, ExternalLink, ShoppingBag, Loader2, AlertCir
 import { googleMapsApiKey } from '../../config/constants';
 import { NeighborhoodData } from './NeighborhoodData';
 import { formatAddress } from '../../lib/addressUtils';
+import { useProperty } from '../../contexts/PropertyContext';
 
 const PropertyMap = ({ address }) => {
     // Use shared formatAddress utility which handles string, object, and empty addresses
@@ -13,11 +14,11 @@ const PropertyMap = ({ address }) => {
     return (
         <div className="space-y-6">
             <div className="bg-white p-4 rounded-2xl shadow-sm border border-emerald-100 h-64 overflow-hidden">
-                <iframe 
-                    width="100%" 
-                    height="100%" 
-                    src={mapUrl} 
-                    frameBorder="0" 
+                <iframe
+                    width="100%"
+                    height="100%"
+                    src={mapUrl}
+                    frameBorder="0"
                     title="Property Map"
                     allowFullScreen
                     loading="lazy"
@@ -29,6 +30,12 @@ const PropertyMap = ({ address }) => {
 
 export const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
+
+    // Get coordinates from RentCast property data (via PropertyContext)
+    const { propertyData } = useProperty();
+    const rentcastLat = propertyData?.latitude;
+    const rentcastLon = propertyData?.longitude;
+
     const [airQuality, setAirQuality] = useState(null);
     const [solarData, setSolarData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -37,7 +44,11 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     useEffect(() => {
         // Use shared formatAddress utility for geocoding query
         const geoQuery = formatAddress(address);
-        if (!geoQuery && !coordinates?.lat) {
+
+        // Use coordinates from: 1) propertyProfile, 2) RentCast data, 3) geocoding fallback
+        const hasCoords = coordinates?.lat || rentcastLat;
+
+        if (!geoQuery && !hasCoords) {
             // No address or coordinates available - skip fetching
             setLoading(false);
             return;
@@ -48,9 +59,9 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
             setError(null);
 
             try {
-                // 1. Resolve Coords if missing (Geocoding Fallback)
-                let targetLat = coordinates?.lat;
-                let targetLon = coordinates?.lon;
+                // 1. Use existing coords: propertyProfile > RentCast > geocoding fallback
+                let targetLat = coordinates?.lat || rentcastLat;
+                let targetLon = coordinates?.lon || rentcastLon;
 
                 if (!targetLat && geoQuery) {
                     // Check if API key exists
@@ -128,7 +139,7 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
             }
         };
         fetchData();
-    }, [coordinates, address]);
+    }, [coordinates, address, rentcastLat, rentcastLon]);
 
     if (!address) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
 
