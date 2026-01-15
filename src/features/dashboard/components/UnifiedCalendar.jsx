@@ -11,7 +11,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, Calendar, Wrench, RefreshCw,
-    Briefcase, ClipboardList, MapPin, Clock, User, X, AlertTriangle
+    Briefcase, ClipboardList, MapPin, Clock, User, X, AlertTriangle,
+    CheckCircle2, AlarmClock, CalendarClock
 } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -105,11 +106,32 @@ const formatMaintenanceTitle = (task) => {
 // ============================================
 // EVENT DETAIL MODAL
 // ============================================
-const EventDetailModal = ({ event, onClose }) => {
+const EventDetailModal = ({
+    event,
+    onClose,
+    onMarkDone = null,
+    onSnooze = null,
+    onSchedule = null,
+    onBookService = null
+}) => {
+    const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [scheduleDate, setScheduleDate] = useState(
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    );
+    const [scheduleNotes, setScheduleNotes] = useState('');
+
     if (!event) return null;
 
     const typeConfig = EVENT_TYPES[event.type] || EVENT_TYPES.MAINTENANCE;
     const IconComponent = typeConfig.icon;
+
+    // Only show actions for maintenance items (not jobs or recurring services)
+    const isMaintenanceItem = event.type === 'MAINTENANCE' || event.type === 'MAINTENANCE_OVERDUE';
+    const isOverdue = event.type === 'MAINTENANCE_OVERDUE' || event.status === 'overdue';
+
+    // Get the task data needed for handlers
+    const taskData = event.rawData || event;
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -183,6 +205,7 @@ const EventDetailModal = ({ event, onClose }) => {
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
                                 event.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' :
                                 event.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
+                                event.status === 'overdue' ? 'bg-red-100 text-red-700' :
                                 'bg-slate-100 text-slate-600'
                             }`}>
                                 {event.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -192,14 +215,175 @@ const EventDetailModal = ({ event, onClose }) => {
                 </div>
 
                 {/* Actions */}
-                <div className="p-4 bg-slate-50 border-t border-slate-100">
+                <div className="p-4 bg-slate-50 border-t border-slate-100 space-y-3">
+
+                    {/* Primary Actions - Only for maintenance items */}
+                    {isMaintenanceItem && (
+                        <div className="grid grid-cols-2 gap-2">
+                            {/* Mark Complete */}
+                            {onMarkDone && (
+                                <button
+                                    onClick={() => {
+                                        onMarkDone(taskData);
+                                        onClose();
+                                    }}
+                                    className="flex items-center justify-center gap-2 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors"
+                                >
+                                    <CheckCircle2 size={16} />
+                                    Done
+                                </button>
+                            )}
+
+                            {/* Snooze */}
+                            {onSnooze && (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowSnoozeMenu(!showSnoozeMenu)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 text-white rounded-xl font-bold text-sm hover:bg-amber-600 transition-colors"
+                                    >
+                                        <AlarmClock size={16} />
+                                        Snooze
+                                    </button>
+
+                                    {/* Snooze Options Dropdown */}
+                                    {showSnoozeMenu && (
+                                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-10">
+                                            {[
+                                                { days: 7, label: '1 week' },
+                                                { days: 14, label: '2 weeks' },
+                                                { days: 30, label: '1 month' }
+                                            ].map(opt => (
+                                                <button
+                                                    key={opt.days}
+                                                    onClick={() => {
+                                                        onSnooze(taskData, opt.days);
+                                                        setShowSnoozeMenu(false);
+                                                        onClose();
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                                >
+                                                    {opt.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Secondary Actions Row */}
+                    {isMaintenanceItem && (
+                        <div className="grid grid-cols-2 gap-2">
+                            {/* Schedule */}
+                            {onSchedule && (
+                                <button
+                                    onClick={() => setShowScheduleModal(true)}
+                                    className="flex items-center justify-center gap-2 py-2.5 bg-blue-500 text-white rounded-xl font-bold text-sm hover:bg-blue-600 transition-colors"
+                                >
+                                    <CalendarClock size={16} />
+                                    Schedule
+                                </button>
+                            )}
+
+                            {/* Book a Pro */}
+                            {onBookService && (
+                                <button
+                                    onClick={() => {
+                                        onBookService(taskData);
+                                        onClose();
+                                    }}
+                                    className="flex items-center justify-center gap-2 py-2.5 bg-indigo-500 text-white rounded-xl font-bold text-sm hover:bg-indigo-600 transition-colors"
+                                >
+                                    <Briefcase size={16} />
+                                    Book Pro
+                                </button>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Close Button - Always visible */}
                     <button
                         onClick={onClose}
-                        className="w-full py-2.5 bg-slate-800 text-white rounded-xl font-bold text-sm hover:bg-slate-700 transition-colors"
+                        className={`w-full py-2.5 rounded-xl font-bold text-sm transition-colors ${
+                            isMaintenanceItem
+                                ? 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                : 'bg-slate-800 text-white hover:bg-slate-700'
+                        }`}
                     >
                         Close
                     </button>
                 </div>
+
+                {/* Schedule Modal */}
+                {showScheduleModal && (
+                    <div
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+                        onClick={() => setShowScheduleModal(false)}
+                    >
+                        <div
+                            className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+                                    <CalendarClock size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Schedule Task</h3>
+                                    <p className="text-xs text-slate-500">{event.title}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                                        When will you do this?
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={scheduleDate}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        onChange={(e) => setScheduleDate(e.target.value)}
+                                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                                        Notes (optional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={scheduleNotes}
+                                        onChange={(e) => setScheduleNotes(e.target.value)}
+                                        placeholder="e.g., Contractor coming at 9am"
+                                        className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+
+                                <div className="flex gap-2 pt-2">
+                                    <button
+                                        onClick={() => setShowScheduleModal(false)}
+                                        className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            onSchedule(taskData, scheduleDate, scheduleNotes);
+                                            setShowScheduleModal(false);
+                                            onClose();
+                                        }}
+                                        className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+                                    >
+                                        Schedule
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -212,7 +396,12 @@ export const UnifiedCalendar = ({
     userId,
     maintenanceTasks = [],
     showLegend = true,
-    compact = false
+    compact = false,
+    // Action handlers for maintenance tasks
+    onMarkTaskDone = null,
+    onSnoozeTask = null,
+    onScheduleTask = null,
+    onBookService = null
 }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [jobs, setJobs] = useState([]);
@@ -536,34 +725,74 @@ export const UnifiedCalendar = ({
                         <div className="p-4 space-y-2">
                             {overdueEvents.map(event => {
                                 const daysOverdue = Math.floor((new Date() - new Date(event.date)) / (1000 * 60 * 60 * 24));
+                                const taskData = event.rawData || event;
 
                                 return (
-                                    <button
+                                    <div
                                         key={event.id}
-                                        className="w-full flex items-center justify-between bg-white p-3 rounded-xl border border-red-200 hover:border-red-300 transition-colors text-left"
-                                        onClick={() => setSelectedEvent(event)}
+                                        className="bg-white p-3 rounded-xl border border-red-200 hover:border-red-300 transition-colors"
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-red-100 rounded-lg">
-                                                <Wrench size={16} className="text-red-600" />
-                                            </div>
-                                            <div>
-                                                <p className="font-medium text-slate-800">
-                                                    {event.title}
-                                                </p>
-                                                <p className="text-xs text-red-600">
-                                                    {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
-                                                    {event.rawData?.item && ` • ${event.rawData.item}`}
-                                                </p>
+                                        <div className="flex items-center justify-between">
+                                            {/* Task Info - Clickable to open modal */}
+                                            <button
+                                                onClick={() => setSelectedEvent(event)}
+                                                className="flex items-center gap-3 text-left flex-1 min-w-0"
+                                            >
+                                                <div className="p-2 bg-red-100 rounded-lg flex-shrink-0">
+                                                    <Wrench size={16} className="text-red-600" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="font-medium text-slate-800 truncate">
+                                                        {event.title}
+                                                    </p>
+                                                    <p className="text-xs text-red-600">
+                                                        {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
+                                                        {event.rawData?.item && ` • ${event.rawData.item}`}
+                                                    </p>
+                                                </div>
+                                            </button>
+
+                                            {/* Quick Actions */}
+                                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                                {/* Quick Complete */}
+                                                {onMarkTaskDone && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onMarkTaskDone(taskData);
+                                                        }}
+                                                        className="p-2 rounded-lg hover:bg-emerald-100 text-slate-400 hover:text-emerald-600 transition-colors"
+                                                        title="Mark Done"
+                                                    >
+                                                        <CheckCircle2 size={16} />
+                                                    </button>
+                                                )}
+
+                                                {/* Quick Snooze (1 week) */}
+                                                {onSnoozeTask && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onSnoozeTask(taskData, 7);
+                                                        }}
+                                                        className="p-2 rounded-lg hover:bg-amber-100 text-slate-400 hover:text-amber-600 transition-colors"
+                                                        title="Snooze 1 week"
+                                                    >
+                                                        <AlarmClock size={16} />
+                                                    </button>
+                                                )}
+
+                                                {/* Open Detail */}
+                                                <button
+                                                    onClick={() => setSelectedEvent(event)}
+                                                    className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                                                    title="More options"
+                                                >
+                                                    <ChevronRight size={16} />
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <span className="text-xs text-slate-500">
-                                                Due: {event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                            </span>
-                                            <ChevronRight size={16} className="text-slate-400" />
-                                        </div>
-                                    </button>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -722,6 +951,10 @@ export const UnifiedCalendar = ({
                 <EventDetailModal
                     event={selectedEvent}
                     onClose={() => setSelectedEvent(null)}
+                    onMarkDone={onMarkTaskDone}
+                    onSnooze={onSnoozeTask}
+                    onSchedule={onScheduleTask}
+                    onBookService={onBookService}
                 />
             )}
             </div>

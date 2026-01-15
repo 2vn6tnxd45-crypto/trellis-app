@@ -16,7 +16,7 @@ import { HomeArchive } from '../archive';
 import { MyContractorsSection } from './components/MyContractorsSection';
 
 // Firebase imports
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { appId } from '../../config/constants';
 
@@ -878,6 +878,160 @@ export const ModernDashboard = ({
         return tasks;
     }, [validRecords]);
 
+    // ============================================
+    // CALENDAR TASK ACTION HANDLERS
+    // ============================================
+
+    // Mark task as complete - updates the record's maintenance task
+    const handleMarkTaskDone = async (task) => {
+        if (!task || !task.recordId) {
+            toast.error('Unable to update task');
+            return;
+        }
+
+        try {
+            const record = validRecords.find(r => r.id === task.recordId);
+            if (!record) {
+                toast.error('Record not found');
+                return;
+            }
+
+            // Find and update the specific maintenance task
+            const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                if (t.taskName === task.taskName) {
+                    // Calculate next due date based on frequency
+                    const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === t.frequency);
+                    const nextDue = new Date();
+                    if (freq && freq.months > 0) {
+                        nextDue.setMonth(nextDue.getMonth() + freq.months);
+                    } else {
+                        nextDue.setFullYear(nextDue.getFullYear() + 1); // Default to 1 year
+                    }
+
+                    return {
+                        ...t,
+                        lastCompleted: new Date().toISOString(),
+                        nextDue: nextDue.toISOString(),
+                        scheduledDate: null // Clear any scheduled date
+                    };
+                }
+                return t;
+            });
+
+            // Update the record in Firestore
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            await updateDoc(recordRef, {
+                maintenanceTasks: updatedTasks,
+                lastActivity: new Date()
+            });
+
+            toast.success(`${task.taskName} marked complete!`);
+        } catch (err) {
+            console.error('Error marking task done:', err);
+            toast.error('Failed to update task');
+        }
+    };
+
+    // Snooze task - pushes the due date forward
+    const handleSnoozeTask = async (task, days) => {
+        if (!task || !task.recordId) {
+            toast.error('Unable to snooze task');
+            return;
+        }
+
+        try {
+            const record = validRecords.find(r => r.id === task.recordId);
+            if (!record) {
+                toast.error('Record not found');
+                return;
+            }
+
+            // Find and update the specific maintenance task
+            const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                if (t.taskName === task.taskName) {
+                    const newDueDate = new Date();
+                    newDueDate.setDate(newDueDate.getDate() + days);
+
+                    return {
+                        ...t,
+                        nextDue: newDueDate.toISOString(),
+                        snoozedAt: new Date().toISOString(),
+                        snoozedDays: days
+                    };
+                }
+                return t;
+            });
+
+            // Update the record in Firestore
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            await updateDoc(recordRef, {
+                maintenanceTasks: updatedTasks,
+                lastActivity: new Date()
+            });
+
+            toast.success(`Snoozed for ${days} days`);
+        } catch (err) {
+            console.error('Error snoozing task:', err);
+            toast.error('Failed to snooze task');
+        }
+    };
+
+    // Schedule task - sets a specific date for the task
+    const handleScheduleTask = async (task, scheduledDate, notes) => {
+        if (!task || !task.recordId) {
+            toast.error('Unable to schedule task');
+            return;
+        }
+
+        try {
+            const record = validRecords.find(r => r.id === task.recordId);
+            if (!record) {
+                toast.error('Record not found');
+                return;
+            }
+
+            // Find and update the specific maintenance task
+            const updatedTasks = (record.maintenanceTasks || []).map(t => {
+                if (t.taskName === task.taskName) {
+                    return {
+                        ...t,
+                        scheduledDate: scheduledDate,
+                        scheduledNotes: notes || null,
+                        scheduledAt: new Date().toISOString()
+                    };
+                }
+                return t;
+            });
+
+            // Update the record in Firestore
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            await updateDoc(recordRef, {
+                maintenanceTasks: updatedTasks,
+                lastActivity: new Date()
+            });
+
+            const dateStr = new Date(scheduledDate).toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric'
+            });
+            toast.success(`Scheduled for ${dateStr}`);
+        } catch (err) {
+            console.error('Error scheduling task:', err);
+            toast.error('Failed to schedule task');
+        }
+    };
+
+    // Book a pro - navigates to contractor search or creates a service request
+    const handleBookService = (task) => {
+        // For now, navigate to contractors section
+        // In the future, this could pre-fill a service request form
+        if (onNavigateToContractors) {
+            toast('Find a pro for this task', { icon: '🔍' });
+            onNavigateToContractors();
+        }
+    };
+
     return (
         <div className="space-y-6 pb-8">
             {/* HERO SECTION */}
@@ -983,6 +1137,10 @@ export const ModernDashboard = ({
                     maintenanceTasks={maintenanceTasks}
                     showLegend={true}
                     compact={false}
+                    onMarkTaskDone={handleMarkTaskDone}
+                    onSnoozeTask={handleSnoozeTask}
+                    onScheduleTask={handleScheduleTask}
+                    onBookService={handleBookService}
                 />
             </DashboardSection>
 
