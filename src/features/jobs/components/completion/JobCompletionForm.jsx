@@ -10,14 +10,24 @@ import {
     X, Camera, Upload, FileText, Plus, Trash2, CheckCircle,
     Loader2, Image, AlertCircle, DollarSign, Wrench, Calendar,
     ClipboardList, MessageSquare, ChevronDown, ChevronUp, Sparkles, Edit3,
-    Home, Clock, CheckSquare, Square
+    Home, Clock, CheckSquare, Square, Receipt
 } from 'lucide-react';
-import { 
-    submitJobCompletion, 
-    uploadCompletionPhoto, 
-    uploadInvoiceFile 
+import { Select } from '../../../../components/ui/Select';
+import {
+    submitJobCompletion,
+    uploadCompletionPhoto,
+    uploadInvoiceFile
 } from '../../lib/jobCompletionService';
 import toast from 'react-hot-toast';
+
+// Helper to format currency
+const formatCurrency = (amount) => {
+    if (amount == null || isNaN(amount)) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(amount);
+};
 
 // ============================================
 // CONSTANTS
@@ -58,7 +68,7 @@ const mapInventoryIntentsToCompletionItems = (inventoryIntents) => {
     if (!inventoryIntents || !Array.isArray(inventoryIntents) || inventoryIntents.length === 0) {
         return null; // Return null to signal fallback needed
     }
-    
+
     return inventoryIntents.map((intent, idx) => ({
         id: intent.id || `intent_${Date.now()}_${idx}`,
         // Core fields - already rich from quote
@@ -68,20 +78,20 @@ const mapInventoryIntentsToCompletionItems = (inventoryIntents) => {
         brand: intent.brand || '',
         model: intent.model || '',
         cost: intent.cost || null,
-        
+
         // These need to be filled in by contractor at completion
         serialNumber: intent.serialNumber || '',
         warranty: intent.warranty || '',
         warrantyDetails: intent.warrantyDetails || null,
-        
+
         // MAINTENANCE TASKS - the key differentiator!
         maintenanceTasks: intent.maintenanceTasks || [],
-        maintenanceFrequency: intent.maintenanceFrequency || 
+        maintenanceFrequency: intent.maintenanceFrequency ||
             getOverallFrequency(intent.maintenanceTasks),
-        
+
         // Completion fields
         dateInstalled: new Date().toISOString().split('T')[0],
-        
+
         // Tracking
         fromInventoryIntent: true,
         fromQuote: true,
@@ -95,12 +105,12 @@ const getOverallFrequency = (tasks) => {
     if (!tasks || tasks.length === 0) return 'none';
     const selectedTasks = tasks.filter(t => t.selected !== false);
     if (selectedTasks.length === 0) return 'none';
-    
+
     // Find shortest interval
     const monthValues = { monthly: 1, quarterly: 3, semiannual: 6, annual: 12 };
     let shortest = 'annual';
     let shortestMonths = 12;
-    
+
     selectedTasks.forEach(task => {
         const months = task.months || monthValues[task.frequency] || 12;
         if (months < shortestMonths) {
@@ -108,7 +118,7 @@ const getOverallFrequency = (tasks) => {
             shortest = task.frequency || 'annual';
         }
     });
-    
+
     return shortest;
 };
 
@@ -118,13 +128,13 @@ const getOverallFrequency = (tasks) => {
 // Used when inventoryIntents don't exist (older quotes)
 const mapQuoteItemsToCompletionItems = (quoteItems) => {
     if (!quoteItems || !Array.isArray(quoteItems)) return [];
-    
+
     return quoteItems.map((qItem, idx) => {
         // Calculate total cost from unitPrice * quantity if available
         const quantity = qItem.quantity || 1;
         const unitPrice = qItem.unitPrice || qItem.price || 0;
         const totalCost = qItem.cost || qItem.amount || (unitPrice * quantity) || null;
-        
+
         return {
             id: `quote_item_${Date.now()}_${idx}`,
             // Core fields from quote - handle various field name conventions
@@ -156,102 +166,128 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     // Form state
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [activeSection, setActiveSection] = useState('photos');
-    
+
     // Photos
     const [photos, setPhotos] = useState([]);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const photoInputRef = useRef(null);
     const [selectedPhotoType, setSelectedPhotoType] = useState('after');
-    
+
     // Invoice
     const [invoice, setInvoice] = useState(null);
     const [uploadingInvoice, setUploadingInvoice] = useState(false);
     const invoiceInputRef = useRef(null);
-    
+
     // Items installed - NOW PRE-POPULATED FROM QUOTE
     const [items, setItems] = useState([]);
     const [showAddItem, setShowAddItem] = useState(false);
     const [hasLoadedQuoteItems, setHasLoadedQuoteItems] = useState(false);
-    
+
     // Notes
     const [notes, setNotes] = useState('');
     const [recommendations, setRecommendations] = useState('');
-    
-    // ============================================
-    // PRE-POPULATE ITEMS FROM QUOTE
-    // ============================================
+
     // ============================================
     // PRE-POPULATE ITEMS FROM INVENTORY INTENTS (OR LEGACY QUOTE ITEMS)
     // ============================================
     useEffect(() => {
         // Only run once when component mounts
         if (hasLoadedQuoteItems) return;
-        
+
+        // DEBUG: Log what data we have on the job
+        console.log('🔍 [JobCompletionForm] Job data for pre-population:', {
+            jobId: job?.id,
+            jobNumber: job?.jobNumber,
+            sourceType: job?.sourceType,
+            sourceQuoteId: job?.sourceQuoteId,
+            sourceQuoteNumber: job?.sourceQuoteNumber,
+            hasInventoryIntents: Boolean(job?.inventoryIntents),
+            inventoryIntentsCount: job?.inventoryIntents?.length || 0,
+            hasLineItems: Boolean(job?.lineItems),
+            lineItemsCount: job?.lineItems?.length || 0,
+            subtotal: job?.subtotal,
+            total: job?.total,
+            fullJobKeys: job ? Object.keys(job) : []
+        });
+
         // PREFERRED: Check for inventory intents first (new system)
         // These have full maintenance tasks, warranty details, etc.
         const inventoryIntents = job?.inventoryIntents;
-        
+
         if (inventoryIntents && inventoryIntents.length > 0) {
             const mappedItems = mapInventoryIntentsToCompletionItems(inventoryIntents);
             if (mappedItems && mappedItems.length > 0) {
                 setItems(mappedItems);
-                
+
                 // Count total maintenance tasks
-                const totalTasks = mappedItems.reduce((sum, item) => 
+                const totalTasks = mappedItems.reduce((sum, item) =>
                     sum + (item.maintenanceTasks?.filter(t => t.selected !== false).length || 0), 0
                 );
-                
+
                 toast.success(
                     `${mappedItems.length} item${mappedItems.length > 1 ? 's' : ''} pre-filled with ${totalTasks} maintenance task${totalTasks !== 1 ? 's' : ''}!`,
                     { icon: '✨', duration: 4000 }
                 );
-                
+
                 setHasLoadedQuoteItems(true);
                 return;
             }
         }
-        
+
         // FALLBACK: Legacy system - map from line items
         const quoteItems = job?.lineItems || job?.quoteItems || job?.estimate?.lineItems || job?.quote?.items;
-        
+
         if (quoteItems && quoteItems.length > 0) {
             // Only map items that were flagged for home record (if that field exists)
             // Otherwise map all items (legacy behavior)
             const itemsToMap = quoteItems.some(i => i.addToHomeRecord !== undefined)
                 ? quoteItems.filter(i => i.addToHomeRecord)
                 : quoteItems;
-            
+
             if (itemsToMap.length > 0) {
                 const mappedItems = mapQuoteItemsToCompletionItems(itemsToMap);
                 setItems(mappedItems);
-                
+
                 toast.success(
                     `${mappedItems.length} item${mappedItems.length > 1 ? 's' : ''} pre-filled from quote!`,
                     { icon: '✨', duration: 4000 }
                 );
+                setHasLoadedQuoteItems(true);
+                return;
             }
         }
-        
+
+        // If we get here, no items were pre-populated
+        // Log a warning if this job came from a quote but has no items
+        if (job?.sourceQuoteId || job?.sourceType === 'quote') {
+            console.warn('⚠️ [JobCompletionForm] Job originated from quote but no items found to pre-populate:', {
+                sourceQuoteId: job?.sourceQuoteId,
+                sourceQuoteNumber: job?.sourceQuoteNumber,
+                inventoryIntents: job?.inventoryIntents,
+                lineItems: job?.lineItems
+            });
+        }
+
         setHasLoadedQuoteItems(true);
     }, [job, hasLoadedQuoteItems]);
-    
+
     // ============================================
     // PHOTO HANDLERS
     // ============================================
     const handlePhotoSelect = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
-        
+
         setUploadingPhoto(true);
         const loadingToast = toast.loading('Uploading photos...');
-        
+
         try {
             for (const file of files) {
                 if (file.size > 10 * 1024 * 1024) {
                     toast.error(`${file.name} is too large (max 10MB)`);
                     continue;
                 }
-                
+
                 const result = await uploadCompletionPhoto(job.id, file, selectedPhotoType);
                 setPhotos(prev => [...prev, {
                     ...result,
@@ -269,30 +305,30 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
             setUploadingPhoto(false);
         }
     };
-    
+
     const handleRemovePhoto = (index) => {
         setPhotos(prev => prev.filter((_, i) => i !== index));
     };
-    
+
     const handlePhotoCaption = (index, caption) => {
         setPhotos(prev => prev.map((p, i) => i === index ? { ...p, caption } : p));
     };
-    
+
     // ============================================
     // INVOICE HANDLERS
     // ============================================
     const handleInvoiceSelect = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
+
         if (file.size > 15 * 1024 * 1024) {
             toast.error('Invoice file too large (max 15MB)');
             return;
         }
-        
+
         setUploadingInvoice(true);
         const loadingToast = toast.loading('Uploading invoice...');
-        
+
         try {
             const result = await uploadInvoiceFile(job.id, file, contractorId);
             setInvoice(result);
@@ -306,7 +342,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
             setUploadingInvoice(false);
         }
     };
-    
+
     // ============================================
     // ITEM HANDLERS
     // ============================================
@@ -318,17 +354,17 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
         setShowAddItem(false);
         toast.success('Item added!');
     };
-    
+
     const handleRemoveItem = (itemId) => {
         setItems(prev => prev.filter(item => item.id !== itemId));
     };
-    
+
     const handleUpdateItem = (itemId, updates) => {
-        setItems(prev => prev.map(item => 
+        setItems(prev => prev.map(item =>
             item.id === itemId ? { ...item, ...updates } : item
         ));
     };
-    
+
     // ============================================
     // SUBMIT
     // ============================================
@@ -376,18 +412,18 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
             setIsSubmitting(false);
         }
     };
-    
+
     // ============================================
     // RENDER
     // ============================================
     return (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
             {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm" 
-                onClick={onClose} 
+            <div
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={onClose}
             />
-            
+
             {/* Modal */}
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
@@ -398,16 +434,54 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                             {job.description || job.title || 'Service Request'}
                         </p>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-2 hover:bg-white/20 rounded-full transition-colors"
                     >
                         <X className="w-5 h-5 text-white" />
                     </button>
                 </div>
-                
+
+                {/* Quote Summary Banner - Shows original quote data for reference */}
+                {(job.sourceQuoteId || job.lineItems?.length > 0 || job.total > 0) && (
+                    <div className="px-6 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                                <Receipt className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium text-blue-900">
+                                        {job.sourceQuoteNumber ? `Quote #${job.sourceQuoteNumber}` : 'Original Quote'}
+                                    </span>
+                                    {job.lineItems?.length > 0 && (
+                                        <span className="text-blue-600">
+                                            • {job.lineItems.length} item{job.lineItems.length !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                    {job.inventoryIntents?.length > 0 && (
+                                        <span className="text-indigo-600 font-medium">
+                                            • {job.inventoryIntents.length} for home record
+                                        </span>
+                                    )}
+                                </div>
+                                {job.total > 0 && (
+                                    <div className="text-xs text-blue-700 mt-0.5">
+                                        Total: {formatCurrency(job.total)}
+                                        {job.subtotal && job.subtotal !== job.total && (
+                                            <span className="text-blue-500 ml-2">
+                                                (Subtotal: {formatCurrency(job.subtotal)} + Tax: {formatCurrency(job.taxAmount || 0)})
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Progress Indicator */}
-                <div className="px-6 py-3 bg-gray-50 border-b flex gap-2">
+                <div className="px-6 py-3 bg-gray-50 border-b flex gap-2 flex-wrap">
                     {[
                         { id: 'photos', label: 'Photos', icon: Camera },
                         { id: 'items', label: 'Items', icon: Wrench },
@@ -417,11 +491,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         <button
                             key={section.id}
                             onClick={() => setActiveSection(section.id)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                                activeSection === section.id
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${activeSection === section.id
                                     ? 'bg-emerald-600 text-white'
                                     : 'bg-white text-gray-600 hover:bg-gray-100'
-                            }`}
+                                }`}
                         >
                             <section.icon className="w-4 h-4" />
                             {section.label}
@@ -433,7 +506,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         </button>
                     ))}
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
                     {/* PHOTOS SECTION */}
@@ -443,33 +516,31 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                 <h3 className="font-semibold text-gray-900">Completion Photos</h3>
                                 <span className="text-sm text-gray-500">{photos.length} uploaded</span>
                             </div>
-                            
+
                             {/* Photo Type Selector */}
                             <div className="flex gap-2">
                                 {PHOTO_TYPES.map(type => (
                                     <button
                                         key={type.id}
                                         onClick={() => setSelectedPhotoType(type.id)}
-                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                                            selectedPhotoType === type.id
+                                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${selectedPhotoType === type.id
                                                 ? 'bg-emerald-100 text-emerald-700 ring-2 ring-emerald-500'
                                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                        }`}
+                                            }`}
                                     >
                                         <span>{type.icon}</span>
                                         {type.label}
                                     </button>
                                 ))}
                             </div>
-                            
+
                             {/* Upload Button */}
                             <div
                                 onClick={() => !uploadingPhoto && photoInputRef.current?.click()}
-                                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                                    uploadingPhoto 
-                                        ? 'border-gray-300 bg-gray-50' 
+                                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${uploadingPhoto
+                                        ? 'border-gray-300 bg-gray-50'
                                         : 'border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50'
-                                }`}
+                                    }`}
                             >
                                 {uploadingPhoto ? (
                                     <Loader2 className="w-8 h-8 text-gray-400 mx-auto animate-spin" />
@@ -491,7 +562,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                 onChange={handlePhotoSelect}
                                 className="hidden"
                             />
-                            
+
                             {/* Photo Grid */}
                             {photos.length > 0 && (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -503,11 +574,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                                 className="w-full h-32 object-cover rounded-lg"
                                             />
                                             <div className="absolute top-2 left-2">
-                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                                    photo.type === 'before' ? 'bg-orange-100 text-orange-700' :
-                                                    photo.type === 'after' ? 'bg-green-100 text-green-700' :
-                                                    'bg-blue-100 text-blue-700'
-                                                }`}>
+                                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${photo.type === 'before' ? 'bg-orange-100 text-orange-700' :
+                                                        photo.type === 'after' ? 'bg-green-100 text-green-700' :
+                                                            'bg-blue-100 text-blue-700'
+                                                    }`}>
                                                     {PHOTO_TYPES.find(t => t.id === photo.type)?.label}
                                                 </span>
                                             </div>
@@ -528,14 +598,14 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     ))}
                                 </div>
                             )}
-                            
+
                             {/* Invoice Upload */}
                             <div className="mt-6 pt-6 border-t">
                                 <h4 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
                                     <FileText className="w-4 h-4" />
                                     Invoice (Optional)
                                 </h4>
-                                
+
                                 {invoice ? (
                                     <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                                         <div className="flex items-center gap-3">
@@ -554,11 +624,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                 ) : (
                                     <div
                                         onClick={() => !uploadingInvoice && invoiceInputRef.current?.click()}
-                                        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all ${
-                                            uploadingInvoice
+                                        className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all ${uploadingInvoice
                                                 ? 'border-gray-300 bg-gray-50'
                                                 : 'border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'
-                                        }`}
+                                            }`}
                                     >
                                         {uploadingInvoice ? (
                                             <Loader2 className="w-5 h-5 text-gray-400 mx-auto animate-spin" />
@@ -580,7 +649,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                             </div>
                         </div>
                     )}
-                    
+
                     {/* ITEMS SECTION */}
                     {activeSection === 'items' && (
                         <div className="space-y-4">
@@ -592,7 +661,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     </p>
                                 </div>
                             </div>
-                            
+
                             {/* Quote Items Banner */}
                             {items.some(i => i.fromQuote) && (
                                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
@@ -603,7 +672,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                                 Items pre-filled from quote
                                             </p>
                                             <p className="text-sm text-emerald-700 mt-1">
-                                                {items.some(i => i.fromInventoryIntent) 
+                                                {items.some(i => i.fromInventoryIntent)
                                                     ? 'Maintenance schedules are ready! Just add serial numbers to complete.'
                                                     : 'Please add serial numbers, warranty info, and any other details now that the work is complete.'
                                                 }
@@ -613,7 +682,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                                 <div className="mt-2 flex items-center gap-2 text-sm text-emerald-600">
                                                     <Home className="w-4 h-4" />
                                                     <span>
-                                                        {items.reduce((sum, item) => 
+                                                        {items.reduce((sum, item) =>
                                                             sum + (item.maintenanceTasks?.filter(t => t.selected !== false).length || 0), 0
                                                         )} maintenance tasks will be set up for the homeowner
                                                     </span>
@@ -623,14 +692,14 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     </div>
                                 </div>
                             )}
-                            
+
                             {/* Items List */}
                             {items.length > 0 ? (
                                 <div className="space-y-3">
                                     {items.map((item) => (
-                                        <ItemCard 
-                                            key={item.id} 
-                                            item={item} 
+                                        <ItemCard
+                                            key={item.id}
+                                            item={item}
                                             onRemove={() => handleRemoveItem(item.id)}
                                             onUpdate={(updates) => handleUpdateItem(item.id, updates)}
                                             isFromQuote={item.fromQuote}
@@ -646,10 +715,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     </p>
                                 </div>
                             )}
-                            
+
                             {/* Add Item Button/Form */}
                             {showAddItem ? (
-                                <AddItemForm 
+                                <AddItemForm
                                     onAdd={handleAddItem}
                                     onCancel={() => setShowAddItem(false)}
                                 />
@@ -662,7 +731,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     Add Item
                                 </button>
                             )}
-                            
+
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-4">
                                 <p className="text-amber-800 text-sm">
                                     <AlertCircle className="w-4 h-4 inline mr-1" />
@@ -671,7 +740,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                             </div>
                         </div>
                     )}
-                    
+
                     {/* NOTES SECTION */}
                     {activeSection === 'notes' && (
                         <div className="space-y-6">
@@ -687,7 +756,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all resize-none"
                                 />
                             </div>
-                            
+
                             <div>
                                 <label className="block font-medium text-gray-900 mb-2">
                                     Recommendations (Optional)
@@ -702,12 +771,12 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                             </div>
                         </div>
                     )}
-                    
+
                     {/* REVIEW SECTION */}
                     {activeSection === 'review' && (
                         <div className="space-y-6">
                             <h3 className="font-semibold text-gray-900">Review & Submit</h3>
-                            
+
                             {/* Summary */}
                             <div className="space-y-4">
                                 {/* Photos Summary */}
@@ -728,7 +797,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 {/* Invoice Summary */}
                                 <div className={`p-4 rounded-xl border ${invoice ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
                                     <div className="flex items-center gap-3">
@@ -742,7 +811,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                         </p>
                                     </div>
                                 </div>
-                                
+
                                 {/* Items Summary */}
                                 <div className={`p-4 rounded-xl border ${items.length > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
                                     <div className="flex items-center gap-3">
@@ -759,7 +828,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                         </div>
                                     </div>
                                 </div>
-                                
+
                                 {/* Notes Summary */}
                                 {notes && (
                                     <div className="p-4 rounded-xl border bg-blue-50 border-blue-200">
@@ -773,7 +842,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* What happens next */}
                             <div className="bg-gray-50 rounded-xl p-4 mt-6">
                                 <h4 className="font-medium text-gray-900 mb-2">What happens next?</h4>
@@ -786,7 +855,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         </div>
                     )}
                 </div>
-                
+
                 {/* Footer */}
                 <div className="px-6 py-4 border-t bg-gray-50 flex items-center justify-between">
                     <button
@@ -795,7 +864,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                     >
                         Cancel
                     </button>
-                    
+
                     <div className="flex items-center gap-3">
                         {activeSection !== 'review' ? (
                             <button
@@ -851,18 +920,18 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
         maintenanceFrequency: item.maintenanceFrequency || 'none',
         maintenanceTasks: item.maintenanceTasks || []
     });
-    
+
     const hasMaintenanceTasks = item.maintenanceTasks && item.maintenanceTasks.length > 0;
-    const selectedTaskCount = hasMaintenanceTasks 
-        ? item.maintenanceTasks.filter(t => t.selected !== false).length 
+    const selectedTaskCount = hasMaintenanceTasks
+        ? item.maintenanceTasks.filter(t => t.selected !== false).length
         : 0;
-    
+
     const handleSave = () => {
         onUpdate(editData);
         setEditing(false);
         toast.success('Item updated!');
     };
-    
+
     const toggleTask = (taskIndex) => {
         const updatedTasks = [...editData.maintenanceTasks];
         updatedTasks[taskIndex] = {
@@ -871,27 +940,25 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
         };
         setEditData(prev => ({ ...prev, maintenanceTasks: updatedTasks }));
     };
-    
+
     return (
-        <div className={`border rounded-xl overflow-hidden ${
-            item.fromInventoryIntent 
-                ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/50 to-green-50/30' 
-                : isFromQuote 
-                    ? 'border-emerald-200 bg-emerald-50/30' 
+        <div className={`border rounded-xl overflow-hidden ${item.fromInventoryIntent
+                ? 'border-emerald-300 bg-gradient-to-r from-emerald-50/50 to-green-50/30'
+                : isFromQuote
+                    ? 'border-emerald-200 bg-emerald-50/30'
                     : 'border-gray-200'
-        }`}>
-            <div 
+            }`}>
+            <div
                 className="flex items-center justify-between p-4 bg-white cursor-pointer"
                 onClick={() => setExpanded(!expanded)}
             >
                 <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        item.fromInventoryIntent 
-                            ? 'bg-emerald-100' 
-                            : isFromQuote 
-                                ? 'bg-emerald-100' 
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${item.fromInventoryIntent
+                            ? 'bg-emerald-100'
+                            : isFromQuote
+                                ? 'bg-emerald-100'
                                 : 'bg-gray-100'
-                    }`}>
+                        }`}>
                         {item.fromInventoryIntent ? (
                             <Home className="w-5 h-5 text-emerald-600" />
                         ) : (
@@ -933,7 +1000,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                     {expanded ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
                 </div>
             </div>
-            
+
             {expanded && (
                 <div className="px-4 pb-4 pt-2 border-t bg-gray-50">
                     {editing ? (
@@ -958,7 +1025,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
-                            
+
                             {/* Maintenance Tasks - Editable */}
                             {editData.maintenanceTasks && editData.maintenanceTasks.length > 0 && (
                                 <div>
@@ -971,11 +1038,10 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                                 key={task.id || idx}
                                                 type="button"
                                                 onClick={() => toggleTask(idx)}
-                                                className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${
-                                                    task.selected !== false
+                                                className={`w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors ${task.selected !== false
                                                         ? 'bg-emerald-50 border border-emerald-200'
                                                         : 'bg-gray-100 border border-gray-200'
-                                                }`}
+                                                    }`}
                                             >
                                                 {task.selected !== false ? (
                                                     <CheckSquare className="w-4 h-4 text-emerald-600 flex-shrink-0" />
@@ -983,9 +1049,8 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                                     <Square className="w-4 h-4 text-gray-400 flex-shrink-0" />
                                                 )}
                                                 <div className="flex-1 min-w-0">
-                                                    <p className={`text-sm font-medium ${
-                                                        task.selected !== false ? 'text-emerald-800' : 'text-gray-500'
-                                                    }`}>
+                                                    <p className={`text-sm font-medium ${task.selected !== false ? 'text-emerald-800' : 'text-gray-500'
+                                                        }`}>
                                                         {task.task}
                                                     </p>
                                                     <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -998,23 +1063,19 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     </div>
                                 </div>
                             )}
-                            
+
                             {/* Legacy frequency selector (only show if no tasks) */}
                             {(!editData.maintenanceTasks || editData.maintenanceTasks.length === 0) && (
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1">Maintenance</label>
-                                    <select
+                                    <Select
                                         value={editData.maintenanceFrequency}
-                                        onChange={(e) => setEditData(prev => ({ ...prev, maintenanceFrequency: e.target.value }))}
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500"
-                                    >
-                                        {MAINTENANCE_FREQUENCIES.map(f => (
-                                            <option key={f.value} value={f.value}>{f.label}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(val) => setEditData(prev => ({ ...prev, maintenanceFrequency: val }))}
+                                        options={MAINTENANCE_FREQUENCIES}
+                                    />
                                 </div>
                             )}
-                            
+
                             <div className="flex gap-2 pt-2">
                                 <button
                                     onClick={handleSave}
@@ -1072,7 +1133,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* Maintenance Tasks Display (Read-only) */}
                             {hasMaintenanceTasks && selectedTaskCount > 0 && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
@@ -1085,7 +1146,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                             .filter(t => t.selected !== false)
                                             .slice(0, 4)
                                             .map((task, idx) => (
-                                                <span 
+                                                <span
                                                     key={idx}
                                                     className="px-2 py-1 text-xs bg-emerald-100 text-emerald-700 rounded-full"
                                                 >
@@ -1101,7 +1162,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     </div>
                                 </div>
                             )}
-                            
+
                             {/* Prompt to add missing details */}
                             {isFromQuote && (!item.serialNumber || (!item.warranty && !hasMaintenanceTasks)) && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
@@ -1114,7 +1175,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     </button>
                                 </div>
                             )}
-                            
+
                             {!isFromQuote && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setEditing(true); }}
@@ -1124,7 +1185,7 @@ const ItemCard = ({ item, onRemove, onUpdate, isFromQuote }) => {
                                     Edit details
                                 </button>
                             )}
-                            
+
                             {/* Edit button for items with tasks */}
                             {isFromQuote && item.serialNumber && hasMaintenanceTasks && (
                                 <button
@@ -1158,7 +1219,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
         warranty: '',
         maintenanceFrequency: 'none'
     });
-    
+
     const handleSubmit = () => {
         if (!formData.item.trim()) {
             toast.error('Please enter an item name');
@@ -1170,11 +1231,11 @@ const AddItemForm = ({ onAdd, onCancel }) => {
             dateInstalled: new Date().toISOString().split('T')[0]
         });
     };
-    
+
     return (
         <div className="border border-emerald-200 rounded-xl p-4 bg-emerald-50/50">
             <h4 className="font-medium text-gray-900 mb-4">Add Item</h4>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1188,7 +1249,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
                     <input
@@ -1199,7 +1260,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
                     <input
@@ -1210,7 +1271,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
                     <input
@@ -1221,20 +1282,16 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                    <select
+                    <Select
                         value={formData.category}
-                        onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    >
-                        {CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+                        options={CATEGORIES.map(cat => ({ value: cat, label: cat }))}
+                    />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Location/Area</label>
                     <input
@@ -1245,7 +1302,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Cost ($)</label>
                     <input
@@ -1256,7 +1313,7 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Warranty</label>
                     <input
@@ -1267,21 +1324,17 @@ const AddItemForm = ({ onAdd, onCancel }) => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                     />
                 </div>
-                
+
                 <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance Schedule</label>
-                    <select
+                    <Select
                         value={formData.maintenanceFrequency}
-                        onChange={(e) => setFormData(prev => ({ ...prev, maintenanceFrequency: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                    >
-                        {MAINTENANCE_FREQUENCIES.map(freq => (
-                            <option key={freq.value} value={freq.value}>{freq.label}</option>
-                        ))}
-                    </select>
+                        onChange={(val) => setFormData(prev => ({ ...prev, maintenanceFrequency: val }))}
+                        options={MAINTENANCE_FREQUENCIES}
+                    />
                 </div>
             </div>
-            
+
             <div className="flex gap-3 mt-4">
                 <button
                     onClick={handleSubmit}
