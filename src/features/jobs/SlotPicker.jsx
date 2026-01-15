@@ -177,7 +177,42 @@ export const SlotPicker = ({
             const startISO = new Date(primarySlot.start).toISOString();
             const endISO = new Date(primarySlot.end).toISOString();
 
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+            // Calculate end date/time for multi-day jobs
+            let scheduledEndISO = endISO;
+            let multiDaySchedule = null;
+
+            if (multiDayInfo.isMultiDay && multiDayInfo.totalDays > 1) {
+                // Calculate the actual end date (start date + totalDays - 1)
+                const startDate = new Date(primarySlot.start);
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + multiDayInfo.totalDays - 1);
+
+                // Set end time to match the slot's end time on the final day
+                const slotEndTime = new Date(primarySlot.end);
+                endDate.setHours(slotEndTime.getHours(), slotEndTime.getMinutes(), 0, 0);
+                scheduledEndISO = endDate.toISOString();
+
+                // Create the multiDaySchedule object
+                multiDaySchedule = {
+                    isMultiDay: true,
+                    totalDays: multiDayInfo.totalDays,
+                    startDate: startISO.split('T')[0], // YYYY-MM-DD format
+                    endDate: scheduledEndISO.split('T')[0],
+                    dailyStartTime: new Date(primarySlot.start).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    }),
+                    dailyEndTime: new Date(primarySlot.end).toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                    })
+                };
+            }
+
+            // Build the update object
+            const updateData = {
                 // Update scheduling object
                 'scheduling.offeredSlots': updatedSlots,
                 'scheduling.selectedSlotIds': selectedSlotIds, // Array of selected IDs
@@ -193,11 +228,22 @@ export const SlotPicker = ({
                 scheduledTime: startISO,
                 scheduledDate: startISO,
 
+                // NEW: Add end time fields for multi-day display
+                scheduledEndTime: scheduledEndISO,
+                scheduledEndDate: scheduledEndISO,
+
                 // Update status
                 status: 'scheduled',
 
                 lastActivity: serverTimestamp()
-            });
+            };
+
+            // Add multiDaySchedule if this is a multi-day job
+            if (multiDaySchedule) {
+                updateData.multiDaySchedule = multiDaySchedule;
+            }
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), updateData);
 
             const successMessage = selectedSlotIds.length === 1
                 ? 'Appointment confirmed!'

@@ -348,20 +348,24 @@ export const HomeownerJobCard = ({
                     {job.scheduledTime && (
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-slate-500">Scheduled:</span>
-                            <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
-                                {multiDayInfo.isMultiDay && multiDayInfo.endDate ? (
-                                    // Multi-day: Show date range
-                                    <>
-                                        {formatDate(job.scheduledTime)} - {formatDate(multiDayInfo.endDate)}
-                                    </>
-                                ) : (
-                                    // Single-day: Show date + time info
-                                    <>
-                                        {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
-                                        {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
-                                    </>
-                                )}
-                            </span>
+                            {multiDayInfo.isMultiDay ? (
+                                // Multi-day: Show date range with day count
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-sm">
+                                        {formatDate(job.scheduledTime)}
+                                        {multiDayInfo.endDate && ` - ${formatDate(multiDayInfo.endDate)}`}
+                                    </span>
+                                    <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                        {multiDayInfo.totalDays} days
+                                    </span>
+                                </div>
+                            ) : (
+                                // Single-day: Show date + time info
+                                <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
+                                    {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
+                                    {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
+                                </span>
+                            )}
                         </div>
                     )}
 

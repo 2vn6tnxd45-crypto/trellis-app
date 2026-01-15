@@ -13,38 +13,97 @@ import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarning
 import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
 import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTimezone } from '../contractor-pro/lib/timezoneUtils';
 
+// Helper to format time string like "08:00" to "8:00 AM"
+const formatTimeString = (timeStr) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':').map(Number);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return m === 0 ? `${hour} ${ampm}` : `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+};
+
+// Helper to format date range like "Jan 15-16"
+const formatDateRange = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const startMonth = start.toLocaleDateString('en-US', { month: 'short' });
+    const endMonth = end.toLocaleDateString('en-US', { month: 'short' });
+    const startDay = start.getDate();
+    const endDay = end.getDate();
+
+    // Same month: "Jan 15-16"
+    if (startMonth === endMonth) {
+        return `${startMonth} ${startDay}-${endDay}`;
+    }
+    // Different months: "Jan 31-Feb 1"
+    return `${startMonth} ${startDay}-${endMonth} ${endDay}`;
+};
+
+// NEW: Helper to format the scheduled badge text (concise for header)
+const formatScheduledBadge = (job, timezone) => {
+    if (!job.scheduledTime) return '';
+
+    const displayTimezone = timezone || detectTimezone();
+
+    // Check for multi-day job
+    if (job.multiDaySchedule?.isMultiDay) {
+        const schedule = job.multiDaySchedule;
+        const dateRange = formatDateRange(schedule.startDate, schedule.endDate);
+        const startTime = formatTimeString(schedule.dailyStartTime);
+        const endTime = formatTimeString(schedule.dailyEndTime);
+        // "Jan 15-16 • 8 AM - 4 PM daily"
+        return `${dateRange} • ${startTime} - ${endTime} daily`;
+    }
+
+    // Regular single-day job
+    const dateStr = formatInTimezone(job.scheduledTime, 'MMM d', displayTimezone);
+    const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
+
+    // Check if we have an end time from slot selection
+    if (job.scheduling?.confirmedSlot?.end) {
+        const endTime = formatInTimezone(job.scheduling.confirmedSlot.end, 'h:mm a', displayTimezone);
+        return `${dateStr} • ${startTime} - ${endTime}`;
+    }
+
+    // Fallback to just start time for proposal-based scheduling
+    return `${dateStr} • ${startTime}`;
+};
+
 // Helper to format scheduled time with range (handles multi-day jobs) - Timezone Aware
+// Used for "Appointment Confirmed" display
 const formatScheduledTimeRange = (job, timezone) => {
     if (!job.scheduledTime) return '';
 
     // Default to detected timezone if not provided
     const displayTimezone = timezone || detectTimezone();
 
-    // Check if this is a multi-day job
-    if (job.multiDaySchedule?.isMultiDay && job.multiDaySchedule?.segments?.length > 1) {
+    // Check if this is a multi-day job - use new multiDaySchedule format
+    if (job.multiDaySchedule?.isMultiDay) {
         const schedule = job.multiDaySchedule;
 
-        // Format dates in target timezone
+        // Format: "Wed, Jan 15 at 8:00 AM"
+        const startDate = new Date(job.scheduledTime);
+        const startDateStr = startDate.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+        });
+        const startTime = formatTimeString(schedule.dailyStartTime);
+
+        return `${startDateStr} at ${startTime}`;
+    }
+
+    // Legacy format with segments
+    if (job.multiDaySchedule?.segments?.length > 1) {
+        const schedule = job.multiDaySchedule;
         const startDateStr = formatInTimezone(schedule.startDate, 'MMM d', displayTimezone);
         const endDateStr = formatInTimezone(schedule.endDate, 'MMM d', displayTimezone);
 
-        // Get the daily time from first segment
         const firstSegment = schedule.segments[0];
-        const formatTime = (time) => {
-            // Build a dummy date string with this time to format it correctly? 
-            // Or just format the HH:mm string MANUALLY if we assume the time string "09:00" is ALREADY relative to the timezone.
-            // CAUTION: The segments store "startTime": "09:00". This string IS relative to the job's timezone by definition.
-            // So we don't convert it. We just format "09:00" to "9:00 AM".
-            const [h, m] = time.split(':').map(Number);
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const hour = h % 12 || 12;
-            return m === 0 ? `${hour} ${ampm}` : `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
-        };
+        const startTime = formatTimeString(firstSegment.startTime);
+        const endTime = formatTimeString(firstSegment.endTime);
 
-        const startTime = formatTime(firstSegment.startTime);
-        const endTime = formatTime(firstSegment.endTime);
-
-        // Format: "3 days • Jan 14 - Jan 16 • 8 AM - 4 PM daily"
         return `${schedule.totalDays} days • ${startDateStr} - ${endDateStr} • ${startTime} - ${endTime} daily`;
     }
 
@@ -54,8 +113,6 @@ const formatScheduledTimeRange = (job, timezone) => {
 
     // Check if we have an end time from slot selection
     if (job.scheduling?.confirmedSlot?.end) {
-        // Construct end time. confirmedSlot.end is likely an ISO string or just a time?
-        // Let's assume ISO string since scheduling usually stores full dates.
         const endTime = formatInTimezone(job.scheduling.confirmedSlot.end, 'h:mm a', displayTimezone);
         return `${dateStr} • ${startTime} - ${endTime}`;
     }
@@ -365,17 +422,7 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                 {job.scheduledTime && (
                     <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full flex items-center gap-1">
                         <CheckCircle size={10} />
-                        {job.scheduling?.confirmedSlot?.end ? (
-                            // Show time range for slot-based scheduling
-                            <>
-                                {new Date(job.scheduledTime).toLocaleDateString()} • {' '}
-                                {new Date(job.scheduledTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - {' '}
-                                {new Date(job.scheduling.confirmedSlot.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                            </>
-                        ) : (
-                            // Just date for proposal-based scheduling
-                            new Date(job.scheduledTime).toLocaleDateString()
-                        )}
+                        {formatScheduledBadge(job, timezone)}
                     </span>
                 )}
             </div>
@@ -393,7 +440,19 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                             <CheckCircle size={24} className="text-emerald-600 shrink-0" />
                             <div>
                                 <p className="font-bold">Appointment Confirmed</p>
-                                <p className="text-sm opacity-80">See you on {formatScheduledTimeRange(job, timezone)}</p>
+                                <p className="text-sm opacity-80">
+                                    See you {job.multiDaySchedule?.isMultiDay ? 'starting ' : 'on '}{formatScheduledTimeRange(job, timezone)}
+                                </p>
+                                {/* Multi-day continuation info */}
+                                {job.multiDaySchedule?.isMultiDay && (
+                                    <p className="text-sm text-indigo-600 mt-1 font-medium">
+                                        Work continues through {new Date(job.multiDaySchedule.endDate).toLocaleDateString('en-US', {
+                                            weekday: 'short',
+                                            month: 'short',
+                                            day: 'numeric'
+                                        })} ({job.multiDaySchedule.totalDays} days)
+                                    </p>
+                                )}
                             </div>
                         </div>
 
