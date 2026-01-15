@@ -113,21 +113,25 @@ export async function analyzeEvaluation({
 
     } catch (error) {
         console.error('[evaluationAI] Analysis error:', error);
-        
-        // Return a fallback analysis
+
+        // Don't throw - return a safe fallback
         return {
             success: false,
             error: error.message,
             analysis: {
-                summary: description || 'Evaluation submitted - manual review required',
-                issues: photos.length > 0 ? [`${photos.length} photo(s) submitted for review`] : [],
+                summary: description || 'Evaluation submitted successfully',
+                issues: photos.length > 0
+                    ? [`${photos.length} photo(s) submitted for contractor review`]
+                    : ['Evaluation details submitted'],
                 severity: SEVERITY_LEVELS.MEDIUM,
                 suggestedQuestions: [],
-                recommendations: 'Please review the submitted materials manually',
+                recommendations: 'Contractor will review your submission and follow up',
                 readyToQuote: false,
                 confidence: 0,
-                isError: true
-            }
+                isError: true,
+                analyzedAt: new Date().toISOString()
+            },
+            warning: 'AI analysis unavailable - contractor will review manually'
         };
     }
 }

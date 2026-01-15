@@ -426,7 +426,8 @@ export const EvaluationSubmission = ({
             setSubmitted(true);
 
             // Trigger AI analysis (non-blocking)
-            console.log('[EvaluationSubmission] Triggering AI analysis for:', { contractorId, evaluationId });
+            // IMPORTANT: This should never block the submission flow
+            console.log('[EvaluationSubmission] Triggering AI analysis...');
             analyzeAndSaveEvaluation(
                 contractorId,
                 evaluationId,
@@ -441,14 +442,15 @@ export const EvaluationSubmission = ({
                     jobCategory: evaluation?.jobCategory || ''
                 }
             ).then((result) => {
-                console.log('[EvaluationSubmission] AI analysis result:', result);
                 if (result.success) {
-                    console.log('✅ AI analysis complete, severity:', result.analysis?.severity);
+                    console.log('✅ AI analysis saved successfully');
                 } else {
-                    console.warn('[EvaluationSubmission] AI analysis returned failure:', result.error);
+                    // Don't show error to user - analysis is optional
+                    console.warn('⚠️ AI analysis failed (non-blocking):', result.error || result.warning);
                 }
             }).catch(err => {
-                console.error('[EvaluationSubmission] AI analysis exception:', err);
+                // Silently handle - this shouldn't block the submission flow
+                console.warn('⚠️ AI analysis exception (non-blocking):', err.message);
             });
 
             if (currentUser) {

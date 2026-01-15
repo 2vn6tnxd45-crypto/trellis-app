@@ -8,6 +8,9 @@
 //
 // Input: photos (URLs), description, answers to prompts
 // Output: AI-generated problem summary, severity, suggestions
+//
+// IMPORTANT: This endpoint should NEVER return 500 errors.
+// Always return 200 with fallback analysis on any error.
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -22,44 +25,84 @@ const SEVERITY_LEVELS = {
 };
 
 // ============================================
-// FETCH IMAGE AS BASE64
+// FETCH IMAGE AS BASE64 - Robust version
 // ============================================
-async function fetchImageAsBase64(url, timeoutMs = 10000) {
+async function fetchImageAsBase64(url, timeoutMs = 8000) {
+    // Validate URL
+    if (!url || typeof url !== 'string') {
+        console.warn('[analyze-evaluation] Invalid image URL provided');
+        return null;
+    }
+
+    // Skip blob URLs (can't be fetched server-side)
+    if (url.startsWith('blob:')) {
+        console.warn('[analyze-evaluation] Skipping blob URL (client-side only)');
+        return null;
+    }
+
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         const response = await fetch(url, {
             signal: controller.signal,
-            headers: { 'Accept': 'image/*' }
+            headers: {
+                'Accept': 'image/*',
+                'User-Agent': 'Krib-Evaluation-AI/1.0'
+            }
         });
         clearTimeout(timeoutId);
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.status}`);
+            console.warn(`[analyze-evaluation] Image fetch failed: ${response.status} for ${url.substring(0, 50)}...`);
+            return null;
         }
 
         const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+        // Validate it's actually an image
+        if (!contentType.startsWith('image/')) {
+            console.warn(`[analyze-evaluation] Not an image: ${contentType}`);
+            return null;
+        }
+
         const arrayBuffer = await response.arrayBuffer();
+
+        // Check size (skip if too large - over 10MB)
+        if (arrayBuffer.byteLength > 10 * 1024 * 1024) {
+            console.warn('[analyze-evaluation] Image too large, skipping');
+            return null;
+        }
+
+        // Check size (skip if too small - likely broken)
+        if (arrayBuffer.byteLength < 1000) {
+            console.warn('[analyze-evaluation] Image too small, likely broken');
+            return null;
+        }
+
         const base64 = Buffer.from(arrayBuffer).toString('base64');
 
         return {
             inlineData: {
-                mimeType: contentType,
+                mimeType: contentType.split(';')[0], // Remove charset if present
                 data: base64
             }
         };
     } catch (error) {
-        console.warn(`[analyze-evaluation] Failed to fetch image: ${error.message}`);
+        if (error.name === 'AbortError') {
+            console.warn(`[analyze-evaluation] Image fetch timeout: ${url.substring(0, 50)}...`);
+        } else {
+            console.warn(`[analyze-evaluation] Image fetch error: ${error.message}`);
+        }
         return null;
     }
 }
 
 // ============================================
-// MAIN HANDLER
+// MAIN HANDLER - With comprehensive error handling
 // ============================================
 export default async function handler(req, res) {
-    // CORS headers
+    // CORS headers - set these FIRST before any processing
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -72,49 +115,85 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Method not allowed' });
     }
 
-    const {
-        photos = [],           // Array of { url, name, caption }
-        videos = [],           // Array of { url, name } (noted but not analyzed)
-        description = '',      // Main problem description from homeowner
-        answers = {},          // Answers to contractor's prompts { promptId: answer }
-        prompts = [],          // Original prompts for context
-        jobCategory = '',      // e.g., "Plumbing", "HVAC"
-        propertyType = ''      // e.g., "Single Family Home"
-    } = req.body;
-
-    // Validate we have something to analyze
-    if (photos.length === 0 && !description && Object.keys(answers).length === 0) {
-        return res.status(400).json({
-            error: 'No content to analyze. Provide photos, description, or answers.'
-        });
-    }
-
+    // Wrap EVERYTHING in try/catch to prevent 500 errors
     try {
-        const apiKey = process.env.GEMINI_API_KEY;
+        // Safely destructure with defaults
+        const body = req.body || {};
+        const photos = Array.isArray(body.photos) ? body.photos : [];
+        const videos = Array.isArray(body.videos) ? body.videos : [];
+        const description = typeof body.description === 'string' ? body.description : '';
+        const answers = typeof body.answers === 'object' && body.answers !== null ? body.answers : {};
+        const prompts = Array.isArray(body.prompts) ? body.prompts : [];
+        const jobCategory = typeof body.jobCategory === 'string' ? body.jobCategory : '';
+        const propertyType = typeof body.propertyType === 'string' ? body.propertyType : '';
 
-        if (!apiKey) {
-            console.warn('[analyze-evaluation] No Gemini API key - returning basic summary');
+        console.log('[analyze-evaluation] Request received:', {
+            photoCount: photos.length,
+            videoCount: videos.length,
+            hasDescription: !!description,
+            answerCount: Object.keys(answers).length
+        });
+
+        // Validate we have something to analyze
+        if (photos.length === 0 && !description && Object.keys(answers).length === 0) {
+            console.log('[analyze-evaluation] No content to analyze');
             return res.status(200).json({
                 success: true,
-                analysis: getBasicSummary(description, answers, photos.length),
-                warning: 'AI analysis unavailable (no API key)'
+                analysis: getBasicSummary('', {}, 0),
+                warning: 'No content provided for analysis'
             });
         }
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        // Check for API key
+        const apiKey = process.env.GEMINI_API_KEY;
 
-        // Fetch actual images for vision analysis (limit to first 5 for performance)
-        const photosToAnalyze = photos.slice(0, 5);
-        console.log(`[analyze-evaluation] Fetching ${photosToAnalyze.length} images for vision analysis...`);
+        if (!apiKey) {
+            console.warn('[analyze-evaluation] No GEMINI_API_KEY environment variable');
+            return res.status(200).json({
+                success: true,
+                analysis: getBasicSummary(description, answers, photos.length),
+                warning: 'AI analysis unavailable (API key not configured)'
+            });
+        }
 
-        const imagePromises = photosToAnalyze.map(photo => fetchImageAsBase64(photo.url));
-        const imageResults = await Promise.all(imagePromises);
-        const validImages = imageResults.filter(img => img !== null);
+        // Initialize Gemini with error handling
+        let genAI, model;
+        try {
+            genAI = new GoogleGenerativeAI(apiKey);
+            model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        } catch (initError) {
+            console.error('[analyze-evaluation] Failed to initialize Gemini:', initError);
+            return res.status(200).json({
+                success: true,
+                analysis: getBasicSummary(description, answers, photos.length),
+                warning: 'AI service initialization failed'
+            });
+        }
 
-        console.log(`[analyze-evaluation] Successfully fetched ${validImages.length}/${photosToAnalyze.length} images`);
+        // Fetch images with comprehensive error handling
+        let validImages = [];
+        if (photos.length > 0) {
+            const photosToAnalyze = photos.slice(0, 5);
+            console.log(`[analyze-evaluation] Fetching ${photosToAnalyze.length} images...`);
 
-        // Build the text prompt
+            try {
+                const imagePromises = photosToAnalyze.map(photo =>
+                    fetchImageAsBase64(photo?.url).catch(err => {
+                        console.warn(`[analyze-evaluation] Failed to fetch image: ${err.message}`);
+                        return null;
+                    })
+                );
+                const imageResults = await Promise.all(imagePromises);
+                validImages = imageResults.filter(img => img !== null);
+                console.log(`[analyze-evaluation] Successfully fetched ${validImages.length} images`);
+            } catch (fetchError) {
+                console.error('[analyze-evaluation] Image fetch batch error:', fetchError);
+                // Continue without images
+                validImages = [];
+            }
+        }
+
+        // Build the prompt
         const textPrompt = buildAnalysisPrompt({
             photos,
             videos,
@@ -126,62 +205,79 @@ export default async function handler(req, res) {
             imageCount: validImages.length
         });
 
-        // Build multimodal content array
+        // Build content parts for Gemini
         const contentParts = [];
 
-        // Add images first (Gemini processes them in order)
         if (validImages.length > 0) {
             contentParts.push({ text: `I'm providing ${validImages.length} photo(s) of the issue. Please analyze them carefully:\n\n` });
             validImages.forEach((img, idx) => {
-                contentParts.push(img);
-                const caption = photosToAnalyze[idx]?.caption || photosToAnalyze[idx]?.name || '';
-                if (caption) {
-                    contentParts.push({ text: `\n[Photo ${idx + 1} caption: ${caption}]\n` });
+                if (img && img.inlineData) {
+                    contentParts.push(img);
+                    const caption = photos[idx]?.caption || photos[idx]?.name || '';
+                    if (caption) {
+                        contentParts.push({ text: `\n[Photo ${idx + 1} caption: ${caption}]\n` });
+                    }
                 }
             });
             contentParts.push({ text: '\n\n' });
         }
 
-        // Add the main analysis prompt
         contentParts.push({ text: textPrompt });
 
-        // Generate content with vision
-        const result = await model.generateContent(contentParts);
-        const responseText = result.response.text();
+        // Call Gemini API with error handling
+        let responseText;
+        try {
+            console.log('[analyze-evaluation] Calling Gemini API...');
+            const result = await model.generateContent(contentParts);
+            responseText = result.response.text();
+            console.log('[analyze-evaluation] Gemini response received, length:', responseText?.length || 0);
+        } catch (geminiError) {
+            console.error('[analyze-evaluation] Gemini API error:', geminiError);
 
-        // Parse the AI response
+            // Check for specific error types
+            const errorMessage = geminiError.message || '';
+            if (errorMessage.includes('API_KEY')) {
+                console.error('[analyze-evaluation] API key issue detected');
+            } else if (errorMessage.includes('quota') || errorMessage.includes('rate')) {
+                console.error('[analyze-evaluation] Rate limit or quota issue');
+            } else if (errorMessage.includes('blocked') || errorMessage.includes('safety')) {
+                console.error('[analyze-evaluation] Content was blocked by safety filters');
+            }
+
+            return res.status(200).json({
+                success: true,
+                analysis: getBasicSummary(description, answers, photos.length),
+                warning: `AI analysis failed: ${errorMessage.substring(0, 100)}`
+            });
+        }
+
+        // Parse the response
         let analysis;
         try {
-            // Try to extract JSON from the response
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 analysis = JSON.parse(jsonMatch[0]);
             } else {
-                // If no JSON, create structured response from text
                 analysis = parseTextResponse(responseText);
             }
         } catch (parseError) {
-            console.warn('[analyze-evaluation] Could not parse AI response as JSON:', parseError);
-            analysis = parseTextResponse(responseText);
+            console.warn('[analyze-evaluation] JSON parse failed:', parseError.message);
+            analysis = parseTextResponse(responseText || '');
         }
 
-        // Ensure required fields exist
+        // Sanitize and validate the analysis
         const sanitizedAnalysis = {
-            summary: analysis.summary || 'Unable to generate summary',
-            issues: Array.isArray(analysis.issues) ? analysis.issues : [],
+            summary: typeof analysis.summary === 'string' ? analysis.summary : 'Analysis completed',
+            issues: Array.isArray(analysis.issues) ? analysis.issues.slice(0, 10) : [],
             severity: Object.values(SEVERITY_LEVELS).includes(analysis.severity)
                 ? analysis.severity
                 : SEVERITY_LEVELS.MEDIUM,
             suggestedQuestions: Array.isArray(analysis.suggestedQuestions)
-                ? analysis.suggestedQuestions
+                ? analysis.suggestedQuestions.slice(0, 5)
                 : [],
-            recommendations: analysis.recommendations || '',
-            readyToQuote: typeof analysis.readyToQuote === 'boolean'
-                ? analysis.readyToQuote
-                : false,
-            confidence: typeof analysis.confidence === 'number'
-                ? analysis.confidence
-                : 0.7,
+            recommendations: typeof analysis.recommendations === 'string' ? analysis.recommendations : '',
+            readyToQuote: typeof analysis.readyToQuote === 'boolean' ? analysis.readyToQuote : false,
+            confidence: typeof analysis.confidence === 'number' ? analysis.confidence : 0.7,
             analyzedAt: new Date().toISOString(),
             photoCount: photos.length,
             photosAnalyzed: validImages.length,
@@ -192,7 +288,6 @@ export default async function handler(req, res) {
         console.log('[analyze-evaluation] Analysis complete:', {
             severity: sanitizedAnalysis.severity,
             issueCount: sanitizedAnalysis.issues.length,
-            readyToQuote: sanitizedAnalysis.readyToQuote,
             photosAnalyzed: sanitizedAnalysis.photosAnalyzed
         });
 
@@ -202,13 +297,30 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('[analyze-evaluation] Error:', error);
+        // This catches ANY uncaught error in the entire handler
+        console.error('[analyze-evaluation] Unhandled error:', error);
+        console.error('[analyze-evaluation] Error stack:', error.stack);
 
-        // Return a graceful fallback
+        // NEVER return 500 - always return 200 with fallback
         return res.status(200).json({
             success: true,
-            analysis: getBasicSummary(description, answers, photos.length),
-            warning: 'AI analysis unavailable, showing basic summary'
+            analysis: {
+                summary: 'Evaluation submitted - manual review required',
+                issues: ['AI analysis temporarily unavailable'],
+                severity: 'medium',
+                suggestedQuestions: [],
+                recommendations: 'Please review the submitted materials manually',
+                readyToQuote: false,
+                confidence: 0,
+                analyzedAt: new Date().toISOString(),
+                photoCount: 0,
+                photosAnalyzed: 0,
+                videoCount: 0,
+                usedVision: false,
+                isError: true,
+                errorMessage: error.message || 'Unknown error'
+            },
+            warning: 'AI analysis encountered an error, showing basic summary'
         });
     }
 }

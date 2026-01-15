@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@googlemaps/js-api-loader": "^1.16.2",
     "@sentry/react": "^8.0.0",
     "firebase": "^11.0.2",
