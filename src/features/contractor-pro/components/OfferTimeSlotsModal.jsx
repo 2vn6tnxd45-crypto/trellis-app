@@ -9,11 +9,12 @@
 // - Conflict checking (Schedule & Resource Capacity)
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-    X, Calendar, Clock, Plus, Trash2, Send, 
+import {
+    X, Calendar, Clock, Plus, Trash2, Send,
     Sparkles, MapPin, User, DollarSign, AlertCircle,
-    Sun, Coffee, Moon, ChevronDown, ChevronUp, CheckCircle
+    Sun, Coffee, Moon, ChevronDown, ChevronUp, CheckCircle, CalendarDays
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
@@ -22,6 +23,8 @@ import { AISuggestionPanel } from './AISuggestionPanel';
 import { CalendarPicker } from '../../../components/common/CalendarPicker';
 // Import existing conflict checker
 import { checkForConflicts } from '../lib/schedulingAI';
+// Import multi-day utilities
+import { isMultiDayJob as checkIsMultiDay, calculateDaysNeeded } from '../lib/multiDayUtils';
 
 // Quick time presets
 const TIME_PRESETS = [
@@ -56,44 +59,44 @@ const getScheduledDates = (jobs) => {
 // Check for resource conflicts (Fix 5b)
 const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
     if (!selectedSlot.date || !selectedSlot.startTime) return null;
-    
+
     const selectedDate = new Date(selectedSlot.date);
     const selectedStart = selectedSlot.startTime;
     const selectedEnd = selectedSlot.endTime;
-    
+
     // Get jobs on the same date
     const sameDateJobs = allJobs.filter(job => {
         if (!job.scheduledTime && !job.scheduledDate) return false;
-        const jobDate = job.scheduledTime 
+        const jobDate = job.scheduledTime
             ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
             : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
-        
+
         return jobDate.getDate() === selectedDate.getDate() &&
-               jobDate.getMonth() === selectedDate.getMonth() &&
-               jobDate.getFullYear() === selectedDate.getFullYear();
+            jobDate.getMonth() === selectedDate.getMonth() &&
+            jobDate.getFullYear() === selectedDate.getFullYear();
     });
-    
+
     // Check for time overlaps
     const overlappingJobs = sameDateJobs.filter(job => {
         // For strict safety, flag ANY job on the same day if we can't determine exact hours
-        return true; 
+        return true;
     });
-    
+
     if (overlappingJobs.length === 0) return null;
-    
+
     // Get resource capacity from preferences
     const vehicles = preferences?.vehicles || 1;
     const teamSize = preferences?.teamSize || 1;
-    const maxConcurrent = Math.max(1, vehicles); 
-    
+    const maxConcurrent = Math.max(1, vehicles);
+
     // Count how many resources are already committed
     const resourcesInUse = overlappingJobs.length;
-    
+
     // FIX: Changed from const to let to allow reassignment
     let availableResources = maxConcurrent - resourcesInUse;
-    
+
     if (availableResources < 0) availableResources = 0; // Safety
-    
+
     // If we have resources, no conflict. If 0 or less, conflict.
     if (availableResources > 0) return null;
 
@@ -112,11 +115,11 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
 const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
     // Check if we have a home base address (from scheduling.homeBase OR profile.address fallback)
     const hasHomeBase = !!(preferences?.homeBase?.address || preferences?.address);
-    
+
     // Check if working hours are configured with at least one enabled day
-    const hasWorkingHours = preferences?.workingHours && 
+    const hasWorkingHours = preferences?.workingHours &&
         Object.values(preferences.workingHours).some(d => d?.enabled);
-    
+
     const checks = [
         {
             label: 'Home Base Location',
@@ -129,11 +132,11 @@ const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
             fix: 'Go to Settings → Working Hours'
         }
     ];
-    
+
     const allPassed = checks.every(c => c.passed);
-    
+
     if (allPassed) return null;
-    
+
     return (
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl">
             <div className="flex items-start gap-2">
@@ -155,11 +158,11 @@ const AIPrerequisiteCheck = ({ preferences, allJobs }) => {
 // MAIN COMPONENT
 // ============================================
 
-export const OfferTimeSlotsModal = ({ 
-    job, 
+export const OfferTimeSlotsModal = ({
+    job,
     allJobs = [],
     schedulingPreferences = {},
-    onClose, 
+    onClose,
     onSuccess,
     onNavigate   // ← ADD THIS
 }) => {
@@ -177,6 +180,25 @@ export const OfferTimeSlotsModal = ({
         return job?.schedulingPreferences || job?.customerPreferences || null;
     }, [job]);
 
+    // Multi-day job detection
+    const multiDayInfo = useMemo(() => {
+        // Check multiple sources for duration
+        const duration = job?.estimatedDuration
+            || job?.scheduling?.estimatedDuration
+            || job?.quote?.estimatedDuration
+            || job?.duration
+            || 0;
+
+        const isMultiDay = checkIsMultiDay(duration);
+        const totalDays = isMultiDay ? calculateDaysNeeded(duration) : 1;
+
+        return {
+            duration,
+            isMultiDay,
+            totalDays
+        };
+    }, [job]);
+
     // Get scheduled dates for calendar highlighting
     const scheduledDates = useMemo(() => {
         return getScheduledDates(allJobs);
@@ -186,19 +208,19 @@ export const OfferTimeSlotsModal = ({
     const disabledDays = useMemo(() => {
         const workingHours = schedulingPreferences?.workingHours;
         if (!workingHours) return [0]; // Default: Sunday off
-        
+
         const dayMap = {
             sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
             thursday: 4, friday: 5, saturday: 6
         };
-        
+
         const disabled = [];
         Object.entries(workingHours).forEach(([day, config]) => {
             if (!config?.enabled && dayMap[day] !== undefined) {
                 disabled.push(dayMap[day]);
             }
         });
-        
+
         return disabled.length > 0 ? disabled : [0]; // Default: Sunday off
     }, [schedulingPreferences]);
 
@@ -251,14 +273,14 @@ export const OfferTimeSlotsModal = ({
 
     // Update a slot
     const updateSlot = (id, field, value) => {
-        setSlots(prev => prev.map(s => 
+        setSlots(prev => prev.map(s =>
             s.id === id ? { ...s, [field]: value } : s
         ));
     };
 
     // Toggle calendar for a slot
     const toggleCalendar = (id) => {
-        setSlots(prev => prev.map(s => 
+        setSlots(prev => prev.map(s =>
             s.id === id ? { ...s, showCalendar: !s.showCalendar } : s
         ));
     };
@@ -266,15 +288,15 @@ export const OfferTimeSlotsModal = ({
     // Handle date selection from calendar
     const handleDateSelect = (slotId, date) => {
         const dateStr = date.toISOString().split('T')[0];
-        setSlots(prev => prev.map(s => 
+        setSlots(prev => prev.map(s =>
             s.id === slotId ? { ...s, date: dateStr, showCalendar: false } : s
         ));
     };
 
     // Apply preset to a slot
     const applyPreset = (slotId, preset) => {
-        setSlots(prev => prev.map(s => 
-            s.id === slotId 
+        setSlots(prev => prev.map(s =>
+            s.id === slotId
                 ? { ...s, startTime: preset.start, endTime: preset.end }
                 : s
         ));
@@ -283,17 +305,17 @@ export const OfferTimeSlotsModal = ({
     // Apply AI suggestion
     const applyAISuggestion = (suggestion) => {
         const dateStr = suggestion.date.toISOString().split('T')[0];
-        
+
         // Check if we already have this slot
-        const existingSlot = slots.find(s => 
+        const existingSlot = slots.find(s =>
             s.date === dateStr && s.startTime === suggestion.startTime
         );
-        
+
         if (existingSlot) {
             toast('This time is already added');
             return;
         }
-        
+
         // If first slot is empty, update it
         if (slots.length === 1 && !slots[0].date) {
             setSlots([{
@@ -315,22 +337,22 @@ export const OfferTimeSlotsModal = ({
         } else {
             toast.error('Maximum 5 slots - remove one first');
         }
-        
+
         toast.success(`Added ${suggestion.dateFormatted}`);
     };
 
     // Validate a single slot (used for UI feedback)
     const validateSlot = (slot) => {
         if (!slot.date) return { valid: false, error: 'Select a date' };
-        
+
         const startDateTime = new Date(`${slot.date}T${slot.startTime}`);
         const endDateTime = new Date(`${slot.date}T${slot.endTime}`);
-        
+
         // Basic check
         if (endDateTime <= startDateTime) {
             return { valid: false, error: 'End time must be after start' };
         }
-        
+
         // Check for conflicts with existing scheduled jobs (Original logic preserved)
         if (checkForConflicts) {
             const conflicts = checkForConflicts(
@@ -339,16 +361,16 @@ export const OfferTimeSlotsModal = ({
                 allJobs,
                 schedulingPreferences
             );
-            
+
             if (conflicts && conflicts.length > 0) {
-                return { 
-                    valid: false, 
+                return {
+                    valid: false,
                     error: `Conflicts with: ${conflicts.map(c => c.message).join(', ')}`,
-                    conflicts 
+                    conflicts
                 };
             }
         }
-        
+
         return { valid: true };
     };
 
@@ -359,7 +381,7 @@ export const OfferTimeSlotsModal = ({
             toast.error('Please select at least one date');
             return false;
         }
-        
+
         for (const slot of filledSlots) {
             const validation = validateSlot(slot);
             if (!validation.valid && validation.error !== 'Select a date') {
@@ -375,11 +397,11 @@ export const OfferTimeSlotsModal = ({
     // Submit slots
     const handleSubmit = async () => {
         if (!validateAllSlots()) return;
-        
+
         setIsSubmitting(true);
         try {
             const filledSlots = slots.filter(s => s.date);
-            
+
             // ========================================
             // FIX: Format slots correctly for SlotPicker
             // ========================================
@@ -389,7 +411,7 @@ export const OfferTimeSlotsModal = ({
                 // Combine date + time into full ISO datetime strings
                 const startDateTime = new Date(`${slot.date}T${slot.startTime}:00`);
                 const endDateTime = new Date(`${slot.date}T${slot.endTime}:00`);
-                
+
                 return {
                     id: slot.id || `slot_${Date.now()}_${index}`,  // Unique ID for tracking
                     start: startDateTime.toISOString(),            // Full ISO string
@@ -397,28 +419,35 @@ export const OfferTimeSlotsModal = ({
                     status: 'offered'
                 };
             });
-            
+
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
-            
+
             // ========================================
             // FIX: Write to scheduling.offeredSlots (where readers look)
+            // Include multi-day information for homeowner
             // ========================================
             await updateDoc(jobRef, {
                 // Write to the NESTED path that SlotPicker reads from
                 'scheduling.offeredSlots': formattedSlots,
                 'scheduling.offeredMessage': message || null,
                 'scheduling.offeredAt': serverTimestamp(),
-                
-                // Also keep the old field for backwards compatibility (optional)
+
+                // CRITICAL: Include multi-day information for homeowner
+                'scheduling.estimatedDuration': multiDayInfo.duration,
+                'scheduling.isMultiDay': multiDayInfo.isMultiDay,
+                'scheduling.totalDays': multiDayInfo.totalDays,
+
+                // Also keep top-level for backwards compatibility
                 offeredTimeSlots: formattedSlots,
-                
+                estimatedDuration: multiDayInfo.duration,
+
                 // Update status
                 status: 'slots_offered',
                 contractorMessage: message || null,
                 slotsOfferedAt: serverTimestamp(),
                 lastActivity: serverTimestamp()
             });
-            
+
             toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
             if (onSuccess) onSuccess();
             onClose();
@@ -429,14 +458,14 @@ export const OfferTimeSlotsModal = ({
             setIsSubmitting(false);
         }
     };
-            
+
 
     const filledSlotsCount = slots.filter(s => s.date).length;
 
     return (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-            
+
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 max-h-[90vh] flex flex-col">
                 {/* Header */}
                 <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
@@ -449,7 +478,7 @@ export const OfferTimeSlotsModal = ({
                             <p className="text-xs text-slate-500">Send availability to customer</p>
                         </div>
                     </div>
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
                     >
@@ -486,6 +515,29 @@ export const OfferTimeSlotsModal = ({
                         </div>
                     </div>
 
+                    {/* Multi-Day Job Banner */}
+                    {multiDayInfo.isMultiDay && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-5 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-start gap-3">
+                                <div className="bg-indigo-500 p-2 rounded-lg shrink-0">
+                                    <CalendarDays size={18} className="text-white" />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-indigo-900 text-sm">
+                                        This is a {multiDayInfo.totalDays}-Day Job
+                                    </h4>
+                                    <p className="text-xs text-indigo-700 mt-1">
+                                        {multiDayInfo.totalDays} work days (~{Math.round(multiDayInfo.duration / 60)} hours total)
+                                    </p>
+                                    <p className="text-xs text-indigo-600 mt-2">
+                                        Suggestions show potential <strong>start dates</strong>. The customer will be informed
+                                        they need to be available for {multiDayInfo.totalDays} consecutive days.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Customer Preferences (if any) */}
                     {customerPrefs && (
                         <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -509,7 +561,7 @@ export const OfferTimeSlotsModal = ({
                             </div>
                         </div>
                     )}
-                    
+
                     {/* AI Prerequisite Check */}
                     <AIPrerequisiteCheck preferences={schedulingPreferences} allJobs={allJobs} />
 
@@ -532,7 +584,7 @@ export const OfferTimeSlotsModal = ({
                                 <ChevronDown size={18} className="text-violet-600" />
                             )}
                         </button>
-                        
+
                         {showAISuggestions && (
                             <div className="mt-3 p-3 bg-slate-50 rounded-xl">
                                 <AISuggestionPanel
@@ -570,17 +622,17 @@ export const OfferTimeSlotsModal = ({
                             <div className="space-y-2 mb-3">
                                 {slots.filter(s => s.date).map((slot) => {
                                     const date = new Date(slot.date + 'T00:00:00');
-                                    const dateLabel = date.toLocaleDateString('en-US', { 
-                                        weekday: 'short', 
-                                        month: 'short', 
-                                        day: 'numeric' 
+                                    const dateLabel = date.toLocaleDateString('en-US', {
+                                        weekday: 'short',
+                                        month: 'short',
+                                        day: 'numeric'
                                     });
                                     const startLabel = TIME_OPTIONS.find(t => t.value === slot.startTime)?.label || slot.startTime;
                                     const endLabel = TIME_OPTIONS.find(t => t.value === slot.endTime)?.label || slot.endTime;
-                                    
+
                                     // Validation Check
                                     const validation = validateSlot(slot);
-                                    
+
                                     return (
                                         <div key={slot.id}>
                                             <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -601,14 +653,13 @@ export const OfferTimeSlotsModal = ({
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
-                                            
+
                                             {/* Show resource conflict warning */}
                                             {slotConflicts[slot.id] && (
-                                                <div className={`mt-1 p-2 rounded-lg text-xs flex items-center gap-2 ${
-                                                    slotConflicts[slot.id].canProceed 
+                                                <div className={`mt-1 p-2 rounded-lg text-xs flex items-center gap-2 ${slotConflicts[slot.id].canProceed
                                                         ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                         : 'bg-red-50 text-red-700 border border-red-200'
-                                                }`}>
+                                                    }`}>
                                                     <AlertCircle size={14} />
                                                     <span>{slotConflicts[slot.id].message}</span>
                                                 </div>
@@ -634,10 +685,10 @@ export const OfferTimeSlotsModal = ({
                     {showManualEntry && (
                         <div className="mb-5 p-4 bg-slate-50 rounded-xl">
                             <p className="text-xs font-bold text-slate-500 uppercase mb-3">Add Time Slot</p>
-                            
+
                             <div className="space-y-4">
                                 {slots.map((slot, idx) => (
-                                    <div 
+                                    <div
                                         key={slot.id}
                                         className="bg-white border border-slate-200 rounded-xl p-4"
                                     >
@@ -690,7 +741,7 @@ export const OfferTimeSlotsModal = ({
                                                     <span className="text-xs text-emerald-500">Change</span>
                                                 </button>
                                             )}
-                                            
+
                                             {/* Calendar Picker */}
                                             {slot.showCalendar && (
                                                 <div className="mt-2">
@@ -718,11 +769,10 @@ export const OfferTimeSlotsModal = ({
                                                                 key={preset.id}
                                                                 onClick={() => applyPreset(slot.id, preset)}
                                                                 type="button"
-                                                                className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${
-                                                                    isActive
+                                                                className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors flex items-center justify-center gap-1 ${isActive
                                                                         ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                                                                         : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 <Icon size={14} />
                                                                 {preset.label}
@@ -735,27 +785,19 @@ export const OfferTimeSlotsModal = ({
                                                 <div className="flex items-center gap-2">
                                                     <div className="flex-1">
                                                         <label className="block text-[10px] font-medium text-slate-500 mb-1">From</label>
-                                                        <select
+                                                        <Select
                                                             value={slot.startTime}
-                                                            onChange={(e) => updateSlot(slot.id, 'startTime', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                                        >
-                                                            {TIME_OPTIONS.map(opt => (
-                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                            ))}
-                                                        </select>
+                                                            onChange={(val) => updateSlot(slot.id, 'startTime', val)}
+                                                            options={TIME_OPTIONS}
+                                                        />
                                                     </div>
                                                     <div className="flex-1">
                                                         <label className="block text-[10px] font-medium text-slate-500 mb-1">To</label>
-                                                        <select
+                                                        <Select
                                                             value={slot.endTime}
-                                                            onChange={(e) => updateSlot(slot.id, 'endTime', e.target.value)}
-                                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                                                        >
-                                                            {TIME_OPTIONS.map(opt => (
-                                                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                            ))}
-                                                        </select>
+                                                            onChange={(val) => updateSlot(slot.id, 'endTime', val)}
+                                                            options={TIME_OPTIONS}
+                                                        />
                                                     </div>
                                                 </div>
                                             </>

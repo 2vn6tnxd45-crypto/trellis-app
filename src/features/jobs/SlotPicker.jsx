@@ -5,10 +5,10 @@
 // Displays offered time slots and lets homeowner pick one
 // UPDATED: Use ISO time storage
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Calendar, Clock, CheckCircle, X, MapPin,
-    User, DollarSign, ArrowRight, AlertCircle, CalendarDays, Info
+    User, DollarSign, ArrowRight, AlertCircle, CalendarDays, Info, Loader2
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -69,6 +69,7 @@ export const SlotPicker = ({
 }) => {
     const [selectedSlotIds, setSelectedSlotIds] = useState([]); // Changed to array for multi-selection
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [acknowledgedMultiDay, setAcknowledgedMultiDay] = useState(false);
 
     // EDGE CASE: Handle null/undefined job
     if (!job) {
@@ -93,9 +94,9 @@ export const SlotPicker = ({
     const offeredSlots = job.scheduling?.offeredSlots?.filter(s => s.status === 'offered') || [];
     const contractorMessage = job.scheduling?.offeredMessage;
 
-    // Detect multi-day job
+    // Detect multi-day job - check multiple sources
     const multiDayInfo = useMemo(() => {
-        // Check if job already has multi-day schedule
+        // Method 1: Check if job already has multi-day schedule
         if (jobIsMultiDay(job)) {
             return {
                 isMultiDay: true,
@@ -104,8 +105,23 @@ export const SlotPicker = ({
             };
         }
 
-        // Check estimated duration
-        const duration = job.estimatedDuration || job.scheduling?.estimatedDuration || 0;
+        // Method 2: Check explicit scheduling flags (set when contractor offers slots)
+        if (job.scheduling?.isMultiDay) {
+            const days = job.scheduling.totalDays || 2;
+            const hours = Math.round((job.scheduling.estimatedDuration || 0) / 60);
+            return {
+                isMultiDay: true,
+                totalDays: days,
+                summary: `${days} work days (~${hours} hours total)`
+            };
+        }
+
+        // Method 3: Check estimated duration from multiple sources
+        const duration = job.estimatedDuration
+            || job.scheduling?.estimatedDuration
+            || job.quote?.estimatedDuration
+            || 0;
+
         if (checkIsMultiDay(duration)) {
             const days = calculateDaysNeeded(duration);
             const hours = Math.round(duration / 60);
@@ -118,6 +134,18 @@ export const SlotPicker = ({
 
         return { isMultiDay: false, totalDays: 1, summary: '' };
     }, [job]);
+
+    // Debug log to help troubleshoot multi-day detection
+    useEffect(() => {
+        console.log('[SlotPicker] Multi-day detection:', {
+            jobId: job.id,
+            multiDayInfo,
+            estimatedDuration: job.estimatedDuration,
+            schedulingDuration: job.scheduling?.estimatedDuration,
+            schedulingIsMultiDay: job.scheduling?.isMultiDay,
+            schedulingTotalDays: job.scheduling?.totalDays
+        });
+    }, [job, multiDayInfo]);
 
     // Handle slot selection confirmation
     const handleConfirm = async () => {
@@ -271,31 +299,51 @@ export const SlotPicker = ({
                     </div>
                 </div>
 
-                {/* Multi-Day Job Warning Banner */}
+                {/* Multi-Day Job Warning Banner - ENHANCED */}
                 {multiDayInfo.isMultiDay && (
-                    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-indigo-50 border-2 border-indigo-300 rounded-xl p-4 mb-4 animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-start gap-3">
-                            <div className="bg-indigo-100 p-2 rounded-lg shrink-0">
-                                <CalendarDays size={20} className="text-indigo-600" />
+                            <div className="bg-indigo-500 p-2 rounded-lg shrink-0">
+                                <CalendarDays size={20} className="text-white" />
                             </div>
                             <div className="flex-1">
-                                <h4 className="font-bold text-indigo-900 text-sm">
-                                    This is a {multiDayInfo.totalDays}-Day Job
+                                <h4 className="font-bold text-indigo-900">
+                                    ⚠️ This is a {multiDayInfo.totalDays}-Day Job
                                 </h4>
-                                <p className="text-xs text-indigo-700 mt-1">
-                                    {multiDayInfo.summary}
+                                <p className="text-sm text-indigo-700 mt-1">
+                                    {multiDayInfo.summary || `Work will span ${multiDayInfo.totalDays} consecutive days`}
                                 </p>
-                                <div className="mt-3 p-3 bg-indigo-100/50 rounded-lg border border-indigo-200">
+
+                                {/* Explicit Confirmation Box */}
+                                <div className="mt-3 p-3 bg-white rounded-lg border-2 border-indigo-200">
                                     <div className="flex items-start gap-2">
-                                        <Info size={14} className="text-indigo-600 mt-0.5 shrink-0" />
-                                        <p className="text-xs text-indigo-800">
-                                            <strong>Important:</strong> By selecting a start date below, you're confirming
-                                            availability for <strong>{multiDayInfo.totalDays} consecutive work days</strong> starting
-                                            from that date. The contractor will need access to complete the full job.
-                                        </p>
+                                        <AlertCircle size={16} className="text-indigo-600 mt-0.5 shrink-0" />
+                                        <div className="text-sm text-indigo-800">
+                                            <p className="font-bold mb-1">Please Note:</p>
+                                            <ul className="list-disc list-inside space-y-1 text-xs">
+                                                <li>You're selecting a <strong>START date</strong></li>
+                                                <li>Work continues for <strong>{multiDayInfo.totalDays} consecutive days</strong></li>
+                                                <li>The contractor needs access each day to complete the job</li>
+                                            </ul>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Acknowledgment Checkbox */}
+                        <div className="mt-4 flex items-start gap-3 p-3 bg-indigo-100 rounded-lg">
+                            <input
+                                type="checkbox"
+                                id="acknowledge-multiday"
+                                checked={acknowledgedMultiDay}
+                                onChange={(e) => setAcknowledgedMultiDay(e.target.checked)}
+                                className="mt-1 h-4 w-4 text-indigo-600 rounded border-indigo-300 focus:ring-indigo-500"
+                            />
+                            <label htmlFor="acknowledge-multiday" className="text-sm text-indigo-800">
+                                I understand this is a <strong>{multiDayInfo.totalDays}-day job</strong> and
+                                I'll be available for all {multiDayInfo.totalDays} consecutive days starting from my selected date.
+                            </label>
                         </div>
                     </div>
                 )}
@@ -353,12 +401,14 @@ export const SlotPicker = ({
                                             {formatTimeRange(slot.start, slot.end)}
                                         </p>
 
-                                        {/* Show date range for multi-day jobs */}
+                                        {/* Show date range for multi-day jobs - PROMINENT */}
                                         {multiDayInfo.isMultiDay && endDateStr && (
-                                            <div className={`mt-2 pt-2 border-t ${isSelected ? 'border-emerald-200' : 'border-slate-100'}`}>
-                                                <p className={`text-xs font-medium flex items-center gap-1 ${isSelected ? 'text-indigo-600' : 'text-indigo-500'}`}>
-                                                    <CalendarDays size={12} />
-                                                    Work continues through {endDateStr}
+                                            <div className={`mt-2 flex items-center gap-2 ${
+                                                isSelected ? 'text-indigo-600' : 'text-indigo-500'
+                                            }`}>
+                                                <CalendarDays size={14} />
+                                                <p className="text-sm font-medium">
+                                                    Through {endDateStr} ({multiDayInfo.totalDays} days)
                                                 </p>
                                             </div>
                                         )}
@@ -395,25 +445,43 @@ export const SlotPicker = ({
                 )}
                 <button
                     onClick={handleConfirm}
-                    disabled={isSubmitting || selectedSlotIds.length === 0}
-                    className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    disabled={
+                        isSubmitting ||
+                        selectedSlotIds.length === 0 ||
+                        (multiDayInfo.isMultiDay && !acknowledgedMultiDay)
+                    }
+                    className={`w-full py-3 text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                        multiDayInfo.isMultiDay
+                            ? 'bg-indigo-600 hover:bg-indigo-700'
+                            : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
                 >
                     {isSubmitting ? (
                         <>
-                            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                            <Loader2 size={18} className="animate-spin" />
                             Confirming...
+                        </>
+                    ) : selectedSlotIds.length === 0 ? (
+                        'Select a Time Slot'
+                    ) : multiDayInfo.isMultiDay && !acknowledgedMultiDay ? (
+                        <>
+                            <AlertCircle size={18} />
+                            Please acknowledge above
+                        </>
+                    ) : multiDayInfo.isMultiDay ? (
+                        <>
+                            <CheckCircle size={18} />
+                            Confirm {multiDayInfo.totalDays}-Day Appointment
+                        </>
+                    ) : selectedSlotIds.length === 1 ? (
+                        <>
+                            <CheckCircle size={18} />
+                            Confirm Appointment
                         </>
                     ) : (
                         <>
                             <CheckCircle size={18} />
-                            {selectedSlotIds.length === 0
-                                ? 'Select Time Slots'
-                                : multiDayInfo.isMultiDay
-                                    ? `Confirm ${multiDayInfo.totalDays}-Day Job`
-                                    : selectedSlotIds.length === 1
-                                        ? 'Confirm Appointment'
-                                        : `Confirm ${selectedSlotIds.length} Appointments`
-                            }
+                            Confirm {selectedSlotIds.length} Appointments
                         </>
                     )}
                 </button>

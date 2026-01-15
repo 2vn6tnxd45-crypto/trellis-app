@@ -174,22 +174,38 @@ export const HomeownerJobCard = ({
     const offeredSlots = getOfferedSlots();
     const hasNewTimeRequest = job.scheduling?.requestedNewTimes;
 
-    // Detect multi-day job
+    // Detect multi-day job - check multiple sources
     const multiDayInfo = useMemo(() => {
+        // Method 1: Check if job already has multi-day schedule
         if (jobIsMultiDay(job)) {
             return {
                 isMultiDay: true,
                 totalDays: job.multiDaySchedule?.totalDays || 2,
-                endDate: job.multiDaySchedule?.endDate // Capture end date for display
+                endDate: job.multiDaySchedule?.endDate
             };
         }
-        const duration = job.estimatedDuration || job.scheduling?.estimatedDuration || 0;
+
+        // Method 2: Check explicit scheduling flags (set when contractor offers slots)
+        if (job.scheduling?.isMultiDay) {
+            return {
+                isMultiDay: true,
+                totalDays: job.scheduling.totalDays || 2
+            };
+        }
+
+        // Method 3: Check estimated duration from multiple sources
+        const duration = job.estimatedDuration
+            || job.scheduling?.estimatedDuration
+            || job.quote?.estimatedDuration
+            || 0;
+
         if (checkIsMultiDay(duration)) {
             return {
                 isMultiDay: true,
                 totalDays: calculateDaysNeeded(duration)
             };
         }
+
         return { isMultiDay: false, totalDays: 1 };
     }, [job]);
 
@@ -437,22 +453,36 @@ export const HomeownerJobCard = ({
 
             {/* Quick Action Bar (for jobs needing action) */}
             {effectiveStatus === 'slots_offered' && offeredSlots.length > 0 && (
-                <div className={`px-4 py-3 border-t ${multiDayInfo.isMultiDay ? 'bg-indigo-50 border-indigo-100' : 'bg-amber-50 border-amber-100'}`}>
-                    {/* Multi-day warning hint */}
+                <div className={`px-4 py-3 border-t ${
+                    multiDayInfo.isMultiDay
+                        ? 'bg-indigo-50 border-indigo-200'
+                        : 'bg-amber-50 border-amber-100'
+                }`}>
+                    {/* Multi-day prominent notice */}
                     {multiDayInfo.isMultiDay && (
-                        <p className="text-xs text-indigo-600 text-center mb-2 font-medium">
-                            This job spans {multiDayInfo.totalDays} consecutive work days
-                        </p>
+                        <div className="flex items-center gap-2 mb-3 p-2 bg-indigo-100 rounded-lg">
+                            <CalendarDays size={16} className="text-indigo-600" />
+                            <p className="text-sm font-bold text-indigo-700">
+                                {multiDayInfo.totalDays}-Day Job
+                            </p>
+                            <span className="text-xs text-indigo-600">
+                                (consecutive days)
+                            </span>
+                        </div>
                     )}
                     <button
                         onClick={() => onSelect?.(job)}
-                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${multiDayInfo.isMultiDay
-                            ? 'bg-indigo-500 hover:bg-indigo-600'
-                            : 'bg-amber-500 hover:bg-amber-600'
-                            }`}
+                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                            multiDayInfo.isMultiDay
+                                ? 'bg-indigo-600 hover:bg-indigo-700'
+                                : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
                     >
                         <Calendar size={16} />
-                        {multiDayInfo.isMultiDay ? 'Select Start Date' : 'Pick a Time'}
+                        {multiDayInfo.isMultiDay
+                            ? `Select Start Date (${multiDayInfo.totalDays} days)`
+                            : 'Pick a Time'
+                        }
                     </button>
                 </div>
             )}
