@@ -1,49 +1,38 @@
 // src/features/dashboard/ModernDashboard.jsx
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-    Sparkles, ChevronRight, Plus, Camera,
-    Clock, Package, FileText, ArrowRight,
-    AlertTriangle, Wrench, Shield, CheckCircle2,
-    Info, TrendingUp, ChevronDown, Check, User,
-    Calendar, Phone, Mail, MessageCircle, Link as LinkIcon,
-    X, ExternalLink, Hammer, MapPin, Home, Trash2, ClipboardList, Archive
+    Sparkles, Plus, Camera, Clock, Package, FileText,
+    AlertTriangle, Wrench, CheckCircle2, Info,
+    Calendar, X, ExternalLink, Hammer, MapPin, Home,
+    Trash2, ClipboardList, Archive, RotateCcw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
-
 import { PropertyIntelligence } from './PropertyIntelligence';
 import { useHomeHealth } from '../../hooks/useHomeHealth';
-import { MaintenanceDashboard } from './MaintenanceDashboard';
 import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeArchive } from '../archive';
 import { MyContractorsSection } from './components/MyContractorsSection';
 
-// NEW: Firebase imports for Active Projects
-// NEW: Firebase imports for Active Projects
+// Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { appId } from '../../config/constants';
 
-// NEW: Job Scheduler for Homeowner
+// Job management
 import { JobScheduler } from '../jobs/JobScheduler';
-
-// NEW: Import Quotes Hook and Service
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 import { unclaimQuote } from '../quotes/lib/quoteService';
-// NEW: Job management components
 import { CancelJobModal } from '../jobs/CancelJobModal';
 import { RequestTimesModal } from '../jobs/RequestTimesModal';
 import { HomeownerJobCard } from '../jobs/HomeownerJobCard';
-
-// NEW: Job Completion Review
 import { JobCompletionReview } from '../jobs/components/completion';
 
-// NEW: Recurring Services
+// Recurring Services
 import { useCustomerRecurringServices, RecurringServiceCard } from '../recurring';
-import { RotateCcw } from 'lucide-react';
 
-// NEW: Unified Calendar
+// Unified Calendar
 import { UnifiedCalendar } from './components/UnifiedCalendar';
 
 // --- CONFIG & HELPERS ---
@@ -112,71 +101,7 @@ const ActionButton = ({ icon: Icon, label, sublabel, onClick, variant = 'default
     </button>
 );
 
-// ============================================
-// NEW: WELCOME CARD (for new users with 0 items)
-// ============================================
-const WelcomeCard = ({ propertyName, onScanReceipt, onAddRecord, onCreateContractorLink, onDismiss }) => {
-    return (
-        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 p-6 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Dismiss button */}
-            <button
-                onClick={onDismiss}
-                className="absolute top-4 right-4 p-1.5 text-emerald-400 hover:text-emerald-600 hover:bg-emerald-100 rounded-full transition-colors"
-            >
-                <X size={18} />
-            </button>
-
-            {/* Background decoration */}
-            <div className="absolute -bottom-8 -right-8 w-32 h-32 bg-emerald-200/30 rounded-full blur-2xl pointer-events-none" />
-
-            {/* Content */}
-            <div className="flex items-start gap-4 relative">
-                <div className="p-3 bg-emerald-100 rounded-xl shrink-0">
-                    <Sparkles size={24} className="text-emerald-600" />
-                </div>
-                <div className="flex-1 pr-8">
-                    <h3 className="font-bold text-emerald-900 text-lg mb-1">
-                        Welcome to {propertyName || 'your Krib'}!
-                    </h3>
-                    <p className="text-emerald-700 text-sm mb-4">
-                        We've already discovered public records about your property above. Now start building your complete home profile!
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                        <button
-                            onClick={onScanReceipt}
-                            className="px-4 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-600/20"
-                        >
-                            <Camera size={16} />
-                            Scan a Receipt
-                        </button>
-                        <button
-                            onClick={onAddRecord}
-                            className="px-4 py-2.5 bg-white text-emerald-700 font-bold text-sm rounded-xl border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center gap-2"
-                        >
-                            <Plus size={16} />
-                            Add Item
-                        </button>
-                        <button
-                            onClick={onCreateContractorLink}
-                            className="px-4 py-2.5 bg-white text-emerald-700 font-bold text-sm rounded-xl border border-emerald-200 hover:border-emerald-300 hover:bg-emerald-50 transition-colors flex items-center gap-2"
-                        >
-                            <Hammer size={16} />
-                            Contractor Link
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 // --- ACTIVE PROJECTS SECTION ---
-
-// ============================================
-// UPDATED: ActiveProjectsSection with Job Completion Review
-// ============================================
-
 const ActiveProjectsSection = ({ userId, onCountChange }) => {
     const [projects, setProjects] = useState([]);
     const [selectedJob, setSelectedJob] = useState(null);
@@ -440,174 +365,6 @@ const ActiveProjectsSection = ({ userId, onCountChange }) => {
     );
 };
 
-// ============================================
-// SIMPLE VERSION (if you prefer inline job cards)
-// ============================================
-// If you don't want to create a separate HomeownerJobCard component,
-// here's a version with inline job card rendering:
-
-const ActiveProjectsSectionInline = ({ userId }) => {
-    const [projects, setProjects] = useState([]);
-    const [selectedJob, setSelectedJob] = useState(null);
-    const [cancellingJob, setCancellingJob] = useState(null);
-    const [requestingTimesJob, setRequestingTimesJob] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        if (!userId) {
-            setLoading(false);
-            return;
-        }
-
-        const q1 = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", userId));
-        const q2 = query(collection(db, REQUESTS_COLLECTION_PATH), where("customerId", "==", userId));
-
-        let results1 = [], results2 = [];
-        let loaded1 = false, loaded2 = false;
-
-        const mergeAndUpdate = () => {
-            if (!loaded1 || !loaded2) return;
-            const merged = new Map();
-            [...results1, ...results2].forEach(job => merged.set(job.id, job));
-            const allJobs = Array.from(merged.values());
-            const active = allJobs.filter(r =>
-                !['cancelled', 'completed', 'archived'].includes(r.status) &&
-                (['pending_schedule', 'slots_offered', 'scheduling', 'scheduled', 'in_progress', 'pending_completion', 'revision_requested'].includes(r.status) ||
-                    (r.status === 'quoted' && r.estimate?.status === 'approved'))
-            );
-            setProjects(active);
-            setLoading(false);
-        };
-
-        const unsub1 = onSnapshot(q1, (snap) => { results1 = snap.docs.map(d => ({ id: d.id, ...d.data() })); loaded1 = true; mergeAndUpdate(); });
-        const unsub2 = onSnapshot(q2, (snap) => { results2 = snap.docs.map(d => ({ id: d.id, ...d.data() })); loaded2 = true; mergeAndUpdate(); });
-
-        return () => { unsub1(); unsub2(); };
-    }, [userId]);
-
-    const getStatusBadge = (status) => {
-        const configs = {
-            scheduled: { label: 'Scheduled', bg: 'bg-emerald-100', text: 'text-emerald-700', icon: Calendar },
-            scheduling: { label: 'Needs Scheduling', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock },
-            quoted: { label: 'Ready to Schedule', bg: 'bg-amber-100', text: 'text-amber-700', icon: AlertTriangle },
-            in_progress: { label: 'In Progress', bg: 'bg-blue-100', text: 'text-blue-700', icon: Wrench },
-            pending_schedule: { label: 'Pending', bg: 'bg-slate-100', text: 'text-slate-600', icon: Clock },
-            pending_completion: { label: 'Review Required', bg: 'bg-purple-100', text: 'text-purple-700', icon: CheckCircle2 },
-            revision_requested: { label: 'Revision Requested', bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock }
-        };
-        return configs[status] || configs.pending_schedule;
-    };
-
-    if (loading) return <div className="p-4 text-xs text-slate-400">Loading projects...</div>;
-    if (projects.length === 0) return null;
-
-    return (
-        <>
-            <DashboardSection
-                title="Active Projects"
-                icon={Hammer}
-                defaultOpen={true}
-                summary={<span className="text-xs text-amber-600 font-bold">{projects.length} active</span>}
-            >
-                <div className="space-y-3">
-                    {projects.map(job => {
-                        const effectiveStatus = (job.status === 'quoted' && job.estimate?.status === 'approved') ? 'pending_schedule' : job.status;
-                        const badge = getStatusBadge(effectiveStatus);
-                        const BadgeIcon = badge.icon;
-                        const latestProposal = job.proposedTimes?.length > 0 ? job.proposedTimes[job.proposedTimes.length - 1] : null;
-                        const contractorName = job.contractorName || job.contractorCompany || 'Contractor';
-
-                        return (
-                            <div
-                                key={job.id}
-                                className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all"
-                            >
-                                {/* Header */}
-                                <div className="flex justify-between items-start mb-2">
-                                    <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedJob(job)}>
-                                        <h3 className="font-bold text-slate-800 hover:text-emerald-600 transition-colors">
-                                            {job.description || job.title || 'Service Request'}
-                                        </h3>
-                                        <p className="text-sm text-slate-500 mt-0.5">{contractorName}</p>
-                                    </div>
-                                    <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 shrink-0 ${badge.bg} ${badge.text}`}>
-                                        <BadgeIcon size={10} />
-                                        {badge.label}
-                                    </span>
-                                </div>
-
-                                {/* Schedule Info */}
-                                <div className="flex justify-between items-center text-sm text-slate-500 mb-3">
-                                    {job.scheduledTime ? (
-                                        <span className="font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">
-                                            {new Date(job.scheduledTime).toLocaleDateString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                                        </span>
-                                    ) : latestProposal ? (
-                                        <div className="text-right">
-                                            <span className="text-xs text-slate-400 block">Proposed:</span>
-                                            <span className="text-amber-600 font-bold text-xs flex items-center gap-1 bg-amber-50 px-2 py-1 rounded-md">
-                                                {new Date(latestProposal.date).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-amber-600 font-medium text-xs">Awaiting times</span>
-                                    )}
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-2 pt-3 border-t border-slate-100">
-                                    <button
-                                        onClick={() => setSelectedJob(job)}
-                                        className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors"
-                                    >
-                                        {latestProposal?.proposedBy === 'contractor' ? 'Review & Confirm' : 'View Details'}
-                                    </button>
-                                    <button
-                                        onClick={() => setRequestingTimesJob(job)}
-                                        className="px-3 py-2 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-                                    >
-                                        Request Times
-                                    </button>
-                                    <button
-                                        onClick={() => setCancellingJob(job)}
-                                        className="px-3 py-2 text-red-600 text-xs font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </DashboardSection>
-
-            {/* Modals - same as above */}
-            {selectedJob && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
-                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
-                            <div>
-                                <h3 className="font-bold text-slate-800">{selectedJob.title || selectedJob.description || 'Manage Project'}</h3>
-                                <p className="text-xs text-slate-500">{selectedJob.contractorName || 'Contractor'}</p>
-                            </div>
-                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                                <X size={20} className="text-slate-400" />
-                            </button>
-                        </div>
-                        <div className="flex-grow overflow-hidden bg-slate-50">
-                            <JobScheduler job={projects.find(p => p.id === selectedJob.id) || selectedJob} userType="homeowner" onUpdate={() => { }} />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {cancellingJob && <CancelJobModal job={cancellingJob} onClose={() => setCancellingJob(null)} onSuccess={() => setCancellingJob(null)} />}
-            {requestingTimesJob && <RequestTimesModal job={requestingTimesJob} onClose={() => setRequestingTimesJob(null)} onSuccess={() => setRequestingTimesJob(null)} />}
-        </>
-    );
-};
-
 // --- QUOTES SECTION COMPONENT ---
 const MyQuotesSection = ({ userId, onCountChange }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
@@ -786,8 +543,13 @@ const PendingEvaluationsSection = ({ userId, onCountChange }) => {
 };
 
 // --- RECURRING SERVICES SECTION ---
-const RecurringServicesSection = ({ userId }) => {
+const RecurringServicesSection = ({ userId, onCountChange }) => {
     const { services, activeServices, pausedServices, loading, error, skip, pause, resume } = useCustomerRecurringServices(userId);
+
+    // Report count to parent
+    useEffect(() => {
+        if (onCountChange && !loading) onCountChange(services.length);
+    }, [services.length, loading, onCountChange]);
 
     if (loading) return null; // Don't show loading state for this section
     if (services.length === 0) return null; // Don't show section if no recurring services
@@ -823,6 +585,90 @@ const RecurringServicesSection = ({ userId }) => {
     );
 };
 
+// --- ACTION NEEDED CONSOLIDATED SECTION ---
+// Wraps all active work in a single expandable section with smart summary
+const ActionNeededSection = ({
+    userId,
+    onProjectCountChange,
+    onQuoteCountChange,
+    onEvalCountChange
+}) => {
+    const [projectCount, setProjectCount] = useState(0);
+    const [quoteCount, setQuoteCount] = useState(0);
+    const [evalCount, setEvalCount] = useState(0);
+    const [recurringCount, setRecurringCount] = useState(0);
+
+    // Forward counts to parent if needed
+    useEffect(() => {
+        if (onProjectCountChange) onProjectCountChange(projectCount);
+    }, [projectCount, onProjectCountChange]);
+
+    useEffect(() => {
+        if (onQuoteCountChange) onQuoteCountChange(quoteCount);
+    }, [quoteCount, onQuoteCountChange]);
+
+    useEffect(() => {
+        if (onEvalCountChange) onEvalCountChange(evalCount);
+    }, [evalCount, onEvalCountChange]);
+
+    const totalItems = projectCount + quoteCount + evalCount + recurringCount;
+
+    // Generate smart summary for the section header
+    const getSummary = () => {
+        const parts = [];
+        if (projectCount > 0) parts.push(`${projectCount} project${projectCount > 1 ? 's' : ''}`);
+        if (quoteCount > 0) parts.push(`${quoteCount} quote${quoteCount > 1 ? 's' : ''}`);
+        if (evalCount > 0) parts.push(`${evalCount} pending`);
+        if (recurringCount > 0) parts.push(`${recurringCount} recurring`);
+
+        if (parts.length === 0) return null;
+
+        return (
+            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <AlertTriangle size={10} />
+                {parts.slice(0, 2).join(', ')}
+                {parts.length > 2 && ` +${parts.length - 2}`}
+            </span>
+        );
+    };
+
+    // Don't render section if nothing to show
+    if (totalItems === 0 && projectCount === 0 && quoteCount === 0 && evalCount === 0) {
+        // Still render the subsections to get counts, but hidden
+        return (
+            <div className="hidden">
+                <ActiveProjectsSection userId={userId} onCountChange={setProjectCount} />
+                <RecurringServicesSection userId={userId} onCountChange={setRecurringCount} />
+                <MyQuotesSection userId={userId} onCountChange={setQuoteCount} />
+                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} />
+            </div>
+        );
+    }
+
+    return (
+        <DashboardSection
+            title="Action Needed"
+            icon={AlertTriangle}
+            defaultOpen={true}
+            summary={getSummary()}
+        >
+            <div className="space-y-4">
+                {/* Active Projects - inline, not nested in another DashboardSection */}
+                <ActiveProjectsSection userId={userId} onCountChange={setProjectCount} />
+
+                {/* Recurring Services */}
+                <RecurringServicesSection userId={userId} onCountChange={setRecurringCount} />
+
+                {/* Quotes */}
+                <MyQuotesSection userId={userId} onCountChange={setQuoteCount} />
+
+                {/* Pending Evaluations */}
+                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} />
+            </div>
+        </DashboardSection>
+    );
+};
+
 // --- MAIN COMPONENT ---
 export const ModernDashboard = ({
     records = [],
@@ -835,24 +681,11 @@ export const ModernDashboard = ({
     onNavigateToItems,
     onNavigateToContractors,
     onNavigateToReports,
-    onCreateContractorLink,
-    onNavigateToMaintenance,
-    onBookService,
-    onMarkTaskDone,
-    onDeleteHistoryItem,
-    onRestoreHistoryItem,
-    onDeleteTask,
-    onScheduleTask,
-    onSnoozeTask
+    onCreateContractorLink
 }) => {
     const season = getSeasonalTheme();
     const greeting = getGreeting();
     const [showScoreDetails, setShowScoreDetails] = useState(false);
-
-    // Track if welcome card has been dismissed (persists via localStorage)
-    const [welcomeDismissed, setWelcomeDismissed] = useState(() => {
-        return localStorage.getItem('krib_welcome_dismissed') === 'true';
-    });
 
     // Track active project counts for smart hierarchy
     const [activeProjectCount, setActiveProjectCount] = useState(0);
@@ -925,21 +758,6 @@ export const ModernDashboard = ({
         return tasks;
     }, [validRecords]);
 
-    const maintenanceSummary = useMemo(() => {
-        const overdue = maintenanceTasks.filter(t => t.daysUntil < 0).length;
-        const dueSoon = maintenanceTasks.filter(t => t.daysUntil >= 0 && t.daysUntil <= 30).length;
-
-        if (overdue > 0) return <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={10} /> {overdue} Needs Attention</span>;
-        if (dueSoon > 0) return <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> {dueSoon} Due Soon</span>;
-        return <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> All Caught Up</span>;
-    }, [maintenanceTasks]);
-
-    // Handle welcome card dismiss
-    const handleDismissWelcome = () => {
-        setWelcomeDismissed(true);
-        localStorage.setItem('krib_welcome_dismissed', 'true');
-    };
-
     return (
         <div className="space-y-6 pb-8">
             {/* HERO SECTION */}
@@ -999,30 +817,34 @@ export const ModernDashboard = ({
             {/* SMART HIERARCHY - Content order based on user state */}
             {/* ============================================ */}
 
-            {/* ACTIVE WORK SECTIONS - Always show first when present */}
-            <ActiveProjectsSection userId={userId} onCountChange={setActiveProjectCount} />
-            <RecurringServicesSection userId={userId} />
-            <MyQuotesSection userId={userId} onCountChange={setPendingQuoteCount} />
-            <PendingEvaluationsSection userId={userId} onCountChange={setPendingEvalCount} />
+            {/* ACTION NEEDED - Consolidated active work section */}
+            <ActionNeededSection
+                userId={userId}
+                onProjectCountChange={setActiveProjectCount}
+                onQuoteCountChange={setPendingQuoteCount}
+                onEvalCountChange={setPendingEvalCount}
+            />
 
-            {/* MY CONTRACTORS - Show prominently when user has active work */}
-            {userState === 'active-work' && (
-                <MyContractorsSection
-                    contractors={contractors}
-                    userId={userId}
-                    onNavigateToContractors={onNavigateToContractors}
-                    onCreateContractorLink={onCreateContractorLink}
-                />
-            )}
-
-            {/* PROPERTY INTELLIGENCE - Primary for established users, secondary for active work */}
+            {/* MY HOME - Consolidated Property Intelligence + Environmental Insights */}
             <DashboardSection
-                title="Property Intelligence"
+                title="My Home"
                 icon={Home}
                 defaultOpen={userState !== 'active-work'}
                 summary={<span className="text-xs text-emerald-600 font-medium">✨ Auto-discovered</span>}
             >
-                <PropertyIntelligence propertyProfile={activeProperty} />
+                <div className="space-y-6">
+                    {/* Property Intelligence */}
+                    <PropertyIntelligence propertyProfile={activeProperty} />
+
+                    {/* Environmental & Risk Data */}
+                    <div className="pt-4 border-t border-slate-100">
+                        <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                            <Info size={14} className="text-slate-400" />
+                            Local Insights
+                        </h4>
+                        <EnvironmentalInsights propertyProfile={activeProperty} />
+                    </div>
+                </div>
             </DashboardSection>
 
             {/* UNIFIED HOME CALENDAR - Shows all scheduled events */}
@@ -1044,62 +866,13 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* WELCOME/ONBOARDING - For new users or users without established profiles */}
-            {(userState === 'new-user' || (validRecords.length === 0 && !welcomeDismissed)) && (
-                <WelcomeCard
-                    propertyName={activeProperty?.name}
-                    onScanReceipt={onScanReceipt}
-                    onAddRecord={onAddRecord}
-                    onCreateContractorLink={onCreateContractorLink}
-                    onDismiss={handleDismissWelcome}
-                />
-            )}
-
-            {/* QUICK ACTIONS - More prominent for new users, compact for established */}
-            <DashboardSection
-                title="Quick Actions"
-                icon={Sparkles}
-                defaultOpen={userState === 'new-user'}
-            >
-                <div className="grid grid-cols-2 gap-3">
-                    <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
-                    <ActionButton icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
-                    <ActionButton icon={FileText} label="View Report" sublabel="Home pedigree" onClick={onNavigateToReports} />
-                    <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
-                </div>
-            </DashboardSection>
-
-            {/* MY CONTRACTORS - Show here for established/new users (not active-work, shown above) */}
-            {userState !== 'active-work' && (
-                <MyContractorsSection
-                    contractors={contractors}
-                    userId={userId}
-                    onNavigateToContractors={onNavigateToContractors}
-                    onCreateContractorLink={onCreateContractorLink}
-                />
-            )}
-
-            {/* MAINTENANCE SCHEDULE - Always important */}
-            <DashboardSection
-                title="Maintenance Schedule"
-                icon={Calendar}
-                defaultOpen={userState === 'established'}
-                summary={maintenanceSummary}
-            >
-                <MaintenanceDashboard
-                    records={records}
-                    userId={userId}
-                    onAddRecord={onAddRecord}
-                    onBookService={onBookService}
-                    onMarkTaskDone={onMarkTaskDone}
-                    onNavigateToRecords={onNavigateToItems}
-                    onDeleteHistoryItem={onDeleteHistoryItem}
-                    onRestoreHistoryItem={onRestoreHistoryItem}
-                    onDeleteTask={onDeleteTask}
-                    onScheduleTask={onScheduleTask}
-                    onSnoozeTask={onSnoozeTask}
-                />
-            </DashboardSection>
+            {/* MY CONTRACTORS - Single consolidated instance */}
+            <MyContractorsSection
+                contractors={contractors}
+                userId={userId}
+                onNavigateToContractors={onNavigateToContractors}
+                onCreateContractorLink={onCreateContractorLink}
+            />
 
             {/* HISTORY & ARCHIVE */}
             <DashboardSection
@@ -1116,15 +889,17 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* LOCAL INSIGHTS SECTION */}
+            {/* QUICK ACTIONS - Moved to bottom */}
             <DashboardSection
-                title="Local Insights"
-                icon={Info}
+                title="Quick Actions"
+                icon={Sparkles}
                 defaultOpen={false}
-                summary={<span className="text-xs text-slate-400 font-medium">Environmental & Risk Data</span>}
             >
-                <div className="space-y-8">
-                    <EnvironmentalInsights propertyProfile={activeProperty} />
+                <div className="grid grid-cols-2 gap-3">
+                    <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />
+                    <ActionButton icon={Plus} label="Add Item" sublabel="Manual entry" onClick={onAddRecord} />
+                    <ActionButton icon={FileText} label="View Report" sublabel="Home pedigree" onClick={onNavigateToReports} />
+                    <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
                 </div>
             </DashboardSection>
         </div>
