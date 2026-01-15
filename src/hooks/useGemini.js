@@ -399,9 +399,26 @@ export const useGemini = () => {
                    - If the invoice lists a bundled "Job Total", assign the FULL cost to the MAIN unit (e.g. Heat Pump).
                    - Assign 0.00 to secondary components to avoid double-counting.
                 
-                5. **INTELLIGENT MAINTENANCE TASKS**:
-                   - Based on the item, suggest specific maintenance tasks.
-                   - Example: If HVAC, suggest "Replace Filter" (quarterly) AND "Professional Tune-up" (annual).
+                5. **INTELLIGENT MAINTENANCE TASKS** (DETAILED NAMING REQUIRED):
+                   - Based on the item, suggest specific maintenance tasks with DESCRIPTIVE names.
+                   - **NAMING RULE**: Task names MUST include the item type for clarity.
+
+                   GOOD task names (include item context):
+                   - "Heat Pump - Annual Tune-up"
+                   - "Air Handler - Replace Filter"
+                   - "Furnace - Safety Inspection"
+                   - "AC Condenser - Clean Coils"
+                   - "Water Heater - Flush Tank"
+                   - "Water Heater - Anode Rod Check"
+
+                   BAD task names (too vague - DO NOT USE):
+                   - "Heat" ❌
+                   - "Air" ❌
+                   - "Filter" ❌
+                   - "Tune-up" ❌
+                   - "Service" ❌
+
+                   - Each task should clearly indicate WHAT item and WHAT action.
                    - Calculate the *first due date* for each task starting from the invoice date (or today).
                 
                 6. **EXTRACT INSTALLATION LOCATION (CRITICAL)**:
@@ -484,8 +501,8 @@ export const useGemini = () => {
                       "maintenanceNotes": "String",
                       "suggestedTasks": [
                         {
-                            "task": "String (e.g. Change Filter)",
-                            "frequency": "String (quarterly, annual, etc)",
+                            "task": "String (MUST be descriptive, e.g. 'Heat Pump - Annual Professional Tune-up', NOT just 'Heat' or 'Service')",
+                            "frequency": "String (quarterly, annual, semi-annual, etc)",
                             "firstDueDate": "YYYY-MM-DD"
                         }
                       ]

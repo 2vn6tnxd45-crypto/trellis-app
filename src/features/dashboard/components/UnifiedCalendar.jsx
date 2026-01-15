@@ -10,8 +10,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    ChevronLeft, ChevronRight, Calendar, Wrench, RefreshCw,
-    Briefcase, ClipboardList, MapPin, Clock, User, X
+    ChevronLeft, ChevronRight, ChevronDown, Calendar, Wrench, RefreshCw,
+    Briefcase, ClipboardList, MapPin, Clock, User, X, AlertTriangle
 } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -67,6 +67,39 @@ const EVENT_TYPES = {
         borderColor: 'border-indigo-200',
         icon: ClipboardList
     }
+};
+
+// ============================================
+// HELPER: Format Maintenance Task Title
+// ============================================
+// Ensures maintenance items have descriptive names
+const formatMaintenanceTitle = (task) => {
+    const taskName = task.taskName || task.task || '';
+    const itemName = task.item || task.recordItem || '';
+
+    // If taskName is very short (likely just "Heat" or "Air"), enhance it
+    if (taskName.length <= 5 && itemName) {
+        // Combine item + task for context
+        // "Heat Pump" + "Filter" → "Heat Pump - Filter"
+        return `${itemName} - ${taskName}`;
+    }
+
+    // If taskName already has the item name, use as-is
+    if (taskName && itemName && taskName.toLowerCase().includes(itemName.toLowerCase().split(' ')[0])) {
+        return taskName;
+    }
+
+    // If we have both and they're different, combine them
+    if (taskName && itemName && taskName !== itemName) {
+        // Check if taskName is descriptive enough on its own
+        if (taskName.split(' ').length >= 2) {
+            return taskName;
+        }
+        return `${itemName} - ${taskName}`;
+    }
+
+    // Fallback to whatever we have
+    return taskName || itemName || 'Maintenance';
 };
 
 // ============================================
@@ -186,6 +219,7 @@ export const UnifiedCalendar = ({
     const [recurringServices, setRecurringServices] = useState([]);
     const [selectedEvent, setSelectedEvent] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [showOverdueExpanded, setShowOverdueExpanded] = useState(true);
 
     // ============================================
     // DATA FETCHING
@@ -323,10 +357,11 @@ export const UnifiedCalendar = ({
             if (!taskDate) return;
 
             const isOverdue = task.daysUntil < 0;
+            const formattedTitle = formatMaintenanceTitle(task);
             events.push({
                 id: `maintenance-${task.id}`,
                 type: isOverdue ? 'MAINTENANCE_OVERDUE' : 'MAINTENANCE',
-                title: task.taskName || task.item || 'Maintenance',
+                title: formattedTitle,
                 date: taskDate,
                 time: null,
                 contractor: task.contractor || null,
@@ -405,6 +440,28 @@ export const UnifiedCalendar = ({
     }, [currentMonth, allEvents]);
 
     // ============================================
+    // OVERDUE ITEMS - ACROSS ALL MONTHS
+    // ============================================
+    const overdueEvents = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        return allEvents.filter(event => {
+            // Only maintenance items can be overdue
+            if (event.type !== 'MAINTENANCE_OVERDUE' && event.type !== 'MAINTENANCE') return false;
+            if (!event.date) return false;
+
+            const eventDate = new Date(event.date);
+            eventDate.setHours(0, 0, 0, 0);
+
+            return eventDate < today;
+        }).sort((a, b) => {
+            // Sort by how overdue (most overdue first)
+            return new Date(a.date) - new Date(b.date);
+        });
+    }, [allEvents]);
+
+    // ============================================
     // UPCOMING EVENTS (Next 7 days)
     // ============================================
     const upcomingEvents = useMemo(() => {
@@ -442,7 +499,80 @@ export const UnifiedCalendar = ({
     const maxEventsToShow = compact ? 2 : 3;
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="space-y-4">
+            {/* ============================================ */}
+            {/* OVERDUE ITEMS BANNER - Always visible */}
+            {/* ============================================ */}
+            {overdueEvents.length > 0 && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl overflow-hidden">
+                    {/* Banner Header */}
+                    <button
+                        onClick={() => setShowOverdueExpanded(!showOverdueExpanded)}
+                        className="w-full bg-red-100 px-4 py-3 border-b border-red-200 hover:bg-red-150 transition-colors"
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-red-500 rounded-lg">
+                                    <AlertTriangle size={16} className="text-white" />
+                                </div>
+                                <div className="text-left">
+                                    <h3 className="font-bold text-red-800">
+                                        {overdueEvents.length} Overdue Item{overdueEvents.length !== 1 ? 's' : ''}
+                                    </h3>
+                                    <p className="text-xs text-red-600">
+                                        These maintenance tasks need attention
+                                    </p>
+                                </div>
+                            </div>
+                            <ChevronDown
+                                size={18}
+                                className={`text-red-600 transition-transform ${showOverdueExpanded ? 'rotate-180' : ''}`}
+                            />
+                        </div>
+                    </button>
+
+                    {/* Expandable Content */}
+                    {showOverdueExpanded && (
+                        <div className="p-4 space-y-2">
+                            {overdueEvents.map(event => {
+                                const daysOverdue = Math.floor((new Date() - new Date(event.date)) / (1000 * 60 * 60 * 24));
+
+                                return (
+                                    <button
+                                        key={event.id}
+                                        className="w-full flex items-center justify-between bg-white p-3 rounded-xl border border-red-200 hover:border-red-300 transition-colors text-left"
+                                        onClick={() => setSelectedEvent(event)}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-red-100 rounded-lg">
+                                                <Wrench size={16} className="text-red-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-slate-800">
+                                                    {event.title}
+                                                </p>
+                                                <p className="text-xs text-red-600">
+                                                    {daysOverdue} day{daysOverdue !== 1 ? 's' : ''} overdue
+                                                    {event.rawData?.item && ` • ${event.rawData.item}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <span className="text-xs text-slate-500">
+                                                Due: {event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                            </span>
+                                            <ChevronRight size={16} className="text-slate-400" />
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Main Calendar */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
             {/* Calendar Header */}
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-800 to-slate-700">
                 <button
@@ -594,6 +724,7 @@ export const UnifiedCalendar = ({
                     onClose={() => setSelectedEvent(null)}
                 />
             )}
+            </div>
         </div>
     );
 };
