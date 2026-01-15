@@ -427,21 +427,95 @@ export const completeEvaluation = async (contractorId, evaluationId, findings) =
 };
 
 // ============================================
+// UPDATE HOMEOWNER PENDING EVALUATION STATUS
+// ============================================
+// Called when a quote is sent for an evaluation
+// Updates or removes the evaluation from the homeowner's pendingEvaluations array
+
+export const updateHomeownerPendingEvaluation = async (
+    customerId,
+    evaluationId,
+    newStatus = 'quote_received',
+    quoteId = null
+) => {
+    try {
+        const profileRef = doc(db, 'artifacts', appId, 'users', customerId, 'settings', 'profile');
+        const profileSnap = await getDoc(profileRef);
+
+        if (!profileSnap.exists()) {
+            console.warn('[updateHomeownerPendingEvaluation] Profile not found for:', customerId);
+            return { success: false, reason: 'profile_not_found' };
+        }
+
+        const profile = profileSnap.data();
+        const pendingEvaluations = profile.pendingEvaluations || [];
+
+        // Find and update the matching evaluation
+        const updatedEvaluations = pendingEvaluations.map(evalItem => {
+            if (evalItem.evaluationId === evaluationId) {
+                return {
+                    ...evalItem,
+                    status: newStatus,
+                    quoteId: quoteId,
+                    quotedAt: new Date().toISOString()
+                };
+            }
+            return evalItem;
+        });
+
+        // Update the profile
+        await updateDoc(profileRef, {
+            pendingEvaluations: updatedEvaluations,
+            updatedAt: serverTimestamp()
+        });
+
+        return { success: true };
+
+    } catch (error) {
+        console.error('[updateHomeownerPendingEvaluation] Error:', error);
+        throw error;
+    }
+};
+
+// ============================================
 // LINK QUOTE TO EVALUATION
 // ============================================
 
 export const linkQuoteToEvaluation = async (contractorId, evaluationId, quoteId) => {
     try {
         const evalRef = doc(db, getEvaluationsPath(contractorId), evaluationId);
-        
+
+        // First, get the evaluation to find the customerId
+        const evalSnap = await getDoc(evalRef);
+        const evaluationData = evalSnap.exists() ? evalSnap.data() : null;
+
+        // Update the evaluation document
         await updateDoc(evalRef, {
             quoteId,
             status: EVALUATION_STATUS.QUOTED,
+            quotedAt: serverTimestamp(),
             updatedAt: serverTimestamp()
         });
-        
+
+        // CRITICAL: Update the homeowner's profile to remove/update pending evaluation
+        // This prevents the "Awaiting Quotes" section from showing stale data
+        if (evaluationData?.customerId) {
+            try {
+                await updateHomeownerPendingEvaluation(
+                    evaluationData.customerId,
+                    evaluationId,
+                    'quote_received',
+                    quoteId
+                );
+                console.log('✅ Updated homeowner pending evaluation status:', evaluationId);
+            } catch (err) {
+                // Log but don't fail the main operation
+                console.warn('Could not update homeowner pending evaluation:', err);
+            }
+        }
+
         return { success: true };
-        
+
     } catch (error) {
         console.error('Error linking quote to evaluation:', error);
         throw error;

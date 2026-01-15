@@ -540,7 +540,7 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
 };
 
 // --- PENDING EVALUATIONS SECTION ---
-const PendingEvaluationsSection = ({ userId, onCountChange }) => {
+const PendingEvaluationsSection = ({ userId, onCountChange, quotes = [] }) => {
     const [evaluations, setEvaluations] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -557,10 +557,36 @@ const PendingEvaluationsSection = ({ userId, onCountChange }) => {
 
                 if (profileSnap.exists()) {
                     const profile = profileSnap.data();
-                    const evals = profile.pendingEvaluations || [];
-                    setEvaluations(evals);
+                    const allPendingEvals = profile.pendingEvaluations || [];
+
+                    // Filter out evaluations that already have quotes
+                    // This handles both:
+                    // 1. Evaluations where status was updated to 'quote_received'
+                    // 2. Stale data where status wasn't updated but a quote exists
+                    const trulyPendingEvals = allPendingEvals.filter(evalItem => {
+                        // If status is already 'quote_received', filter it out
+                        if (evalItem.status === 'quote_received') {
+                            return false;
+                        }
+
+                        // Check if there's a matching quote by evaluationId
+                        // (quotes created from evaluations have sourceEvaluationId or evaluationId)
+                        const hasMatchingQuote = quotes.some(quote =>
+                            quote.sourceEvaluationId === evalItem.evaluationId ||
+                            quote.evaluationId === evalItem.evaluationId
+                        );
+
+                        if (hasMatchingQuote) {
+                            console.log('[PendingEvaluations] Filtering out evaluation with existing quote:', evalItem.evaluationId);
+                            return false;
+                        }
+
+                        return true;
+                    });
+
+                    setEvaluations(trulyPendingEvals);
                     // Report count to parent for smart hierarchy
-                    if (onCountChange) onCountChange(evals.length);
+                    if (onCountChange) onCountChange(trulyPendingEvals.length);
                 }
             } catch (err) {
                 console.error('Error fetching pending evaluations:', err);
@@ -570,7 +596,7 @@ const PendingEvaluationsSection = ({ userId, onCountChange }) => {
         };
 
         fetchPendingEvaluations();
-    }, [userId, onCountChange]);
+    }, [userId, quotes, onCountChange]);
 
     if (loading || evaluations.length === 0) return null;
 
@@ -680,6 +706,9 @@ const ActionNeededSection = ({
     const [evalCount, setEvalCount] = useState(0);
     const [recurringCount, setRecurringCount] = useState(0);
 
+    // Get quotes to pass to PendingEvaluationsSection for cross-referencing
+    const { quotes } = useCustomerQuotes(userId);
+
     // Forward counts to parent if needed
     useEffect(() => {
         if (onProjectCountChange) onProjectCountChange(projectCount);
@@ -722,7 +751,7 @@ const ActionNeededSection = ({
                 <ActiveProjectsSection userId={userId} onCountChange={setProjectCount} />
                 <RecurringServicesSection userId={userId} onCountChange={setRecurringCount} />
                 <MyQuotesSection userId={userId} onCountChange={setQuoteCount} />
-                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} />
+                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} quotes={quotes} />
             </div>
         );
     }
@@ -744,8 +773,8 @@ const ActionNeededSection = ({
                 {/* Quotes */}
                 <MyQuotesSection userId={userId} onCountChange={setQuoteCount} />
 
-                {/* Pending Evaluations */}
-                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} />
+                {/* Pending Evaluations - pass quotes for cross-referencing */}
+                <PendingEvaluationsSection userId={userId} onCountChange={setEvalCount} quotes={quotes} />
             </div>
         </DashboardSection>
     );
