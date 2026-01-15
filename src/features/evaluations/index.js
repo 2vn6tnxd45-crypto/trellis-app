@@ -40,6 +40,7 @@ export {
     // Homeowner Actions
     submitEvaluationMedia,
     completeSubmission,
+    linkCustomerToEvaluation,
     
     // Contractor Actions
     requestAdditionalInfo,

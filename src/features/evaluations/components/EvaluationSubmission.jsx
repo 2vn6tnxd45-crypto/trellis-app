@@ -29,6 +29,7 @@ import { doc, setDoc, getDoc, serverTimestamp, waitForPendingWrites } from 'fire
 import { auth, db } from '../../../config/firebase';
 import { appId, googleMapsApiKey } from '../../../config/constants';
 import { addContractorToProsList } from '../../quotes/lib/quoteService';
+import { linkCustomerToEvaluation } from '../lib/evaluationService';
 import toast from 'react-hot-toast';
 import { analyzeAndSaveEvaluation } from '../lib/evaluationAI';
 
@@ -146,7 +147,7 @@ export const EvaluationSubmission = ({
     // ----------------------------------------
     // Save Evaluation to Profile Helper
     // ----------------------------------------
-    const saveEvaluationToProfile = async (userId, propertyId) => {
+    const saveEvaluationToProfile = async (userId, propertyId, userEmail = null, userName = null) => {
         const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
 
         await setDoc(profileRef, {
@@ -161,6 +162,19 @@ export const EvaluationSubmission = ({
                 status: 'awaiting_quote'
             }]
         }, { merge: true });
+
+        // CRITICAL: Link customer to evaluation so quotes appear on homeowner dashboard
+        try {
+            await linkCustomerToEvaluation(contractorId, evaluationId, {
+                customerId: userId,
+                customerPropertyId: propertyId || null,
+                customerName: userName || evaluation?.customerName || null,
+                customerEmail: userEmail || evaluation?.customerEmail || null
+            });
+            console.log('✅ Customer linked to evaluation:', userId);
+        } catch (err) {
+            console.error('Failed to link customer to evaluation:', err);
+        }
 
         // Add contractor to homeowner's Pros list
         try {
@@ -238,7 +252,12 @@ export const EvaluationSubmission = ({
             const profileSnap = await getDoc(profileRef);
 
             if (profileSnap.exists() && profileSnap.data().properties?.length > 0) {
-                await saveEvaluationToProfile(credential.user.uid, profileSnap.data().activePropertyId);
+                await saveEvaluationToProfile(
+                    credential.user.uid,
+                    profileSnap.data().activePropertyId,
+                    credential.user.email,
+                    credential.user.displayName
+                );
                 setFlowStep('complete');
             } else {
                 setFlowStep('property');
@@ -271,7 +290,12 @@ export const EvaluationSubmission = ({
             const profileSnap = await getDoc(profileRef);
 
             if (profileSnap.exists() && profileSnap.data().properties?.length > 0) {
-                await saveEvaluationToProfile(credential.user.uid, profileSnap.data().activePropertyId);
+                await saveEvaluationToProfile(
+                    credential.user.uid,
+                    profileSnap.data().activePropertyId,
+                    credential.user.email,
+                    credential.user.displayName
+                );
                 setFlowStep('complete');
             } else {
                 setFlowStep('property');
@@ -333,6 +357,19 @@ export const EvaluationSubmission = ({
                 createdAt: existingProfile.createdAt || serverTimestamp(),
                 updatedAt: serverTimestamp()
             }, { merge: true });
+
+            // CRITICAL: Link customer to evaluation so quotes appear on homeowner dashboard
+            try {
+                await linkCustomerToEvaluation(contractorId, evaluationId, {
+                    customerId: currentUser.uid,
+                    customerPropertyId: newPropertyId,
+                    customerName: accountName || currentUser.displayName || null,
+                    customerEmail: accountEmail || currentUser.email || null
+                });
+                console.log('✅ Customer linked to evaluation:', currentUser.uid);
+            } catch (err) {
+                console.error('Failed to link customer to evaluation:', err);
+            }
 
             try {
                 await addContractorToProsList(currentUser.uid, {
@@ -419,7 +456,12 @@ export const EvaluationSubmission = ({
                 const profileSnap = await getDoc(profileRef);
 
                 if (profileSnap.exists() && profileSnap.data().properties?.length > 0) {
-                    await saveEvaluationToProfile(currentUser.uid, profileSnap.data().activePropertyId);
+                    await saveEvaluationToProfile(
+                        currentUser.uid,
+                        profileSnap.data().activePropertyId,
+                        currentUser.email,
+                        currentUser.displayName
+                    );
                     setFlowStep('complete');
                 } else {
                     setFlowStep('property');

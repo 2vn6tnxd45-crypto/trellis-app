@@ -255,9 +255,9 @@ export const useSingleEvaluation = (contractorId, evaluationId) => {
         return submitEvaluationMedia(contractorId, evaluationId, submissionData);
     }, [contractorId, evaluationId]);
 
-    const markComplete = useCallback(async () => {
+    const markComplete = useCallback(async (customerInfo = null) => {
         if (!contractorId || !evaluationId) throw new Error('Missing IDs');
-        return completeSubmission(contractorId, evaluationId);
+        return completeSubmission(contractorId, evaluationId, customerInfo);
     }, [contractorId, evaluationId]);
 
     // ----------------------------------------

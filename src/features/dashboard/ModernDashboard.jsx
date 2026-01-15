@@ -996,27 +996,6 @@ export const ModernDashboard = ({
             </div>
 
             {/* ============================================ */}
-            {/* UNIFIED HOME CALENDAR - Shows all scheduled events */}
-            {/* ============================================ */}
-            <DashboardSection
-                title="Home Calendar"
-                icon={Calendar}
-                defaultOpen={true}
-                summary={
-                    maintenanceTasks.some(t => t.daysUntil < 0)
-                        ? <span className="text-xs font-bold text-red-600">Action needed</span>
-                        : <span className="text-xs font-bold text-emerald-600">Up to date</span>
-                }
-            >
-                <UnifiedCalendar
-                    userId={userId}
-                    maintenanceTasks={maintenanceTasks}
-                    showLegend={true}
-                    compact={false}
-                />
-            </DashboardSection>
-
-            {/* ============================================ */}
             {/* SMART HIERARCHY - Content order based on user state */}
             {/* ============================================ */}
 
@@ -1044,6 +1023,25 @@ export const ModernDashboard = ({
                 summary={<span className="text-xs text-emerald-600 font-medium">✨ Auto-discovered</span>}
             >
                 <PropertyIntelligence propertyProfile={activeProperty} />
+            </DashboardSection>
+
+            {/* UNIFIED HOME CALENDAR - Shows all scheduled events */}
+            <DashboardSection
+                title="Home Calendar"
+                icon={Calendar}
+                defaultOpen={true}
+                summary={
+                    maintenanceTasks.some(t => t.daysUntil < 0)
+                        ? <span className="text-xs font-bold text-red-600">Action needed</span>
+                        : <span className="text-xs font-bold text-emerald-600">Up to date</span>
+                }
+            >
+                <UnifiedCalendar
+                    userId={userId}
+                    maintenanceTasks={maintenanceTasks}
+                    showLegend={true}
+                    compact={false}
+                />
             </DashboardSection>
 
             {/* WELCOME/ONBOARDING - For new users or users without established profiles */}

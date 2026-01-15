@@ -269,20 +269,60 @@ export const submitEvaluationMedia = async (contractorId, evaluationId, submissi
 // HOMEOWNER: MARK SUBMISSION COMPLETE
 // ============================================
 
-export const completeSubmission = async (contractorId, evaluationId) => {
+export const completeSubmission = async (contractorId, evaluationId, customerInfo = null) => {
     try {
         const evalRef = doc(db, getEvaluationsPath(contractorId), evaluationId);
-        
-        await updateDoc(evalRef, {
+
+        const updateData = {
             status: EVALUATION_STATUS.COMPLETED,
             'submissions.completedAt': serverTimestamp(),
             updatedAt: serverTimestamp()
-        });
-        
+        };
+
+        // If customer info provided, link the homeowner to this evaluation
+        // This is critical for quotes to appear on the homeowner's dashboard
+        if (customerInfo?.customerId) {
+            updateData.customerId = customerInfo.customerId;
+            if (customerInfo.customerPropertyId) {
+                updateData.customerPropertyId = customerInfo.customerPropertyId;
+            }
+            if (customerInfo.customerName) {
+                updateData.customerName = customerInfo.customerName;
+            }
+            if (customerInfo.customerEmail) {
+                updateData.customerEmail = customerInfo.customerEmail;
+            }
+        }
+
+        await updateDoc(evalRef, updateData);
+
         return { success: true };
-        
+
     } catch (error) {
         console.error('Error completing submission:', error);
+        throw error;
+    }
+};
+
+// ============================================
+// HOMEOWNER: LINK CUSTOMER TO EVALUATION
+// ============================================
+// Call this after homeowner creates account or when they claim an evaluation
+export const linkCustomerToEvaluation = async (contractorId, evaluationId, customerInfo) => {
+    try {
+        const evalRef = doc(db, getEvaluationsPath(contractorId), evaluationId);
+
+        await updateDoc(evalRef, {
+            customerId: customerInfo.customerId,
+            customerPropertyId: customerInfo.customerPropertyId || null,
+            customerName: customerInfo.customerName || null,
+            customerEmail: customerInfo.customerEmail || null,
+            updatedAt: serverTimestamp()
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error linking customer to evaluation:', error);
         throw error;
     }
 };

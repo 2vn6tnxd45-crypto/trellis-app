@@ -5,10 +5,11 @@
 // Dropdown with property-aware room options
 // Supports custom entry for rooms not in the list
 
-import React, { useState, useMemo } from 'react';
-import { ChevronDown, Home, Plus } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { ChevronDown, Home, Plus, Check } from 'lucide-react';
 import { useProperty } from '../../contexts/PropertyContext';
 import { groupRoomsByCategory, getDefaultRoomOptions } from '../../utils/roomUtils';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 /**
  * RoomSelector - Dynamic room dropdown based on property data
@@ -21,10 +22,10 @@ import { groupRoomsByCategory, getDefaultRoomOptions } from '../../utils/roomUti
  * @param {boolean} disabled - Disable the selector
  * @param {Array} customOptions - Override room options (for contractor invite without property context)
  */
-export function RoomSelector({ 
-    value, 
-    onChange, 
-    placeholder = 'Select room...', 
+export function RoomSelector({
+    value,
+    onChange,
+    placeholder = 'Select room...',
     allowCustom = true,
     className = '',
     disabled = false,
@@ -33,20 +34,20 @@ export function RoomSelector({
     const { roomOptions: contextRoomOptions } = useProperty();
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [customValue, setCustomValue] = useState('');
-    
+
     // Use custom options if provided, otherwise use context options
     const roomOptions = customOptions || contextRoomOptions || getDefaultRoomOptions();
-    
+
     // Group rooms by category for better UX
     const groupedRooms = useMemo(() => {
         return groupRoomsByCategory(roomOptions);
     }, [roomOptions]);
-    
+
     // Check if current value exists in options
     const valueExists = useMemo(() => {
         return roomOptions.some(r => r.value === value);
     }, [roomOptions, value]);
-    
+
     // Get display label for current value
     const displayLabel = useMemo(() => {
         if (!value) return null;
@@ -56,35 +57,19 @@ export function RoomSelector({
         return value.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }, [value, roomOptions]);
 
-    const handleSelectChange = (e) => {
-        const newValue = e.target.value;
-        
-        if (newValue === '__custom__') {
+    // Custom Dropdown State
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
+    useClickOutside(containerRef, () => setIsOpen(false));
+
+    const handleSelectOption = (optionValue) => {
+        if (optionValue === '__custom__') {
             setShowCustomInput(true);
             setCustomValue('');
+            setIsOpen(false);
         } else {
-            setShowCustomInput(false);
-            onChange(newValue);
-        }
-    };
-    
-    const handleCustomSubmit = () => {
-        if (customValue.trim()) {
-            // Convert to slug format for storage
-            const slug = customValue.trim().toLowerCase().replace(/\s+/g, '-');
-            onChange(slug);
-            setShowCustomInput(false);
-            setCustomValue('');
-        }
-    };
-    
-    const handleCustomKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            handleCustomSubmit();
-        } else if (e.key === 'Escape') {
-            setShowCustomInput(false);
-            setCustomValue('');
+            onChange(optionValue);
+            setIsOpen(false);
         }
     };
 
@@ -139,57 +124,99 @@ export function RoomSelector({
         );
     }
 
+    // Find label for current value
+    const currentLabel = value ? (
+        roomOptions.find(r => r.value === value)?.label ||
+        value.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+    ) : placeholder;
+
     return (
-        <div className={`relative ${className}`}>
-            <select
-                value={value || ''}
-                onChange={handleSelectChange}
+        <div className={`relative ${className}`} ref={containerRef}>
+            <button
+                type="button"
+                onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
-                className="
-                    w-full
-                    appearance-none
-                    px-3 py-2 pr-10
-                    border border-slate-200 rounded-lg
-                    text-sm text-slate-800
+                className={`
+                    w-full flex items-center justify-between
+                    px-3 py-2
+                    border rounded-lg
+                    text-sm
                     bg-white
-                    focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500
-                    disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed
-                    cursor-pointer
-                "
+                    transition-all
+                    ${isOpen ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-slate-300'}
+                    ${disabled ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer'}
+                `}
             >
-                <option value="">{placeholder}</option>
-                
-                {/* Grouped options */}
-                {Object.entries(groupedRooms).map(([category, rooms]) => (
-                    <optgroup key={category} label={category}>
-                        {rooms.map(room => (
-                            <option key={room.value} value={room.value}>
-                                {room.label}
-                            </option>
+                <span className={`truncate ${!value ? 'text-slate-400' : ''}`}>
+                    {currentLabel}
+                </span>
+                <ChevronDown
+                    size={16}
+                    className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                />
+            </button>
+
+            {isOpen && (
+                <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-1">
+                        {/* Grouped options */}
+                        {Object.entries(groupedRooms).map(([category, rooms]) => (
+                            <div key={category} className="mb-2 last:mb-0">
+                                <div className="px-3 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                    {category}
+                                </div>
+                                {rooms.map(room => (
+                                    <button
+                                        key={room.value}
+                                        type="button"
+                                        onClick={() => handleSelectOption(room.value)}
+                                        className={`
+                                            w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors
+                                            ${room.value === value
+                                                ? 'bg-emerald-50 text-emerald-700 font-medium'
+                                                : 'text-slate-600 hover:bg-slate-50'}
+                                        `}
+                                    >
+                                        <span>{room.label}</span>
+                                        {room.value === value && <Check size={14} className="text-emerald-500" />}
+                                    </button>
+                                ))}
+                            </div>
                         ))}
-                    </optgroup>
-                ))}
-                
-                {/* Show current value if it's not in the list (legacy/custom) */}
-                {value && !valueExists && (
-                    <optgroup label="Current Selection">
-                        <option value={value}>{displayLabel}</option>
-                    </optgroup>
-                )}
-                
-                {/* Custom entry option */}
-                {allowCustom && (
-                    <optgroup label="─────────────">
-                        <option value="__custom__">+ Add custom room...</option>
-                    </optgroup>
-                )}
-            </select>
-            
-            {/* Dropdown arrow */}
-            <ChevronDown 
-                size={16} 
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" 
-            />
+
+                        {/* Current value if custom */}
+                        {value && !valueExists && (
+                            <div className="mb-2 border-t border-slate-100 pt-1">
+                                <div className="px-3 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                    Current Selection
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectOption(value)}
+                                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm bg-emerald-50 text-emerald-700 font-medium"
+                                >
+                                    <span>{displayLabel}</span>
+                                    <Check size={14} className="text-emerald-500" />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Custom entry option */}
+                        {allowCustom && (
+                            <div className="border-t border-slate-100 pt-1 mt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => handleSelectOption('__custom__')}
+                                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-emerald-600 font-medium hover:bg-emerald-50 transition-colors"
+                                >
+                                    <Plus size={14} />
+                                    <span>Add custom room...</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -197,47 +224,70 @@ export function RoomSelector({
 /**
  * RoomSelectorSimple - Simpler version without grouping for compact UIs
  */
-export function RoomSelectorSimple({ 
-    value, 
-    onChange, 
-    placeholder = 'Select room...', 
+export function RoomSelectorSimple({
+    value,
+    onChange,
+    placeholder = 'Select room...',
     className = '',
     disabled = false,
     options = null
 }) {
     const { roomOptions: contextRoomOptions } = useProperty();
     const roomOptions = options || contextRoomOptions || getDefaultRoomOptions();
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = useRef(null);
+    useClickOutside(containerRef, () => setIsOpen(false));
+
+    const selectedLabel = roomOptions.find(r => r.value === value)?.label || placeholder;
 
     return (
-        <div className={`relative ${className}`}>
-            <select
-                value={value || ''}
-                onChange={(e) => onChange(e.target.value)}
+        <div className={`relative ${className}`} ref={containerRef}>
+            <button
+                type="button"
+                onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
-                className="
-                    w-full
-                    appearance-none
-                    px-3 py-2 pr-10
-                    border border-slate-200 rounded-lg
-                    text-sm text-slate-800
+                className={`
+                    w-full flex items-center justify-between
+                    px-3 py-2
+                    border rounded-lg
+                    text-sm
                     bg-white
-                    focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500
-                    disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed
-                    cursor-pointer
-                "
+                    transition-all
+                    ${isOpen ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-slate-300'}
+                    ${disabled ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'text-slate-800 cursor-pointer'}
+                `}
             >
-                <option value="">{placeholder}</option>
-                {roomOptions.map(room => (
-                    <option key={room.value} value={room.value}>
-                        {room.label}
-                    </option>
-                ))}
-            </select>
-            
-            <ChevronDown 
-                size={16} 
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" 
-            />
+                <span className={`truncate ${!value ? 'text-slate-400' : ''}`}>
+                    {selectedLabel}
+                </span>
+                <ChevronDown
+                    size={16}
+                    className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                />
+            </button>
+
+            {isOpen && (
+                <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-1">
+                        {roomOptions.map(room => (
+                            <button
+                                key={room.value}
+                                type="button"
+                                onClick={() => { onChange(room.value); setIsOpen(false); }}
+                                className={`
+                                    w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors
+                                    ${room.value === value
+                                        ? 'bg-emerald-50 text-emerald-700 font-medium'
+                                        : 'text-slate-600 hover:bg-slate-50'}
+                                `}
+                            >
+                                <span>{room.label}</span>
+                                {room.value === value && <Check size={14} className="text-emerald-500" />}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
