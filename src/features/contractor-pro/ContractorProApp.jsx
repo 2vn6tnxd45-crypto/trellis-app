@@ -64,7 +64,8 @@ import {
     CreateEvaluationRequest,
     EvaluationReview,
     EvaluationsListView,
-    prepareQuoteFromEvaluation
+    prepareQuoteFromEvaluation,
+    linkQuoteToEvaluation
 } from '../evaluations';
 
 import { ContractorLeadDashboard } from '../marketplace';
@@ -1633,7 +1634,23 @@ export const ContractorProApp = () => {
                 setSelectedQuote(prev => ({ ...prev, ...quoteData }));
                 toast.success('Quote updated');
             } else {
-                const result = await createQuoteFn(quoteData);
+                // Include evaluationId if this quote came from an evaluation
+                const dataWithEvaluation = {
+                    ...quoteData,
+                    evaluationId: selectedQuote?.evaluationId || null
+                };
+                const result = await createQuoteFn(dataWithEvaluation);
+
+                // Link the quote back to the evaluation if it came from one
+                if (selectedQuote?.fromEvaluation && selectedQuote?.evaluationId && user?.uid) {
+                    try {
+                        await linkQuoteToEvaluation(user.uid, selectedQuote.evaluationId, result.quoteId);
+                        console.log('✅ Quote linked to evaluation:', selectedQuote.evaluationId);
+                    } catch (linkErr) {
+                        console.warn('Could not link quote to evaluation:', linkErr);
+                    }
+                }
+
                 toast.success('Quote saved');
                 setActiveView('quotes');
             }
@@ -1641,7 +1658,7 @@ export const ContractorProApp = () => {
             toast.error('Failed to save quote: ' + error.message);
             throw error;
         }
-    }, [selectedQuote, updateQuoteFn, createQuoteFn]);
+    }, [selectedQuote, updateQuoteFn, createQuoteFn, user?.uid]);
 
     const handleSendQuote = useCallback(async (quoteData) => {
         try {
@@ -1651,8 +1668,24 @@ export const ContractorProApp = () => {
                 await updateQuoteFn(selectedQuote.id, quoteData);
                 quoteId = selectedQuote.id;
             } else {
-                const result = await createQuoteFn({ ...quoteData, status: 'draft' });
+                // Include evaluationId if this quote came from an evaluation
+                const dataWithEvaluation = {
+                    ...quoteData,
+                    status: 'draft',
+                    evaluationId: selectedQuote?.evaluationId || null
+                };
+                const result = await createQuoteFn(dataWithEvaluation);
                 quoteId = result.quoteId;
+
+                // Link the quote back to the evaluation if it came from one
+                if (selectedQuote?.fromEvaluation && selectedQuote?.evaluationId && user?.uid) {
+                    try {
+                        await linkQuoteToEvaluation(user.uid, selectedQuote.evaluationId, quoteId);
+                        console.log('✅ Quote linked to evaluation:', selectedQuote.evaluationId);
+                    } catch (linkErr) {
+                        console.warn('Could not link quote to evaluation:', linkErr);
+                    }
+                }
             }
 
             await sendQuoteFn(quoteId);
@@ -1663,7 +1696,7 @@ export const ContractorProApp = () => {
             toast.error('Failed to send quote: ' + error.message);
             throw error;
         }
-    }, [selectedQuote, updateQuoteFn, createQuoteFn, sendQuoteFn]);
+    }, [selectedQuote, updateQuoteFn, createQuoteFn, sendQuoteFn, user?.uid]);
 
     const handleDeleteQuote = useCallback(async (quoteId) => {
         try {

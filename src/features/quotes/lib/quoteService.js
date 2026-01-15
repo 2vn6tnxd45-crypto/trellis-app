@@ -101,6 +101,11 @@ export async function createQuote(contractorId, quoteData) {
             address: quoteData.customer?.address || ''
         },
         customerId: quoteData.customerId || null,
+        propertyId: quoteData.propertyId || null,
+
+        // Source tracking - links back to evaluation if quote was created from one
+        sourceEvaluationId: quoteData.evaluationId || null,
+
         title: quoteData.title || '',
         lineItems: quoteData.lineItems || [],
         // NEW: Store inventory intents separately for easy access
@@ -297,10 +302,11 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             id: jobRef.id,
             jobNumber,
 
-            // Link to source
+            // Link to source - full chain traceability
             sourceType: 'quote',
             sourceQuoteId: quoteId,
             sourceQuoteNumber: quote.quoteNumber,
+            sourceEvaluationId: quote.sourceEvaluationId || null,
 
             // Contractor ownership
             contractorId,
@@ -320,6 +326,7 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
                 address: quote.customer?.address || ''
             },
             customerId: quote.customerId || null,
+            propertyId: quote.propertyId || null,
             createdBy: quote.customerId || null,
 
             // Service address - parse the formatted string into components
