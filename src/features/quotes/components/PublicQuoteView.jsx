@@ -629,12 +629,12 @@ const LineItemTypeBadge = ({ type }) => {
 // ============================================
 // QUOTE CONTENT
 // ============================================
-const QuoteContent = ({ 
-    quote, 
-    contractor, 
+const QuoteContent = ({
+    quote,
+    contractor,
     contractorId,
     user,
-    onAccept, 
+    onAccept,
     onDecline,
     onSaveToKrib,
     isSaving,
@@ -645,7 +645,7 @@ const QuoteContent = ({
 }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
-    
+
     const handleDecline = async (reason) => {
         setIsSubmittingDecline(true);
         try {
@@ -654,6 +654,10 @@ const QuoteContent = ({
         } finally {
             setIsSubmittingDecline(false);
         }
+    };
+
+    const handleGoToDashboard = () => {
+        window.location.href = window.location.origin + '/app?from=quote';
     };
 
     const statusConfig = {
@@ -668,9 +672,28 @@ const QuoteContent = ({
     const status = statusConfig[quote.status] || statusConfig.draft;
     const canAccept = ['sent', 'viewed'].includes(quote.status);
     const isAccepted = quote.status === 'accepted';
-    
+
     return (
         <div className="min-h-screen bg-slate-50 pb-40">
+            {/* Navigation Header - Show for logged-in users who claimed the quote */}
+            {user && alreadyClaimed && (
+                <div className="bg-emerald-600 text-white px-4 py-3">
+                    <div className="max-w-2xl mx-auto flex items-center justify-between">
+                        <button
+                            onClick={handleGoToDashboard}
+                            className="flex items-center gap-2 text-white/90 hover:text-white transition-colors font-medium"
+                        >
+                            <ArrowLeft size={18} />
+                            Back to Dashboard
+                        </button>
+                        <div className="flex items-center gap-2 text-emerald-100 text-sm">
+                            <Home size={16} />
+                            <span>Saved to Krib</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white px-4 py-8">
                 <div className="max-w-2xl mx-auto">

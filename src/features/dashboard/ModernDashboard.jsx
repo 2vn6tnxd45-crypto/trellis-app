@@ -4,7 +4,7 @@ import {
     Sparkles, Plus, Camera, Clock, Package, FileText,
     AlertTriangle, Wrench, CheckCircle2, Info,
     Calendar, X, ExternalLink, Hammer, MapPin, Home,
-    Trash2, ClipboardList, Archive, RotateCcw
+    Trash2, ClipboardList, Archive, RotateCcw, Bell
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
@@ -365,6 +365,52 @@ const ActiveProjectsSection = ({ userId, onCountChange }) => {
     );
 };
 
+// --- HOMEOWNER QUOTE STATUS BADGE ---
+// Translates contractor-centric statuses to homeowner-friendly labels
+const HomeownerQuoteStatusBadge = ({ status }) => {
+    // Map contractor statuses to homeowner-friendly labels
+    const statusConfig = {
+        sent: {
+            label: 'Review Needed',
+            bg: 'bg-amber-100',
+            text: 'text-amber-700',
+            icon: Bell,
+            needsAction: true
+        },
+        viewed: {
+            label: 'Review Needed',
+            bg: 'bg-amber-100',
+            text: 'text-amber-700',
+            icon: Bell,
+            needsAction: true
+        },
+        draft: {
+            label: 'Pending',
+            bg: 'bg-slate-100',
+            text: 'text-slate-600',
+            icon: Clock,
+            needsAction: false
+        },
+        accepted: {
+            label: 'Accepted',
+            bg: 'bg-emerald-100',
+            text: 'text-emerald-700',
+            icon: CheckCircle2,
+            needsAction: false
+        }
+    };
+
+    const config = statusConfig[status] || statusConfig.draft;
+    const Icon = config.icon;
+
+    return (
+        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${config.bg} ${config.text}`}>
+            <Icon size={12} />
+            {config.label}
+        </span>
+    );
+};
+
 // --- QUOTES SECTION COMPONENT ---
 const MyQuotesSection = ({ userId, onCountChange }) => {
     const { quotes, loading, error, refresh } = useCustomerQuotes(userId);
@@ -373,6 +419,11 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
     const activeQuotes = quotes.filter(q =>
         !['accepted', 'declined', 'expired', 'cancelled'].includes(q.status)
     );
+
+    // Count quotes needing review
+    const quotesNeedingReview = activeQuotes.filter(q =>
+        ['sent', 'viewed'].includes(q.status)
+    ).length;
 
     // Report count to parent for smart hierarchy
     useEffect(() => {
@@ -393,14 +444,30 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
         }
     };
 
+    // Check if quote needs action (for visual emphasis)
+    const quoteNeedsAction = (status) => ['sent', 'viewed'].includes(status);
+
     if (loading || (!activeQuotes.length && error !== 'missing-index')) return null;
+
+    // Generate summary with action-needed indicator
+    const getSummary = () => {
+        if (quotesNeedingReview > 0) {
+            return (
+                <span className="text-xs text-amber-600 font-bold flex items-center gap-1">
+                    <Bell size={12} />
+                    {quotesNeedingReview} need{quotesNeedingReview === 1 ? 's' : ''} review
+                </span>
+            );
+        }
+        return <span className="text-xs text-emerald-600 font-bold">{activeQuotes.length} Active</span>;
+    };
 
     return (
         <DashboardSection
             title="My Quotes & Estimates"
             icon={FileText}
             defaultOpen={true}
-            summary={<span className="text-xs text-emerald-600 font-bold">{activeQuotes.length} Active</span>}
+            summary={getSummary()}
         >
             {error === 'missing-index' ? (
                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 text-sm">
@@ -413,44 +480,59 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                 </div>
             ) : (
                 <div className="grid gap-3 md:grid-cols-2">
-                    {activeQuotes.map(quote => (
-                        <a
-                            key={quote.id}
-                            href={`/app/?quote=${quote.contractorId}_${quote.id}`}
-                            className="block bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-emerald-500 transition-colors group relative pr-10"
-                        >
-                            <button
-                                onClick={(e) => handleDelete(e, quote)}
-                                className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
-                                title="Remove from profile"
+                    {activeQuotes.map(quote => {
+                        const needsAction = quoteNeedsAction(quote.status);
+                        return (
+                            <a
+                                key={quote.id}
+                                href={`/app/?quote=${quote.contractorId}_${quote.id}`}
+                                className={`block p-4 rounded-xl shadow-sm border transition-colors group relative pr-10 ${
+                                    needsAction
+                                        ? 'bg-amber-50 border-amber-200 hover:border-amber-400 ring-2 ring-amber-100'
+                                        : 'bg-white border-slate-200 hover:border-emerald-500'
+                                }`}
                             >
-                                <Trash2 size={16} />
-                            </button>
+                                {/* Action needed indicator pulse */}
+                                {needsAction && (
+                                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
+                                )}
 
-                            <div className="flex justify-between items-start mb-2">
-                                <div className="flex-1 min-w-0 pr-2">
-                                    <h3 className="font-bold text-slate-800 group-hover:text-emerald-600 transition-colors truncate">
-                                        {quote.title}
-                                    </h3>
-                                    <p className="text-xs text-slate-500 mt-0.5 truncate">
-                                        from {quote.contractorName || quote.contractor?.companyName || 'Contractor'}
-                                    </p>
+                                <button
+                                    onClick={(e) => handleDelete(e, quote)}
+                                    className="absolute top-3 right-3 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100"
+                                    title="Remove from profile"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1 min-w-0 pr-2">
+                                        <h3 className={`font-bold transition-colors truncate ${
+                                            needsAction
+                                                ? 'text-amber-800 group-hover:text-amber-900'
+                                                : 'text-slate-800 group-hover:text-emerald-600'
+                                        }`}>
+                                            {quote.title}
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                                            from {quote.contractorName || quote.contractor?.companyName || 'Contractor'}
+                                        </p>
+                                    </div>
+                                    <HomeownerQuoteStatusBadge status={quote.status} />
                                 </div>
-                                <span className={`px-2 py-1 rounded text-xs font-bold capitalize shrink-0
-                                    ${quote.status === 'accepted' ? 'bg-emerald-100 text-emerald-700' :
-                                        quote.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}
-                                `}>
-                                    {quote.status}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm text-slate-500">
-                                <span className="font-medium text-slate-700">${(quote.total || 0).toLocaleString()}</span>
-                                <span className="flex items-center gap-1 text-xs">
-                                    View Details <ExternalLink size={12} />
-                                </span>
-                            </div>
-                        </a>
-                    ))}
+                                <div className="flex justify-between items-center text-sm text-slate-500">
+                                    <span className={`font-medium ${needsAction ? 'text-amber-700' : 'text-slate-700'}`}>
+                                        ${(quote.total || 0).toLocaleString()}
+                                    </span>
+                                    <span className={`flex items-center gap-1 text-xs ${
+                                        needsAction ? 'text-amber-600 font-bold' : ''
+                                    }`}>
+                                        {needsAction ? 'Review Quote' : 'View Details'} <ExternalLink size={12} />
+                                    </span>
+                                </div>
+                            </a>
+                        );
+                    })}
                 </div>
             )}
         </DashboardSection>
