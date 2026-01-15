@@ -43,6 +43,9 @@ import { JobCompletionReview } from '../jobs/components/completion';
 import { useCustomerRecurringServices, RecurringServiceCard } from '../recurring';
 import { RotateCcw } from 'lucide-react';
 
+// NEW: Unified Calendar
+import { UnifiedCalendar } from './components/UnifiedCalendar';
+
 // --- CONFIG & HELPERS ---
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -874,37 +877,62 @@ export const ModernDashboard = ({
         return 'new-user'; // Show onboarding
     }, [activeProjectCount, pendingQuoteCount, pendingEvalCount, validRecords.length, contractors.length]);
 
-    const maintenanceSummary = useMemo(() => {
-        let overdue = 0;
-        let dueSoon = 0;
+    // Compute maintenance tasks for the unified calendar
+    const maintenanceTasks = useMemo(() => {
+        const tasks = [];
         const now = new Date();
-
-        const checkDate = (dateStr) => {
-            if (!dateStr) return;
-            const date = new Date(dateStr);
-            if (isNaN(date.getTime())) return;
-            const diffTime = date - now;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays < 0) overdue++;
-            else if (diffDays <= 30) dueSoon++;
-        };
 
         validRecords.forEach(record => {
             if (record.maintenanceTasks && record.maintenanceTasks.length > 0) {
                 record.maintenanceTasks.forEach(t => {
-                    if (t.frequency !== 'none') checkDate(t.nextDue);
+                    if (t.frequency !== 'none' && t.nextDue) {
+                        const nextDate = new Date(t.nextDue);
+                        if (!isNaN(nextDate.getTime())) {
+                            const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                            tasks.push({
+                                id: `${record.id}-${t.taskName}`,
+                                recordId: record.id,
+                                item: record.item,
+                                taskName: t.taskName,
+                                nextDate: nextDate,
+                                daysUntil: daysUntil,
+                                frequency: t.frequency,
+                                contractor: record.contractor || null,
+                                scheduledDate: t.scheduledDate || null
+                            });
+                        }
+                    }
                 });
             } else {
                 const nextDate = getNextServiceDate(record);
-                if (nextDate) checkDate(nextDate);
+                if (nextDate) {
+                    const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                    tasks.push({
+                        id: `${record.id}-maintenance`,
+                        recordId: record.id,
+                        item: record.item,
+                        taskName: 'Maintenance',
+                        nextDate: nextDate,
+                        daysUntil: daysUntil,
+                        frequency: record.maintenanceFrequency,
+                        contractor: record.contractor || null,
+                        scheduledDate: null
+                    });
+                }
             }
         });
+
+        return tasks;
+    }, [validRecords]);
+
+    const maintenanceSummary = useMemo(() => {
+        const overdue = maintenanceTasks.filter(t => t.daysUntil < 0).length;
+        const dueSoon = maintenanceTasks.filter(t => t.daysUntil >= 0 && t.daysUntil <= 30).length;
 
         if (overdue > 0) return <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded-full flex items-center gap-1"><AlertTriangle size={10} /> {overdue} Needs Attention</span>;
         if (dueSoon > 0) return <span className="text-xs font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1"><Clock size={10} /> {dueSoon} Due Soon</span>;
         return <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"><CheckCircle2 size={10} /> All Caught Up</span>;
-    }, [validRecords]);
+    }, [maintenanceTasks]);
 
     // Handle welcome card dismiss
     const handleDismissWelcome = () => {
@@ -966,6 +994,27 @@ export const ModernDashboard = ({
                     </div>
                 </div>
             </div>
+
+            {/* ============================================ */}
+            {/* UNIFIED HOME CALENDAR - Shows all scheduled events */}
+            {/* ============================================ */}
+            <DashboardSection
+                title="Home Calendar"
+                icon={Calendar}
+                defaultOpen={true}
+                summary={
+                    maintenanceTasks.some(t => t.daysUntil < 0)
+                        ? <span className="text-xs font-bold text-red-600">Action needed</span>
+                        : <span className="text-xs font-bold text-emerald-600">Up to date</span>
+                }
+            >
+                <UnifiedCalendar
+                    userId={userId}
+                    maintenanceTasks={maintenanceTasks}
+                    showLegend={true}
+                    compact={false}
+                />
+            </DashboardSection>
 
             {/* ============================================ */}
             {/* SMART HIERARCHY - Content order based on user state */}
