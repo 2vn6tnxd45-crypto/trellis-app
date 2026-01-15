@@ -31,8 +31,8 @@ const PropertyMap = ({ address }) => {
 export const EnvironmentalInsights = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
 
-    // Get coordinates from RentCast property data (via PropertyContext)
-    const { propertyData } = useProperty();
+    // Get coordinates and loading state from RentCast property data (via PropertyContext)
+    const { propertyData, loading: propertyLoading } = useProperty();
     const rentcastLat = propertyData?.latitude;
     const rentcastLon = propertyData?.longitude;
 
@@ -42,6 +42,12 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     const [error, setError] = useState(null);
 
     useEffect(() => {
+        // Wait for PropertyContext to finish loading before fetching environmental data
+        // This ensures we have RentCast coordinates if available
+        if (propertyLoading) {
+            return;
+        }
+
         // Use shared formatAddress utility for geocoding query
         const geoQuery = formatAddress(address);
 
@@ -62,6 +68,11 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
                 // 1. Use existing coords: propertyProfile > RentCast > geocoding fallback
                 let targetLat = coordinates?.lat || rentcastLat;
                 let targetLon = coordinates?.lon || rentcastLon;
+
+                // Log which coordinate source we're using
+                if (targetLat && targetLon) {
+                    console.log(`[EnvironmentalInsights] Using coords: ${targetLat}, ${targetLon} (source: ${coordinates?.lat ? 'propertyProfile' : 'RentCast'})`);
+                }
 
                 if (!targetLat && geoQuery) {
                     // Check if API key exists
@@ -139,7 +150,7 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
             }
         };
         fetchData();
-    }, [coordinates, address, rentcastLat, rentcastLon]);
+    }, [coordinates, address, rentcastLat, rentcastLon, propertyLoading]);
 
     if (!address) return <div className="p-6 text-center text-gray-500">Location data missing.</div>;
 
