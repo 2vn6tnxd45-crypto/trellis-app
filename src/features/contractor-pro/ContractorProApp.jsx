@@ -1634,10 +1634,14 @@ export const ContractorProApp = () => {
                 setSelectedQuote(prev => ({ ...prev, ...quoteData }));
                 toast.success('Quote updated');
             } else {
-                // Include evaluationId if this quote came from an evaluation
+                // Include evaluationId AND customerId if this quote came from an evaluation
+                // CRITICAL: customerId must be set for quote to appear on homeowner dashboard
                 const dataWithEvaluation = {
                     ...quoteData,
-                    evaluationId: selectedQuote?.evaluationId || null
+                    evaluationId: selectedQuote?.evaluationId || null,
+                    // Preserve customerId from evaluation - this links quote to homeowner
+                    customerId: quoteData.customerId || selectedQuote?.customerId || null,
+                    propertyId: quoteData.propertyId || selectedQuote?.propertyId || null
                 };
                 const result = await createQuoteFn(dataWithEvaluation);
 
@@ -1668,11 +1672,15 @@ export const ContractorProApp = () => {
                 await updateQuoteFn(selectedQuote.id, quoteData);
                 quoteId = selectedQuote.id;
             } else {
-                // Include evaluationId if this quote came from an evaluation
+                // Include evaluationId AND customerId if this quote came from an evaluation
+                // CRITICAL: customerId must be set for quote to appear on homeowner dashboard
                 const dataWithEvaluation = {
                     ...quoteData,
                     status: 'draft',
-                    evaluationId: selectedQuote?.evaluationId || null
+                    evaluationId: selectedQuote?.evaluationId || null,
+                    // Preserve customerId from evaluation - this links quote to homeowner
+                    customerId: quoteData.customerId || selectedQuote?.customerId || null,
+                    propertyId: quoteData.propertyId || selectedQuote?.propertyId || null
                 };
                 const result = await createQuoteFn(dataWithEvaluation);
                 quoteId = result.quoteId;

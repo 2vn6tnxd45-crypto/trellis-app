@@ -1,5 +1,5 @@
 // src/features/dashboard/NeighborhoodData.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Users,
     Home,
@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
 import { formatCurrency } from '../../lib/utils';
+import { useProperty } from '../../contexts/PropertyContext';
 
 // Helper to format large numbers
 const formatNumber = (value) => {
@@ -35,7 +36,27 @@ const formatNumber = (value) => {
 
 export const NeighborhoodData = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
-    const { wildfire, census, climate, amenities, loading } = useNeighborhoodData(coordinates, address);
+
+    // Get RentCast coordinates as fallback from PropertyContext
+    const { propertyData } = useProperty();
+
+    // Build effective coordinates: prefer propertyProfile.coordinates, fallback to RentCast
+    const effectiveCoordinates = useMemo(() => {
+        // First try propertyProfile coordinates
+        if (coordinates?.lat && coordinates?.lon) {
+            return coordinates;
+        }
+        // Fallback to RentCast coordinates from PropertyContext
+        if (propertyData?.latitude && propertyData?.longitude) {
+            return {
+                lat: propertyData.latitude,
+                lon: propertyData.longitude
+            };
+        }
+        return null;
+    }, [coordinates, propertyData?.latitude, propertyData?.longitude]);
+
+    const { wildfire, census, climate, amenities, loading } = useNeighborhoodData(effectiveCoordinates, address);
 
     if (loading) {
         return (

@@ -1,5 +1,5 @@
 // src/features/dashboard/HomeSnapshot.jsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     Sun,
     Shield,
@@ -13,6 +13,7 @@ import {
     MapPin
 } from 'lucide-react';
 import { useNeighborhoodData } from '../../hooks/useNeighborhoodData';
+import { useProperty } from '../../contexts/PropertyContext';
 
 const RiskBadge = ({ level, label }) => {
     const config = {
@@ -45,7 +46,27 @@ const formatCompactCurrency = (value) => {
 
 export const HomeSnapshot = ({ propertyProfile }) => {
     const { coordinates, address } = propertyProfile || {};
-    const { wildfire, census, climate, amenities, loading: neighborhoodLoading } = useNeighborhoodData(coordinates, address);
+
+    // Get RentCast coordinates as fallback from PropertyContext
+    const { propertyData } = useProperty();
+
+    // Build effective coordinates: prefer propertyProfile.coordinates, fallback to RentCast
+    const effectiveCoordinates = useMemo(() => {
+        // First try propertyProfile coordinates
+        if (coordinates?.lat && coordinates?.lon) {
+            return coordinates;
+        }
+        // Fallback to RentCast coordinates from PropertyContext
+        if (propertyData?.latitude && propertyData?.longitude) {
+            return {
+                lat: propertyData.latitude,
+                lon: propertyData.longitude
+            };
+        }
+        return null;
+    }, [coordinates, propertyData?.latitude, propertyData?.longitude]);
+
+    const { wildfire, census, climate, amenities, loading: neighborhoodLoading } = useNeighborhoodData(effectiveCoordinates, address);
 
     const loading = neighborhoodLoading;
 
