@@ -9,11 +9,12 @@
 // - New user property setup
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
     FileText, CheckCircle, XCircle, Clock, Eye, Send,
     User, Phone, Mail, MapPin, Calendar, DollarSign,
     ArrowLeft, Building2, Shield, AlertTriangle, Loader2,
-    Home, Plus, ChevronRight, Info, Package, Wrench, Users, Timer, BookmarkPlus
+    Home, Plus, ChevronRight, ChevronDown, Info, Package, Wrench, Users, Timer, BookmarkPlus,
+    ClipboardCheck
 } from 'lucide-react';
 import { 
     doc, 
@@ -645,6 +646,10 @@ const QuoteContent = ({
 }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
+    const [showEvaluationDetails, setShowEvaluationDetails] = useState(false);
+
+    // Check if this quote came from an evaluation
+    const fromEvaluation = !!(quote.evaluationId || quote.sourceEvaluationId);
 
     const handleDecline = async (reason) => {
         setIsSubmittingDecline(true);
@@ -727,6 +732,83 @@ const QuoteContent = ({
             
             {/* Content */}
             <div className="max-w-2xl mx-auto px-4 -mt-4">
+                {/* Evaluation Context - Show if quote came from evaluation */}
+                {fromEvaluation && (
+                    <div className="bg-indigo-50 rounded-2xl shadow-lg overflow-hidden mb-6">
+                        <button
+                            onClick={() => setShowEvaluationDetails(!showEvaluationDetails)}
+                            className="w-full p-4 flex items-center justify-between text-left hover:bg-indigo-100 transition-colors"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-indigo-100 rounded-lg">
+                                    <ClipboardCheck size={18} className="text-indigo-600" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-indigo-900">Based on Your Submission</p>
+                                    <p className="text-sm text-indigo-600">
+                                        This quote was created from the evaluation you submitted
+                                    </p>
+                                </div>
+                            </div>
+                            <ChevronDown
+                                size={20}
+                                className={`text-indigo-400 transition-transform ${showEvaluationDetails ? 'rotate-180' : ''}`}
+                            />
+                        </button>
+
+                        {showEvaluationDetails && (
+                            <div className="px-4 pb-4 border-t border-indigo-100">
+                                {/* Photos from evaluation */}
+                                {quote.attachments?.length > 0 && (
+                                    <div className="mt-4">
+                                        <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide mb-2">
+                                            Photos You Submitted
+                                        </p>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {quote.attachments.slice(0, 6).map((photo, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="aspect-square rounded-lg overflow-hidden bg-white border border-indigo-200"
+                                                >
+                                                    <img
+                                                        src={photo.url || photo}
+                                                        alt={`Submission ${index + 1}`}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {quote.attachments.length > 6 && (
+                                            <p className="text-xs text-indigo-500 mt-2">
+                                                +{quote.attachments.length - 6} more photos
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Original description */}
+                                {quote.description && (
+                                    <div className="mt-4">
+                                        <p className="text-xs font-bold text-indigo-500 uppercase tracking-wide mb-2">
+                                            Your Description
+                                        </p>
+                                        <p className="text-sm text-indigo-800 bg-white p-3 rounded-lg border border-indigo-200">
+                                            {quote.description}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Show message if no photos or description */}
+                                {!quote.attachments?.length && !quote.description && (
+                                    <div className="mt-4 text-sm text-indigo-600 text-center py-2">
+                                        Evaluation details were used to create this quote
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Main Quote Card */}
                 <div className="bg-white rounded-2xl shadow-lg overflow-hidden mb-6">
                     {/* Quote Title */}

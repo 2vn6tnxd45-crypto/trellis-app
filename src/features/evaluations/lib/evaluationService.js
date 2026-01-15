@@ -497,6 +497,25 @@ export const linkQuoteToEvaluation = async (contractorId, evaluationId, quoteId)
             updatedAt: serverTimestamp()
         });
 
+        // Update the quote to include sourceEvaluationId for backwards compatibility
+        // (in case evaluationId wasn't set during quote creation)
+        try {
+            const quoteRef = doc(
+                db,
+                'artifacts', appId,
+                'public', 'data',
+                'contractors', contractorId,
+                'quotes', quoteId
+            );
+            await updateDoc(quoteRef, {
+                sourceEvaluationId: evaluationId,
+                updatedAt: serverTimestamp()
+            });
+            console.log('✅ Updated quote with sourceEvaluationId:', quoteId);
+        } catch (quoteErr) {
+            console.warn('Could not update quote with evaluation link:', quoteErr);
+        }
+
         // CRITICAL: Update the homeowner's profile to remove/update pending evaluation
         // This prevents the "Awaiting Quotes" section from showing stale data
         if (evaluationData?.customerId) {

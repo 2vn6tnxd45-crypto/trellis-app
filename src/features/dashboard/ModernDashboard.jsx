@@ -4,7 +4,7 @@ import {
     Sparkles, Plus, Camera, Clock, Package, FileText,
     AlertTriangle, Wrench, CheckCircle2, Info,
     Calendar, X, ExternalLink, Hammer, MapPin, Home,
-    Trash2, ClipboardList, Archive, RotateCcw, Bell
+    Trash2, ClipboardList, Archive, RotateCcw, Bell, ClipboardCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { EnvironmentalInsights } from './EnvironmentalInsights';
@@ -482,6 +482,7 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                 <div className="grid gap-3 md:grid-cols-2">
                     {activeQuotes.map(quote => {
                         const needsAction = quoteNeedsAction(quote.status);
+                        const fromEvaluation = !!(quote.evaluationId || quote.sourceEvaluationId);
                         return (
                             <a
                                 key={quote.id}
@@ -504,6 +505,14 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                                 >
                                     <Trash2 size={16} />
                                 </button>
+
+                                {/* From Evaluation Badge */}
+                                {fromEvaluation && (
+                                    <div className="flex items-center gap-1.5 text-indigo-600 mb-2">
+                                        <ClipboardCheck size={14} />
+                                        <span className="text-xs font-medium">Based on your submission</span>
+                                    </div>
+                                )}
 
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1 min-w-0 pr-2">
