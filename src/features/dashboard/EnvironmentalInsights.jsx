@@ -37,55 +37,94 @@ export const EnvironmentalInsights = ({ propertyProfile }) => {
     useEffect(() => {
         // Use shared formatAddress utility for geocoding query
         const geoQuery = formatAddress(address);
-        if (!geoQuery && !coordinates?.lat) return;
+        if (!geoQuery && !coordinates?.lat) {
+            // No address or coordinates available - skip fetching
+            setLoading(false);
+            return;
+        }
 
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
+
             try {
                 // 1. Resolve Coords if missing (Geocoding Fallback)
                 let targetLat = coordinates?.lat;
                 let targetLon = coordinates?.lon;
 
                 if (!targetLat && geoQuery) {
+                    // Check if API key exists
+                    if (!googleMapsApiKey) {
+                        console.warn("Google Maps API key not configured");
+                        setError(null); // Don't show error, just skip
+                        setLoading(false);
+                        return;
+                    }
+
                     try {
                         const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geoQuery)}&key=${googleMapsApiKey}`;
                         const geoRes = await fetch(geoUrl);
                         const geoJson = await geoRes.json();
 
-                        if (geoJson.results?.[0]?.geometry?.location) {
+                        if (geoJson.status === 'OK' && geoJson.results?.[0]?.geometry?.location) {
                             targetLat = geoJson.results[0].geometry.location.lat;
                             targetLon = geoJson.results[0].geometry.location.lng;
+                        } else if (geoJson.status === 'REQUEST_DENIED') {
+                            console.warn("Geocoding API denied - check API key and enabled APIs");
+                            setLoading(false);
+                            return;
+                        } else {
+                            console.warn("Geocoding returned no results for:", geoQuery, "status:", geoJson.status);
                         }
-                    } catch (e) { console.warn("Geo fallback error", e); }
+                    } catch (e) {
+                        console.warn("Geocoding network error:", e.message);
+                    }
                 }
 
-                if (!targetLat || !targetLon) throw new Error("Could not resolve location");
-
-                // 2. Fetch Air Quality
-                const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ location: { latitude: targetLat, longitude: targetLon } })
-                });
-                
-                if (aqRes.ok) {
-                    const aqData = await aqRes.json();
-                    setAirQuality(aqData.indexes?.[0]); 
+                // If we still don't have coordinates, skip environmental data fetch
+                // but don't throw an error - the map will still work
+                if (!targetLat || !targetLon) {
+                    console.log("No coordinates available for environmental data");
+                    setLoading(false);
+                    return;
                 }
 
-                // 3. Fetch Solar Data
-                const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${targetLat}&location.longitude=${targetLon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
-                
-                if (solarRes.ok) {
-                    const solarData = await solarRes.json();
-                    setSolarData(solarData.solarPotential);
+                // 2. Fetch Air Quality (optional - don't fail if unavailable)
+                try {
+                    const aqRes = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ location: { latitude: targetLat, longitude: targetLon } })
+                    });
+
+                    if (aqRes.ok) {
+                        const aqData = await aqRes.json();
+                        setAirQuality(aqData.indexes?.[0]);
+                    }
+                } catch (e) {
+                    console.warn("Air Quality API error:", e.message);
                 }
 
-            } catch (err) { 
+                // 3. Fetch Solar Data (optional - don't fail if unavailable)
+                try {
+                    const solarRes = await fetch(`https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${targetLat}&location.longitude=${targetLon}&requiredQuality=HIGH&key=${googleMapsApiKey}`);
+
+                    if (solarRes.ok) {
+                        const solarData = await solarRes.json();
+                        setSolarData(solarData.solarPotential);
+                    }
+                } catch (e) {
+                    console.warn("Solar API error:", e.message);
+                }
+
+            } catch (err) {
                 console.error("Env Data Error:", err);
-                setError("Could not load some environmental data.");
-            } finally { 
-                setLoading(false); 
+                // Only set error for unexpected failures, not missing data
+                if (err.message !== "Could not resolve location") {
+                    setError("Could not load some environmental data.");
+                }
+            } finally {
+                setLoading(false);
             }
         };
         fetchData();
