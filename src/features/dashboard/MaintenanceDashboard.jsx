@@ -963,10 +963,15 @@ export const MaintenanceDashboard = ({
         const history = [];
 
         safeRecords.forEach(record => {
-            // Collect history items with recordId for restore functionality
+            // Collect history items with recordId and propertyId for restore functionality
             if (record.maintenanceHistory && record.maintenanceHistory.length > 0) {
                 record.maintenanceHistory.forEach(h => {
-                    history.push({ ...h, recordId: record.id, item: record.item });
+                    history.push({
+                        ...h,
+                        recordId: record.id,
+                        propertyId: record.propertyId || null,  // CRITICAL: Include propertyId for correct Firestore path
+                        item: record.item
+                    });
                 });
             }
 
@@ -983,6 +988,7 @@ export const MaintenanceDashboard = ({
                 const taskItem = {
                     id: `${record.id}-${taskName}`,
                     recordId: record.id,
+                    propertyId: record.propertyId || null,  // CRITICAL: Include propertyId for correct Firestore path
                     item: record.item,
                     taskName: taskName,
                     category: record.category || "General",

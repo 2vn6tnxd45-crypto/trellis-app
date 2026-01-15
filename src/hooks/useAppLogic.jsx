@@ -30,6 +30,20 @@ const withTimeout = (promise, ms, operation = 'Operation') => {
     return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timeoutId));
 };
 
+// ============================================
+// HELPER: Get correct document path for a record
+// Supports both old (house_records) and new (properties/x/records) structures
+// ============================================
+const getRecordDocRef = (dbInstance, appIdValue, userId, recordId, propertyId = null) => {
+    if (propertyId) {
+        // NEW path structure: properties/{propertyId}/records/{recordId}
+        return doc(dbInstance, 'artifacts', appIdValue, 'users', userId, 'properties', propertyId, 'records', recordId);
+    } else {
+        // OLD path structure: house_records/{recordId} (backwards compatibility)
+        return doc(dbInstance, 'artifacts', appIdValue, 'users', userId, 'house_records', recordId);
+    }
+};
+
 export const useAppLogic = (celebrations) => {
     // =========================================================================
     // STATE - All existing state preserved exactly
@@ -513,7 +527,8 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
 
         try {
             if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
-            const recordRef = doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId);
+            // Use helper to get correct path (supports both old and new structures)
+            const recordRef = getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) return;
 
@@ -631,7 +646,8 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), { maintenanceHistory: newHistory });
+            // Use helper to get correct path (supports both old and new structures)
+            await updateDoc(getRecordDocRef(db, appId, user.uid, historyItem.recordId, historyItem.propertyId), { maintenanceHistory: newHistory });
             toast.success("History item removed", { icon: '🗑️' });
         } catch (e) { toast.error("Failed to delete: " + e.message); }
     }, [records, user]);
@@ -681,7 +697,8 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 }
             }
             
-            await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', historyItem.recordId), updates);
+            // Use helper to get correct path (supports both old and new structures)
+            await updateDoc(getRecordDocRef(db, appId, user.uid, historyItem.recordId, historyItem.propertyId), updates);
             toast.success("Task restored to active", { icon: '↩️' });
         } catch (e) { 
             debug.error('[App] Restore error:', e);
@@ -713,20 +730,22 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             // For granular tasks, remove from maintenanceTasks array
             if (task.isGranular && record.maintenanceTasks) {
                 const updatedTasks = record.maintenanceTasks.filter(t => t.task !== task.taskName);
-                
+
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
                     { maintenanceTasks: updatedTasks }
                 );
-                
+
                 toast.success(`"${task.taskName}" deleted`, { icon: '🗑️' });
             } else {
                 // For non-granular (record-level) tasks, set frequency to 'none'
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
                     { maintenanceFrequency: 'none', nextServiceDate: null }
                 );
-                
+
                 toast.success("Maintenance schedule removed", { icon: '🗑️' });
             }
         } catch (e) {
@@ -758,8 +777,8 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             if (task.isGranular && record.maintenanceTasks) {
                 const updatedTasks = record.maintenanceTasks.map(t => {
                     if (t.task === task.taskName) {
-                        return { 
-                            ...t, 
+                        return {
+                            ...t,
                             scheduledDate: scheduledDate,
                             scheduledNotes: notes || null,
                             // Clear any snooze when scheduling
@@ -768,16 +787,18 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     }
                     return t;
                 });
-                
+
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
                     { maintenanceTasks: updatedTasks }
                 );
             } else {
                 // For non-granular tasks, store at record level
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
-                    { 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    {
                         scheduledDate: scheduledDate,
                         scheduledNotes: notes || null,
                         snoozedUntil: null
@@ -827,8 +848,8 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             if (task.isGranular && record.maintenanceTasks) {
                 const updatedTasks = record.maintenanceTasks.map(t => {
                     if (t.task === task.taskName) {
-                        return { 
-                            ...t, 
+                        return {
+                            ...t,
                             nextDue: newDueDate,
                             snoozedUntil: newDueDate,
                             // Clear any scheduled date when snoozing
@@ -838,16 +859,18 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     }
                     return t;
                 });
-                
+
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
                     { maintenanceTasks: updatedTasks }
                 );
             } else {
                 // For non-granular tasks, update at record level
+                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    doc(db, 'artifacts', appId, 'users', user.uid, 'house_records', task.recordId), 
-                    { 
+                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    {
                         nextServiceDate: newDueDate,
                         snoozedUntil: newDueDate,
                         scheduledDate: null,

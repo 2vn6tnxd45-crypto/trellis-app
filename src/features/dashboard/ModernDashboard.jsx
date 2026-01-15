@@ -845,6 +845,7 @@ export const ModernDashboard = ({
                             tasks.push({
                                 id: `${record.id}-${t.taskName}`,
                                 recordId: record.id,
+                                propertyId: record.propertyId || null,  // CRITICAL: Include propertyId for correct Firestore path
                                 item: record.item,
                                 taskName: t.taskName,
                                 nextDate: nextDate,
@@ -863,6 +864,7 @@ export const ModernDashboard = ({
                     tasks.push({
                         id: `${record.id}-maintenance`,
                         recordId: record.id,
+                        propertyId: record.propertyId || null,  // CRITICAL: Include propertyId for correct Firestore path
                         item: record.item,
                         taskName: 'Maintenance',
                         nextDate: nextDate,
@@ -918,8 +920,10 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore
-            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
+            const recordRef = task.propertyId
+                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
+                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
@@ -962,8 +966,10 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore
-            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
+            const recordRef = task.propertyId
+                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
+                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
@@ -1003,8 +1009,10 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore
-            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'properties', activeProperty?.id || 'default', 'records', task.recordId);
+            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
+            const recordRef = task.propertyId
+                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
+                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
