@@ -24,6 +24,7 @@ import {
     parseDurationToMinutes
 } from '../lib/schedulingAI';
 import { isSameDayInTimezone } from '../lib/timezoneUtils';
+import { CrewAssignmentModal } from './CrewAssignmentModal';
 
 // ============================================
 // HELPERS
@@ -60,6 +61,7 @@ const JobCard = ({
     suggestions,
     onAssign,
     onUnassign,
+    onOpenCrewModal,
     isAssigned,
     compact = false
 }) => {
@@ -95,19 +97,62 @@ const JobCard = ({
                     <p className="text-sm text-slate-500 truncate">
                         {job.customer?.name || job.customerName || 'Customer'}
                     </p>
+
+                    {/* Crew Avatars (if multiple techs assigned) */}
+                    {job.assignedCrew && job.assignedCrew.length > 1 && (
+                        <div className="flex items-center gap-1 mt-1">
+                            <div className="flex -space-x-2">
+                                {job.assignedCrew.slice(0, 4).map((member, idx) => (
+                                    <div
+                                        key={member.techId}
+                                        className="w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
+                                        style={{ backgroundColor: member.color || '#64748B', zIndex: 4 - idx }}
+                                        title={`${member.techName} (${member.role})`}
+                                    >
+                                        {member.techName?.charAt(0) || '?'}
+                                    </div>
+                                ))}
+                                {job.assignedCrew.length > 4 && (
+                                    <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-600 text-[10px] font-bold">
+                                        +{job.assignedCrew.length - 4}
+                                    </div>
+                                )}
+                            </div>
+                            <span className="text-xs text-slate-500">
+                                {job.assignedCrew.length} techs
+                            </span>
+                        </div>
+                    )}
                 </div>
-                {isAssigned && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onUnassign?.(job);
-                        }}
-                        className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500"
-                        title="Unassign"
-                    >
-                        <X size={14} />
-                    </button>
-                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                    {/* Crew Assignment Button */}
+                    {onOpenCrewModal && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenCrewModal?.(job);
+                            }}
+                            className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600"
+                            title="Manage crew"
+                        >
+                            <Users size={14} />
+                        </button>
+                    )}
+                    {isAssigned && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onUnassign?.(job);
+                            }}
+                            className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500"
+                            title="Unassign"
+                        >
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Details */}
@@ -186,6 +231,7 @@ const TechColumn = ({
     date,
     onDrop,
     onUnassign,
+    onOpenCrewModal,
     isDropTarget,
     allJobs
 }) => {
@@ -308,6 +354,7 @@ const TechColumn = ({
                             job={job}
                             isAssigned={true}
                             onUnassign={onUnassign}
+                            onOpenCrewModal={onOpenCrewModal}
                             compact={true}
                         />
                     ))
@@ -410,12 +457,14 @@ const UnassignedColumn = ({
 export const DispatchBoard = ({
     jobs = [],
     teamMembers = [],
+    vehicles = [],
     initialDate = new Date(),
     onJobUpdate,
     timezone
 }) => {
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
+    const [crewModalJob, setCrewModalJob] = useState(null);
 
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
@@ -616,6 +665,7 @@ export const DispatchBoard = ({
                         allJobs={jobsForDate}
                         onDrop={handleDrop}
                         onUnassign={handleUnassign}
+                        onOpenCrewModal={setCrewModalJob}
                     />
                 ))}
 
@@ -652,6 +702,20 @@ export const DispatchBoard = ({
                     <span>Drag jobs to assign, or use AI Assign All</span>
                 </div>
             </div>
+
+            {/* Crew Assignment Modal */}
+            {crewModalJob && (
+                <CrewAssignmentModal
+                    job={crewModalJob}
+                    teamMembers={teamMembers}
+                    vehicles={vehicles}
+                    existingJobs={jobsForDate}
+                    onSave={() => {
+                        onJobUpdate?.();
+                    }}
+                    onClose={() => setCrewModalJob(null)}
+                />
+            )}
         </div>
     );
 };
