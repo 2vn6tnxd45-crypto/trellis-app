@@ -269,7 +269,13 @@ export const RecurringServiceCard = ({
                 {service.propertyAddress && (
                     <div className="flex items-start gap-2 text-sm text-slate-500">
                         <MapPin size={14} className="text-slate-400 mt-0.5 shrink-0" />
-                        <span className="truncate">{service.propertyAddress}</span>
+                        <span className="truncate">
+                            {typeof service.propertyAddress === 'string'
+                                ? service.propertyAddress
+                                : service.propertyAddress.formatted ||
+                                [service.propertyAddress.street, service.propertyAddress.city, service.propertyAddress.state]
+                                    .filter(Boolean).join(', ')}
+                        </span>
                     </div>
                 )}
 
