@@ -347,6 +347,12 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                                     label: `${n} ${n === 1 ? 'vehicle' : 'vehicles'}`
                                 }))}
                             />
+                            {settings.vehicles > 1 && (
+                                <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                                    <Truck size={12} />
+                                    Manage individual vehicles in the Fleet section below
+                                </p>
+                            )}
                         </div>
                     </div>
 

@@ -40,6 +40,9 @@ import { LogoUpload } from './components/LogoUpload';
 // NEW: Dispatch Board and Team Management
 import { DispatchBoard } from './components/DispatchBoard';
 import { TeamManagement } from './components/TeamManagement';
+// NEW: Vehicle Fleet Management
+import { VehicleManagement } from './components/VehicleManagement';
+import { useVehicles } from './hooks/useVehicles';
 // NEW: Price Book
 import { PriceBook } from './components/PriceBook';
 import { ReportingDashboard } from './components/ReportingDashboard';
@@ -1451,6 +1454,16 @@ export const ContractorProApp = () => {
         removeExpense,
     } = useExpenses(contractorId);
 
+    // Vehicle fleet management
+    const {
+        vehicles,
+        loading: vehiclesLoading,
+        addVehicle,
+        editVehicle,
+        removeVehicle,
+        getMaintenanceAlerts
+    } = useVehicles(contractorId);
+
     // Derived data
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
@@ -2224,6 +2237,26 @@ export const ContractorProApp = () => {
                                             console.log('Team updated:', members);
                                         }}
                                     />
+                                </div>
+                            )}
+
+                            {/* Vehicle Fleet Management - show if team or has multiple vehicles */}
+                            {(profile?.scheduling?.teamType === 'team' || profile?.scheduling?.vehicles > 1 || vehicles.length > 0) && (
+                                <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                    {vehiclesLoading ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
+                                        </div>
+                                    ) : (
+                                        <VehicleManagement
+                                            contractorId={contractorId}
+                                            vehicles={vehicles}
+                                            teamMembers={profile?.scheduling?.teamMembers || []}
+                                            onUpdate={(updatedVehicles) => {
+                                                console.log('Vehicles updated:', updatedVehicles);
+                                            }}
+                                        />
+                                    )}
                                 </div>
                             )}
 
