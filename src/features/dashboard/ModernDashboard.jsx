@@ -14,6 +14,7 @@ import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeArchive } from '../archive';
 import { MyContractorsSection } from './components/MyContractorsSection';
+import { ActionRequiredBanner } from './components/ActionRequiredBanner';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -482,7 +483,19 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                 <div className="grid gap-3 md:grid-cols-2">
                     {activeQuotes.map(quote => {
                         const needsAction = quoteNeedsAction(quote.status);
+                        const isNew = quote.status === 'sent';
+                        const isViewed = quote.status === 'viewed';
                         const fromEvaluation = !!(quote.evaluationId || quote.sourceEvaluationId);
+
+                        // Calculate days until expiry
+                        let daysUntilExpiry = null;
+                        if (quote.validUntil) {
+                            const expiryDate = new Date(quote.validUntil);
+                            const now = new Date();
+                            const diffDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+                            if (diffDays > 0) daysUntilExpiry = diffDays;
+                        }
+
                         return (
                             <a
                                 key={quote.id}
@@ -493,6 +506,15 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                                         : 'bg-white border-slate-200 hover:border-emerald-500'
                                 }`}
                             >
+                                {/* NEW badge for sent quotes */}
+                                {isNew && (
+                                    <div className="absolute -top-2 -left-2 z-10">
+                                        <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-bold bg-amber-500 text-white rounded-full uppercase tracking-wide animate-pulse shadow-sm">
+                                            New
+                                        </span>
+                                    </div>
+                                )}
+
                                 {/* Action needed indicator pulse */}
                                 {needsAction && (
                                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full animate-pulse" />
@@ -514,6 +536,14 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                                     </div>
                                 )}
 
+                                {/* Review Needed badge for viewed quotes */}
+                                {isViewed && !fromEvaluation && (
+                                    <div className="flex items-center gap-1.5 text-amber-600 mb-2">
+                                        <Bell size={14} />
+                                        <span className="text-xs font-medium">Review needed</span>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between items-start mb-2">
                                     <div className="flex-1 min-w-0 pr-2">
                                         <h3 className={`font-bold transition-colors truncate ${
@@ -530,9 +560,18 @@ const MyQuotesSection = ({ userId, onCountChange }) => {
                                     <HomeownerQuoteStatusBadge status={quote.status} />
                                 </div>
                                 <div className="flex justify-between items-center text-sm text-slate-500">
-                                    <span className={`font-medium ${needsAction ? 'text-amber-700' : 'text-slate-700'}`}>
-                                        ${(quote.total || 0).toLocaleString()}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`font-medium ${needsAction ? 'text-amber-700' : 'text-slate-700'}`}>
+                                            ${(quote.total || 0).toLocaleString()}
+                                        </span>
+                                        {/* Expiry countdown */}
+                                        {daysUntilExpiry && needsAction && (
+                                            <span className="flex items-center gap-1 text-[10px] text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                                                <Clock size={10} />
+                                                {daysUntilExpiry}d left
+                                            </span>
+                                        )}
+                                    </div>
                                     <span className={`flex items-center gap-1 text-xs ${
                                         needsAction ? 'text-amber-600 font-bold' : ''
                                     }`}>
@@ -812,6 +851,9 @@ export const ModernDashboard = ({
     const [pendingQuoteCount, setPendingQuoteCount] = useState(0);
     const [pendingEvalCount, setPendingEvalCount] = useState(0);
 
+    // Fetch quotes for the action required banner
+    const { quotes: allQuotes } = useCustomerQuotes(userId);
+
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
 
@@ -1042,6 +1084,9 @@ export const ModernDashboard = ({
 
     return (
         <div className="space-y-6 pb-8">
+            {/* ACTION REQUIRED BANNER - Shows when quotes need review */}
+            <ActionRequiredBanner quotes={allQuotes} />
+
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />

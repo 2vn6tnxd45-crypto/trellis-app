@@ -2,7 +2,7 @@
 import { debug } from '../lib/debug';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
+import { collection, collectionGroup, query, onSnapshot, doc, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
 import toast from 'react-hot-toast';
 import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
 import { 
@@ -339,18 +339,101 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     // NEW: Listen for global unread chat messages
     // =========================================================================
     useEffect(() => {
-        if (!user) { 
-            setUnreadMessageCount(0); 
-            return; 
+        if (!user) {
+            setUnreadMessageCount(0);
+            return;
         }
-        
+
         // This listener updates the badge number whenever a message comes in
         const unsubscribe = subscribeToGlobalUnreadCount(user.uid, (count) => {
             setUnreadMessageCount(count);
         });
-        
+
         return () => unsubscribe();
     }, [user]);
+
+    // =========================================================================
+    // NEW: Login toast for pending quotes
+    // Shows once per session when user logs in and has quotes to review
+    // =========================================================================
+    useEffect(() => {
+        // Only run when loading completes and user is authenticated
+        if (loading || !user || !profile) return;
+
+        // Check if we've already shown the toast this session
+        const toastShown = sessionStorage.getItem('quotesToastShown') === 'true';
+        if (toastShown) return;
+
+        // Check for contractor mode - skip for contractors
+        const urlParams = new URLSearchParams(window.location.search);
+        const isContractorMode = urlParams.get('pro') !== null || window.location.pathname.includes('/contractor');
+        if (isContractorMode) return;
+
+        // Delay the check to let the dashboard load first
+        const timeoutId = setTimeout(async () => {
+            try {
+                // Fetch quotes for this user
+                const q = query(
+                    collectionGroup(db, 'quotes'),
+                    where('customerId', '==', user.uid),
+                    orderBy('updatedAt', 'desc')
+                );
+                const snapshot = await getDocs(q);
+                const quotes = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data(),
+                    contractorId: doc.ref.parent.parent.id
+                }));
+
+                // Filter for actionable quotes (sent or viewed)
+                const pendingQuotes = quotes.filter(q => ['sent', 'viewed'].includes(q.status));
+
+                if (pendingQuotes.length > 0) {
+                    // Mark toast as shown for this session
+                    sessionStorage.setItem('quotesToastShown', 'true');
+
+                    // Show clickable toast
+                    toast(
+                        (t) => (
+                            <div
+                                className="flex items-center gap-2 cursor-pointer"
+                                onClick={() => {
+                                    toast.dismiss(t.id);
+                                    // Navigate to quotes section or first quote
+                                    if (pendingQuotes.length === 1) {
+                                        const quote = pendingQuotes[0];
+                                        window.location.href = `/app/?quote=${quote.contractorId}_${quote.id}`;
+                                    } else {
+                                        // Navigate to dashboard with quotes visible
+                                        setActiveTab('Dashboard');
+                                    }
+                                }}
+                            >
+                                <span>
+                                    You have <strong>{pendingQuotes.length}</strong> quote{pendingQuotes.length !== 1 ? 's' : ''} waiting for review
+                                </span>
+                                <span className="text-emerald-600 font-bold text-xs">View</span>
+                            </div>
+                        ),
+                        {
+                            icon: '📋',
+                            duration: 6000,
+                            style: {
+                                background: '#fffbeb',
+                                border: '1px solid #fcd34d',
+                                padding: '12px 16px',
+                            }
+                        }
+                    );
+                }
+            } catch (err) {
+                // Silently fail - this is a nice-to-have notification
+                debug.warn('[useAppLogic] Failed to check pending quotes:', err);
+            }
+        }, 2000); // 2 second delay after dashboard loads
+
+        return () => clearTimeout(timeoutId);
+    }, [loading, user, profile, setActiveTab]);
 
     // =========================================================================
     // EXISTING HANDLERS - All preserved exactly as they were
