@@ -9,7 +9,7 @@ import {
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
     AlertTriangle, Wrench, Info, MessageSquare,
-    ClipboardCheck, RotateCcw, CalendarDays  // NEW: Added for completion review, recurring, and multi-day
+    ClipboardCheck, RotateCcw, CalendarDays, CalendarPlus
 } from 'lucide-react';
 import { isRecurringJob } from '../recurring/lib/recurringService';
 import {
@@ -18,6 +18,65 @@ import {
     calculateDaysNeeded
 } from '../contractor-pro/lib/multiDayUtils';
 import { formatInTimezone, detectTimezone } from '../contractor-pro/lib/timezoneUtils';
+
+// Helper to calculate countdown to appointment
+const getCountdown = (scheduledTime) => {
+    if (!scheduledTime) return null;
+
+    const scheduled = new Date(scheduledTime.toDate ? scheduledTime.toDate() : scheduledTime);
+    const now = new Date();
+    const diffMs = scheduled - now;
+
+    // If past, return null
+    if (diffMs < 0) return null;
+
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+    const scheduledHour = scheduled.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+    if (diffDays === 0) {
+        // Today
+        return {
+            text: `Today at ${scheduledHour}`,
+            urgency: 'today',
+            color: 'text-emerald-700',
+            bgColor: 'bg-emerald-100'
+        };
+    } else if (diffDays === 1) {
+        // Tomorrow
+        return {
+            text: `Tomorrow at ${scheduledHour}`,
+            urgency: 'tomorrow',
+            color: 'text-amber-700',
+            bgColor: 'bg-amber-100'
+        };
+    } else if (diffDays <= 3) {
+        // 2-3 days
+        return {
+            text: `In ${diffDays} days`,
+            urgency: 'soon',
+            color: 'text-amber-600',
+            bgColor: 'bg-amber-50'
+        };
+    } else if (diffDays <= 7) {
+        // Within a week
+        return {
+            text: `In ${diffDays} days`,
+            urgency: 'upcoming',
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-50'
+        };
+    } else {
+        // More than a week
+        return {
+            text: `In ${diffDays} days`,
+            urgency: 'later',
+            color: 'text-slate-600',
+            bgColor: 'bg-slate-50'
+        };
+    }
+};
 
 // Status configuration
 const STATUS_CONFIG = {
@@ -356,30 +415,45 @@ export const HomeownerJobCard = ({
 
                 {/* Scheduling Info */}
                 <div className="mt-3 pt-3 border-t border-slate-100">
-                    {/* Confirmed Time */}
-                    {job.scheduledTime && (
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-slate-500">Scheduled:</span>
-                            {multiDayInfo.isMultiDay ? (
-                                // Multi-day: Show date range with day count
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-sm">
-                                        {formatDate(job.scheduledTime)}
-                                        {multiDayInfo.endDate && ` - ${formatDate(multiDayInfo.endDate)}`}
-                                    </span>
-                                    <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                                        {multiDayInfo.totalDays} days
-                                    </span>
+                    {/* Confirmed Time with Countdown */}
+                    {job.scheduledTime && (() => {
+                        const countdown = getCountdown(job.scheduledTime);
+                        return (
+                            <div className="space-y-2">
+                                {/* Countdown Badge - only for upcoming appointments */}
+                                {countdown && effectiveStatus === 'scheduled' && (
+                                    <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${countdown.bgColor}`}>
+                                        <Clock size={14} className={countdown.color} />
+                                        <span className={`text-sm font-bold ${countdown.color}`}>
+                                            {countdown.text}
+                                        </span>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between">
+                                    <span className="text-sm text-slate-500">Scheduled:</span>
+                                    {multiDayInfo.isMultiDay ? (
+                                        // Multi-day: Show date range with day count
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg text-sm">
+                                                {formatDate(job.scheduledTime)}
+                                                {multiDayInfo.endDate && ` - ${formatDate(multiDayInfo.endDate)}`}
+                                            </span>
+                                            <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                                {multiDayInfo.totalDays} days
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        // Single-day: Show date + time info
+                                        <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
+                                            {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
+                                            {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
+                                        </span>
+                                    )}
                                 </div>
-                            ) : (
-                                // Single-day: Show date + time info
-                                <span className="font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg text-sm">
-                                    {formatDate(job.scheduledTime)} • {formatTime(job.scheduledTime)}
-                                    {job.scheduledEndTime && ` - ${formatTime(job.scheduledEndTime)}`}
-                                </span>
-                            )}
-                        </div>
-                    )}
+                            </div>
+                        );
+                    })()}
 
                     {/* Offered Slots (new model) */}
                     {!job.scheduledTime && offeredSlots.length > 0 && (

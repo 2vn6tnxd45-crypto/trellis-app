@@ -16,7 +16,41 @@ const BRAND = {
     blueBg: '#eff6ff'
 };
 
-function generateJobScheduledHtml({ 
+// Helper to format date for Google Calendar (YYYYMMDDTHHmmssZ)
+const formatGoogleDate = (date) => {
+    const d = new Date(date);
+    return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+};
+
+// Generate Google Calendar URL
+const generateGoogleCalendarUrl = ({ title, description, location, start, end }) => {
+    const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: title || 'Appointment',
+        dates: `${formatGoogleDate(start)}/${formatGoogleDate(end)}`,
+        details: description || '',
+        location: location || '',
+        sf: 'true',
+        output: 'xml'
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+};
+
+// Generate Outlook Web URL
+const generateOutlookUrl = ({ title, description, location, start, end }) => {
+    const params = new URLSearchParams({
+        path: '/calendar/action/compose',
+        rru: 'addevent',
+        subject: title || 'Appointment',
+        body: description || '',
+        location: location || '',
+        startdt: new Date(start).toISOString(),
+        enddt: new Date(end).toISOString()
+    });
+    return `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`;
+};
+
+function generateJobScheduledHtml({
     customerName,
     contractorName,
     contractorPhone,
@@ -28,19 +62,36 @@ function generateJobScheduledHtml({
     estimatedDuration,
     serviceAddress,
     notes,
-    jobLink
+    jobLink,
+    scheduledEndDate
 }) {
     // Format the date nicely
     const dateObj = new Date(scheduledDate);
-    const formattedDate = dateObj.toLocaleDateString('en-US', { 
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
         weekday: 'long',
-        month: 'long', 
-        day: 'numeric', 
-        year: 'numeric' 
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
     });
-    
+
     // Format time if provided
     const formattedTime = scheduledTime || 'Time TBD';
+
+    // Calculate end date for calendar (default 2 hours after start)
+    const startDate = new Date(scheduledDate);
+    const endDate = scheduledEndDate ? new Date(scheduledEndDate) : new Date(startDate.getTime() + 2 * 60 * 60 * 1000);
+
+    // Build calendar event data
+    const calendarEvent = {
+        title: `${jobTitle || 'Service'} - ${contractorName || 'Contractor'}`,
+        description: `Service: ${jobTitle || 'Home Service'}\\n\\nContractor: ${contractorName}${contractorPhone ? `\\nPhone: ${contractorPhone}` : ''}\\n\\nScheduled via Krib`,
+        location: serviceAddress || '',
+        start: startDate,
+        end: endDate
+    };
+
+    const googleCalUrl = generateGoogleCalendarUrl(calendarEvent);
+    const outlookUrl = generateOutlookUrl(calendarEvent);
 
     return `
     <!DOCTYPE html>
@@ -148,6 +199,21 @@ function generateJobScheduledHtml({
                     </div>
                 </div>
                 
+                <!-- Add to Calendar -->
+                <div style="background: ${BRAND.blueBg}; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid #dbeafe; text-align: center;">
+                    <p style="color: ${BRAND.text}; font-weight: 600; margin: 0 0 16px; font-size: 14px;">
+                        📅 Add to Your Calendar
+                    </p>
+                    <div style="display: inline-flex; gap: 12px;">
+                        <a href="${googleCalUrl}" target="_blank" style="display: inline-block; background: white; color: ${BRAND.text}; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid #e2e8f0;">
+                            Google Calendar
+                        </a>
+                        <a href="${outlookUrl}" target="_blank" style="display: inline-block; background: white; color: ${BRAND.text}; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500; border: 1px solid #e2e8f0;">
+                            Outlook
+                        </a>
+                    </div>
+                </div>
+
                 <!-- What to Expect -->
                 <div style="background: #f0fdf4; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid #bbf7d0;">
                     <p style="color: ${BRAND.text}; font-weight: 600; margin: 0 0 12px; font-size: 14px;">
@@ -159,7 +225,7 @@ function generateJobScheduledHtml({
                         <li>You can message the contractor with any questions</li>
                     </ul>
                 </div>
-                
+
                 <!-- CTA Button -->
                 <div style="text-align: center; margin: 32px 0;">
                     <a href="${jobLink}" style="display: inline-block; background: ${BRAND.primary}; color: white; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px;">

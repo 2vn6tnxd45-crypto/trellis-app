@@ -20,6 +20,7 @@ import {
     calculateDaysNeeded,
     getMultiDaySummary
 } from '../contractor-pro/lib/multiDayUtils';
+import { SchedulingConfirmationModal } from './components/SchedulingConfirmationModal';
 
 const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -70,6 +71,10 @@ export const SlotPicker = ({
     const [selectedSlotIds, setSelectedSlotIds] = useState([]); // Changed to array for multi-selection
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [acknowledgedMultiDay, setAcknowledgedMultiDay] = useState(false);
+
+    // Confirmation modal state
+    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [confirmedSlot, setConfirmedSlot] = useState(null);
 
     // EDGE CASE: Handle null/undefined job
     if (!job) {
@@ -280,14 +285,27 @@ export const SlotPicker = ({
                 });
             }
 
-            if (onSuccess) onSuccess();
-            onClose();
+            // Store the confirmed slot for the modal and show it
+            setConfirmedSlot({
+                start: startISO,
+                end: scheduledEndISO
+            });
+            setShowConfirmation(true);
+
+            // Note: We don't call onSuccess/onClose here - the modal will handle that
         } catch (error) {
             console.error('Error confirming slot:', error);
             toast.error('Failed to confirm appointment');
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    // Handle confirmation modal close
+    const handleConfirmationClose = () => {
+        setShowConfirmation(false);
+        if (onSuccess) onSuccess();
+        onClose();
     };
 
     if (offeredSlots.length === 0) {
@@ -532,6 +550,19 @@ export const SlotPicker = ({
                     )}
                 </button>
             </div>
+
+            {/* Confirmation Modal */}
+            <SchedulingConfirmationModal
+                isOpen={showConfirmation}
+                onClose={handleConfirmationClose}
+                job={job}
+                selectedSlot={confirmedSlot}
+                contractor={{
+                    companyName: job.contractorName,
+                    phone: job.contractorPhone,
+                    email: job.contractorEmail
+                }}
+            />
         </div>
     );
 };
