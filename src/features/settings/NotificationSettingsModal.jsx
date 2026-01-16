@@ -3,7 +3,7 @@
 // Replaces the notification settings portion of SettingsPage
 
 import React, { useState } from 'react';
-import { Bell, X, Clock, Mail, MessageSquare, AlertTriangle } from 'lucide-react';
+import { Bell, X, Clock, Mail, MessageSquare, AlertTriangle, Calendar } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Toggle Component
@@ -92,6 +92,9 @@ export const NotificationSettingsModal = ({
     overdueAlerts: profile?.notifications?.overdueAlerts ?? true,
     warrantyAlerts: profile?.notifications?.warrantyAlerts ?? true,
     contractorMessages: profile?.notifications?.contractorMessages ?? true,
+    // Appointment reminder settings
+    appointmentDayBefore: profile?.notifications?.appointmentDayBefore ?? true,
+    appointmentMorningOf: profile?.notifications?.appointmentMorningOf ?? true,
   });
   const [isSaving, setIsSaving] = useState(false);
 
@@ -227,13 +230,42 @@ export const NotificationSettingsModal = ({
               title="Warranty Alerts"
               description="Notify when warranties are expiring soon"
             >
-              <Toggle 
-                enabled={settings.warrantyAlerts} 
-                onChange={(v) => setSettings(s => ({ ...s, warrantyAlerts: v }))} 
+              <Toggle
+                enabled={settings.warrantyAlerts}
+                onChange={(v) => setSettings(s => ({ ...s, warrantyAlerts: v }))}
               />
             </SettingRow>
           </div>
-          
+
+          {/* APPOINTMENT REMINDERS */}
+          <div>
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Appointment Reminders
+            </h3>
+
+            <SettingRow
+              icon={Calendar}
+              title="Day Before Reminder"
+              description="Email reminder the evening before your appointment"
+            >
+              <Toggle
+                enabled={settings.appointmentDayBefore}
+                onChange={(v) => setSettings(s => ({ ...s, appointmentDayBefore: v }))}
+              />
+            </SettingRow>
+
+            <SettingRow
+              icon={Bell}
+              title="Morning Of Reminder"
+              description="Quick reminder on the morning of your appointment"
+            >
+              <Toggle
+                enabled={settings.appointmentMorningOf}
+                onChange={(v) => setSettings(s => ({ ...s, appointmentMorningOf: v }))}
+              />
+            </SettingRow>
+          </div>
+
           {/* OTHER */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">

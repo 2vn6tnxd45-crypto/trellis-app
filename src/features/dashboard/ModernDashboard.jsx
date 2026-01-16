@@ -16,6 +16,7 @@ import { HomeArchive } from '../archive';
 import { MyContractorsSection } from './components/MyContractorsSection';
 import { ActionRequiredBanner } from './components/ActionRequiredBanner';
 import { SchedulingRequiredBanner } from './components/SchedulingRequiredBanner';
+import { TodayAppointmentCard } from './components/TodayAppointmentCard';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -1135,6 +1136,9 @@ export const ModernDashboard = ({
 
             {/* SCHEDULING REQUIRED BANNER - Shows when jobs have time slots to pick */}
             <SchedulingRequiredBanner jobs={homeownerJobs} />
+
+            {/* TODAY'S APPOINTMENTS - Shows when homeowner has appointments today */}
+            <TodayAppointmentCard jobs={homeownerJobs} />
 
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
