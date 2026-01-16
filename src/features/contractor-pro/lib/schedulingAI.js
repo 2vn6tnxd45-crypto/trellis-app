@@ -17,6 +17,7 @@ import {
     jobIsMultiDay
 } from './multiDayUtils';
 import { formatInTimezone } from './timezoneUtils';
+import { calculateLearningScore } from './schedulingIntelligence';
 
 // ============================================
 // CONSTANTS
@@ -345,6 +346,38 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date) => {
         isRecommended: score >= 80 && warnings.length === 0,
         hasWarnings: warnings.length > 0
     };
+};
+
+/**
+ * Calculate comprehensive score with AI learning
+ * Async version that includes historical performance data
+ */
+export const scoreTechForJobAsync = async (tech, job, allJobsForDay, date, contractorId) => {
+    // Get base score
+    const baseResult = scoreTechForJob(tech, job, allJobsForDay, date);
+
+    // Add learning bonus
+    try {
+        const { learningBonus, insights } = await calculateLearningScore(tech, job, contractorId);
+
+        return {
+            ...baseResult,
+            score: baseResult.score + learningBonus,
+            learningBonus,
+            insights,
+            reasons: [
+                ...baseResult.reasons,
+                ...insights.filter(i => i.type !== 'warning').map(i => i.message)
+            ],
+            warnings: [
+                ...baseResult.warnings,
+                ...insights.filter(i => i.type === 'warning').map(i => i.message)
+            ]
+        };
+    } catch (error) {
+        console.warn('Learning score failed, using base:', error);
+        return baseResult;
+    }
 };
 
 /**

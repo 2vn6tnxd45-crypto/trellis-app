@@ -25,6 +25,7 @@ import {
     appId
 } from '../../../config/constants';
 import { formatAddress } from '../../../lib/addressUtils';
+import { recordJobOutcome } from '../../contractor-pro/lib/schedulingIntelligence';
 
 // ============================================
 // CONSTANTS
@@ -523,11 +524,30 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
         
         // Commit all changes
         await batch.commit();
-        
-        return { 
-            success: true, 
+
+        // Record outcome for AI learning
+        try {
+            await recordJobOutcome(jobData, {
+                techId: jobData.assignedTechId,
+                techName: jobData.assignedTechName,
+                customerId: jobData.createdBy,
+                contractorId: jobData.contractorId,
+                rating: null, // Will be updated when rated
+                completedOnTime: true,
+                actualDuration: jobData.completion?.actualDuration || jobData.estimatedDuration,
+                estimatedDuration: jobData.estimatedDuration,
+                hadCallback: false,
+                customerRequested: jobData.assignedBy === 'customer_request'
+            });
+        } catch (learnError) {
+            console.warn('Failed to record learning outcome:', learnError);
+            // Don't fail the completion for learning errors
+        }
+
+        return {
+            success: true,
             importedCount: importedRecordIds.length,
-            importedRecordIds 
+            importedRecordIds
         };
         
     } catch (error) {
@@ -636,10 +656,25 @@ export const rateContractor = async (jobId, contractorId, userId, rating) => {
         
         // 3. Update contractor's rating summary
         await batch.commit();
-        
+
         // Update aggregate ratings (separate call to avoid transaction issues)
         await updateContractorRatingSummary(contractorId);
-        
+
+        // Update learning with rating
+        try {
+            await recordJobOutcome(jobData, {
+                techId: jobData.assignedTechId,
+                techName: jobData.assignedTechName,
+                customerId: jobData.createdBy,
+                contractorId: jobData.contractorId,
+                rating: rating.overall,
+                completedOnTime: true,
+                hadCallback: false
+            });
+        } catch (learnError) {
+            console.warn('Failed to update learning with rating:', learnError);
+        }
+
         return { success: true };
         
     } catch (error) {
