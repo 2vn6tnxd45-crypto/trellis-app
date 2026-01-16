@@ -8,11 +8,13 @@ import React, { useState } from 'react';
 import {
     X, CheckCircle, AlertTriangle, Camera, FileText, Wrench,
     MessageSquare, Star, Loader2, ChevronDown, ChevronUp,
-    ExternalLink, Clock, User, Calendar, DollarSign, Download
+    ExternalLink, Clock, User, Calendar, DollarSign, Download, Package
 } from 'lucide-react';
 import { acceptJobCompletion, requestRevision } from '../../lib/jobCompletionService';
 import toast from 'react-hot-toast';
 import { createPaymentCheckout } from '../../../../lib/stripeService';
+import { InventoryPreviewSection } from './InventoryPreviewSection';
+import { EditInventoryItemModal } from './EditInventoryItemModal';
 
 // ============================================
 // MAIN COMPONENT
@@ -22,7 +24,11 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showRevisionModal, setShowRevisionModal] = useState(false);
     const [showRatingModal, setShowRatingModal] = useState(false);
-    
+
+    // Item selection and editing state
+    const [itemSelections, setItemSelections] = useState({});
+    const [editingItem, setEditingItem] = useState(null);
+
     // Get completion data from job
     const completion = job.completion || {};
     const photos = completion.photos || [];
@@ -93,16 +99,26 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
     const handleApprove = async () => {
         setIsSubmitting(true);
         const loadingToast = toast.loading('Approving completion...');
-        
+
         try {
-            await acceptJobCompletion(job.id, userId, propertyId);
-            
+            // Pass item selections with skip/modifications to acceptJobCompletion
+            await acceptJobCompletion(job.id, userId, propertyId, itemSelections);
+
             toast.dismiss(loadingToast);
-            toast.success('Job approved! Items added to your inventory.');
-            
+
+            // Calculate imported count
+            const skippedCount = Object.values(itemSelections).filter(s => s.skip).length;
+            const importedCount = items.length - skippedCount;
+
+            if (importedCount > 0) {
+                toast.success(`Job approved! ${importedCount} item${importedCount !== 1 ? 's' : ''} added to your inventory.`);
+            } else {
+                toast.success('Job approved!');
+            }
+
             // Show rating modal after approval
             setShowRatingModal(true);
-            
+
         } catch (error) {
             toast.dismiss(loadingToast);
             toast.error(error.message || 'Failed to approve completion');
@@ -111,7 +127,32 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
             setIsSubmitting(false);
         }
     };
-    
+
+    // Handle item include/exclude toggle
+    const handleItemToggle = (itemId) => {
+        setItemSelections(prev => ({
+            ...prev,
+            [itemId]: {
+                ...prev[itemId],
+                skip: !prev[itemId]?.skip
+            }
+        }));
+    };
+
+    // Handle item modifications from edit modal
+    const handleItemModifications = (itemId, modifications) => {
+        setItemSelections(prev => ({
+            ...prev,
+            [itemId]: {
+                ...prev[itemId],
+                modifications: {
+                    ...(prev[itemId]?.modifications || {}),
+                    ...modifications
+                }
+            }
+        }));
+    };
+
     const handleRequestRevision = async (reason) => {
         setIsSubmitting(true);
         const loadingToast = toast.loading('Sending revision request...');
@@ -375,32 +416,16 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                             </div>
                         )}
                         
-                        {/* ITEMS TAB */}
+                        {/* ITEMS TAB - Enhanced with InventoryPreviewSection */}
                         {activeTab === 'items' && (
-                            <div className="space-y-4">
-                                {items.length > 0 ? (
-                                    <>
-                                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
-                                            <p className="text-green-800 text-sm">
-                                                <CheckCircle className="w-4 h-4 inline mr-2" />
-                                                These items will be added to your home inventory when you approve.
-                                            </p>
-                                        </div>
-                                        
-                                        {items.map((item, idx) => (
-                                            <ItemReviewCard key={item.id || idx} item={item} />
-                                        ))}
-                                    </>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                        <p className="text-gray-500">No items to add to inventory</p>
-                                        <p className="text-gray-400 text-sm mt-1">
-                                            This was a service-only job
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
+                            <InventoryPreviewSection
+                                items={items}
+                                editable={true}
+                                itemSelections={itemSelections}
+                                onItemToggle={handleItemToggle}
+                                onEditItem={(item) => setEditingItem(item)}
+                                showMaintenanceInfo={true}
+                            />
                         )}
                     </div>
                     
@@ -476,6 +501,14 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                     onSkip={handleRatingComplete}
                 />
             )}
+
+            {/* Edit Inventory Item Modal */}
+            <EditInventoryItemModal
+                item={editingItem}
+                isOpen={!!editingItem}
+                onClose={() => setEditingItem(null)}
+                onSave={handleItemModifications}
+            />
         </>
     );
 };
