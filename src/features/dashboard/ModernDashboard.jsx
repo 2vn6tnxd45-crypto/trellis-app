@@ -15,6 +15,7 @@ import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeArchive } from '../archive';
 import { MyContractorsSection } from './components/MyContractorsSection';
 import { ActionRequiredBanner } from './components/ActionRequiredBanner';
+import { SchedulingRequiredBanner } from './components/SchedulingRequiredBanner';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -854,6 +855,51 @@ export const ModernDashboard = ({
     // Fetch quotes for the action required banner
     const { quotes: allQuotes } = useCustomerQuotes(userId);
 
+    // Fetch jobs for the scheduling required banner
+    const [homeownerJobs, setHomeownerJobs] = useState([]);
+    useEffect(() => {
+        if (!userId) {
+            setHomeownerJobs([]);
+            return;
+        }
+
+        // Query for jobs where user is the customer
+        const q1 = query(
+            collection(db, REQUESTS_COLLECTION_PATH),
+            where("createdBy", "==", userId)
+        );
+        const q2 = query(
+            collection(db, REQUESTS_COLLECTION_PATH),
+            where("customerId", "==", userId)
+        );
+
+        let results1 = [];
+        let results2 = [];
+        let loaded1 = false;
+        let loaded2 = false;
+
+        const mergeAndUpdate = () => {
+            if (!loaded1 || !loaded2) return;
+            const merged = new Map();
+            [...results1, ...results2].forEach(job => merged.set(job.id, job));
+            setHomeownerJobs(Array.from(merged.values()));
+        };
+
+        const unsub1 = onSnapshot(q1, (snapshot) => {
+            results1 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded1 = true;
+            mergeAndUpdate();
+        }, () => { loaded1 = true; mergeAndUpdate(); });
+
+        const unsub2 = onSnapshot(q2, (snapshot) => {
+            results2 = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            loaded2 = true;
+            mergeAndUpdate();
+        }, () => { loaded2 = true; mergeAndUpdate(); });
+
+        return () => { unsub1(); unsub2(); };
+    }, [userId]);
+
     const validRecords = Array.isArray(records) ? records : [];
     const healthData = useHomeHealth(validRecords);
 
@@ -1086,6 +1132,9 @@ export const ModernDashboard = ({
         <div className="space-y-6 pb-8">
             {/* ACTION REQUIRED BANNER - Shows when quotes need review */}
             <ActionRequiredBanner quotes={allQuotes} />
+
+            {/* SCHEDULING REQUIRED BANNER - Shows when jobs have time slots to pick */}
+            <SchedulingRequiredBanner jobs={homeownerJobs} />
 
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">

@@ -448,6 +448,41 @@ export const OfferTimeSlotsModal = ({
                 lastActivity: serverTimestamp()
             });
 
+            // ========================================
+            // Send email notification to customer (non-blocking)
+            // ========================================
+            const customerEmail = job.customer?.email || job.customerEmail;
+            if (customerEmail) {
+                fetch('/api/send-slots-offered', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customerEmail,
+                        customerName: job.customer?.name || job.customerName || null,
+                        contractorName: job.contractorName || schedulingPreferences?.companyName || 'Your contractor',
+                        contractorPhone: job.contractorPhone || schedulingPreferences?.phone || null,
+                        jobTitle: job.title || job.description || 'Service Request',
+                        jobId: job.id,
+                        slots: formattedSlots,
+                        message: message || null
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('[OfferTimeSlotsModal] Email notification sent:', data.id);
+                    } else {
+                        console.warn('[OfferTimeSlotsModal] Email send warning:', data.error);
+                    }
+                })
+                .catch(err => {
+                    // Non-blocking - log but don't fail the main operation
+                    console.warn('[OfferTimeSlotsModal] Email notification failed:', err.message);
+                });
+            } else {
+                console.log('[OfferTimeSlotsModal] No customer email - skipping notification');
+            }
+
             toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);
             if (onSuccess) onSuccess();
             onClose();

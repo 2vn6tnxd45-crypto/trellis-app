@@ -4,3 +4,4 @@
 export { HomeHealthCard } from './HomeHealthCard';
 export { MyContractorsSection } from './MyContractorsSection';
 export { ActionRequiredBanner } from './ActionRequiredBanner';
+export { SchedulingRequiredBanner } from './SchedulingRequiredBanner';

@@ -228,11 +228,23 @@ export const HomeownerJobCard = ({
     const canCancel = !['completed', 'cancelled', 'in_progress', 'pending_completion'].includes(job.status);
     const canRequestNewTimes = ['scheduling', 'slots_offered', 'pending_schedule'].includes(effectiveStatus);
 
+    // Check for contractor message with offered slots
+    const contractorMessage = job.scheduling?.offeredMessage || job.contractorMessage;
+    const isSlotsOffered = effectiveStatus === 'slots_offered';
+
     return (
         <div
-            className={`bg-white rounded-2xl border border-slate-200 overflow-hidden transition-all hover:shadow-md hover:border-slate-300 ${compact ? '' : ''
-                }`}
+            className={`rounded-2xl border overflow-hidden transition-all hover:shadow-md relative ${
+                isSlotsOffered
+                    ? 'bg-amber-50/50 border-amber-300 hover:border-amber-400 ring-2 ring-amber-100'
+                    : 'bg-white border-slate-200 hover:border-slate-300'
+            } ${compact ? '' : ''}`}
         >
+            {/* Pulsing action indicator for slots offered */}
+            {isSlotsOffered && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full animate-pulse z-10" />
+            )}
+
             {/* Main Card Content */}
             <div
                 className="p-4 cursor-pointer"
@@ -372,12 +384,20 @@ export const HomeownerJobCard = ({
                     {/* Offered Slots (new model) */}
                     {!job.scheduledTime && offeredSlots.length > 0 && (
                         <div>
+                            {/* Contractor message if provided */}
+                            {contractorMessage && isSlotsOffered && (
+                                <div className="mb-3 p-2 bg-amber-100/50 rounded-lg border border-amber-200">
+                                    <p className="text-xs text-amber-700 italic">
+                                        "{contractorMessage}"
+                                    </p>
+                                </div>
+                            )}
                             <p className="text-sm text-slate-500 mb-2">Available times:</p>
                             <div className="space-y-1.5">
                                 {offeredSlots.slice(0, 3).map((slot, idx) => (
                                     <div
                                         key={slot.id || idx}
-                                        className="flex items-center justify-between bg-amber-50 px-3 py-2 rounded-lg"
+                                        className="flex items-center justify-between bg-amber-50 px-3 py-2 rounded-lg border border-amber-200"
                                     >
                                         <span className="text-sm font-medium text-amber-800">
                                             {formatDate(slot.start)}
