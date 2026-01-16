@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH, CATEGORIES, ROOMS } from '../../config/constants';
 import { Home, Camera, Upload, Send, CheckCircle, AlertCircle, Loader2, FileText, X, DollarSign, Receipt, Wrench, Package } from 'lucide-react';
+import { Select } from '../../components/ui/Select';
 import toast, { Toaster } from 'react-hot-toast';
 import { compressImage } from '../../lib/images';
 
@@ -17,14 +18,14 @@ export const ContractorView = () => {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState(null);
-    
+
     const [formData, setFormData] = useState({
         description: '', category: '', area: 'General', brand: '', model: '', serialNumber: '', notes: '',
         datePerformed: new Date().toISOString().split('T')[0],
         totalCost: '', laborCost: '', partsCost: '',
         contractorName: '', contractorCompany: '', contractorPhone: '', contractorEmail: ''
     });
-    
+
     const [attachments, setAttachments] = useState([]);
     const fileInputRef = useRef(null);
     const invoiceInputRef = useRef(null);
@@ -42,14 +43,14 @@ export const ContractorView = () => {
                 setRequest({ id: docSnap.id, ...data });
                 if (data.category) setFormData(prev => ({ ...prev, category: data.category }));
                 if (data.area) setFormData(prev => ({ ...prev, area: data.area }));
-            } catch (err) { console.error('Error loading request:', err); setError('Unable to load request.'); } 
+            } catch (err) { console.error('Error loading request:', err); setError('Unable to load request.'); }
             finally { setLoading(false); }
         };
         loadRequest();
     }, [requestId]);
 
     const handleInputChange = (e) => { const { name, value } = e.target; setFormData(prev => ({ ...prev, [name]: value })); };
-    
+
     const handleFileAdd = async (e) => {
         const files = Array.from(e.target.files);
         for (const file of files) {
@@ -74,7 +75,7 @@ export const ContractorView = () => {
         if (!formData.description.trim()) { toast.error('Please describe the work performed.'); return; }
         setSubmitting(true);
         const loadingToast = toast.loading('Submitting your work details...');
-        
+
         try {
             const uploadedAttachments = [];
             for (const att of attachments) {
@@ -87,7 +88,7 @@ export const ContractorView = () => {
                     uploadedAttachments.push({ name: att.name, type: att.type === 'pdf' ? 'Document' : 'Photo', url, dateAdded: new Date().toISOString() });
                 } catch (uploadErr) { console.error('Upload error:', uploadErr); }
             }
-            
+
             let invoiceUrl = null;
             if (invoiceFile) {
                 try {
@@ -98,7 +99,7 @@ export const ContractorView = () => {
                     invoiceUrl = await getDownloadURL(storageRef);
                 } catch (uploadErr) { console.error('Invoice upload error:', uploadErr); }
             }
-            
+
             const docRef = doc(db, REQUESTS_COLLECTION_PATH, requestId);
             await updateDoc(docRef, {
                 status: 'submitted', submittedAt: serverTimestamp(),
@@ -110,11 +111,11 @@ export const ContractorView = () => {
                 contractorPhone: formData.contractorPhone, contractorEmail: formData.contractorEmail,
                 attachments: uploadedAttachments, invoiceUrl: invoiceUrl, imageUrl: uploadedAttachments.find(a => a.type === 'Photo')?.url || ''
             });
-            
+
             toast.dismiss(loadingToast);
             toast.success('Successfully submitted!');
             setSubmitted(true);
-        } catch (err) { console.error('Submit error:', err); toast.dismiss(loadingToast); toast.error('Failed to submit. Please try again.'); } 
+        } catch (err) { console.error('Submit error:', err); toast.dismiss(loadingToast); toast.error('Failed to submit. Please try again.'); }
         finally { setSubmitting(false); }
     };
 
@@ -134,8 +135,23 @@ export const ContractorView = () => {
                     <div className="space-y-4">
                         <div><label className="block text-sm font-medium text-slate-700 mb-1">Description of Work *</label><textarea name="description" value={formData.description} onChange={handleInputChange} rows={3} placeholder="e.g., Replaced HVAC filter, serviced AC unit..." className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none resize-none" required /></div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Category</label><select name="category" value={formData.category} onChange={handleInputChange} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"><option value="">Select category</option>{CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Area/Room</label><select name="area" value={formData.area} onChange={handleInputChange} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white">{ROOMS.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
+                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                                <Select
+                                    value={formData.category}
+                                    onChange={(val) => handleInputChange({ target: { name: 'category', value: val } })}
+                                    options={[
+                                        { value: '', label: 'Select category' },
+                                        ...CATEGORIES.map(c => ({ value: c, label: c }))
+                                    ]}
+                                />
+                            </div>
+                            <div><label className="block text-sm font-medium text-slate-700 mb-1">Area/Room</label>
+                                <Select
+                                    value={formData.area}
+                                    onChange={(val) => handleInputChange({ target: { name: 'area', value: val } })}
+                                    options={ROOMS.map(r => ({ value: r, label: r }))}
+                                />
+                            </div>
                         </div>
                         <div><label className="block text-sm font-medium text-slate-700 mb-1">Date Performed</label><input type="date" name="datePerformed" value={formData.datePerformed} onChange={handleInputChange} className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none" /></div>
                     </div>

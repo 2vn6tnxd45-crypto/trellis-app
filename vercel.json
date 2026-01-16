@@ -25,6 +25,10 @@
     {
       "path": "/api/cron/completion-reminders",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/rating-reminders",
+      "schedule": "0 10 * * *"
     }
   ]
 }

@@ -231,7 +231,7 @@ export const subscribeToRecentChannels = (userId, callback, maxChannels = 20) =>
 /**
  * Update channel metadata (homeowner/contractor info)
  * Called when we have more info about a participant
- * 
+ *
  * @param {string} channelId - The channel ID
  * @param {object} info - Info to merge into channel
  */
@@ -244,5 +244,201 @@ export const updateChannelInfo = async (channelId, info) => {
         });
     } catch (error) {
         console.warn("Could not update channel info:", error);
+    }
+};
+
+// ============================================
+// CREATE JOB CHAT CHANNEL
+// ============================================
+
+/**
+ * Create or update a chat channel for a job
+ * Called when contractor offers time slots or homeowner needs to message about a job
+ * Idempotent - safe to call multiple times
+ *
+ * @param {string} homeownerId - The homeowner's user ID
+ * @param {string} contractorId - The contractor's ID
+ * @param {string} contractorName - The contractor's display name
+ * @param {string} homeownerName - The homeowner's display name
+ * @param {string} jobId - The job ID to link
+ * @param {string} jobTitle - The job title/scope
+ * @returns {Promise<{success: boolean, channelId?: string, reason?: string}>}
+ */
+export const createJobChatChannel = async (
+    homeownerId,
+    contractorId,
+    contractorName,
+    homeownerName,
+    jobId,
+    jobTitle
+) => {
+    if (!homeownerId || !contractorId) {
+        console.warn('createJobChatChannel: Missing homeownerId or contractorId');
+        return { success: false, reason: 'missing-params' };
+    }
+
+    try {
+        // Channel ID format: homeownerId_contractorId (one channel per pair)
+        const channelId = `${homeownerId}_${contractorId}`;
+        const channelRef = doc(db, 'channels', channelId);
+
+        // Check if channel already exists to preserve createdAt
+        const { getDoc } = await import('firebase/firestore');
+        const channelSnap = await getDoc(channelRef);
+
+        const channelData = {
+            channelId,
+            participants: [homeownerId, contractorId],
+            homeownerName: homeownerName || 'Homeowner',
+            contractorName: contractorName || 'Contractor',
+            source: channelSnap.exists() ? (channelSnap.data().source || 'job') : 'job',
+            linkedJobId: jobId || null,
+            scopeOfWork: jobTitle || channelSnap.data()?.scopeOfWork || null,
+            lastMessageTime: channelSnap.exists() ? channelSnap.data().lastMessageTime : serverTimestamp(),
+            createdAt: channelSnap.exists() ? channelSnap.data().createdAt : serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+
+        // Use merge to preserve existing data (message history is in subcollection)
+        await setDoc(channelRef, channelData, { merge: true });
+
+        console.log('✅ Job chat channel created/updated:', channelId);
+        return { success: true, channelId };
+
+    } catch (error) {
+        console.warn('Could not create job chat channel:', error);
+        return { success: false, reason: error.message };
+    }
+};
+
+// ============================================
+// CREATE EVALUATION CHAT CHANNEL
+// ============================================
+
+/**
+ * Create or update a chat channel for an evaluation
+ * Called when homeowner submits evaluation media
+ * Allows contractor to ask clarifying questions
+ *
+ * @param {string} homeownerId - The homeowner's user ID
+ * @param {string} contractorId - The contractor's ID
+ * @param {string} contractorName - The contractor's display name
+ * @param {string} homeownerName - The homeowner's display name
+ * @param {string} evaluationId - The evaluation ID to link
+ * @param {string} scope - The job description/scope
+ * @returns {Promise<{success: boolean, channelId?: string, reason?: string}>}
+ */
+export const createEvaluationChatChannel = async (
+    homeownerId,
+    contractorId,
+    contractorName,
+    homeownerName,
+    evaluationId,
+    scope
+) => {
+    if (!homeownerId || !contractorId) {
+        console.warn('createEvaluationChatChannel: Missing homeownerId or contractorId');
+        return { success: false, reason: 'missing-params' };
+    }
+
+    try {
+        // Channel ID format: homeownerId_contractorId (one channel per pair)
+        const channelId = `${homeownerId}_${contractorId}`;
+        const channelRef = doc(db, 'channels', channelId);
+
+        // Check if channel already exists
+        const { getDoc } = await import('firebase/firestore');
+        const channelSnap = await getDoc(channelRef);
+
+        const channelData = {
+            channelId,
+            participants: [homeownerId, contractorId],
+            homeownerName: homeownerName || 'Homeowner',
+            contractorName: contractorName || 'Contractor',
+            source: channelSnap.exists() ? (channelSnap.data().source || 'evaluation') : 'evaluation',
+            linkedEvaluationId: evaluationId || null,
+            scopeOfWork: scope || channelSnap.data()?.scopeOfWork || null,
+            lastMessageTime: channelSnap.exists() ? channelSnap.data().lastMessageTime : serverTimestamp(),
+            createdAt: channelSnap.exists() ? channelSnap.data().createdAt : serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+
+        await setDoc(channelRef, channelData, { merge: true });
+
+        console.log('✅ Evaluation chat channel created/updated:', channelId);
+        return { success: true, channelId };
+
+    } catch (error) {
+        console.warn('Could not create evaluation chat channel:', error);
+        return { success: false, reason: error.message };
+    }
+};
+
+// ============================================
+// ENSURE CHANNEL EXISTS
+// ============================================
+
+/**
+ * Ensure a chat channel exists between homeowner and contractor
+ * Creates if not exists, updates if exists
+ * Generic helper for any context
+ *
+ * @param {string} homeownerId - The homeowner's user ID
+ * @param {string} contractorId - The contractor's ID
+ * @param {object} options - Additional options
+ * @returns {Promise<{success: boolean, channelId?: string, exists?: boolean}>}
+ */
+export const ensureChatChannelExists = async (
+    homeownerId,
+    contractorId,
+    options = {}
+) => {
+    if (!homeownerId || !contractorId) {
+        return { success: false, reason: 'missing-params' };
+    }
+
+    const {
+        contractorName = 'Contractor',
+        homeownerName = 'Homeowner',
+        jobId = null,
+        evaluationId = null,
+        quoteId = null,
+        scopeOfWork = null
+    } = options;
+
+    try {
+        const channelId = `${homeownerId}_${contractorId}`;
+        const channelRef = doc(db, 'channels', channelId);
+
+        const { getDoc } = await import('firebase/firestore');
+        const channelSnap = await getDoc(channelRef);
+        const exists = channelSnap.exists();
+
+        // Build update data, only including non-null values
+        const channelData = {
+            channelId,
+            participants: [homeownerId, contractorId],
+            updatedAt: serverTimestamp()
+        };
+
+        if (homeownerName) channelData.homeownerName = homeownerName;
+        if (contractorName) channelData.contractorName = contractorName;
+        if (scopeOfWork) channelData.scopeOfWork = scopeOfWork;
+        if (jobId) channelData.linkedJobId = jobId;
+        if (evaluationId) channelData.linkedEvaluationId = evaluationId;
+        if (quoteId) channelData.linkedQuoteId = quoteId;
+
+        if (!exists) {
+            channelData.createdAt = serverTimestamp();
+            channelData.source = jobId ? 'job' : evaluationId ? 'evaluation' : quoteId ? 'quote' : 'direct';
+        }
+
+        await setDoc(channelRef, channelData, { merge: true });
+
+        return { success: true, channelId, exists };
+
+    } catch (error) {
+        console.warn('Could not ensure chat channel:', error);
+        return { success: false, reason: error.message };
     }
 };

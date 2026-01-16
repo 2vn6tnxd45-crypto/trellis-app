@@ -1,6 +1,7 @@
 // src/features/requests/RequestManager.jsx
 import React, { useState, useEffect } from 'react';
 import { Link as LinkIcon, Trash2, ArrowDownToLine, MapPin, Link2, Send, Phone, Mail, User, Hammer } from 'lucide-react';
+import { Select } from '../../components/ui/Select';
 import { collection, query, where, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
@@ -28,11 +29,11 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
         const name = r.contractor;
         if (name && name.length > 2) {
             if (!acc[name]) {
-                acc[name] = { 
-                    name, 
-                    phone: r.contractorPhone, 
-                    email: r.contractorEmail, 
-                    jobs: [] 
+                acc[name] = {
+                    name,
+                    phone: r.contractorPhone,
+                    email: r.contractorEmail,
+                    jobs: []
                 };
             }
             // Update contact info if found in newer record
@@ -63,23 +64,23 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
         } catch (error) { alert("Failed to create request."); } finally { setIsCreating(false); }
     };
 
-    const handleDelete = async (id) => { if (confirm("Delete link?")) try { await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id)); } catch (e) {} };
-    const copyLink = (id) => { 
+    const handleDelete = async (id) => { if (confirm("Delete link?")) try { await deleteDoc(doc(db, REQUESTS_COLLECTION_PATH, id)); } catch (e) { } };
+    const copyLink = (id) => {
         const url = `${window.location.origin}${window.location.pathname}?requestId=${id}`;
-        navigator.clipboard.writeText(url).then(() => alert("Link copied!")); 
+        navigator.clipboard.writeText(url).then(() => alert("Link copied!"));
     };
 
     return (
         <div className="space-y-8">
             {/* Tabs */}
             <div className="flex space-x-4 border-b border-slate-200 pb-2">
-                <button 
+                <button
                     onClick={() => setView('requests')}
                     className={`pb-2 px-1 text-sm font-bold ${view === 'requests' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     Project Requests
                 </button>
-                <button 
+                <button
                     onClick={() => setView('pros')}
                     className={`pb-2 px-1 text-sm font-bold ${view === 'pros' ? 'text-emerald-600 border-b-2 border-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
@@ -95,16 +96,27 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
                         </h2>
                         <p className="text-slate-500 mb-6">Generate a secure link to send to your contractor.</p>
                         <form onSubmit={handleCreateRequest} className="space-y-4">
-                            <input type="text" value={newRequestDesc} onChange={(e) => setNewRequestDesc(e.target.value)} placeholder="Project Description (e.g. Replace HVAC)" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none"/>
-                            
+                            <input type="text" value={newRequestDesc} onChange={(e) => setNewRequestDesc(e.target.value)} placeholder="Project Description (e.g. Replace HVAC)" className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none" />
+
                             <div className="flex flex-col sm:flex-row gap-4">
                                 <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
-                                     <input type="checkbox" id="shareAddr" checked={shareAddress} onChange={(e) => setShareAddress(e.target.checked)} className="mr-3 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500"/>
-                                     <label htmlFor="shareAddr" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center"><MapPin size={16} className="mr-2 text-slate-400"/> Share Property Address</label>
+                                    <input type="checkbox" id="shareAddr" checked={shareAddress} onChange={(e) => setShareAddress(e.target.checked)} className="mr-3 h-5 w-5 rounded text-emerald-600 focus:ring-emerald-500" />
+                                    <label htmlFor="shareAddr" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center"><MapPin size={16} className="mr-2 text-slate-400" /> Share Property Address</label>
                                 </div>
                                 <div className="flex-1 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center">
-                                     <Link2 size={16} className="ml-2 mr-2 text-slate-400"/>
-                                     <select value={linkedRecordId} onChange={(e) => setLinkedRecordId(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 w-full outline-none"><option value="">No Linked Item</option>{records && records.map(r => (<option key={r.id} value={r.id}>{r.item} ({r.brand || 'Generic'})</option>))}</select>
+                                    <Link2 size={16} className="ml-2 mr-2 text-slate-400" />
+                                    <Select
+                                        value={linkedRecordId}
+                                        onChange={(val) => setLinkedRecordId(val)}
+                                        options={[
+                                            { value: '', label: 'No Linked Item' },
+                                            ...(records || []).map(r => ({
+                                                value: r.id,
+                                                label: `${r.item} (${r.brand || 'Generic'})`
+                                            }))
+                                        ]}
+                                        className="w-full border-none bg-transparent p-0 text-sm font-bold text-slate-700 focus:ring-0"
+                                    />
                                 </div>
                             </div>
                             <button type="submit" disabled={isCreating || !newRequestDesc} className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 shadow-lg shadow-emerald-600/20 transition active:scale-[0.98]">{isCreating ? 'Creating...' : 'Create Secure Link'}</button>
@@ -112,7 +124,7 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
                     </div>
 
                     {requests.length === 0 ? (
-                        <EmptyState 
+                        <EmptyState
                             icon={Send}
                             title="No Active Requests"
                             description="Create a request link above to send to your contractor. When they submit details, they'll appear here."
@@ -127,8 +139,8 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
                                             <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${req.status === 'submitted' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}`}>{req.status}</span>
                                         </div>
                                         <div className="flex gap-4 text-xs text-slate-400 font-medium mt-1">
-                                            {req.propertyAddress && <span className="flex items-center"><MapPin size={12} className="mr-1"/> Address Shared</span>}
-                                            {req.linkedContext && <span className="flex items-center"><Link2 size={12} className="mr-1"/> Specs Shared</span>}
+                                            {req.propertyAddress && <span className="flex items-center"><MapPin size={12} className="mr-1" /> Address Shared</span>}
+                                            {req.linkedContext && <span className="flex items-center"><Link2 size={12} className="mr-1" /> Specs Shared</span>}
                                         </div>
                                     </div>
                                     <div className="flex gap-2 w-full md:w-auto">
@@ -152,7 +164,7 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
             {view === 'pros' && (
                 <div className="space-y-4">
                     {contractors.length === 0 ? (
-                        <EmptyState 
+                        <EmptyState
                             icon={Hammer}
                             title="No Contractors Yet"
                             description="When you scan receipts or add items with contractor names, they will appear here automatically."
@@ -168,8 +180,8 @@ export const RequestManager = ({ userId, propertyName, propertyAddress, records,
                                         <div>
                                             <h3 className="text-lg font-bold text-slate-800">{pro.name}</h3>
                                             <div className="flex gap-4 mt-1 text-sm text-slate-500">
-                                                {pro.phone && <a href={`tel:${pro.phone}`} className="flex items-center hover:text-blue-600"><Phone size={14} className="mr-1"/> {pro.phone}</a>}
-                                                {pro.email && <a href={`mailto:${pro.email}`} className="flex items-center hover:text-blue-600"><Mail size={14} className="mr-1"/> {pro.email}</a>}
+                                                {pro.phone && <a href={`tel:${pro.phone}`} className="flex items-center hover:text-blue-600"><Phone size={14} className="mr-1" /> {pro.phone}</a>}
+                                                {pro.email && <a href={`mailto:${pro.email}`} className="flex items-center hover:text-blue-600"><Mail size={14} className="mr-1" /> {pro.email}</a>}
                                             </div>
                                         </div>
                                     </div>

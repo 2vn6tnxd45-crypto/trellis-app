@@ -841,6 +841,42 @@ export const getContractorRatings = async (contractorId, options = {}) => {
 };
 
 // ============================================
+// RATING PROMPT MANAGEMENT
+// ============================================
+
+/**
+ * Dismiss rating prompt for a job
+ * Increments dismiss count - after 3 dismissals, stop showing
+ */
+export const dismissRatingPrompt = async (jobId) => {
+    try {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+        const jobSnap = await getDoc(jobRef);
+
+        if (!jobSnap.exists()) {
+            return { success: false, reason: 'Job not found' };
+        }
+
+        const currentCount = jobSnap.data().ratingDismissCount || 0;
+
+        await updateDoc(jobRef, {
+            ratingDismissCount: currentCount + 1,
+            ratingLastDismissed: serverTimestamp()
+        });
+
+        return {
+            success: true,
+            newCount: currentCount + 1,
+            willShowAgain: currentCount + 1 < 3
+        };
+
+    } catch (error) {
+        console.error('Error dismissing rating prompt:', error);
+        return { success: false, reason: error.message };
+    }
+};
+
+// ============================================
 // HELPERS
 // ============================================
 

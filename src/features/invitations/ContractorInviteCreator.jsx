@@ -10,8 +10,8 @@
 // - Maintenance task suggestions (the "hook" for repeat business!)
 
 import React, { useState, useRef } from 'react';
-import { 
-    Home, Plus, Trash2, Send, Copy, Check, CheckCircle, 
+import {
+    Home, Plus, Trash2, Send, Copy, Check, CheckCircle,
     Loader2, Package, Mail, Phone, Building2, User,
     ChevronDown, ChevronUp, Camera, FileText, X,
     Link as LinkIcon, QrCode, Share2, MessageSquare,
@@ -19,13 +19,14 @@ import {
     Calendar, Clock, Bell, CheckSquare, Square,
     ArrowLeft // ADDED: ArrowLeft icon
 } from 'lucide-react';
+import { Select } from '../../components/ui/Select';
 import toast, { Toaster } from 'react-hot-toast';
 import { CATEGORIES, ROOMS, MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { createContractorInvitation } from '../../lib/invitations';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { signInAnonymously } from 'firebase/auth';  
-import { storage, auth } from '../../config/firebase';  
+import { signInAnonymously } from 'firebase/auth';
+import { storage, auth } from '../../config/firebase';
 import { Logo } from '../../components/common/Logo';
 import { useGemini } from '../../hooks/useGemini';
 
@@ -38,7 +39,7 @@ const Section = ({ title, icon: Icon, children, defaultOpen = true, badge }) => 
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden mb-4">
-            <button 
+            <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full p-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
@@ -66,7 +67,7 @@ const Section = ({ title, icon: Icon, children, defaultOpen = true, badge }) => 
 // ============================================
 const SuccessState = ({ inviteLink, onCreateAnother }) => {
     const [copied, setCopied] = useState(false);
-    
+
     const handleCopy = async () => {
         try {
             await navigator.clipboard.writeText(inviteLink);
@@ -77,7 +78,7 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
             toast.error('Failed to copy');
         }
     };
-    
+
     const handleShare = async () => {
         if (navigator.share) {
             try {
@@ -95,28 +96,28 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
             handleCopy();
         }
     };
-    
+
     return (
         <div className="contractor-page min-h-screen bg-gradient-to-b from-emerald-50 to-white flex items-center justify-center p-4">
             <div className="max-w-md w-full text-center">
                 <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
                     <CheckCircle className="h-10 w-10 text-emerald-600" />
                 </div>
-                
+
                 <h1 className="text-2xl font-bold text-slate-800 mb-2">
                     Invitation Created!
                 </h1>
                 <p className="text-slate-600 mb-8">
                     Share this link with your customer. They'll be able to claim these records instantly.
                 </p>
-                
+
                 <div className="bg-white rounded-xl border border-slate-200 p-4 mb-6">
                     <p className="text-xs text-slate-500 mb-2 font-medium">INVITATION LINK</p>
                     <p className="text-sm text-slate-700 break-all font-mono bg-slate-50 p-3 rounded-lg">
                         {inviteLink}
                     </p>
                 </div>
-                
+
                 <div className="flex gap-3 mb-8">
                     <button
                         onClick={handleCopy}
@@ -133,7 +134,7 @@ const SuccessState = ({ inviteLink, onCreateAnother }) => {
                         Share
                     </button>
                 </div>
-                
+
                 <button
                     onClick={onCreateAnother}
                     className="text-emerald-600 font-bold hover:text-emerald-700 transition-colors"
@@ -196,17 +197,17 @@ const AddTaskForm = ({ onAdd }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [taskName, setTaskName] = useState('');
     const [frequency, setFrequency] = useState('annual');
-    
+
     const handleSubmit = () => {
         if (!taskName.trim()) {
             toast.error('Please enter a task name');
             return;
         }
-        
+
         // Calculate first due date based on frequency
         const today = new Date();
         let firstDueDate = new Date(today);
-        
+
         switch (frequency) {
             case 'monthly':
                 firstDueDate.setMonth(firstDueDate.getMonth() + 1);
@@ -222,7 +223,7 @@ const AddTaskForm = ({ onAdd }) => {
                 firstDueDate.setFullYear(firstDueDate.getFullYear() + 1);
                 break;
         }
-        
+
         onAdd({
             task: taskName.trim(),
             frequency,
@@ -230,13 +231,13 @@ const AddTaskForm = ({ onAdd }) => {
             selected: true,
             isCustom: true
         });
-        
+
         setTaskName('');
         setFrequency('annual');
         setIsOpen(false);
         toast.success('Task added!');
     };
-    
+
     if (!isOpen) {
         return (
             <button
@@ -249,7 +250,7 @@ const AddTaskForm = ({ onAdd }) => {
             </button>
         );
     }
-    
+
     return (
         <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 space-y-3">
             <input
@@ -261,16 +262,18 @@ const AddTaskForm = ({ onAdd }) => {
                 autoFocus
             />
             <div className="flex gap-2">
-                <select
-                    value={frequency}
-                    onChange={(e) => setFrequency(e.target.value)}
-                    className="flex-grow px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                >
-                    <option value="monthly">Monthly</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="biannual">Every 6 Months</option>
-                    <option value="annual">Annual</option>
-                </select>
+                <div className="flex-grow">
+                    <Select
+                        value={frequency}
+                        onChange={(val) => setFrequency(val)}
+                        options={[
+                            { value: 'monthly', label: 'Monthly' },
+                            { value: 'quarterly', label: 'Quarterly' },
+                            { value: 'biannual', label: 'Every 6 Months' },
+                            { value: 'annual', label: 'Annual' }
+                        ]}
+                    />
+                </div>
                 <button
                     type="button"
                     onClick={() => setIsOpen(false)}
@@ -293,12 +296,12 @@ const AddTaskForm = ({ onAdd }) => {
 const RecordItemCard = ({ record, index, onChange, onRemove }) => {
     const [expanded, setExpanded] = useState(index === 0);
     const fileInputRef = useRef(null);
-    
+
     // FIX: Proper photo upload handling
     const handlePhotoUpload = async (e) => {
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
-        
+
         try {
             const newAttachments = await Promise.all(files.map(async (file) => {
                 // compressImage returns a data URL string, which IS a valid image src
@@ -310,51 +313,51 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                     preview: compressedDataUrl // Use the data URL directly as preview
                 };
             }));
-            
+
             onChange(index, 'attachments', [...(record.attachments || []), ...newAttachments]);
             toast.success(`Added ${files.length} photo${files.length > 1 ? 's' : ''}`);
         } catch (err) {
             console.error('Photo upload error:', err);
             toast.error('Failed to process photo');
         }
-        
+
         // Reset input
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
-    
+
     const removeAttachment = (attIndex) => {
         const updated = (record.attachments || []).filter((_, i) => i !== attIndex);
         onChange(index, 'attachments', updated);
     };
-    
+
     // Toggle a maintenance task
     const toggleTask = (taskIndex) => {
         const updatedTasks = [...(record.maintenanceTasks || [])];
-        updatedTasks[taskIndex] = { 
-            ...updatedTasks[taskIndex], 
-            selected: !updatedTasks[taskIndex].selected 
+        updatedTasks[taskIndex] = {
+            ...updatedTasks[taskIndex],
+            selected: !updatedTasks[taskIndex].selected
         };
         onChange(index, 'maintenanceTasks', updatedTasks);
     };
-    
+
     // Add a custom maintenance task
     const addCustomTask = (newTask) => {
         const updatedTasks = [...(record.maintenanceTasks || []), newTask];
         onChange(index, 'maintenanceTasks', updatedTasks);
     };
-    
+
     // Remove a custom task
     const removeTask = (taskIndex) => {
         const updatedTasks = (record.maintenanceTasks || []).filter((_, i) => i !== taskIndex);
         onChange(index, 'maintenanceTasks', updatedTasks);
     };
-    
+
     const selectedTaskCount = (record.maintenanceTasks || []).filter(t => t.selected).length;
-    
+
     return (
         <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
             {/* Header */}
-            <div 
+            <div
                 className="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
                 onClick={() => setExpanded(!expanded)}
             >
@@ -367,7 +370,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             {record.item || `Item ${index + 1}`}
                         </p>
                         <p className="text-xs text-slate-500">
-                            {record.category || 'No category'} 
+                            {record.category || 'No category'}
                             {record.brand && ` • ${record.brand}`}
                             {selectedTaskCount > 0 && (
                                 <span className="ml-2 text-emerald-600">
@@ -388,7 +391,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                     {expanded ? <ChevronUp size={20} className="text-slate-400" /> : <ChevronDown size={20} className="text-slate-400" />}
                 </div>
             </div>
-            
+
             {/* Expanded Content */}
             {expanded && (
                 <div className="p-4 pt-0 space-y-4 border-t border-slate-100">
@@ -405,41 +408,37 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                         />
                     </div>
-                    
+
                     {/* Category & Area */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Category *
                             </label>
-                            <select
+                            <Select
                                 value={record.category}
-                                onChange={(e) => onChange(index, 'category', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                            >
-                                <option value="">Select...</option>
-                                {CATEGORIES.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => onChange(index, 'category', val)}
+                                options={[
+                                    { value: '', label: 'Select...' },
+                                    ...CATEGORIES.map(cat => ({ value: cat, label: cat }))
+                                ]}
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Area/Room
                             </label>
-                            <select
+                            <Select
                                 value={record.area}
-                                onChange={(e) => onChange(index, 'area', e.target.value)}
-                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                            >
-                                <option value="">Select...</option>
-                                {ROOMS.map(room => (
-                                    <option key={room} value={room}>{room}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => onChange(index, 'area', val)}
+                                options={[
+                                    { value: '', label: 'Select...' },
+                                    ...ROOMS.map(room => ({ value: room, label: room }))
+                                ]}
+                            />
                         </div>
                     </div>
-                    
+
                     {/* Brand & Model */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -467,7 +466,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             />
                         </div>
                     </div>
-                    
+
                     {/* Serial Number & Date */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -494,7 +493,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             />
                         </div>
                     </div>
-                    
+
                     {/* Cost */}
                     <div className="grid grid-cols-3 gap-4">
                         <div>
@@ -534,7 +533,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             />
                         </div>
                     </div>
-                    
+
                     {/* Warranty */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -548,7 +547,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                         />
                     </div>
-                    
+
                     {/* Notes */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -562,7 +561,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                             className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white resize-none"
                         />
                     </div>
-                    
+
                     {/* ============================================ */}
                     {/* MAINTENANCE SCHEDULE SECTION - THE HOOK! */}
                     {/* ============================================ */}
@@ -579,7 +578,7 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                         <p className="text-xs text-amber-700 mb-3">
                             Your customer will receive reminders for these tasks — keeping you top of mind for future service!
                         </p>
-                        
+
                         <div className="space-y-2">
                             {(record.maintenanceTasks || []).map((task, taskIdx) => (
                                 <MaintenanceTaskItem
@@ -590,17 +589,17 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                                     isCustom={task.isCustom}
                                 />
                             ))}
-                            
+
                             {(record.maintenanceTasks || []).length === 0 && (
                                 <p className="text-xs text-amber-600 italic py-2">
                                     No tasks yet. Upload an invoice for AI suggestions, or add your own below.
                                 </p>
                             )}
-                            
+
                             <AddTaskForm onAdd={addCustomTask} />
                         </div>
                     </div>
-                    
+
                     {/* Photos */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
@@ -617,9 +616,9 @@ const RecordItemCard = ({ record, index, onChange, onRemove }) => {
                         <div className="flex flex-wrap gap-2">
                             {(record.attachments || []).map((att, i) => (
                                 <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 group">
-                                    <img 
-                                        src={att.preview || att.url} 
-                                        alt="" 
+                                    <img
+                                        src={att.preview || att.url}
+                                        alt=""
                                         className="w-full h-full object-cover"
                                     />
                                     <button
@@ -653,22 +652,22 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
     const { scanReceipt, isScanning } = useGemini();
     const [invoicePreview, setInvoicePreview] = useState(null);
     const [invoiceFile, setInvoiceFile] = useState(null);
-    
+
     const handleInvoiceUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        
+
         setInvoiceFile(file);
-        
+
         // Create preview
         if (file.type.startsWith('image/')) {
             setInvoicePreview(URL.createObjectURL(file));
         } else if (file.type === 'application/pdf') {
             setInvoicePreview('pdf');
         }
-        
+
         const loadingToast = toast.loading('Analyzing invoice with AI...');
-        
+
         try {
             // Convert to base64 for AI processing
             let base64Str;
@@ -677,12 +676,12 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
             } else {
                 base64Str = await compressImage(file);
             }
-            
+
             // Use the existing Gemini scanner
             const data = await scanReceipt(file, base64Str);
-            
+
             toast.dismiss(loadingToast);
-            
+
             if (data) {
                 toast.success('Invoice analyzed! Review the details below.', { icon: '✨' });
                 onInvoiceParsed(data, file, file.type.startsWith('image/') ? URL.createObjectURL(file) : null);
@@ -694,11 +693,11 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
             toast.dismiss(loadingToast);
             toast.error('Failed to analyze invoice. Please fill in manually.');
         }
-        
+
         // Reset input
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
-    
+
     return (
         <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-dashed border-emerald-200 p-6 mb-6">
             <input
@@ -708,7 +707,7 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
                 onChange={handleInvoiceUpload}
                 className="hidden"
             />
-            
+
             <div className="text-center">
                 <div className="bg-white w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm border border-emerald-100">
                     {isScanning ? (
@@ -717,17 +716,17 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
                         <Receipt className="h-8 w-8 text-emerald-600" />
                     )}
                 </div>
-                
+
                 <h3 className="font-bold text-slate-800 mb-1">
                     {isScanning ? 'Analyzing Invoice...' : 'Upload Your Invoice'}
                 </h3>
                 <p className="text-sm text-slate-600 mb-4">
-                    {isScanning 
+                    {isScanning
                         ? 'AI is extracting items, costs, and maintenance schedule...'
                         : 'AI will auto-fill everything including maintenance reminders for repeat business'
                     }
                 </p>
-                
+
                 <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -746,7 +745,7 @@ const InvoiceUploadSection = ({ onInvoiceParsed }) => {
                         </>
                     )}
                 </button>
-                
+
                 <p className="text-xs text-slate-500 mt-3">
                     Supports JPG, PNG, and PDF files
                 </p>
@@ -763,14 +762,14 @@ export const ContractorInviteCreator = () => {
     const [createdLink, setCreatedLink] = useState(null);
     // Note: useGemini is called inside InvoiceUploadSection, not here
     // This avoids the dual-instance bug where isScanning never updates
-    
+
     // CHANGE 2: Check if contractor is logged in (not anonymous) for linking invitations
     const { user: contractorUser, isAuthenticated: isContractorLoggedIn } = useContractorAuth();
-    
+
     // Invoice state
     const [invoiceFile, setInvoiceFile] = useState(null);
     const [invoicePreview, setInvoicePreview] = useState(null);
-    
+
     // Contractor Info
     const [contractorInfo, setContractorInfo] = useState({
         name: '',
@@ -778,10 +777,10 @@ export const ContractorInviteCreator = () => {
         phone: '',
         email: ''
     });
-    
+
     // Customer Email (optional)
     const [customerEmail, setCustomerEmail] = useState('');
-    
+
     // Records to include
     const [records, setRecords] = useState([{
         item: '',
@@ -800,13 +799,13 @@ export const ContractorInviteCreator = () => {
         maintenanceTasks: [],
         attachments: []
     }]);
-    
+
     // Handle invoice parsed data
     const handleInvoiceParsed = (data, file, preview) => {
         // Store invoice file to use as attachment
         setInvoiceFile(file);
         setInvoicePreview(preview);
-        
+
         // Auto-fill contractor info
         if (data.vendorName || data.vendorPhone || data.vendorEmail) {
             setContractorInfo(prev => ({
@@ -816,7 +815,7 @@ export const ContractorInviteCreator = () => {
                 email: data.vendorEmail || prev.email
             }));
         }
-        
+
         // Auto-fill records from parsed items
         if (data.items && data.items.length > 0) {
             const newRecords = data.items.map((item, idx) => ({
@@ -846,15 +845,15 @@ export const ContractorInviteCreator = () => {
                     preview: preview
                 }] : []
             }));
-            
+
             setRecords(newRecords);
         }
     };
-    
+
     const handleContractorChange = (field, value) => {
         setContractorInfo(prev => ({ ...prev, [field]: value }));
     };
-    
+
     const handleRecordChange = (index, field, value) => {
         setRecords(prev => {
             const updated = [...prev];
@@ -862,7 +861,7 @@ export const ContractorInviteCreator = () => {
             return updated;
         });
     };
-    
+
     const handleAddRecord = () => {
         setRecords(prev => [...prev, {
             item: '',
@@ -882,7 +881,7 @@ export const ContractorInviteCreator = () => {
             attachments: []
         }]);
     };
-    
+
     const handleRemoveRecord = (index) => {
         if (records.length === 1) {
             toast.error("You need at least one item");
@@ -890,14 +889,14 @@ export const ContractorInviteCreator = () => {
         }
         setRecords(prev => prev.filter((_, i) => i !== index));
     };
-    
+
     const uploadAttachments = async (attachments) => {
         console.log('uploadAttachments called with:', attachments?.length, 'files');
         const uploaded = [];
-        
+
         for (const att of attachments) {
             console.log('Processing attachment:', att.name, 'hasUrl:', !!att.url, 'hasFile:', !!att.file);
-            
+
             if (att.url) {
                 // Already uploaded
                 uploaded.push({ type: att.type, url: att.url, name: att.name });
@@ -906,14 +905,14 @@ export const ContractorInviteCreator = () => {
                 try {
                     console.log('Uploading file:', att.name);
                     const fileRef = ref(storage, `invitations/${Date.now()}-${att.name}`);
-                    
+
                     // Upload the file directly (Firebase handles File objects)
                     await uploadBytes(fileRef, att.file);
                     console.log('Upload complete, getting download URL');
-                    
+
                     const url = await getDownloadURL(fileRef);
                     console.log('Got download URL:', url.substring(0, 50) + '...');
-                    
+
                     uploaded.push({ type: att.type, url, name: att.name });
                 } catch (err) {
                     console.error('Upload error for attachment:', att.name, err);
@@ -921,183 +920,183 @@ export const ContractorInviteCreator = () => {
                 }
             }
         }
-        
+
         console.log('uploadAttachments complete, uploaded:', uploaded.length);
         return uploaded;
     };
-    
+
     const handleSubmit = async (e) => {
-    e.preventDefault();
-    console.log('=== handleSubmit START ===');
-    
-    const validRecords = records.filter(r => r.item?.trim());
-    console.log('Valid records:', validRecords.length);
-    
-    if (validRecords.length === 0) {
-        toast.error("Please add at least one item with a name");
-        return;
-    }
-    
-    console.log('Contractor info:', contractorInfo);
-    if (!contractorInfo.name && !contractorInfo.company) {
-        toast.error("Please enter your name or company name");
-        return;
-    }
-    
-    setIsSubmitting(true);
-    const loadingToast = toast.loading('Creating invitation...');
-    
-    try {
-        // ============================================
-        // STEP 1: Authentication
-        // ============================================
-        console.log('STEP 1: Checking authentication...');
-        console.log('Current user:', auth.currentUser?.uid || 'NONE');
-        
-        if (!auth.currentUser) {
-            console.log('No auth, attempting anonymous sign in...');
+        e.preventDefault();
+        console.log('=== handleSubmit START ===');
+
+        const validRecords = records.filter(r => r.item?.trim());
+        console.log('Valid records:', validRecords.length);
+
+        if (validRecords.length === 0) {
+            toast.error("Please add at least one item with a name");
+            return;
+        }
+
+        console.log('Contractor info:', contractorInfo);
+        if (!contractorInfo.name && !contractorInfo.company) {
+            toast.error("Please enter your name or company name");
+            return;
+        }
+
+        setIsSubmitting(true);
+        const loadingToast = toast.loading('Creating invitation...');
+
+        try {
+            // ============================================
+            // STEP 1: Authentication
+            // ============================================
+            console.log('STEP 1: Checking authentication...');
+            console.log('Current user:', auth.currentUser?.uid || 'NONE');
+
+            if (!auth.currentUser) {
+                console.log('No auth, attempting anonymous sign in...');
+                try {
+                    const credential = await signInAnonymously(auth);
+                    console.log('Anonymous auth SUCCESS, uid:', credential.user.uid);
+                } catch (authError) {
+                    console.error('Anonymous auth FAILED:', authError.code, authError.message);
+                    toast.dismiss(loadingToast);
+                    toast.error('Authentication failed: ' + authError.message);
+                    setIsSubmitting(false);
+                    return;
+                }
+            } else {
+                console.log('Already authenticated, uid:', auth.currentUser.uid);
+            }
+
+            // ============================================
+            // STEP 2: Upload Attachments
+            // ============================================
+            console.log('STEP 2: Processing attachments...');
+
+            let recordsWithUploadedAttachments;
             try {
-                const credential = await signInAnonymously(auth);
-                console.log('Anonymous auth SUCCESS, uid:', credential.user.uid);
-            } catch (authError) {
-                console.error('Anonymous auth FAILED:', authError.code, authError.message);
+                recordsWithUploadedAttachments = await Promise.all(
+                    validRecords.map(async (record, idx) => {
+                        console.log(`Processing record ${idx}: ${record.item}`);
+
+                        const selectedTasks = (record.maintenanceTasks || [])
+                            .filter(t => t.selected)
+                            .map(t => ({
+                                task: t.task,
+                                frequency: t.frequency,
+                                nextDue: t.firstDueDate
+                            }));
+
+                        console.log(`Record ${idx}: ${selectedTasks.length} tasks, ${record.attachments?.length || 0} attachments`);
+
+                        let uploadedAttachments = [];
+                        if (record.attachments?.length > 0) {
+                            console.log(`Record ${idx}: Uploading attachments...`);
+                            try {
+                                uploadedAttachments = await uploadAttachments(record.attachments);
+                                console.log(`Record ${idx}: Upload complete, ${uploadedAttachments.length} uploaded`);
+                            } catch (uploadErr) {
+                                console.error(`Record ${idx}: Attachment upload FAILED:`, uploadErr);
+                                // Continue without attachments rather than failing completely
+                                uploadedAttachments = [];
+                            }
+                        }
+
+                        return {
+                            ...record,
+                            attachments: uploadedAttachments,
+                            maintenanceTasks: selectedTasks
+                        };
+                    })
+                );
+                console.log('STEP 2 COMPLETE: All records processed');
+            } catch (processError) {
+                console.error('STEP 2 FAILED:', processError);
                 toast.dismiss(loadingToast);
-                toast.error('Authentication failed: ' + authError.message);
+                toast.error('Failed to process records: ' + processError.message);
                 setIsSubmitting(false);
                 return;
             }
-        } else {
-            console.log('Already authenticated, uid:', auth.currentUser.uid);
-        }
-        
-        // ============================================
-        // STEP 2: Upload Attachments
-        // ============================================
-        console.log('STEP 2: Processing attachments...');
-        
-        let recordsWithUploadedAttachments;
-        try {
-            recordsWithUploadedAttachments = await Promise.all(
-                validRecords.map(async (record, idx) => {
-                    console.log(`Processing record ${idx}: ${record.item}`);
-                    
-                    const selectedTasks = (record.maintenanceTasks || [])
-                        .filter(t => t.selected)
-                        .map(t => ({
-                            task: t.task,
-                            frequency: t.frequency,
-                            nextDue: t.firstDueDate
-                        }));
-                    
-                    console.log(`Record ${idx}: ${selectedTasks.length} tasks, ${record.attachments?.length || 0} attachments`);
-                    
-                    let uploadedAttachments = [];
-                    if (record.attachments?.length > 0) {
-                        console.log(`Record ${idx}: Uploading attachments...`);
-                        try {
-                            uploadedAttachments = await uploadAttachments(record.attachments);
-                            console.log(`Record ${idx}: Upload complete, ${uploadedAttachments.length} uploaded`);
-                        } catch (uploadErr) {
-                            console.error(`Record ${idx}: Attachment upload FAILED:`, uploadErr);
-                            // Continue without attachments rather than failing completely
-                            uploadedAttachments = [];
-                        }
-                    }
-                    
-                    return {
-                        ...record,
-                        attachments: uploadedAttachments,
-                        maintenanceTasks: selectedTasks
-                    };
-                })
-            );
-            console.log('STEP 2 COMPLETE: All records processed');
-        } catch (processError) {
-            console.error('STEP 2 FAILED:', processError);
-            toast.dismiss(loadingToast);
-            toast.error('Failed to process records: ' + processError.message);
-            setIsSubmitting(false);
-            return;
-        }
-        
-        // ============================================
-        // STEP 3: Create Invitation in Firestore
-        // ============================================
-        console.log('STEP 3: Creating invitation in Firestore...');
-        console.log('Records to send:', recordsWithUploadedAttachments.length);
-        console.log('Contractor:', contractorInfo.company || contractorInfo.name);
-        
-        let result;
-        try {
-            // Set a timeout but also log what's happening
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => {
-                    console.error('STEP 3 TIMEOUT: Firestore write took too long');
-                    reject(new Error('Invitation creation timed out after 30 seconds'));
-                }, 30000);
-            });
-            
-            console.log('Calling createContractorInvitation...');
-            const invitationPromise = createContractorInvitation(
-                contractorInfo,
-                recordsWithUploadedAttachments,
-                customerEmail || null
-            );
-            
-            result = await Promise.race([invitationPromise, timeoutPromise]);
-            console.log('STEP 3 COMPLETE: Invitation created!', result);
-        } catch (firestoreError) {
-            console.error('STEP 3 FAILED:', firestoreError.code, firestoreError.message);
-            console.error('Full error:', firestoreError);
-            toast.dismiss(loadingToast);
-            toast.error('Failed to save invitation: ' + firestoreError.message);
-            setIsSubmitting(false);
-            return;
-        }
-        
-        // ============================================
-        // CHANGE 3: Link invitation to contractor's Pro account (if logged in)
-        // ============================================
-        if (isContractorLoggedIn && contractorUser?.uid && result?.inviteId) {
-            console.log('STEP 4: Linking invitation to contractor account...');
+
+            // ============================================
+            // STEP 3: Create Invitation in Firestore
+            // ============================================
+            console.log('STEP 3: Creating invitation in Firestore...');
+            console.log('Records to send:', recordsWithUploadedAttachments.length);
+            console.log('Contractor:', contractorInfo.company || contractorInfo.name);
+
+            let result;
             try {
-                await linkInvitationToContractor(contractorUser.uid, {
-                    inviteId: result.inviteId,
-                    claimToken: result.claimToken,
-                    link: result.link,
-                    recordCount: recordsWithUploadedAttachments.length,
-                    recordSummary: recordsWithUploadedAttachments.slice(0, 5).map(r => ({
-                        item: r.item,
-                        category: r.category
-                    })),
-                    totalValue: recordsWithUploadedAttachments.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
-                    recipientEmail: customerEmail || null
+                // Set a timeout but also log what's happening
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        console.error('STEP 3 TIMEOUT: Firestore write took too long');
+                        reject(new Error('Invitation creation timed out after 30 seconds'));
+                    }, 30000);
                 });
-                console.log('STEP 4 COMPLETE: Invitation linked to contractor account');
-            } catch (linkError) {
-                // Don't fail the invitation creation if linking fails
-                console.warn('STEP 4 WARNING: Could not link to contractor account:', linkError);
+
+                console.log('Calling createContractorInvitation...');
+                const invitationPromise = createContractorInvitation(
+                    contractorInfo,
+                    recordsWithUploadedAttachments,
+                    customerEmail || null
+                );
+
+                result = await Promise.race([invitationPromise, timeoutPromise]);
+                console.log('STEP 3 COMPLETE: Invitation created!', result);
+            } catch (firestoreError) {
+                console.error('STEP 3 FAILED:', firestoreError.code, firestoreError.message);
+                console.error('Full error:', firestoreError);
+                toast.dismiss(loadingToast);
+                toast.error('Failed to save invitation: ' + firestoreError.message);
+                setIsSubmitting(false);
+                return;
             }
+
+            // ============================================
+            // CHANGE 3: Link invitation to contractor's Pro account (if logged in)
+            // ============================================
+            if (isContractorLoggedIn && contractorUser?.uid && result?.inviteId) {
+                console.log('STEP 4: Linking invitation to contractor account...');
+                try {
+                    await linkInvitationToContractor(contractorUser.uid, {
+                        inviteId: result.inviteId,
+                        claimToken: result.claimToken,
+                        link: result.link,
+                        recordCount: recordsWithUploadedAttachments.length,
+                        recordSummary: recordsWithUploadedAttachments.slice(0, 5).map(r => ({
+                            item: r.item,
+                            category: r.category
+                        })),
+                        totalValue: recordsWithUploadedAttachments.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0),
+                        recipientEmail: customerEmail || null
+                    });
+                    console.log('STEP 4 COMPLETE: Invitation linked to contractor account');
+                } catch (linkError) {
+                    // Don't fail the invitation creation if linking fails
+                    console.warn('STEP 4 WARNING: Could not link to contractor account:', linkError);
+                }
+            }
+
+            // ============================================
+            // SUCCESS
+            // ============================================
+            console.log('=== handleSubmit SUCCESS ===');
+            toast.dismiss(loadingToast);
+            toast.success('Invitation created!');
+            setCreatedLink(result.link);
+
+        } catch (error) {
+            console.error('=== handleSubmit UNEXPECTED ERROR ===', error);
+            toast.dismiss(loadingToast);
+            toast.error('Failed to create invitation: ' + (error.message || 'Unknown error'));
+        } finally {
+            console.log('=== handleSubmit END ===');
+            setIsSubmitting(false);
         }
-        
-        // ============================================
-        // SUCCESS
-        // ============================================
-        console.log('=== handleSubmit SUCCESS ===');
-        toast.dismiss(loadingToast);
-        toast.success('Invitation created!');
-        setCreatedLink(result.link);
-        
-    } catch (error) {
-        console.error('=== handleSubmit UNEXPECTED ERROR ===', error);
-        toast.dismiss(loadingToast);
-        toast.error('Failed to create invitation: ' + (error.message || 'Unknown error'));
-    } finally {
-        console.log('=== handleSubmit END ===');
-        setIsSubmitting(false);
-    }
-};
-    
+    };
+
     const handleCreateAnother = () => {
         setCreatedLink(null);
         setInvoiceFile(null);
@@ -1122,7 +1121,7 @@ export const ContractorInviteCreator = () => {
         }]);
         setCustomerEmail('');
     };
-    
+
     // Show success state if link was created
     if (createdLink) {
         return <SuccessState inviteLink={createdLink} onCreateAnother={handleCreateAnother} />;
@@ -1134,17 +1133,17 @@ export const ContractorInviteCreator = () => {
         // Clear all search params to return to the clean dashboard URL
         window.location.href = window.location.origin + window.location.pathname + '?pro=dashboard';
     };
-    
+
     // DARK MODE FIX: Added 'contractor-page' class to force light mode
     return (
         <div className="contractor-page min-h-screen bg-slate-50">
             <Toaster position="top-center" />
-            
+
             {/* Header */}
             <header className="bg-white border-b border-slate-100 sticky top-0 z-40">
                 <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-4">
                     {/* ADDED: Back Button */}
-                    <button 
+                    <button
                         onClick={handleBackToDashboard}
                         className="p-2 -ml-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                         title="Back to Dashboard"
@@ -1161,15 +1160,15 @@ export const ContractorInviteCreator = () => {
                     </div>
                 </div>
             </header>
-            
+
             {/* Main Content */}
             <div className="max-w-2xl mx-auto px-4 py-6 pb-32">
                 <form onSubmit={handleSubmit} noValidate>
                     {/* Invoice Upload Section */}
-                    <InvoiceUploadSection 
+                    <InvoiceUploadSection
                         onInvoiceParsed={handleInvoiceParsed}
                     />
-                    
+
                     {/* Info Banner */}
                     <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6 flex gap-3">
                         <Info size={20} className="text-blue-600 shrink-0 mt-0.5" />
@@ -1180,7 +1179,7 @@ export const ContractorInviteCreator = () => {
                             </p>
                         </div>
                     </div>
-                    
+
                     {/* Contractor Info Section */}
                     <Section title="Your Information" icon={Building2}>
                         <div className="grid grid-cols-2 gap-4 pt-4">
@@ -1234,12 +1233,12 @@ export const ContractorInviteCreator = () => {
                             </div>
                         </div>
                     </Section>
-                    
+
                     {/* Customer Email Section */}
                     <Section title="Customer Email" icon={Mail} defaultOpen={false} badge="Optional">
                         <div className="pt-4">
                             <p className="text-sm text-slate-500 mb-3">
-                                If provided, only this email address will be able to claim the invitation. 
+                                If provided, only this email address will be able to claim the invitation.
                                 Leave blank to allow anyone with the link.
                             </p>
                             <input
@@ -1251,7 +1250,7 @@ export const ContractorInviteCreator = () => {
                             />
                         </div>
                     </Section>
-                    
+
                     {/* Work Performed Section */}
                     <Section title="Work Performed" icon={Package} badge={`${records.length} item${records.length !== 1 ? 's' : ''}`}>
                         <div className="space-y-4 pt-4">
@@ -1264,7 +1263,7 @@ export const ContractorInviteCreator = () => {
                                     onRemove={handleRemoveRecord}
                                 />
                             ))}
-                            
+
                             <button
                                 type="button"
                                 onClick={handleAddRecord}
@@ -1275,7 +1274,7 @@ export const ContractorInviteCreator = () => {
                             </button>
                         </div>
                     </Section>
-                    
+
                     {/* Submit Button */}
                     <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-slate-100 shadow-lg z-50">
                         <button

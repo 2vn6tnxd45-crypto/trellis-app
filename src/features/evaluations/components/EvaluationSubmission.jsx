@@ -32,6 +32,7 @@ import { addContractorToProsList } from '../../quotes/lib/quoteService';
 import { linkCustomerToEvaluation } from '../lib/evaluationService';
 import toast from 'react-hot-toast';
 import { analyzeAndSaveEvaluation } from '../lib/evaluationAI';
+import { createEvaluationChatChannel } from '../../../lib/chatService';
 
 // ============================================
 // MAIN COMPONENT
@@ -424,6 +425,24 @@ export const EvaluationSubmission = ({
             clearDraft();
 
             setSubmitted(true);
+
+            // Create chat channel for contractor to ask questions (non-blocking)
+            if (currentUser?.uid && contractorId) {
+                createEvaluationChatChannel(
+                    currentUser.uid,
+                    contractorId,
+                    contractor?.companyName || 'Contractor',
+                    currentUser.displayName || evaluation?.customer?.name || 'Customer',
+                    evaluationId,
+                    evaluation?.jobDescription || ''
+                ).then(result => {
+                    if (result.success) {
+                        console.log('✅ Evaluation chat channel created:', result.channelId);
+                    }
+                }).catch(err => {
+                    console.warn('⚠️ Could not create chat channel:', err.message);
+                });
+            }
 
             // Trigger AI analysis (non-blocking)
             // IMPORTANT: This should never block the submission flow

@@ -18,6 +18,8 @@ import {
     calculateDaysNeeded
 } from '../contractor-pro/lib/multiDayUtils';
 import { formatInTimezone, detectTimezone } from '../contractor-pro/lib/timezoneUtils';
+import { JobProgressStepper } from './components/JobProgressStepper';
+import { getNextStepGuidance } from './lib/jobProgressStages';
 
 // Helper to calculate countdown to appointment
 const getCountdown = (scheduledTime) => {
@@ -166,6 +168,7 @@ export const HomeownerJobCard = ({
     onSelect,
     onCancel,
     onRequestNewTimes,
+    onMessage, // New prop for messaging
     compact = false,
     timezone // New prop for timezone awareness
 }) => {
@@ -287,9 +290,16 @@ export const HomeownerJobCard = ({
     const canCancel = !['completed', 'cancelled', 'in_progress', 'pending_completion'].includes(job.status);
     const canRequestNewTimes = ['scheduling', 'slots_offered', 'pending_schedule'].includes(effectiveStatus);
 
+    // Show message button when chat channel likely exists (after slots offered, scheduled, in progress, etc.)
+    const canMessage = onMessage && job.contractorId && !['cancelled'].includes(job.status) &&
+        (job.status !== 'pending_schedule' || offeredSlots.length > 0);
+
     // Check for contractor message with offered slots
     const contractorMessage = job.scheduling?.offeredMessage || job.contractorMessage;
     const isSlotsOffered = effectiveStatus === 'slots_offered';
+
+    // Show progress stepper for active jobs (not completed or cancelled)
+    const showProgressStepper = !['completed', 'cancelled'].includes(effectiveStatus);
 
     return (
         <div
@@ -345,6 +355,20 @@ export const HomeownerJobCard = ({
                             <StatusIcon size={12} />
                             {statusConfig.label}
                         </span>
+
+                        {/* Message Button (standalone when prominent) */}
+                        {canMessage && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onMessage(job);
+                                }}
+                                className="p-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                                title="Message contractor"
+                            >
+                                <MessageSquare size={16} />
+                            </button>
+                        )}
 
                         {/* Actions Menu */}
                         {(canCancel || canRequestNewTimes) && (
@@ -410,6 +434,17 @@ export const HomeownerJobCard = ({
                         <span className="truncate">
                             {job.serviceAddress?.formatted || job.customer?.address}
                         </span>
+                    </div>
+                )}
+
+                {/* Progress Stepper */}
+                {showProgressStepper && !compact && (
+                    <div className="mb-3">
+                        <JobProgressStepper
+                            currentStatus={effectiveStatus}
+                            variant="compact"
+                            showLabels={true}
+                        />
                     </div>
                 )}
 

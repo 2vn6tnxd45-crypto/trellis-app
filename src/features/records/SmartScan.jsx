@@ -5,12 +5,14 @@ import toast from 'react-hot-toast';
 import { compressImage, fileToBase64 } from '../../lib/images';
 import { useGemini } from '../../hooks/useGemini';
 import { CATEGORIES, ROOMS } from '../../config/constants';
+import { Select } from '../../components/ui/Select';
+import { RoomSelector } from '../../components/common/RoomSelector';
 
 export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const fileInputRef = useRef(null);
     const roomInputRef = useRef(null);
     const { scanReceipt, scanRoom, isScanning } = useGemini();
-    
+
     // Mode State: 'receipt' or 'room'
     const [scanMode, setScanMode] = useState('receipt');
     const [showRoomGuide, setShowRoomGuide] = useState(false);
@@ -18,10 +20,10 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     // Data State
     const [scannedItems, setScannedItems] = useState([]);
     const [scannedImagePreview, setScannedImagePreview] = useState(null);
-    const [currentFile, setCurrentFile] = useState(null); 
+    const [currentFile, setCurrentFile] = useState(null);
     const [isPdf, setIsPdf] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    
+
     // Global Fields
     const [globalDate, setGlobalDate] = useState(new Date().toISOString().split('T')[0]);
     const [globalStore, setGlobalStore] = useState("");
@@ -50,14 +52,14 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             const data = await scanReceipt(file, base64Str);
             toast.dismiss(loadingToast);
-            
+
             if (data && data.items) {
                 setScannedItems(data.items);
                 if (data.date) setGlobalDate(data.date);
                 if (data.store) setGlobalStore(data.store);
                 if (data.primaryCategory && CATEGORIES.includes(data.primaryCategory)) setGlobalCategory(data.primaryCategory);
                 if (data.primaryArea && ROOMS.includes(data.primaryArea)) setGlobalArea(data.primaryArea);
-                
+
                 // FIX 3: Removed single item redirect, now always goes to review
                 toast.success(`Found ${data.items.length} items!`, { icon: '📝' });
             } else {
@@ -79,17 +81,17 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     const handleRoomScanFiles = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
-        
+
         setShowRoomGuide(false);
         setCurrentFile(files[0]); // Keep reference to first file for batch save context
         setScannedImagePreview(URL.createObjectURL(files[0])); // Preview first image
-        
+
         const loadingToast = toast.loading(`Analyzing ${files.length} photos & deduplicating...`);
-        
+
         try {
             const base64Promises = files.map(f => compressImage(f));
             const base64Results = await Promise.all(base64Promises);
-            
+
             const data = await scanRoom(files, base64Results);
             toast.dismiss(loadingToast);
 
@@ -112,7 +114,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         setGlobalCategory(val);
         setScannedItems(prev => prev.map(item => ({ ...item, category: val })));
     };
-    
+
     // FIX 4: Helper to handle room changes globally
     const handleGlobalAreaChange = (val) => {
         setGlobalArea(val);
@@ -120,48 +122,48 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
     };
 
     const handleSaveAll = async () => {
-    setIsSaving(true);
-    const savingToast = toast.loading(`Saving ${scannedItems.length} items...`);
-    try {
-        const finalItems = scannedItems.map(item => ({
-            ...item,
-            dateInstalled: globalDate || item.dateInstalled,
-            contractor: globalStore || item.contractor,
-            area: item.area || globalArea,
-            category: item.category || globalCategory,
-            // ============ PROPAGATE CONTRACTOR INFO TO EACH ITEM ============
-            contractorPhone: item.contractorPhone || '',
-            contractorEmail: item.contractorEmail || '',
-            contractorAddress: item.contractorAddress || '',
-            warranty: item.warranty || '',
-            // ================================================================
-        }));
-        
-        await onBatchSave(finalItems, currentFile);
-        
-        setScannedItems([]);
-        setScannedImagePreview(null);
-        setCurrentFile(null);
-        setGlobalCategory("");
-        setGlobalStore("");
-        setGlobalArea("General");
-        
-        toast.dismiss(savingToast);
-    } catch (e) {
-        console.error("SmartScan Save Error:", e);
-        toast.dismiss(savingToast);
-        toast.error("Failed to save items.");
-    } finally {
-        setIsSaving(false);
-    }
-};
+        setIsSaving(true);
+        const savingToast = toast.loading(`Saving ${scannedItems.length} items...`);
+        try {
+            const finalItems = scannedItems.map(item => ({
+                ...item,
+                dateInstalled: globalDate || item.dateInstalled,
+                contractor: globalStore || item.contractor,
+                area: item.area || globalArea,
+                category: item.category || globalCategory,
+                // ============ PROPAGATE CONTRACTOR INFO TO EACH ITEM ============
+                contractorPhone: item.contractorPhone || '',
+                contractorEmail: item.contractorEmail || '',
+                contractorAddress: item.contractorAddress || '',
+                warranty: item.warranty || '',
+                // ================================================================
+            }));
+
+            await onBatchSave(finalItems, currentFile);
+
+            setScannedItems([]);
+            setScannedImagePreview(null);
+            setCurrentFile(null);
+            setGlobalCategory("");
+            setGlobalStore("");
+            setGlobalArea("General");
+
+            toast.dismiss(savingToast);
+        } catch (e) {
+            console.error("SmartScan Save Error:", e);
+            toast.dismiss(savingToast);
+            toast.error("Failed to save items.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     const updateItem = (index, field, val) => {
         const newItems = [...scannedItems];
         newItems[index][field] = val;
         setScannedItems(newItems);
     };
-    
+
     const removeItem = (index) => {
         setScannedItems(prev => prev.filter((_, i) => i !== index));
     };
@@ -186,7 +188,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                             <button onClick={() => setShowRoomGuide(false)} className="py-3 px-4 font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Cancel</button>
-                            <button onClick={() => roomInputRef.current?.click()} className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center"><Camera className="mr-2 h-4 w-4"/> Start Camera</button>
+                            <button onClick={() => roomInputRef.current?.click()} className="py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center justify-center"><Camera className="mr-2 h-4 w-4" /> Start Camera</button>
                         </div>
                     </div>
                 </div>
@@ -194,8 +196,8 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             {/* SCAN TRIGGER AREA */}
             <div className="bg-white rounded-2xl p-1 border border-slate-200 shadow-sm mb-4 flex relative shrink-0">
-                <button onClick={() => setScanMode('receipt')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'receipt' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}><ScanLine className="mr-2 h-4 w-4"/> Scan Receipt</button>
-                <button onClick={() => setScanMode('room')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'room' ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}><Armchair className="mr-2 h-4 w-4"/> Scan Area</button>
+                <button onClick={() => setScanMode('receipt')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'receipt' ? 'bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100' : 'text-slate-400 hover:text-slate-600'}`}><ScanLine className="mr-2 h-4 w-4" /> Scan Receipt</button>
+                <button onClick={() => setScanMode('room')} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all ${scanMode === 'room' ? 'bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}><Armchair className="mr-2 h-4 w-4" /> Scan Area</button>
             </div>
 
             <div className={`rounded-2xl p-6 border flex flex-col justify-between gap-4 transition-colors flex-grow ${scanMode === 'receipt' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-indigo-50/50 border-indigo-100'}`}>
@@ -220,7 +222,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
 
             {/* RECONSTRUCTED REVIEW PANEL */}
             {scannedItems.length > 0 && (
-               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4 mt-6">
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 animate-in fade-in slide-in-from-top-4 mt-6">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
                             <div className="bg-emerald-100 p-2 rounded-xl text-emerald-700"><ListChecks size={24} /></div>
@@ -236,16 +238,23 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                         <div className="p-4 bg-slate-50 border-b border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
                             <input type="date" value={globalDate} onChange={(e) => setGlobalDate(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full" />
                             <input type="text" placeholder="Store / Contractor" value={globalStore} onChange={(e) => setGlobalStore(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full" />
-                            <select value={globalCategory} onChange={(e) => handleGlobalCategoryChange(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full">
-                                <option value="">Auto-Assign Categories</option>
-                                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                            <select value={globalArea} onChange={(e) => handleGlobalAreaChange(e.target.value)} className="text-sm border-slate-200 rounded-lg p-2 w-full">
-                                {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                            </select>
+                            <Select
+                                value={globalCategory}
+                                onChange={(val) => handleGlobalCategoryChange(val)}
+                                options={[
+                                    { value: '', label: 'Auto-Assign Categories' },
+                                    ...CATEGORIES.map(c => ({ value: c, label: c }))
+                                ]}
+                                className="w-full"
+                            />
+                            <RoomSelector
+                                value={globalArea}
+                                onChange={(val) => handleGlobalAreaChange(val)}
+                                className="w-full"
+                            />
                         </div>
-                        
-                        <div className="max-h-96 overflow-y-auto">
+
+                        <div className="">
                             <table className="w-full text-left border-collapse">
                                 <thead className="bg-slate-50 sticky top-0 z-10">
                                     <tr>
@@ -261,9 +270,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                             <td className="p-3">
                                                 <input type="text" value={item.item} onChange={(e) => updateItem(i, 'item', e.target.value)} className="w-full text-sm font-medium bg-transparent border-none focus:ring-0 p-0" />
                                                 <div className="flex gap-2 mt-1">
-                                                    <select value={item.category || globalCategory || 'Other'} onChange={(e) => updateItem(i, 'category', e.target.value)} className="text-[10px] bg-slate-100 rounded px-1 py-0.5 border-none text-slate-500">
-                                                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                                    </select>
+                                                    <Select
+                                                        value={item.category || globalCategory || 'Other'}
+                                                        onChange={(val) => updateItem(i, 'category', val)}
+                                                        options={CATEGORIES.map(c => ({ value: c, label: c }))}
+                                                        className="min-w-[120px]"
+                                                    />
                                                 </div>
                                             </td>
                                             <td className="p-3">
@@ -274,9 +286,11 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                                             </td>
                                             {/* FIX 4: ROOM COLUMN */}
                                             <td className="p-3">
-                                                <select value={item.area || globalArea} onChange={(e) => updateItem(i, 'area', e.target.value)} className="w-full text-xs bg-slate-50 border-none rounded-lg py-1">
-                                                    {ROOMS.map(r => <option key={r} value={r}>{r}</option>)}
-                                                </select>
+                                                <RoomSelector
+                                                    value={item.area || globalArea}
+                                                    onChange={(val) => updateItem(i, 'area', val)}
+                                                    className="w-full"
+                                                />
                                             </td>
                                             <td className="p-3 text-center">
                                                 <button onClick={() => removeItem(i)} className="text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
@@ -291,7 +305,7 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
                     <button onClick={handleSaveAll} disabled={isSaving} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                         {isSaving ? <Loader2 className="animate-spin" /> : <Save />} Save {scannedItems.length} Items
                     </button>
-               </div>
+                </div>
             )}
         </div>
     );

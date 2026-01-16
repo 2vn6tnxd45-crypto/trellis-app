@@ -18,6 +18,7 @@ import { Select } from '../../../components/ui/Select';
 import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import { createJobChatChannel } from '../../../lib/chatService';
 import toast from 'react-hot-toast';
 import { AISuggestionPanel } from './AISuggestionPanel';
 import { CalendarPicker } from '../../../components/common/CalendarPicker';
@@ -481,6 +482,28 @@ export const OfferTimeSlotsModal = ({
                 });
             } else {
                 console.log('[OfferTimeSlotsModal] No customer email - skipping notification');
+            }
+
+            // ========================================
+            // Create chat channel (non-blocking)
+            // ========================================
+            if (job.createdBy && job.contractorId) {
+                createJobChatChannel(
+                    job.createdBy,
+                    job.contractorId,
+                    job.contractorName || schedulingPreferences?.companyName || 'Contractor',
+                    job.customer?.name || job.customerName || 'Customer',
+                    job.id,
+                    job.title || job.serviceType || 'Service Request'
+                ).then(result => {
+                    if (result.created) {
+                        console.log('[OfferTimeSlotsModal] Chat channel created:', result.channelId);
+                    } else {
+                        console.log('[OfferTimeSlotsModal] Chat channel already exists:', result.channelId);
+                    }
+                }).catch(err => {
+                    console.warn('[OfferTimeSlotsModal] Chat channel creation failed:', err.message);
+                });
             }
 
             toast.success(`Sent ${filledSlots.length} time option${filledSlots.length !== 1 ? 's' : ''} to customer`);

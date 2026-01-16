@@ -11,6 +11,7 @@ import {
     DollarSign, Tag, X, Copy, Check, Package,
     Sparkles, MoreVertical, Eye, Zap
 } from 'lucide-react';
+import { Select } from '../../../../components/ui/Select';
 import toast from 'react-hot-toast';
 
 // ============================================
@@ -61,7 +62,7 @@ const TemplateCard = ({
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 flex items-center justify-center shrink-0">
                         <FileText size={24} className="text-emerald-600" />
                     </div>
-                    
+
                     {/* Name & Category */}
                     <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-slate-800 truncate text-lg">{template.name}</h4>
@@ -129,7 +130,7 @@ const TemplateCard = ({
                     <Zap size={14} />
                     Use Template
                 </button>
-                
+
                 {/* Other Actions */}
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -195,7 +196,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
     const updateLineItem = (id, field, value) => {
         setFormData(prev => ({
             ...prev,
-            lineItems: prev.lineItems.map(item => 
+            lineItems: prev.lineItems.map(item =>
                 item.id === id ? { ...item, [field]: value } : item
             )
         }));
@@ -211,24 +212,24 @@ const TemplateModal = ({ template, onSave, onClose }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!formData.name.trim()) {
             toast.error('Template name is required');
             return;
         }
 
         // Filter out empty line items
-        const cleanedLineItems = formData.lineItems.filter(item => 
+        const cleanedLineItems = formData.lineItems.filter(item =>
             item.description?.trim() || item.unitPrice > 0
         );
 
         setSaving(true);
-        
+
         await onSave({
             ...formData,
             lineItems: cleanedLineItems
         }, template?.id);
-        
+
         setSaving(false);
     };
 
@@ -271,15 +272,11 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                                 Category
                             </label>
-                            <select
+                            <Select
                                 value={formData.category}
-                                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                            >
-                                {TEMPLATE_CATEGORIES.map(cat => (
-                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                                ))}
-                            </select>
+                                onChange={(val) => setFormData(prev => ({ ...prev, category: val }))}
+                                options={TEMPLATE_CATEGORIES}
+                            />
                         </div>
                     </div>
 
@@ -321,14 +318,13 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                                     <div key={item.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                                         <div className="flex items-start gap-3">
                                             {/* Type Badge */}
-                                            <span className={`px-2 py-1 text-xs font-medium rounded-lg shrink-0 ${
-                                                item.type === 'labor' 
-                                                    ? 'bg-blue-100 text-blue-700' 
+                                            <span className={`px-2 py-1 text-xs font-medium rounded-lg shrink-0 ${item.type === 'labor'
+                                                    ? 'bg-blue-100 text-blue-700'
                                                     : 'bg-amber-100 text-amber-700'
-                                            }`}>
+                                                }`}>
                                                 {item.type === 'labor' ? 'Labor' : 'Material'}
                                             </span>
-                                            
+
                                             {/* Description */}
                                             <input
                                                 type="text"
@@ -337,7 +333,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                                                 placeholder="Item description"
                                                 className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                             />
-                                            
+
                                             {/* Qty */}
                                             <input
                                                 type="number"
@@ -346,7 +342,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                                                 min="1"
                                                 className="w-16 px-2 py-1.5 text-sm text-center border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                             />
-                                            
+
                                             {/* Price */}
                                             <div className="relative">
                                                 <DollarSign size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -359,7 +355,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                                                     className="w-24 pl-6 pr-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none"
                                                 />
                                             </div>
-                                            
+
                                             {/* Remove */}
                                             <button
                                                 type="button"
@@ -371,7 +367,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                                         </div>
                                     </div>
                                 ))}
-                                
+
                                 {/* Running Total */}
                                 <div className="flex justify-end pt-2">
                                     <div className="text-right">
@@ -390,7 +386,7 @@ const TemplateModal = ({ template, onSave, onClose }) => {
                         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                             Default Text (auto-fills when using template)
                         </p>
-                        
+
                         <div>
                             <label className="block text-xs font-medium text-slate-500 mb-1">
                                 Notes
@@ -469,7 +465,7 @@ const EmptyState = ({ onAddTemplate }) => (
         </div>
         <h3 className="text-xl font-bold text-slate-800 mb-2">No Templates Yet</h3>
         <p className="text-slate-500 mb-8 max-w-md mx-auto">
-            Create templates for your common jobs to speed up quoting. 
+            Create templates for your common jobs to speed up quoting.
             Include line items, notes, and terms that auto-fill when you use them.
         </p>
         <button
@@ -485,14 +481,14 @@ const EmptyState = ({ onAddTemplate }) => (
 // ============================================
 // MAIN ESTIMATE TEMPLATES COMPONENT
 // ============================================
-export const EstimateTemplates = ({ 
-    contractorId, 
-    templates = [], 
+export const EstimateTemplates = ({
+    contractorId,
+    templates = [],
     loading = false,
     createTemplate,
     updateTemplate,
     removeTemplate,
-    onNavigateToQuote 
+    onNavigateToQuote
 }) => {
     const [showModal, setShowModal] = useState(false);
     const [editingTemplate, setEditingTemplate] = useState(null);
@@ -502,9 +498,9 @@ export const EstimateTemplates = ({
     // Filter templates
     const filteredTemplates = useMemo(() => {
         return templates.filter(template => {
-            const matchesSearch = !searchTerm || 
+            const matchesSearch = !searchTerm ||
                 template.name?.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesCategory = !selectedCategory || 
+            const matchesCategory = !selectedCategory ||
                 template.category === selectedCategory;
             return matchesSearch && matchesCategory;
         });
@@ -627,16 +623,14 @@ export const EstimateTemplates = ({
 
                     {/* Category Filter */}
                     {usedCategories.length > 1 && (
-                        <select
+                        <Select
                             value={selectedCategory || ''}
-                            onChange={(e) => setSelectedCategory(e.target.value || null)}
-                            className="px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
-                        >
-                            <option value="">All Categories</option>
-                            {usedCategories.map(cat => (
-                                <option key={cat.value} value={cat.value}>{cat.label}</option>
-                            ))}
-                        </select>
+                            onChange={(val) => setSelectedCategory(val || null)}
+                            options={[
+                                { value: '', label: 'All Categories' },
+                                ...usedCategories
+                            ]}
+                        />
                     )}
                 </div>
             )}

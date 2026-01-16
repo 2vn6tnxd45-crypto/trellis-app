@@ -9,6 +9,7 @@ import {
     X, RotateCcw, Calendar, Clock, User, DollarSign,
     ChevronRight, Loader2, CheckCircle
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import { RECURRING_FREQUENCIES } from '../../../config/constants';
 
 const DAYS_OF_WEEK = [
@@ -203,8 +204,8 @@ export const CreateRecurringServiceModal = ({
                                     type="button"
                                     onClick={() => handleChange('frequency', freq.value)}
                                     className={`px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all ${formData.frequency === freq.value
-                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                                            : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
                                         }`}
                                 >
                                     {freq.label}
@@ -218,17 +219,11 @@ export const CreateRecurringServiceModal = ({
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Preferred Day
                         </label>
-                        <select
+                        <Select
                             value={formData.preferredDay}
-                            onChange={(e) => handleChange('preferredDay', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none bg-white"
-                        >
-                            {DAYS_OF_WEEK.map(day => (
-                                <option key={day.value} value={day.value}>
-                                    {day.label}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => handleChange('preferredDay', val)}
+                            options={DAYS_OF_WEEK}
+                        />
                     </div>
 
                     {/* Preferred Time */}
@@ -236,17 +231,11 @@ export const CreateRecurringServiceModal = ({
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Preferred Time
                         </label>
-                        <select
+                        <Select
                             value={formData.preferredTime}
-                            onChange={(e) => handleChange('preferredTime', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none bg-white"
-                        >
-                            {TIME_OPTIONS.map(time => (
-                                <option key={time.value} value={time.value}>
-                                    {time.label}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => handleChange('preferredTime', val)}
+                            options={TIME_OPTIONS}
+                        />
                     </div>
 
                     {/* Tech Assignment (if team) */}
@@ -255,18 +244,14 @@ export const CreateRecurringServiceModal = ({
                             <label className="block text-sm font-medium text-slate-700 mb-1">
                                 Assign to Technician
                             </label>
-                            <select
+                            <Select
                                 value={formData.assignedTechId}
-                                onChange={(e) => handleChange('assignedTechId', e.target.value)}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none bg-white"
-                            >
-                                <option value="">Auto-assign each visit</option>
-                                {teamMembers.map(tech => (
-                                    <option key={tech.id} value={tech.id}>
-                                        {tech.name}
-                                    </option>
-                                ))}
-                            </select>
+                                onChange={(val) => handleChange('assignedTechId', val)}
+                                options={[
+                                    { value: '', label: 'Auto-assign each visit' },
+                                    ...teamMembers.map(tech => ({ value: tech.id, label: tech.name }))
+                                ]}
+                            />
                             <p className="text-xs text-slate-400 mt-1">
                                 Same technician for every visit, or auto-assign based on availability
                             </p>
@@ -278,18 +263,18 @@ export const CreateRecurringServiceModal = ({
                         <label className="block text-sm font-medium text-slate-700 mb-1">
                             Estimated Duration
                         </label>
-                        <select
+                        <Select
                             value={formData.estimatedDuration}
-                            onChange={(e) => handleChange('estimatedDuration', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none bg-white"
-                        >
-                            <option value={30}>30 minutes</option>
-                            <option value={60}>1 hour</option>
-                            <option value={90}>1.5 hours</option>
-                            <option value={120}>2 hours</option>
-                            <option value={180}>3 hours</option>
-                            <option value={240}>4 hours</option>
-                        </select>
+                            onChange={(val) => handleChange('estimatedDuration', val)}
+                            options={[
+                                { value: 30, label: '30 minutes' },
+                                { value: 60, label: '1 hour' },
+                                { value: 90, label: '1.5 hours' },
+                                { value: 120, label: '2 hours' },
+                                { value: 180, label: '3 hours' },
+                                { value: 240, label: '4 hours' }
+                            ]}
+                        />
                     </div>
 
                     {/* Summary Box */}

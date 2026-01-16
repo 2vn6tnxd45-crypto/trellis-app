@@ -10,6 +10,7 @@ import {
     Plus, Trash2, Clock, DollarSign, AlertCircle, CheckCircle,
     Home, User, Mail, Phone, Clipboard, Eye, Loader2, MapPin
 } from 'lucide-react';
+import { Select } from '../../../components/ui/Select';
 import {
     EVALUATION_TYPES,
     DEFAULT_EXPIRATION_DAYS
@@ -42,11 +43,11 @@ const formatPhoneNumber = (value) => {
 // MAIN COMPONENT
 // ============================================
 
-export const CreateEvaluationRequest = ({ 
-    onSubmit, 
+export const CreateEvaluationRequest = ({
+    onSubmit,
     onCancel,
     initialCustomer = null,  // Pre-fill from existing customer
-    contractorId 
+    contractorId
 }) => {
     // ----------------------------------------
     // Form State
@@ -57,18 +58,18 @@ export const CreateEvaluationRequest = ({
         customerEmail: initialCustomer?.email || '',
         customerPhone: initialCustomer?.phone || '',
         propertyAddress: initialCustomer?.address || '',
-        
+
         // Job
         jobCategory: JOB_CATEGORIES.GENERAL,
         jobDescription: '',
-        
+
         // Evaluation type
         type: EVALUATION_TYPES.VIRTUAL,
-        
+
         // Fee
         feeAmount: 0,
         feeWaivedIfHired: true,
-        
+
         // Expiration
         expirationDays: DEFAULT_EXPIRATION_DAYS
     });
@@ -84,22 +85,22 @@ export const CreateEvaluationRequest = ({
     const addressInputRef = useRef(null);
     const autocompleteRef = useRef(null);
     const mapsLoaded = useGoogleMaps();
-    
+
     // Use ref to track current form values (avoids stale closure in autocomplete callback)
     const formDataRef = useRef(formData);
     useEffect(() => {
         formDataRef.current = formData;
     }, [formData]);
-    
+
     useEffect(() => {
         if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current) return;
-        
+
         try {
             autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
                 types: ['address'],
                 componentRestrictions: { country: 'us' }
             });
-            
+
             autocompleteRef.current.addListener('place_changed', () => {
                 const place = autocompleteRef.current.getPlace();
                 if (place.formatted_address) {
@@ -125,7 +126,7 @@ export const CreateEvaluationRequest = ({
     // ----------------------------------------
     // Template prompts based on category
     // ----------------------------------------
-    const template = useMemo(() => 
+    const template = useMemo(() =>
         getTemplateForCategory(formData.jobCategory),
         [formData.jobCategory]
     );
@@ -160,7 +161,7 @@ export const CreateEvaluationRequest = ({
     const togglePrompt = (promptId) => {
         const prompt = template.prompts.find(p => p.id === promptId);
         if (prompt?.required) return; // Can't disable required
-        
+
         setEnabledPrompts(prev => ({
             ...prev,
             [promptId]: !prev[promptId]
@@ -178,7 +179,7 @@ export const CreateEvaluationRequest = ({
     };
 
     const updateCustomPrompt = (id, field, value) => {
-        setCustomPrompts(prev => prev.map(p => 
+        setCustomPrompts(prev => prev.map(p =>
             p.id === id ? { ...p, [field]: value } : p
         ));
     };
@@ -192,7 +193,7 @@ export const CreateEvaluationRequest = ({
     // ----------------------------------------
     const validate = () => {
         const newErrors = {};
-        
+
         if (!formData.customerName.trim()) {
             newErrors.customerName = 'Customer name is required';
         }
@@ -208,7 +209,7 @@ export const CreateEvaluationRequest = ({
         if (!formData.jobDescription.trim()) {
             newErrors.jobDescription = 'Job description is required';
         }
-        
+
         // Check custom prompts have labels
         customPrompts.forEach(p => {
             if (!p.label.trim()) {
@@ -225,7 +226,7 @@ export const CreateEvaluationRequest = ({
     // ----------------------------------------
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         if (!validate()) return;
 
         setIsSubmitting(true);
@@ -271,7 +272,7 @@ export const CreateEvaluationRequest = ({
             {/* Form */}
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
                 <div className="p-6 space-y-6">
-                    
+
                     {/* Customer Info Section */}
                     <section>
                         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -287,9 +288,8 @@ export const CreateEvaluationRequest = ({
                                     type="text"
                                     value={formData.customerName}
                                     onChange={(e) => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
-                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                                        errors.customerName ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.customerName ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                        }`}
                                     placeholder="Customer name"
                                 />
                                 {errors.customerName && (
@@ -308,9 +308,8 @@ export const CreateEvaluationRequest = ({
                                             type="email"
                                             value={formData.customerEmail}
                                             onChange={(e) => setFormData(prev => ({ ...prev, customerEmail: e.target.value }))}
-                                            className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                                                errors.customerEmail ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                                            }`}
+                                            className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.customerEmail ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                                }`}
                                             placeholder="email@example.com"
                                         />
                                     </div>
@@ -346,9 +345,8 @@ export const CreateEvaluationRequest = ({
                                         type="text"
                                         defaultValue={formData.propertyAddress}
                                         onBlur={(e) => setFormData(prev => ({ ...prev, propertyAddress: e.target.value }))}
-                                        className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-                                            errors.propertyAddress ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                                        }`}
+                                        className={`w-full pl-10 pr-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${errors.propertyAddress ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                            }`}
                                         placeholder="Start typing address..."
                                     />
                                 </div>
@@ -368,17 +366,17 @@ export const CreateEvaluationRequest = ({
                         <div className="space-y-3">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Job Category
+                                    What's the issue? *
                                 </label>
-                                <select
+                                <Select
                                     value={formData.jobCategory}
-                                    onChange={(e) => handleCategoryChange(e.target.value)}
-                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                                >
-                                    {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                                        <option key={value} value={value}>{label}</option>
-                                    ))}
-                                </select>
+                                    onChange={(val) => handleCategoryChange(val)}
+                                    options={Object.entries(CATEGORY_LABELS).map(([value, label]) => ({
+                                        value,
+                                        label
+                                    }))}
+                                    className="w-full"
+                                />
                             </div>
 
                             <div>
@@ -389,9 +387,8 @@ export const CreateEvaluationRequest = ({
                                     value={formData.jobDescription}
                                     onChange={(e) => setFormData(prev => ({ ...prev, jobDescription: e.target.value }))}
                                     rows={3}
-                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none ${
-                                        errors.jobDescription ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                                    }`}
+                                    className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none ${errors.jobDescription ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                        }`}
                                     placeholder="Briefly describe what the customer told you (e.g., 'AC not cooling, making loud noise when running')"
                                 />
                                 <p className="text-xs text-gray-400 mt-1">
@@ -414,15 +411,13 @@ export const CreateEvaluationRequest = ({
                             <button
                                 type="button"
                                 onClick={() => setFormData(prev => ({ ...prev, type: EVALUATION_TYPES.VIRTUAL }))}
-                                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                                    formData.type === EVALUATION_TYPES.VIRTUAL
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${formData.type === EVALUATION_TYPES.VIRTUAL
                                         ? 'border-indigo-500 bg-indigo-50'
                                         : 'border-gray-200 hover:border-gray-300'
-                                }`}
+                                    }`}
                             >
-                                <Camera className={`w-6 h-6 mb-2 ${
-                                    formData.type === EVALUATION_TYPES.VIRTUAL ? 'text-indigo-600' : 'text-gray-400'
-                                }`} />
+                                <Camera className={`w-6 h-6 mb-2 ${formData.type === EVALUATION_TYPES.VIRTUAL ? 'text-indigo-600' : 'text-gray-400'
+                                    }`} />
                                 <p className="font-semibold text-gray-900">Virtual</p>
                                 <p className="text-xs text-gray-500 mt-1">
                                     Customer sends photos & info
@@ -431,15 +426,13 @@ export const CreateEvaluationRequest = ({
                             <button
                                 type="button"
                                 onClick={() => setFormData(prev => ({ ...prev, type: EVALUATION_TYPES.SITE_VISIT }))}
-                                className={`p-4 rounded-xl border-2 text-left transition-all ${
-                                    formData.type === EVALUATION_TYPES.SITE_VISIT
+                                className={`p-4 rounded-xl border-2 text-left transition-all ${formData.type === EVALUATION_TYPES.SITE_VISIT
                                         ? 'border-indigo-500 bg-indigo-50'
                                         : 'border-gray-200 hover:border-gray-300'
-                                }`}
+                                    }`}
                             >
-                                <Home className={`w-6 h-6 mb-2 ${
-                                    formData.type === EVALUATION_TYPES.SITE_VISIT ? 'text-indigo-600' : 'text-gray-400'
-                                }`} />
+                                <Home className={`w-6 h-6 mb-2 ${formData.type === EVALUATION_TYPES.SITE_VISIT ? 'text-indigo-600' : 'text-gray-400'
+                                    }`} />
                                 <p className="font-semibold text-gray-900">Site Visit</p>
                                 <p className="text-xs text-gray-500 mt-1">
                                     Schedule in-person assessment
@@ -455,7 +448,7 @@ export const CreateEvaluationRequest = ({
                                 <FileText className="w-4 h-4" />
                                 What to Request from Customer
                             </h3>
-                            
+
                             {/* Template Prompts */}
                             <div className="space-y-2 mb-4">
                                 {template.prompts.map((prompt) => (
@@ -527,7 +520,7 @@ export const CreateEvaluationRequest = ({
                             {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                             Advanced Options
                         </button>
-                        
+
                         {showAdvanced && (
                             <div className="mt-4 p-4 bg-gray-50 rounded-xl space-y-4">
                                 {/* Fee */}
@@ -543,9 +536,9 @@ export const CreateEvaluationRequest = ({
                                                 min="0"
                                                 step="5"
                                                 value={formData.feeAmount}
-                                                onChange={(e) => setFormData(prev => ({ 
-                                                    ...prev, 
-                                                    feeAmount: parseFloat(e.target.value) || 0 
+                                                onChange={(e) => setFormData(prev => ({
+                                                    ...prev,
+                                                    feeAmount: parseFloat(e.target.value) || 0
                                                 }))}
                                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                                                 placeholder="0"
@@ -556,9 +549,9 @@ export const CreateEvaluationRequest = ({
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.feeWaivedIfHired}
-                                                    onChange={(e) => setFormData(prev => ({ 
-                                                        ...prev, 
-                                                        feeWaivedIfHired: e.target.checked 
+                                                    onChange={(e) => setFormData(prev => ({
+                                                        ...prev,
+                                                        feeWaivedIfHired: e.target.checked
                                                     }))}
                                                     className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                                                 />
@@ -578,20 +571,20 @@ export const CreateEvaluationRequest = ({
                                     </label>
                                     <div className="flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-gray-400" />
-                                        <select
+                                        <Select
                                             value={formData.expirationDays}
-                                            onChange={(e) => setFormData(prev => ({ 
-                                                ...prev, 
-                                                expirationDays: parseInt(e.target.value) 
+                                            onChange={(val) => setFormData(prev => ({
+                                                ...prev,
+                                                expirationDays: parseInt(val)
                                             }))}
-                                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
-                                        >
-                                            <option value={3}>3 days</option>
-                                            <option value={5}>5 days</option>
-                                            <option value={7}>7 days</option>
-                                            <option value={14}>14 days</option>
-                                            <option value={30}>30 days</option>
-                                        </select>
+                                            options={[
+                                                { value: 3, label: '3 days' },
+                                                { value: 5, label: '5 days' },
+                                                { value: 7, label: '7 days' },
+                                                { value: 14, label: '14 days' },
+                                                { value: 30, label: '30 days' }
+                                            ]}
+                                        />
                                     </div>
                                     <p className="text-xs text-gray-500 mt-1">
                                         Customer has {formData.expirationDays} days to respond
@@ -656,11 +649,10 @@ const PromptToggle = ({ prompt, enabled, onToggle }) => {
     };
 
     return (
-        <label className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-            enabled 
-                ? 'bg-indigo-50 border-indigo-200' 
+        <label className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${enabled
+                ? 'bg-indigo-50 border-indigo-200'
                 : 'bg-white border-gray-200 hover:border-gray-300'
-        } ${prompt.required ? 'cursor-not-allowed' : ''}`}>
+            } ${prompt.required ? 'cursor-not-allowed' : ''}`}>
             <input
                 type="checkbox"
                 checked={enabled}

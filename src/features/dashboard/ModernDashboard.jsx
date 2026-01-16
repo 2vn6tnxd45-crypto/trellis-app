@@ -18,6 +18,8 @@ import { ActionRequiredBanner } from './components/ActionRequiredBanner';
 import { SchedulingRequiredBanner } from './components/SchedulingRequiredBanner';
 import { TodayAppointmentCard } from './components/TodayAppointmentCard';
 import { CompletionReviewBanner } from './components/CompletionReviewBanner';
+import { RatingPromptCard } from '../ratings/RatingPromptCard';
+import { useUnratedJobs } from '../ratings/hooks/useUnratedJobs';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -26,6 +28,7 @@ import { appId } from '../../config/constants';
 
 // Job management
 import { JobScheduler } from '../jobs/JobScheduler';
+import { HomeownerJobDetailView } from '../jobs/HomeownerJobDetailView';
 import { useCustomerQuotes } from '../quotes/hooks/useCustomerQuotes';
 import { unclaimQuote } from '../quotes/lib/quoteService';
 import { CancelJobModal } from '../jobs/CancelJobModal';
@@ -280,58 +283,21 @@ const ActiveProjectsSection = ({ userId, onCountChange }) => {
                 </div>
             </DashboardSection>
 
-            {/* Job Scheduler Modal */}
+            {/* Job Detail View with Progress Stepper */}
             {selectedJob && (
-                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
-                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
-                        <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
-                            <div>
-                                <h3 className="font-bold text-slate-800">
-                                    {selectedJob.title || selectedJob.description || 'Manage Project'}
-                                </h3>
-                                <p className="text-xs text-slate-500">
-                                    {selectedJob.contractorName || selectedJob.contractorCompany || 'Contractor'}
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setSelectedJob(null)}
-                                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
-                            >
-                                <X size={20} className="text-slate-400" />
-                            </button>
-                        </div>
-                        <div className="flex-grow overflow-hidden bg-slate-50">
-                            {/* Use real-time project data */}
-                            <JobScheduler
-                                job={projects.find(p => p.id === selectedJob.id) || selectedJob}
-                                userType="homeowner"
-                                onUpdate={() => { }}
-                            />
-                        </div>
-                        {/* Modal Footer with Actions */}
-                        <div className="p-4 border-t border-slate-100 bg-white flex gap-2 shrink-0">
-                            <button
-                                onClick={() => {
-                                    setSelectedJob(null);
-                                    setRequestingTimesJob(selectedJob);
-                                }}
-                                className="flex-1 px-4 py-2.5 text-slate-600 font-medium rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors text-sm"
-                            >
-                                Request Different Times
-                            </button>
-                            <button
-                                onClick={() => {
-                                    setSelectedJob(null);
-                                    setCancellingJob(selectedJob);
-                                }}
-                                className="px-4 py-2.5 text-red-600 font-medium rounded-xl border border-red-200 hover:bg-red-50 transition-colors text-sm"
-                            >
-                                Cancel Job
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <HomeownerJobDetailView
+                    job={projects.find(p => p.id === selectedJob.id) || selectedJob}
+                    onClose={() => setSelectedJob(null)}
+                    onRequestNewTimes={(job) => {
+                        setSelectedJob(null);
+                        setRequestingTimesJob(job);
+                    }}
+                    onCancel={(job) => {
+                        setSelectedJob(null);
+                        setCancellingJob(job);
+                    }}
+                    onUpdate={() => { }}
+                />
             )}
 
             {/* Cancel Job Modal */}
@@ -857,6 +823,10 @@ export const ModernDashboard = ({
     // Fetch quotes for the action required banner
     const { quotes: allQuotes } = useCustomerQuotes(userId);
 
+    // Fetch unrated completed jobs for rating prompts
+    const { unratedJobs } = useUnratedJobs(userId, 14);
+    const [dismissedRatings, setDismissedRatings] = useState(new Set());
+
     // State for completion review modal (triggered from banner)
     const [bannerReviewingJob, setBannerReviewingJob] = useState(null);
 
@@ -1133,6 +1103,21 @@ export const ModernDashboard = ({
         }
     };
 
+    // Filter unrated jobs to exclude session-dismissed ones and limit to 2
+    const visibleUnratedJobs = unratedJobs
+        .filter(job => !dismissedRatings.has(job.id))
+        .slice(0, 2);
+
+    // Handle rating submission
+    const handleRatingSubmitted = (jobId, rating) => {
+        setDismissedRatings(prev => new Set([...prev, jobId]));
+    };
+
+    // Handle rating dismissal (session-only)
+    const handleRatingDismissed = (jobId) => {
+        setDismissedRatings(prev => new Set([...prev, jobId]));
+    };
+
     return (
         <div className="space-y-6 pb-8">
             {/* ACTION REQUIRED BANNER - Shows when quotes need review */}
@@ -1154,6 +1139,20 @@ export const ModernDashboard = ({
                     setBannerReviewingJob(job);
                 }}
             />
+
+            {/* RATING PROMPTS - Shows for recently completed unrated jobs */}
+            {visibleUnratedJobs.length > 0 && (
+                <div className="space-y-3">
+                    {visibleUnratedJobs.map(job => (
+                        <RatingPromptCard
+                            key={job.id}
+                            job={job}
+                            onRate={handleRatingSubmitted}
+                            onDismiss={handleRatingDismissed}
+                        />
+                    ))}
+                </div>
+            )}
 
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">

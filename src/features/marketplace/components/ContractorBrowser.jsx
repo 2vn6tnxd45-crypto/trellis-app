@@ -6,13 +6,14 @@
 // public contractor profiles. Free to use, ad-supported.
 
 import React, { useState, useEffect } from 'react';
-import { 
+import {
     Search, MapPin, Star, Filter, ChevronDown, Shield, Award,
     Clock, DollarSign, Phone, Mail, ExternalLink, X, Loader2,
     ThumbsUp, Calendar, CheckCircle, AlertCircle, Briefcase
 } from 'lucide-react';
-import { 
-    SERVICE_CATEGORIES 
+import { Select } from '../../../components/ui/Select';
+import {
+    SERVICE_CATEGORIES
 } from '../lib/serviceRequestService';
 import {
     searchContractors,
@@ -21,24 +22,24 @@ import {
     getFeaturedContractors
 } from '../lib/contractorMarketplaceService';
 
-const ContractorBrowser = ({ 
+const ContractorBrowser = ({
     userZipCode,
     onSelectContractor,
-    onRequestQuote 
+    onRequestQuote
 }) => {
     // Search/Filter State
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedTrade, setSelectedTrade] = useState(null);
     const [zipCode, setZipCode] = useState(userZipCode || '');
     const [showFilters, setShowFilters] = useState(false);
-    
+
     // Filter options
     const [mustBeInsured, setMustBeInsured] = useState(false);
     const [mustBeLicensed, setMustBeLicensed] = useState(false);
     const [minRating, setMinRating] = useState(0);
     const [emergencyOnly, setEmergencyOnly] = useState(false);
     const [sortBy, setSortBy] = useState('rating');
-    
+
     // Results
     const [contractors, setContractors] = useState([]);
     const [featuredContractors, setFeaturedContractors] = useState([]);
@@ -46,19 +47,19 @@ const ContractorBrowser = ({
     const [loadingMore, setLoadingMore] = useState(false);
     const [lastDoc, setLastDoc] = useState(null);
     const [hasMore, setHasMore] = useState(false);
-    
+
     // Selected contractor for detail view
     const [selectedContractor, setSelectedContractor] = useState(null);
-    
+
     // ============================================
     // LOAD CONTRACTORS
     // ============================================
-    
+
     useEffect(() => {
         loadContractors();
         loadFeatured();
     }, [selectedTrade, mustBeInsured, mustBeLicensed, minRating, emergencyOnly, sortBy, zipCode]);
-    
+
     const loadContractors = async () => {
         setLoading(true);
         const result = await searchContractors({
@@ -70,7 +71,7 @@ const ContractorBrowser = ({
             emergencyOnly,
             sortBy
         });
-        
+
         if (result.success) {
             setContractors(result.contractors);
             setLastDoc(result.lastDoc);
@@ -78,10 +79,10 @@ const ContractorBrowser = ({
         }
         setLoading(false);
     };
-    
+
     const loadMore = async () => {
         if (!hasMore || loadingMore) return;
-        
+
         setLoadingMore(true);
         const result = await searchContractors({
             trade: selectedTrade,
@@ -93,7 +94,7 @@ const ContractorBrowser = ({
             sortBy,
             lastDoc
         });
-        
+
         if (result.success) {
             setContractors(prev => [...prev, ...result.contractors]);
             setLastDoc(result.lastDoc);
@@ -101,27 +102,27 @@ const ContractorBrowser = ({
         }
         setLoadingMore(false);
     };
-    
+
     const loadFeatured = async () => {
         const result = await getFeaturedContractors(selectedTrade, zipCode, 3);
         if (result.success) {
             setFeaturedContractors(result.contractors);
         }
     };
-    
+
     // Filter contractors by search query (client-side)
     const filteredContractors = searchQuery
-        ? contractors.filter(c => 
+        ? contractors.filter(c =>
             c.businessName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             c.ownerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
             c.tagline?.toLowerCase().includes(searchQuery.toLowerCase())
         )
         : contractors;
-    
+
     // ============================================
     // RENDER
     // ============================================
-    
+
     return (
         <div className="max-w-6xl mx-auto">
             {/* Header */}
@@ -129,7 +130,7 @@ const ContractorBrowser = ({
                 <h1 className="text-2xl font-bold text-slate-800 mb-2">Find a Contractor</h1>
                 <p className="text-slate-500">Browse verified professionals in your area</p>
             </div>
-            
+
             {/* Search Bar */}
             <div className="flex flex-col md:flex-row gap-4 mb-6">
                 <div className="flex-1 relative">
@@ -142,7 +143,7 @@ const ContractorBrowser = ({
                         className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                 </div>
-                
+
                 <div className="relative">
                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                     <input
@@ -154,7 +155,7 @@ const ContractorBrowser = ({
                         className="w-full md:w-32 pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                     />
                 </div>
-                
+
                 <button
                     onClick={() => setShowFilters(!showFilters)}
                     className={`
@@ -169,15 +170,15 @@ const ContractorBrowser = ({
                     )}
                 </button>
             </div>
-            
+
             {/* Category Pills */}
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
                 <button
                     onClick={() => setSelectedTrade(null)}
                     className={`
                         px-4 py-2 rounded-full font-medium whitespace-nowrap transition
-                        ${!selectedTrade 
-                            ? 'bg-emerald-600 text-white' 
+                        ${!selectedTrade
+                            ? 'bg-emerald-600 text-white'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }
                     `}
@@ -190,8 +191,8 @@ const ContractorBrowser = ({
                         onClick={() => setSelectedTrade(cat.id)}
                         className={`
                             px-4 py-2 rounded-full font-medium whitespace-nowrap transition
-                            ${selectedTrade === cat.id 
-                                ? 'bg-emerald-600 text-white' 
+                            ${selectedTrade === cat.id
+                                ? 'bg-emerald-600 text-white'
                                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                             }
                         `}
@@ -200,7 +201,7 @@ const ContractorBrowser = ({
                     </button>
                 ))}
             </div>
-            
+
             {/* Filters Panel */}
             {showFilters && (
                 <div className="bg-white border border-slate-200 rounded-xl p-6 mb-6">
@@ -216,7 +217,7 @@ const ContractorBrowser = ({
                             <Shield size={18} className="ml-2 text-slate-400" />
                             <span className="ml-2 text-slate-700">Insured</span>
                         </label>
-                        
+
                         <label className="flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
@@ -227,7 +228,7 @@ const ContractorBrowser = ({
                             <Award size={18} className="ml-2 text-slate-400" />
                             <span className="ml-2 text-slate-700">Licensed</span>
                         </label>
-                        
+
                         <label className="flex items-center cursor-pointer">
                             <input
                                 type="checkbox"
@@ -238,23 +239,23 @@ const ContractorBrowser = ({
                             <Clock size={18} className="ml-2 text-slate-400" />
                             <span className="ml-2 text-slate-700">Emergency Available</span>
                         </label>
-                        
+
                         {/* Min Rating */}
                         <div>
                             <label className="text-sm text-slate-500 block mb-1">Min Rating</label>
-                            <select
+                            <Select
                                 value={minRating}
-                                onChange={(e) => setMinRating(Number(e.target.value))}
-                                className="w-full px-3 py-2 border border-slate-200 rounded-lg"
-                            >
-                                <option value={0}>Any</option>
-                                <option value={3}>3+ Stars</option>
-                                <option value={4}>4+ Stars</option>
-                                <option value={4.5}>4.5+ Stars</option>
-                            </select>
+                                onChange={(val) => setMinRating(Number(val))}
+                                options={[
+                                    { value: 0, label: 'Any' },
+                                    { value: 3, label: '3+ Stars' },
+                                    { value: 4, label: '4+ Stars' },
+                                    { value: 4.5, label: '4.5+ Stars' }
+                                ]}
+                            />
                         </div>
                     </div>
-                    
+
                     {/* Sort */}
                     <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -265,8 +266,8 @@ const ContractorBrowser = ({
                                     onClick={() => setSortBy(option)}
                                     className={`
                                         px-3 py-1 rounded-full text-sm font-medium transition
-                                        ${sortBy === option 
-                                            ? 'bg-emerald-100 text-emerald-700' 
+                                        ${sortBy === option
+                                            ? 'bg-emerald-100 text-emerald-700'
                                             : 'text-slate-600 hover:bg-slate-100'
                                         }
                                     `}
@@ -277,7 +278,7 @@ const ContractorBrowser = ({
                                 </button>
                             ))}
                         </div>
-                        
+
                         <button
                             onClick={() => {
                                 setMustBeInsured(false);
@@ -293,7 +294,7 @@ const ContractorBrowser = ({
                     </div>
                 </div>
             )}
-            
+
             {/* Featured (Ad-supported) */}
             {featuredContractors.length > 0 && !searchQuery && (
                 <div className="mb-8">
@@ -313,19 +314,19 @@ const ContractorBrowser = ({
                     </div>
                 </div>
             )}
-            
+
             {/* Results */}
             <div>
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-bold text-slate-800">
-                        {selectedTrade 
-                            ? SERVICE_CATEGORIES.find(c => c.id === selectedTrade)?.label 
+                        {selectedTrade
+                            ? SERVICE_CATEGORIES.find(c => c.id === selectedTrade)?.label
                             : 'All Contractors'
                         }
                     </h2>
                     <span className="text-slate-500">{filteredContractors.length} found</span>
                 </div>
-                
+
                 {loading ? (
                     <div className="flex items-center justify-center py-20">
                         <Loader2 className="animate-spin text-emerald-600" size={32} />
@@ -349,7 +350,7 @@ const ContractorBrowser = ({
                                 />
                             ))}
                         </div>
-                        
+
                         {/* Load More */}
                         {hasMore && (
                             <div className="mt-8 text-center">
@@ -372,7 +373,7 @@ const ContractorBrowser = ({
                     </>
                 )}
             </div>
-            
+
             {/* Contractor Detail Modal */}
             {selectedContractor && (
                 <ContractorDetailModal
@@ -398,9 +399,9 @@ const ContractorBrowser = ({
 
 const ContractorCard = ({ contractor, featured, onClick }) => {
     const primaryTrade = SERVICE_CATEGORIES.find(c => c.id === contractor.primaryTrade);
-    
+
     return (
-        <div 
+        <div
             className={`
                 bg-white border rounded-2xl p-5 cursor-pointer transition hover:shadow-md
                 ${featured ? 'border-amber-200 ring-2 ring-amber-100' : 'border-slate-200'}
@@ -410,7 +411,7 @@ const ContractorCard = ({ contractor, featured, onClick }) => {
             {/* Header */}
             <div className="flex items-start gap-4">
                 {contractor.logoUrl ? (
-                    <img 
+                    <img
                         src={contractor.logoUrl}
                         alt={contractor.businessName}
                         className="w-14 h-14 rounded-xl object-cover"
@@ -422,7 +423,7 @@ const ContractorCard = ({ contractor, featured, onClick }) => {
                         </span>
                     </div>
                 )}
-                
+
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                         <div>
@@ -441,7 +442,7 @@ const ContractorCard = ({ contractor, featured, onClick }) => {
                     </div>
                 </div>
             </div>
-            
+
             {/* Rating */}
             <div className="flex items-center gap-4 mt-4">
                 {contractor.averageRating ? (
@@ -456,7 +457,7 @@ const ContractorCard = ({ contractor, featured, onClick }) => {
                     <span className="text-slate-400 text-sm">No reviews yet</span>
                 )}
             </div>
-            
+
             {/* Trade & Location */}
             <div className="flex flex-wrap gap-2 mt-3">
                 {primaryTrade && (
@@ -471,7 +472,7 @@ const ContractorCard = ({ contractor, featured, onClick }) => {
                     </span>
                 )}
             </div>
-            
+
             {/* Badges */}
             <div className="flex flex-wrap gap-2 mt-3">
                 {contractor.insured && (
@@ -507,13 +508,13 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
     const [reviews, setReviews] = useState([]);
     const [loadingReviews, setLoadingReviews] = useState(true);
     const [activeTab, setActiveTab] = useState('about');
-    
+
     const primaryTrade = SERVICE_CATEGORIES.find(c => c.id === contractor.primaryTrade);
-    
+
     useEffect(() => {
         loadReviews();
     }, [contractor.id]);
-    
+
     const loadReviews = async () => {
         setLoadingReviews(true);
         const result = await getContractorReviews(contractor.id, { limitCount: 5 });
@@ -522,7 +523,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
         }
         setLoadingReviews(false);
     };
-    
+
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -531,7 +532,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                     {/* Cover Photo */}
                     {contractor.coverPhotoUrl ? (
                         <div className="h-32 bg-gradient-to-r from-emerald-600 to-emerald-700">
-                            <img 
+                            <img
                                 src={contractor.coverPhotoUrl}
                                 alt=""
                                 className="w-full h-full object-cover opacity-50"
@@ -540,19 +541,19 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                     ) : (
                         <div className="h-32 bg-gradient-to-r from-emerald-600 to-emerald-700" />
                     )}
-                    
-                    <button 
+
+                    <button
                         onClick={onClose}
                         className="absolute top-4 right-4 w-8 h-8 bg-white/20 backdrop-blur rounded-full flex items-center justify-center text-white hover:bg-white/30"
                     >
                         <X size={20} />
                     </button>
-                    
+
                     {/* Profile Info */}
                     <div className="px-6 pb-4 -mt-10">
                         <div className="flex items-end gap-4">
                             {contractor.logoUrl ? (
-                                <img 
+                                <img
                                     src={contractor.logoUrl}
                                     alt={contractor.businessName}
                                     className="w-20 h-20 rounded-2xl border-4 border-white object-cover shadow-lg"
@@ -564,14 +565,14 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                     </span>
                                 </div>
                             )}
-                            
+
                             <div className="flex-1 pb-1">
                                 <h2 className="text-xl font-bold text-slate-800">{contractor.businessName}</h2>
                                 {contractor.tagline && (
                                     <p className="text-slate-500">{contractor.tagline}</p>
                                 )}
                             </div>
-                            
+
                             {/* Rating */}
                             {contractor.averageRating && (
                                 <div className="flex items-center bg-amber-50 px-3 py-2 rounded-xl">
@@ -585,7 +586,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Tabs */}
                 <div className="border-b border-slate-200 px-6">
                     <div className="flex gap-6">
@@ -595,8 +596,8 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                 onClick={() => setActiveTab(tab)}
                                 className={`
                                     py-3 font-medium border-b-2 transition capitalize
-                                    ${activeTab === tab 
-                                        ? 'border-emerald-600 text-emerald-600' 
+                                    ${activeTab === tab
+                                        ? 'border-emerald-600 text-emerald-600'
                                         : 'border-transparent text-slate-500 hover:text-slate-700'
                                     }
                                 `}
@@ -606,7 +607,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                         ))}
                     </div>
                 </div>
-                
+
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
                     {activeTab === 'about' && (
@@ -618,7 +619,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                     <p className="text-slate-700 whitespace-pre-wrap">{contractor.about}</p>
                                 </div>
                             )}
-                            
+
                             {/* Services */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-2">Services</h3>
@@ -638,7 +639,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                     })}
                                 </div>
                             </div>
-                            
+
                             {/* Credentials */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-2">Credentials</h3>
@@ -682,7 +683,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                         </div>
                                     )}
                                 </div>
-                                
+
                                 {contractor.certifications?.length > 0 && (
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         {contractor.certifications.map((cert, i) => (
@@ -693,7 +694,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                     </div>
                                 )}
                             </div>
-                            
+
                             {/* Service Area */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-2">Service Area</h3>
@@ -707,7 +708,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                     )}
                                 </div>
                             </div>
-                            
+
                             {/* Business Info */}
                             <div>
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-2">Business Info</h3>
@@ -734,7 +735,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                             </div>
                         </div>
                     )}
-                    
+
                     {activeTab === 'reviews' && (
                         <div>
                             {loadingReviews ? (
@@ -753,7 +754,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center">
                                                     {[...Array(5)].map((_, i) => (
-                                                        <Star 
+                                                        <Star
                                                             key={i}
                                                             size={16}
                                                             className={i < review.rating ? 'text-amber-400' : 'text-slate-200'}
@@ -783,14 +784,14 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                             )}
                         </div>
                     )}
-                    
+
                     {activeTab === 'portfolio' && (
                         <div>
                             {contractor.portfolioItems?.length > 0 ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                     {contractor.portfolioItems.map((item, i) => (
                                         <div key={i} className="relative group">
-                                            <img 
+                                            <img
                                                 src={item.imageUrl}
                                                 alt={item.caption || 'Portfolio item'}
                                                 className="w-full h-40 object-cover rounded-xl"
@@ -812,7 +813,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                         </div>
                     )}
                 </div>
-                
+
                 {/* Actions */}
                 <div className="border-t border-slate-200 p-6 flex gap-4">
                     {contractor.showPhone && contractor.phone && (
@@ -824,7 +825,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                             Call
                         </a>
                     )}
-                    
+
                     <button
                         onClick={onContact}
                         className="flex-1 flex items-center justify-center px-6 py-3 border border-emerald-600 text-emerald-600 font-medium rounded-xl hover:bg-emerald-50 transition"
@@ -832,7 +833,7 @@ const ContractorDetailModal = ({ contractor, onClose, onRequestQuote, onContact 
                         <Mail size={18} className="mr-2" />
                         Message
                     </button>
-                    
+
                     <button
                         onClick={onRequestQuote}
                         className="flex-1 flex items-center justify-center px-6 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition"
