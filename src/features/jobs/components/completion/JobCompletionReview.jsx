@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import { createPaymentCheckout } from '../../../../lib/stripeService';
 import { InventoryPreviewSection } from './InventoryPreviewSection';
 import { EditInventoryItemModal } from './EditInventoryItemModal';
+import { CompletionSuccessModal } from './CompletionSuccessModal';
 
 // ============================================
 // MAIN COMPONENT
@@ -23,7 +24,10 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
     const [activeTab, setActiveTab] = useState('summary');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showRevisionModal, setShowRevisionModal] = useState(false);
-    const [showRatingModal, setShowRatingModal] = useState(false);
+
+    // Success modal state (replaces old rating modal)
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+    const [completionResult, setCompletionResult] = useState(null);
 
     // Item selection and editing state
     const [itemSelections, setItemSelections] = useState({});
@@ -102,22 +106,22 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
 
         try {
             // Pass item selections with skip/modifications to acceptJobCompletion
-            await acceptJobCompletion(job.id, userId, propertyId, itemSelections);
+            const result = await acceptJobCompletion(job.id, userId, propertyId, itemSelections);
 
             toast.dismiss(loadingToast);
 
-            // Calculate imported count
-            const skippedCount = Object.values(itemSelections).filter(s => s.skip).length;
-            const importedCount = items.length - skippedCount;
+            // Calculate which items were actually imported (not skipped)
+            const importedItems = items.filter(item => !itemSelections[item.id]?.skip);
 
-            if (importedCount > 0) {
-                toast.success(`Job approved! ${importedCount} item${importedCount !== 1 ? 's' : ''} added to your inventory.`);
-            } else {
-                toast.success('Job approved!');
-            }
+            // Store result for success modal
+            setCompletionResult({
+                importedItems,
+                importedRecordIds: result.importedRecordIds || [],
+                importedCount: result.importedCount || importedItems.length
+            });
 
-            // Show rating modal after approval
-            setShowRatingModal(true);
+            // Show success modal instead of toast + rating modal
+            setShowSuccessModal(true);
 
         } catch (error) {
             toast.dismiss(loadingToast);
@@ -176,8 +180,9 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
         }
     };
     
-    const handleRatingComplete = () => {
-        setShowRatingModal(false);
+    // Handle success modal close
+    const handleSuccessModalClose = () => {
+        setShowSuccessModal(false);
         if (onSuccess) onSuccess();
         onClose();
     };
@@ -492,13 +497,15 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                 />
             )}
             
-            {/* Rating Modal */}
-            {showRatingModal && (
-                <RatingModal
+            {/* Completion Success Modal */}
+            {showSuccessModal && completionResult && (
+                <CompletionSuccessModal
+                    isOpen={showSuccessModal}
+                    onClose={handleSuccessModalClose}
                     job={job}
+                    importedItems={completionResult.importedItems}
+                    importedRecordIds={completionResult.importedRecordIds}
                     userId={userId}
-                    onComplete={handleRatingComplete}
-                    onSkip={handleRatingComplete}
                 />
             )}
 
