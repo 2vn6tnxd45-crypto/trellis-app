@@ -21,6 +21,10 @@
     {
       "path": "/api/cron/appointment-reminders",
       "schedule": "0 7,18 * * *"
+    },
+    {
+      "path": "/api/cron/completion-reminders",
+      "schedule": "0 9 * * *"
     }
   ]
 }

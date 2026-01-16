@@ -17,6 +17,7 @@ import { MyContractorsSection } from './components/MyContractorsSection';
 import { ActionRequiredBanner } from './components/ActionRequiredBanner';
 import { SchedulingRequiredBanner } from './components/SchedulingRequiredBanner';
 import { TodayAppointmentCard } from './components/TodayAppointmentCard';
+import { CompletionReviewBanner } from './components/CompletionReviewBanner';
 
 // Firebase imports
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -856,6 +857,9 @@ export const ModernDashboard = ({
     // Fetch quotes for the action required banner
     const { quotes: allQuotes } = useCustomerQuotes(userId);
 
+    // State for completion review modal (triggered from banner)
+    const [bannerReviewingJob, setBannerReviewingJob] = useState(null);
+
     // Fetch jobs for the scheduling required banner
     const [homeownerJobs, setHomeownerJobs] = useState([]);
     useEffect(() => {
@@ -1140,6 +1144,17 @@ export const ModernDashboard = ({
             {/* TODAY'S APPOINTMENTS - Shows when homeowner has appointments today */}
             <TodayAppointmentCard jobs={homeownerJobs} />
 
+            {/* COMPLETION REVIEW BANNER - Shows when jobs need completion review */}
+            <CompletionReviewBanner
+                jobs={homeownerJobs}
+                onReviewClick={(job) => setBannerReviewingJob(job)}
+                onRequestRevision={(job) => {
+                    // Navigate to the job for revision request
+                    // The ActiveProjectsSection will handle the actual modal
+                    setBannerReviewingJob(job);
+                }}
+            />
+
             {/* HERO SECTION */}
             <div className="relative overflow-visible rounded-[2.5rem] shadow-xl z-20 mb-8">
                 <div className={`absolute inset-0 rounded-[2.5rem] bg-gradient-to-br ${season.gradient}`} />
@@ -1286,6 +1301,20 @@ export const ModernDashboard = ({
                     <ActionButton icon={Hammer} label="Service Link" sublabel="For contractors" onClick={onCreateContractorLink} />
                 </div>
             </DashboardSection>
+
+            {/* Job Completion Review Modal - triggered from CompletionReviewBanner */}
+            {bannerReviewingJob && (
+                <JobCompletionReview
+                    job={homeownerJobs.find(j => j.id === bannerReviewingJob.id) || bannerReviewingJob}
+                    userId={userId}
+                    propertyId={bannerReviewingJob.propertyId || activeProperty?.id}
+                    onSuccess={() => {
+                        setBannerReviewingJob(null);
+                        toast.success('Job completed! Items added to your inventory.');
+                    }}
+                    onClose={() => setBannerReviewingJob(null)}
+                />
+            )}
         </div>
     );
 };

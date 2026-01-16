@@ -520,13 +520,60 @@ export const HomeownerJobCard = ({
                         </div>
                     )}
 
-                    {/* NEW: Pending Completion Info */}
-                    {effectiveStatus === 'pending_completion' && (
-                        <div className="flex items-center gap-2 text-purple-600 bg-purple-50 px-3 py-2 rounded-lg">
-                            <ClipboardCheck size={14} />
-                            <span className="text-sm font-medium">Contractor submitted completion - review required</span>
-                        </div>
-                    )}
+                    {/* NEW: Pending Completion Info with Countdown */}
+                    {effectiveStatus === 'pending_completion' && (() => {
+                        const completion = job.completion || {};
+                        const itemCount = completion.itemsToImport?.length || 0;
+                        const autoCloseAt = completion.autoCloseAt;
+
+                        // Calculate days remaining
+                        let daysRemaining = null;
+                        let isUrgent = false;
+                        if (autoCloseAt) {
+                            const closeDate = autoCloseAt?.toDate ? autoCloseAt.toDate() : new Date(autoCloseAt);
+                            const now = new Date();
+                            daysRemaining = Math.ceil((closeDate - now) / (1000 * 60 * 60 * 24));
+                            isUrgent = daysRemaining <= 2;
+                        }
+
+                        return (
+                            <div className="space-y-2">
+                                {/* Countdown badge */}
+                                {daysRemaining !== null && (
+                                    <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${
+                                        isUrgent ? 'bg-red-100' : 'bg-amber-100'
+                                    }`}>
+                                        <AlertTriangle size={14} className={isUrgent ? 'text-red-600' : 'text-amber-600'} />
+                                        <span className={`text-sm font-bold ${isUrgent ? 'text-red-700' : 'text-amber-700'}`}>
+                                            {daysRemaining <= 0
+                                                ? 'Auto-approval today!'
+                                                : daysRemaining === 1
+                                                    ? '1 day left to review'
+                                                    : `${daysRemaining} days left to review`
+                                            }
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Status info */}
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                                    isUrgent ? 'bg-red-50 text-red-600' : 'bg-purple-50 text-purple-600'
+                                }`}>
+                                    <ClipboardCheck size={14} />
+                                    <span className="text-sm font-medium flex-1">
+                                        Review required
+                                    </span>
+                                    {itemCount > 0 && (
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                            isUrgent ? 'bg-red-100' : 'bg-purple-100'
+                                        }`}>
+                                            {itemCount} item{itemCount !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* NEW: Revision Requested Info */}
                     {effectiveStatus === 'revision_requested' && (
