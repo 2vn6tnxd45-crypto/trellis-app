@@ -93,6 +93,9 @@ import { formatCurrency } from '../../lib/utils';
 // Membership Components
 import { MembershipsView, PlanBuilder as MembershipPlansView } from '../memberships/components';
 
+// Timesheet Components
+import { TimesheetsView, TimeClockWidget } from '../timesheets/components';
+
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
@@ -247,6 +250,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
                 <NavItem icon={Receipt} label="Expenses" active={activeView === 'expenses'} onClick={() => onNavigate('expenses')} />
+                <NavItem icon={Clock} label="Timesheets" active={activeView === 'timesheets'} onClick={() => onNavigate('timesheets')} />
             </div>
 
             {/* INSIGHTS */}
@@ -2316,6 +2320,16 @@ export const ContractorProApp = () => {
                                 const plans = await getPlans(contractorId, true);
                                 setMembershipPlans(plans);
                             }}
+                        />
+                    )}
+
+                    {/* Timesheets View */}
+                    {activeView === 'timesheets' && (
+                        <TimesheetsView
+                            contractorId={contractorId}
+                            teamMembers={profile?.scheduling?.teamMembers || []}
+                            isManager={true}
+                            loading={false}
                         />
                     )}
 

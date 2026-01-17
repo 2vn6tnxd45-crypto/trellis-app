@@ -5,7 +5,7 @@
 // Client-side service for consumer financing integration
 // Wisetack provides point-of-sale financing for home services
 
-import { db } from './firebase';
+import { db } from '../config/firebase';
 import {
     doc,
     getDoc,

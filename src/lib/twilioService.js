@@ -6,7 +6,7 @@
 // Twilio credentials are kept server-side only for security
 
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
-import { db } from './firebase';
+import { db } from '../config/firebase';
 
 // ============================================
 // CONSTANTS
