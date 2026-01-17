@@ -28,6 +28,7 @@ import { auth, db } from '../../config/firebase';
 import { appId, googleMapsApiKey } from '../../config/constants';
 import { validateInvitation, checkEmailMatch, claimInvitation, getInvitationPreview } from '../../lib/invitations';
 import { Logo } from '../../components/common/Logo';
+import { FullPageLoader } from '../../components/common';
 import { waitForAuthReady, retryWithBackoff } from '../../lib/authHelpers';
 
 // Import contractor profile check
@@ -36,14 +37,7 @@ import { getContractorProfile } from '../contractor-pro/lib/contractorService';
 // ============================================
 // LOADING STATE
 // ============================================
-const LoadingState = () => (
-    <div className="min-h-screen bg-emerald-50 flex items-center justify-center p-6">
-        <div className="text-center">
-            <Loader2 className="animate-spin h-12 w-12 text-emerald-600 mx-auto mb-4" />
-            <p className="text-slate-600 font-medium">Loading invitation...</p>
-        </div>
-    </div>
-);
+const LoadingState = () => <FullPageLoader message="Loading invitation..." />;
 
 // ============================================
 // ERROR STATE

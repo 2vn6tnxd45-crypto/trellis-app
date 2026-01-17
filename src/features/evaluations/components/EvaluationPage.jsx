@@ -11,6 +11,7 @@ import { db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
 import { EvaluationSubmission } from './EvaluationSubmission';
 import { Loader2, AlertTriangle, Home, RefreshCw } from 'lucide-react';
+import { FullPageLoader } from '../../../components/common';
 
 // ============================================
 // ERROR BOUNDARY
@@ -131,14 +132,7 @@ const EvaluationPageContent = () => {
 
     // Loading state
     if (loading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-                <div className="text-center">
-                    <Loader2 className="h-10 w-10 animate-spin text-indigo-600 mx-auto mb-4" />
-                    <p className="text-slate-500">Loading evaluation...</p>
-                </div>
-            </div>
-        );
+        return <FullPageLoader message="Loading evaluation..." />;
     }
 
     // Error state

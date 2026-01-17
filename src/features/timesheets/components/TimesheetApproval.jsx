@@ -19,6 +19,7 @@ import {
   CheckCheck
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ButtonLoader } from '../../../components/common';
 import { useTimesheetApproval } from '../hooks/useTimesheet';
 import { formatDecimalHours, TIMESHEET_STATUS } from '../lib/timesheetService';
 
@@ -157,7 +158,7 @@ export const TimesheetApproval = ({
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50"
           >
             {processing ? (
-              <Loader2 size={18} className="animate-spin" />
+              <ButtonLoader size={18} />
             ) : (
               <CheckCheck size={18} />
             )}
@@ -246,7 +247,7 @@ export const TimesheetApproval = ({
                 className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50"
               >
                 {processing ? (
-                  <Loader2 size={18} className="animate-spin mx-auto" />
+                  <ButtonLoader size={18} className="mx-auto" />
                 ) : (
                   'Reject Timesheet'
                 )}
@@ -409,7 +410,7 @@ const TimesheetCard = ({
             className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white font-medium rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
           >
             {processing ? (
-              <Loader2 size={18} className="animate-spin" />
+              <ButtonLoader size={18} />
             ) : (
               <CheckCircle size={18} />
             )}

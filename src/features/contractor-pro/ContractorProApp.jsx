@@ -27,6 +27,7 @@ import { SetupBusinessProfile } from './components/SetupBusinessProfile';
 import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
+import { FullPageLoader } from '../../components/common';
 import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
 import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
@@ -1897,14 +1898,7 @@ export const ContractorProApp = () => {
 
     // Loading
     if (authLoading) {
-        return (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-                <div className="text-center">
-                    <Loader2 className="h-10 w-10 animate-spin text-emerald-600 mx-auto mb-4" />
-                    <p className="text-slate-500">Loading...</p>
-                </div>
-            </div>
-        );
+        return <FullPageLoader message="Loading..." />;
     }
 
     // Auth

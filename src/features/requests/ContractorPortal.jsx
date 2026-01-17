@@ -13,6 +13,7 @@ import { Select } from '../../components/ui/Select';
 import toast, { Toaster } from 'react-hot-toast';
 import { compressImage } from '../../lib/images';
 import { Logo } from '../../components/common/Logo';
+import { FullPageLoader, ButtonLoader } from '../../components/common';
 import { JobScheduler } from '../jobs/JobScheduler';
 
 // --- SUB-COMPONENTS ---
@@ -253,7 +254,7 @@ export const ContractorPortal = () => {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin h-8 w-8 text-emerald-600" /></div>;
+    if (loading) return <FullPageLoader />;
 
     if (error) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
@@ -513,7 +514,7 @@ export const ContractorPortal = () => {
                             disabled={submitting}
                             className="w-full max-w-2xl mx-auto py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 disabled:opacity-50 flex items-center justify-center gap-2 transition-transform active:scale-[0.98]"
                         >
-                            {submitting ? <Loader2 className="animate-spin" /> : <><Send size={18} /> Submit Work Log</>}
+                            {submitting ? <ButtonLoader /> : <><Send size={18} /> Submit Work Log</>}
                         </button>
                     </div>
                 </form>

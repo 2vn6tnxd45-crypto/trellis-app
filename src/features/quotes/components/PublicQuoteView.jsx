@@ -38,6 +38,7 @@ import {
     createQuoteChatChannel
 } from '../lib/quoteService';
 import { QuoteAuthScreen } from './QuoteAuthScreen';
+import { FullPageLoader } from '../../../components/common';
 import toast from 'react-hot-toast';
 import { createPaymentCheckout, formatCurrency as formatStripeCurrency } from '../../../lib/stripeService';
 import { parseAddressString, addressesMatch } from '../../../lib/addressUtils';
@@ -65,14 +66,7 @@ const formatCurrency = (amount) => {
 // ============================================
 // LOADING STATE
 // ============================================
-const LoadingState = () => (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-            <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
-            <p className="text-slate-600">Loading quote...</p>
-        </div>
-    </div>
-);
+const LoadingState = () => <FullPageLoader message="Loading quote..." />;
 
 // ============================================
 // ERROR STATE

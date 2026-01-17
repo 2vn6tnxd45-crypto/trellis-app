@@ -10,6 +10,7 @@ import { Home, Camera, Upload, Send, CheckCircle, AlertCircle, Loader2, FileText
 import { Select } from '../../components/ui/Select';
 import toast, { Toaster } from 'react-hot-toast';
 import { compressImage } from '../../lib/images';
+import { FullPageLoader } from '../../components/common';
 
 export const ContractorView = () => {
     const [requestId] = useState(() => new URLSearchParams(window.location.search).get('requestId'));
@@ -119,7 +120,7 @@ export const ContractorView = () => {
         finally { setSubmitting(false); }
     };
 
-    if (loading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="h-8 w-8 text-emerald-600 animate-spin" /></div>;
+    if (loading) return <FullPageLoader />;
     if (error) return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-sm border"><AlertCircle className="h-8 w-8 text-red-600 mx-auto mb-4" /><h1 className="text-xl font-bold text-slate-800 mb-2">Something went wrong</h1><p className="text-slate-500">{error}</p></div></div>;
     if (submitted) return <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><Toaster position="top-center" /><div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-sm border"><CheckCircle className="h-8 w-8 text-emerald-600 mx-auto mb-4" /><h1 className="text-xl font-bold text-slate-800 mb-2">Thank you!</h1><p className="text-slate-500">Your work details have been submitted. The homeowner will be notified.</p></div></div>;
 

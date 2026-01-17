@@ -14,6 +14,7 @@ import {
   Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SectionLoader } from '../../../components/common';
 
 import { MembershipsList } from './MembershipsList';
 import { MembershipStats, MembershipMiniStats } from './MembershipStats';
@@ -131,14 +132,7 @@ export const MembershipsView = ({
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
-          <p className="text-slate-600">Loading memberships...</p>
-        </div>
-      </div>
-    );
+    return <SectionLoader message="Loading memberships..." className="min-h-[60vh]" />;
   }
 
   // If showing create plan form

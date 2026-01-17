@@ -13,6 +13,7 @@ import {
     User, Home, Phone, Mail, Calendar, DollarSign, ClipboardList,
     ArrowRight, Image, Play, Edit3, Trash2, AlertTriangle, RefreshCw
 } from 'lucide-react';
+import { ButtonLoader } from '../../../components/common';
 import { 
     EVALUATION_STATUS, 
     EVALUATION_TYPES,
@@ -929,7 +930,7 @@ const RequestInfoModal = ({ onSubmit, onClose, isSubmitting }) => {
                         disabled={!message.trim() || isSubmitting}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50"
                     >
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {isSubmitting ? <ButtonLoader size={16} /> : <Send className="w-4 h-4" />}
                         Send Request
                     </button>
                 </div>
@@ -1031,7 +1032,7 @@ const FindingsModal = ({ evaluation, onSubmit, onClose, isSubmitting }) => {
                         disabled={!findings.notes.trim() || isSubmitting}
                         className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-50"
                     >
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                        {isSubmitting ? <ButtonLoader size={16} /> : <CheckCircle className="w-4 h-4" />}
                         Complete & Ready to Quote
                     </button>
                 </div>

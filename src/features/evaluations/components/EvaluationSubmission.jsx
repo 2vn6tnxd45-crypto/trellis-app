@@ -33,6 +33,7 @@ import { linkCustomerToEvaluation } from '../lib/evaluationService';
 import toast from 'react-hot-toast';
 import { analyzeAndSaveEvaluation } from '../lib/evaluationAI';
 import { createEvaluationChatChannel } from '../../../lib/chatService';
+import { FullPageLoader } from '../../../components/common';
 
 // ============================================
 // MAIN COMPONENT
@@ -502,14 +503,7 @@ export const EvaluationSubmission = ({
     // Loading State
     // ----------------------------------------
     if (loading) {
-        return (
-            <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4">
-                <div className="text-center">
-                    <Loader2 className="w-10 h-10 animate-spin text-indigo-600 mx-auto mb-4" />
-                    <p className="text-slate-500">Loading evaluation request...</p>
-                </div>
-            </div>
-        );
+        return <FullPageLoader message="Loading evaluation request..." />;
     }
 
     // ----------------------------------------

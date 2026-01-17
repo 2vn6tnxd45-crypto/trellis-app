@@ -22,6 +22,7 @@ import {
   FileText
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ButtonLoader } from '../../../components/common';
 import { useWeeklyTimesheet } from '../hooks/useTimesheet';
 import {
   formatDuration,
@@ -650,7 +651,7 @@ const EditEntryModal = ({ entry, onSave, onClose }) => {
               disabled={saving || !editReason}
               className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 disabled:opacity-50"
             >
-              {saving ? <Loader2 size={18} className="animate-spin mx-auto" /> : 'Save Changes'}
+              {saving ? <ButtonLoader size={18} className="mx-auto" /> : 'Save Changes'}
             </button>
           </div>
         </form>
