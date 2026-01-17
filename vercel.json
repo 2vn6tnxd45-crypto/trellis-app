@@ -5,12 +5,12 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/app",
-      "destination": "/app/index.html"
+      "source": "/home",
+      "destination": "/home/index.html"
     },
     {
-      "source": "/app/(.*)",
-      "destination": "/app/index.html"
+      "source": "/home/(.*)",
+      "destination": "/home/index.html"
     }
   ],
   "crons": [
