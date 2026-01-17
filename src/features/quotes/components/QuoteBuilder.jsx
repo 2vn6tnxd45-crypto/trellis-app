@@ -22,8 +22,12 @@ import { usePropertyData } from '../../../hooks/usePropertyData';
 import ContractorPropertyIntel from '../../contractor-pro/components/ContractorPropertyIntel';
 // Price Book Integration
 import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
-import { CreditCard } from 'lucide-react';
+import { CreditCard, Award } from 'lucide-react';
 import { calculateMonthlyPayment, formatCurrency as formatFinancingCurrency } from '../../../lib/wisetackService';
+
+// Membership Integration
+import { MembershipBadge } from '../../memberships/components/MembershipCard';
+import { calculateMembershipBenefits, formatCurrency as formatMembershipCurrency } from '../../memberships/lib/membershipService';
 
 // Inventory Intent System (for "Add to Home Record" feature)
 import {
@@ -798,14 +802,25 @@ const QuoteSummary = ({
     onSend,
     isSaving,
     isSending,
-    financingSettings
+    financingSettings,
+    customerMembership
 }) => {
     const subtotal = lineItems.reduce(
         (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)),
         0
     );
-    const tax = subtotal * (taxRate / 100);
-    const total = subtotal + tax;
+
+    // Calculate membership benefits if customer has active membership
+    const membershipBenefits = customerMembership
+        ? calculateMembershipBenefits(customerMembership, { subtotal })
+        : null;
+
+    // Apply membership discount to subtotal
+    const membershipDiscount = membershipBenefits?.totalDiscount || 0;
+    const adjustedSubtotal = subtotal - membershipDiscount;
+
+    const tax = adjustedSubtotal * (taxRate / 100);
+    const total = adjustedSubtotal + tax;
 
     // Deposit Calc
     let depositAmount = 0;
@@ -823,9 +838,50 @@ const QuoteSummary = ({
             <h3 className="font-bold text-slate-800 mb-4">Quote Summary</h3>
 
             <div className="space-y-4">
+                {/* Membership Badge - Show if customer has active membership */}
+                {customerMembership && customerMembership.status === 'active' && (
+                    <div className="p-3 rounded-xl border-2" style={{
+                        borderColor: customerMembership.planColor || '#10b981',
+                        backgroundColor: `${customerMembership.planColor}10` || '#10b98110'
+                    }}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <Award size={16} style={{ color: customerMembership.planColor || '#10b981' }} />
+                            <span className="text-sm font-bold" style={{ color: customerMembership.planColor || '#10b981' }}>
+                                {customerMembership.planName} Member
+                            </span>
+                        </div>
+                        {membershipBenefits && (
+                            <div className="space-y-1 text-xs">
+                                {membershipBenefits.discounts.map((discount, idx) => (
+                                    <div key={idx} className="flex justify-between text-green-700">
+                                        <span>{discount.description}</span>
+                                        <span className="font-bold">-${discount.amount.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                {membershipBenefits.waived.map((waived, idx) => (
+                                    <div key={idx} className="flex justify-between text-green-700">
+                                        <span>{waived.description}</span>
+                                        <span className="font-bold">-${waived.amount.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                {membershipBenefits.priorityScheduling && (
+                                    <div className="flex items-center gap-1 text-blue-600 mt-1">
+                                        <span>Priority scheduling included</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 <div className="p-4 bg-slate-50 rounded-xl">
                     <p className="text-sm text-slate-500">Quote Total</p>
                     <p className="text-3xl font-bold text-slate-800">${total.toFixed(2)}</p>
+                    {membershipDiscount > 0 && (
+                        <p className="text-xs text-green-600 mt-1">
+                            Member savings: ${membershipDiscount.toFixed(2)}
+                        </p>
+                    )}
                 </div>
 
                 {/* Financing Preview - Show if financing is enabled and quote meets minimum */}
@@ -899,6 +955,7 @@ export const QuoteBuilder = ({
     templates = [],
     contractorProfile = null,
     financingSettings = null,
+    customerMembership = null, // Active membership for selected customer
     onBack,
     onSave,
     onSend,
@@ -1490,6 +1547,7 @@ export const QuoteBuilder = ({
                         isSaving={isSaving}
                         isSending={isSending}
                         financingSettings={financingSettings}
+                        customerMembership={customerMembership}
                     />
 
                     {/* Quick Actions */}

@@ -16,7 +16,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera, Package, Star
+    ClipboardCheck, Camera, Package, Star, Crown
 } from 'lucide-react';
 import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -89,6 +89,9 @@ import { JobCompletionForm } from '../jobs/components/completion';
 import { subscribeToGlobalUnreadCount } from '../../lib/chatService';
 import { EstimateTemplates } from './components/EstimateTemplates';
 import { formatCurrency } from '../../lib/utils';
+
+// Membership Components
+import { MembershipsView, PlanBuilder as MembershipPlansView } from '../memberships/components';
 
 // Placeholder until component exists
 const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
@@ -240,6 +243,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
+                <NavItem icon={Crown} label="Memberships" active={['memberships', 'membership-plans'].includes(activeView)} onClick={() => onNavigate('memberships')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
                 <NavItem icon={Receipt} label="Expenses" active={activeView === 'expenses'} onClick={() => onNavigate('expenses')} />
@@ -1495,6 +1499,39 @@ export const ContractorProApp = () => {
         loadFinancingSettings();
     }, [contractorId]);
 
+    // Membership plans and members state
+    const [membershipPlans, setMembershipPlans] = useState([]);
+    const [memberships, setMemberships] = useState([]);
+    const [membershipStats, setMembershipStats] = useState(null);
+    const [membershipsLoading, setMembershipsLoading] = useState(true);
+    const [selectedMembershipCustomer, setSelectedMembershipCustomer] = useState(null);
+
+    // Load membership data when contractorId is available
+    useEffect(() => {
+        if (!contractorId) return;
+
+        const loadMembershipData = async () => {
+            try {
+                setMembershipsLoading(true);
+                const { getPlans, getMemberships, getMembershipStats } = await import('../memberships/lib/membershipService');
+                const [plans, members, stats] = await Promise.all([
+                    getPlans(contractorId, true),
+                    getMemberships(contractorId),
+                    getMembershipStats(contractorId)
+                ]);
+                setMembershipPlans(plans);
+                setMemberships(members);
+                setMembershipStats(stats);
+            } catch (err) {
+                console.error('Error loading membership data:', err);
+            } finally {
+                setMembershipsLoading(false);
+            }
+        };
+
+        loadMembershipData();
+    }, [contractorId]);
+
     // Derived data
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
@@ -2242,6 +2279,43 @@ export const ContractorProApp = () => {
                             onAddExpense={addExpense}
                             onEditExpense={editExpense}
                             onDeleteExpense={removeExpense}
+                        />
+                    )}
+
+                    {/* Memberships View */}
+                    {activeView === 'memberships' && (
+                        <MembershipsView
+                            plans={membershipPlans}
+                            memberships={memberships}
+                            stats={membershipStats}
+                            customers={customers}
+                            loading={membershipsLoading}
+                            contractorId={contractorId}
+                            onNavigate={(view) => setActiveView(view)}
+                            onRefresh={async () => {
+                                const { getPlans, getMemberships, getMembershipStats } = await import('../memberships/lib/membershipService');
+                                const [plans, members, stats] = await Promise.all([
+                                    getPlans(contractorId, true),
+                                    getMemberships(contractorId),
+                                    getMembershipStats(contractorId)
+                                ]);
+                                setMembershipPlans(plans);
+                                setMemberships(members);
+                                setMembershipStats(stats);
+                            }}
+                        />
+                    )}
+
+                    {activeView === 'membership-plans' && (
+                        <MembershipPlansView
+                            plans={membershipPlans}
+                            contractorId={contractorId}
+                            onBack={() => setActiveView('memberships')}
+                            onRefresh={async () => {
+                                const { getPlans } = await import('../memberships/lib/membershipService');
+                                const plans = await getPlans(contractorId, true);
+                                setMembershipPlans(plans);
+                            }}
                         />
                     )}
 

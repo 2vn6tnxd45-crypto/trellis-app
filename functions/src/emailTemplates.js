@@ -737,6 +737,181 @@ function generateFinancingStartedContractorHtml(data) {
 }
 
 // ============================================
+// MEMBERSHIP EMAIL TEMPLATES
+// ============================================
+
+/**
+ * Membership Welcome Email
+ */
+function generateMembershipWelcomeHtml({ customerName, planName, planColor, benefits, endDate, contractorName, managementUrl }) {
+  const content = `
+    <div style="text-align: center; padding: 32px 0;">
+      <div style="width: 80px; height: 80px; background: ${planColor || BRAND.primary}; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+        <span style="font-size: 40px;">&#128081;</span>
+      </div>
+      <h1 style="color: ${BRAND.text}; font-size: 28px; margin: 0 0 8px 0;">Welcome to ${planName}!</h1>
+      <p style="color: ${BRAND.textLight}; font-size: 16px; margin: 0;">Thank you for becoming a member, ${customerName.split(' ')[0] || 'there'}!</p>
+    </div>
+
+    <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <h2 style="color: ${BRAND.text}; font-size: 18px; margin: 0 0 16px 0;">Your Member Benefits:</h2>
+      <ul style="color: ${BRAND.textLight}; margin: 0; padding-left: 20px; line-height: 1.8;">
+        ${benefits?.discountPercent > 0 ? `<li><strong>${benefits.discountPercent}% discount</strong> on all repairs</li>` : ''}
+        ${benefits?.priorityScheduling ? '<li><strong>Priority scheduling</strong> for appointments</li>' : ''}
+        ${benefits?.waiveDiagnosticFee ? '<li><strong>No diagnostic fee</strong></li>' : ''}
+        ${benefits?.emergencyResponse ? `<li><strong>${benefits.emergencyResponse} emergency response</strong></li>` : ''}
+        ${benefits?.transferable ? '<li><strong>Transferable</strong> to new homeowner</li>' : ''}
+      </ul>
+    </div>
+
+    <div style="background: ${planColor || BRAND.primary}15; border: 2px solid ${planColor || BRAND.primary}; border-radius: 12px; padding: 20px; text-align: center; margin: 24px 0;">
+      <p style="color: ${BRAND.textLight}; margin: 0 0 4px 0; font-size: 14px;">Membership Valid Until</p>
+      <p style="color: ${BRAND.text}; margin: 0; font-size: 24px; font-weight: bold;">${endDate}</p>
+    </div>
+
+    ${managementUrl ? `
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${managementUrl}" style="display: inline-block; background: ${planColor || BRAND.primary}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">View Your Membership</a>
+    </div>
+    ` : ''}
+
+    <p style="color: ${BRAND.textLight}; text-align: center; margin-top: 24px;">
+      Welcome to the ${contractorName || ''} family! We're excited to serve you.
+    </p>
+  `;
+
+  return baseLayout(content, `Welcome to ${planName} - Your membership is now active!`);
+}
+
+/**
+ * Membership Renewal Reminder Email
+ */
+function generateMembershipRenewalReminderHtml({ customerName, planName, planColor, daysLeft, endDate, totalSavings, renewUrl, contractorName }) {
+  const isUrgent = daysLeft <= 7;
+
+  const content = `
+    <div style="text-align: center; padding: 32px 0;">
+      <div style="width: 80px; height: 80px; background: ${isUrgent ? BRAND.warning : planColor || BRAND.primary}; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+        <span style="font-size: 40px;">${isUrgent ? '&#9888;' : '&#128276;'}</span>
+      </div>
+      <h1 style="color: ${BRAND.text}; font-size: 28px; margin: 0 0 8px 0;">
+        ${isUrgent ? 'Your Membership Expires Soon!' : 'Time to Renew Your Membership'}
+      </h1>
+      <p style="color: ${BRAND.textLight}; font-size: 16px; margin: 0;">
+        Your ${planName} membership expires in <strong>${daysLeft} day${daysLeft === 1 ? '' : 's'}</strong>
+      </p>
+    </div>
+
+    ${totalSavings > 0 ? `
+    <div style="background: #ecfdf5; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+      <p style="color: #065f46; margin: 0 0 8px 0; font-size: 14px;">As a member, you've saved</p>
+      <p style="color: #047857; margin: 0; font-size: 36px; font-weight: bold;">$${totalSavings.toFixed(2)}</p>
+    </div>
+    ` : ''}
+
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: ${BRAND.textLight}; margin: 0; font-size: 14px;">
+        Don't lose your member benefits like priority scheduling, repair discounts, and waived fees!
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${renewUrl}" style="display: inline-block; background: ${isUrgent ? BRAND.warning : BRAND.primary}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">Renew My Membership</a>
+    </div>
+
+    <p style="color: ${BRAND.textLight}; text-align: center; font-size: 14px;">
+      Membership expires: ${endDate}
+    </p>
+  `;
+
+  return baseLayout(content, `Your ${planName} membership expires in ${daysLeft} days`);
+}
+
+/**
+ * Membership Expired Email
+ */
+function generateMembershipExpiredHtml({ customerName, planName, planColor, totalSavings, renewUrl, contractorName }) {
+  const content = `
+    <div style="text-align: center; padding: 32px 0;">
+      <div style="width: 80px; height: 80px; background: ${BRAND.danger}; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+        <span style="font-size: 40px;">&#128532;</span>
+      </div>
+      <h1 style="color: ${BRAND.text}; font-size: 28px; margin: 0 0 8px 0;">Your Membership Has Expired</h1>
+      <p style="color: ${BRAND.textLight}; font-size: 16px; margin: 0;">We're sorry to see your ${planName} membership end</p>
+    </div>
+
+    ${totalSavings > 0 ? `
+    <div style="background: #f8fafc; border-radius: 12px; padding: 24px; text-align: center; margin: 24px 0;">
+      <p style="color: ${BRAND.textLight}; margin: 0 0 8px 0; font-size: 14px;">During your membership, you saved</p>
+      <p style="color: #059669; margin: 0; font-size: 32px; font-weight: bold;">$${totalSavings.toFixed(2)}</p>
+    </div>
+    ` : ''}
+
+    <div style="background: #fef2f2; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <p style="color: #991b1b; margin: 0; font-size: 14px;">
+        <strong>You no longer have access to:</strong><br>
+        &bull; Member discounts on repairs<br>
+        &bull; Priority scheduling<br>
+        &bull; Waived diagnostic fees<br>
+        &bull; Emergency response priority
+      </p>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${renewUrl}" style="display: inline-block; background: ${BRAND.primary}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">Renew My Membership</a>
+    </div>
+
+    <p style="color: ${BRAND.textLight}; text-align: center; font-size: 14px;">
+      We'd love to have you back as a member!
+    </p>
+  `;
+
+  return baseLayout(content, `Your ${planName} membership has expired`);
+}
+
+/**
+ * Membership Renewal Confirmation Email
+ */
+function generateMembershipRenewedHtml({ customerName, planName, planColor, price, endDate, managementUrl }) {
+  const content = `
+    <div style="text-align: center; padding: 32px 0;">
+      <div style="width: 80px; height: 80px; background: ${BRAND.success}; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+        <span style="font-size: 40px;">&#127881;</span>
+      </div>
+      <h1 style="color: ${BRAND.text}; font-size: 28px; margin: 0 0 8px 0;">Membership Renewed!</h1>
+      <p style="color: ${BRAND.textLight}; font-size: 16px; margin: 0;">Your ${planName} membership has been renewed</p>
+    </div>
+
+    <div style="background: #f8fafc; border-radius: 12px; padding: 24px; margin: 24px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="color: ${BRAND.textLight}; padding: 8px 0;">Plan</td>
+          <td style="color: ${BRAND.text}; padding: 8px 0; text-align: right; font-weight: 600;">${planName}</td>
+        </tr>
+        <tr>
+          <td style="color: ${BRAND.textLight}; padding: 8px 0;">Amount Paid</td>
+          <td style="color: ${BRAND.text}; padding: 8px 0; text-align: right; font-weight: 600;">$${price}</td>
+        </tr>
+        <tr>
+          <td style="color: ${BRAND.textLight}; padding: 8px 0;">Next Renewal</td>
+          <td style="color: ${BRAND.text}; padding: 8px 0; text-align: right; font-weight: 600;">${endDate}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${managementUrl}" style="display: inline-block; background: ${planColor || BRAND.primary}; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">View My Membership</a>
+    </div>
+
+    <p style="color: ${BRAND.textLight}; text-align: center;">
+      Thank you for your continued membership!
+    </p>
+  `;
+
+  return baseLayout(content, `Your ${planName} membership has been renewed!`);
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 module.exports = {
@@ -748,6 +923,11 @@ module.exports = {
   generateFinancingDeniedHtml,
   generateFinancingFundedContractorHtml,
   generateFinancingStartedContractorHtml,
+  // Membership emails
+  generateMembershipWelcomeHtml,
+  generateMembershipRenewalReminderHtml,
+  generateMembershipExpiredHtml,
+  generateMembershipRenewedHtml,
   baseLayout,
   BRAND,
 };
