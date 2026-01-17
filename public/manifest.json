@@ -13,39 +13,38 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
-  {
-    "src": "/apple-touch-icon.png",
-    "sizes": "192x192",
-    "type": "image/png",
-    "purpose": "any maskable"
-  },
-  {
-    "src": "/apple-touch-icon.png",
-    "sizes": "512x512",
-    "type": "image/png",
-    "purpose": "any maskable"
-  }
-],
-"categories": [
-  "lifestyle",
-  "utilities"
-],
-"screenshots": [
-  {
-    "src": "/screenshots/dashboard.png",
-    "sizes": "1280x720",
-    "type": "image/png",
-    "form_factor": "wide",
-    "label": "Home Dashboard"
-  },
-  {
-    "src": "/screenshots/inventory.png",
-    "sizes": "1280x720",
-    "type": "image/png",
-    "form_factor": "wide",
-    "label": "Home Inventory"
-  }
-]
+  "categories": [
+    "lifestyle",
+    "utilities"
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Home Dashboard"
+    },
+    {
+      "src": "/screenshots/inventory.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Home Inventory"
+    }
+  ]
 }

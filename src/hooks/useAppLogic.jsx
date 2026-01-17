@@ -92,6 +92,12 @@ export const useAppLogic = (celebrations) => {
     const justCompletedSetup = useRef(false);
 
     // =========================================================================
+    // REF - Firestore listener cleanup refs (prevents stale closure issues)
+    // =========================================================================
+    const unsubRecordsRef = useRef(null);
+    const unsubRequestsRef = useRef(null);
+
+    // =========================================================================
     // DERIVED STATE - All existing derived state preserved exactly
     // =========================================================================
    // MEMOIZED: Only recalculates when profile changes
@@ -137,9 +143,6 @@ export const useAppLogic = (celebrations) => {
         // --- FIX END ---
 
         debug.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
-        
-        let unsubRecords = null;
-        let unsubRequests = null;
         
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
             debug.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
@@ -267,16 +270,16 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     
                     // Set up listeners
                     debug.log('[useAppLogic] 📡 Setting up realtime listeners...');
-                    if (unsubRecords) unsubRecords();
+                    if (unsubRecordsRef.current) unsubRecordsRef.current();
                     const q = query(collection(db, 'artifacts', appId, 'users', currentUser.uid, 'house_records'), orderBy('dateInstalled', 'desc'));
-                    unsubRecords = onSnapshot(q, (snap) => {
+                    unsubRecordsRef.current = onSnapshot(q, (snap) => {
                         debug.log('[useAppLogic] 📦 Records snapshot:', snap.docs.length, 'records');
                         setRecords(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                     }, (e) => debug.error('[useAppLogic] ❌ Records error:', e));
 
-                    if (unsubRequests) unsubRequests();
-                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid)); 
-                    unsubRequests = onSnapshot(qReq, (snap) => {
+                    if (unsubRequestsRef.current) unsubRequestsRef.current();
+                    const qReq = query(collection(db, REQUESTS_COLLECTION_PATH), where("createdBy", "==", currentUser.uid));
+                    unsubRequestsRef.current = onSnapshot(qReq, (snap) => {
                         debug.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
                         setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
                     }, (e) => debug.error('[useAppLogic] ❌ Requests error:', e));
@@ -304,11 +307,11 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
         
         debug.log('[useAppLogic] ✅ Auth listener registered');
         
-        return () => { 
+        return () => {
             debug.log('[useAppLogic] 🧹 Cleanup running');
-            unsubAuth(); 
-            if (unsubRecords) unsubRecords(); 
-            if (unsubRequests) unsubRequests(); 
+            unsubAuth();
+            if (unsubRecordsRef.current) unsubRecordsRef.current();
+            if (unsubRequestsRef.current) unsubRequestsRef.current();
         };
     }, []);
 

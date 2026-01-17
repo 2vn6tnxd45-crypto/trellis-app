@@ -1165,6 +1165,9 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     const [userProperties, setUserProperties] = useState([]);
     const [userProfile, setUserProfile] = useState(null);
 
+    // Payment Confirmation State
+    const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+
     // Check if already claimed
     useEffect(() => {
         if (user && data?.quote?.customerId === user.uid) {
@@ -1210,12 +1213,13 @@ export const PublicQuoteView = ({ shareToken, user }) => {
         
         loadQuote();
 
+        // 15-second timeout with user-friendly message
         timeoutId = setTimeout(() => {
-            if (isMounted) {
+            if (isMounted && loading) {
                 setLoading(false);
-                setError('Request timed out. Please refresh.');
+                setError('This is taking longer than expected. Please check your connection and refresh the page.');
             }
-        }, 10000);
+        }, 15000);
 
         return () => {
             isMounted = false;
@@ -1435,8 +1439,8 @@ setUserProperties(props);
         setShowPropertyModal(true);
     };
 
-    // Handle Pay Deposit (Accept + Pay)
-    const handlePayDeposit = async () => {
+    // Handle Pay Deposit button click - show confirmation first
+    const handlePayDeposit = () => {
         if (!user) {
             setPendingAction('accept');
             setAuthAction('accept');
@@ -1444,12 +1448,19 @@ setUserProperties(props);
             return;
         }
 
+        // Show payment confirmation modal
+        setShowPaymentConfirmation(true);
+    };
+
+    // Confirmed payment - proceed with Stripe
+    const handleConfirmPayment = async () => {
+        setShowPaymentConfirmation(false);
         setIsProcessingPayment(true);
-        
+
         try {
             // First accept the quote
             await acceptQuote(data.contractorId, data.quote.id);
-            
+
             // Then redirect to Stripe Checkout for deposit
             const checkoutResult = await createPaymentCheckout({
                 stripeAccountId: data.contractor?.stripe?.accountId,
@@ -1463,10 +1474,10 @@ setUserProperties(props);
                 customerEmail: user.email || data.quote.customer?.email,
                 customerName: data.quote.customer?.name
             });
-            
+
             // Redirect to Stripe Checkout
             window.location.href = checkoutResult.checkoutUrl;
-            
+
         } catch (err) {
             console.error('Error processing payment:', err);
             toast.error(err.message || 'Failed to process payment. Please try again.');
@@ -1544,6 +1555,54 @@ setUserProperties(props);
                 isSaving={isClaiming}
                 userName={userProfile?.name || user?.displayName}
             />
+
+            {/* Payment Confirmation Modal */}
+            {showPaymentConfirmation && (
+                <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95">
+                        <div className="text-center mb-6">
+                            <div className="inline-flex p-3 bg-emerald-100 rounded-full mb-4">
+                                <DollarSign className="h-8 w-8 text-emerald-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-800 mb-2">
+                                Confirm Payment
+                            </h2>
+                            <p className="text-slate-600">
+                                You're about to pay a deposit of{' '}
+                                <span className="font-bold text-emerald-600">
+                                    {formatCurrency(data.quote.depositAmount)}
+                                </span>
+                            </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 mb-6">
+                            <p className="text-sm text-slate-500 mb-1">For</p>
+                            <p className="font-bold text-slate-800">{data.quote.title || 'Service Quote'}</p>
+                            <p className="text-sm text-slate-500 mt-1">from {data.contractor?.companyName}</p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowPaymentConfirmation(false)}
+                                className="flex-1 py-3 border border-slate-300 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmPayment}
+                                className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <DollarSign size={18} />
+                                Pay {formatCurrency(data.quote.depositAmount)}
+                            </button>
+                        </div>
+
+                        <p className="text-xs text-slate-400 text-center mt-4">
+                            You'll be redirected to Stripe to complete payment securely
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* Main Quote Content */}
             <QuoteContent
