@@ -1,0 +1,634 @@
+/* src/features/booking-widget/styles/widget.css */
+/* ============================================ */
+/* KRIB BOOKING WIDGET STYLES */
+/* ============================================ */
+/* Scoped styles that won't conflict with host site */
+
+.krib-widget {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #1f2937;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    max-width: 480px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.krib-widget *,
+.krib-widget *::before,
+.krib-widget *::after {
+    box-sizing: border-box;
+}
+
+.krib-widget.krib-embedded {
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 100%;
+}
+
+/* Loading State */
+.krib-widget.krib-loading {
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.krib-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: krib-spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes krib-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Error State */
+.krib-widget.krib-error {
+    padding: 48px 24px;
+    text-align: center;
+}
+
+.krib-error-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #fef2f2;
+    color: #ef4444;
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+/* Header */
+.krib-header {
+    padding: 20px 24px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.krib-logo {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.krib-header-text {
+    flex: 1;
+}
+
+.krib-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.krib-header p {
+    margin: 4px 0 0;
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+.krib-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.krib-star {
+    color: #fbbf24;
+}
+
+.krib-review-count {
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+/* Progress */
+.krib-progress {
+    display: flex;
+    padding: 16px 24px;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 8px;
+}
+
+.krib-progress-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.krib-progress-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    transition: all 0.2s;
+}
+
+.krib-progress-step.active .krib-progress-dot {
+    background: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+}
+
+.krib-progress-step.completed .krib-progress-dot {
+    background: #10b981;
+}
+
+.krib-progress-step span {
+    font-size: 11px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+.krib-progress-step.active span,
+.krib-progress-step.completed span {
+    color: #374151;
+}
+
+/* Alert */
+.krib-alert {
+    margin: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 14px;
+}
+
+.krib-alert-error {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.krib-alert button {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 0;
+    line-height: 1;
+}
+
+/* Content */
+.krib-content {
+    padding: 24px;
+}
+
+/* Steps */
+.krib-step h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* Service Grid */
+.krib-service-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.krib-service-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: #f9fafb;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    width: 100%;
+}
+
+.krib-service-card:hover {
+    border-color: #d1d5db;
+    background: #f3f4f6;
+}
+
+.krib-service-card.selected {
+    border-color: #10b981;
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.krib-service-name {
+    font-weight: 500;
+    color: #111827;
+}
+
+.krib-service-duration {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+/* Calendar */
+.krib-calendar {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.krib-calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.krib-calendar-header button {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: #ffffff;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #374151;
+    transition: all 0.2s;
+}
+
+.krib-calendar-header button:hover:not(:disabled) {
+    background: #e5e7eb;
+}
+
+.krib-calendar-header button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.krib-calendar-header span {
+    font-weight: 600;
+    color: #111827;
+}
+
+.krib-calendar-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    margin-bottom: 8px;
+}
+
+.krib-calendar-weekdays span {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    padding: 8px 0;
+}
+
+.krib-calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.krib-calendar-day {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #9ca3af;
+    cursor: default;
+}
+
+.krib-calendar-day.available {
+    background: #ffffff;
+    color: #111827;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.krib-calendar-day.available:hover {
+    background: #e5e7eb;
+}
+
+.krib-calendar-day.selected {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.krib-slot-count {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    font-size: 9px;
+    background: #10b981;
+    color: #ffffff;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Time Grid */
+.krib-time-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+@media (max-width: 400px) {
+    .krib-time-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.krib-time-slot {
+    padding: 12px 8px;
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.krib-time-slot:hover {
+    border-color: #d1d5db;
+    background: #f9fafb;
+}
+
+.krib-time-slot.selected {
+    background: #10b981;
+    border-color: #10b981;
+    color: #ffffff;
+}
+
+.krib-no-slots {
+    text-align: center;
+    color: #6b7280;
+    padding: 32px 16px;
+    background: #f9fafb;
+    border-radius: 12px;
+}
+
+/* Summary */
+.krib-summary {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.krib-summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.krib-summary-item:not(:last-child) {
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.krib-summary-item span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.krib-summary-item strong {
+    color: #111827;
+    font-size: 14px;
+}
+
+/* Form */
+.krib-form-group {
+    margin-bottom: 16px;
+}
+
+.krib-form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.krib-form-group input,
+.krib-form-group textarea,
+.krib-form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    color: #111827;
+    background: #ffffff;
+    transition: all 0.2s;
+}
+
+.krib-form-group input:focus,
+.krib-form-group textarea:focus,
+.krib-form-group select:focus {
+    outline: none;
+    border-color: #10b981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.krib-form-group input::placeholder,
+.krib-form-group textarea::placeholder {
+    color: #9ca3af;
+}
+
+.krib-form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Buttons */
+.krib-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.krib-btn-primary {
+    background: #10b981;
+    color: #ffffff;
+}
+
+.krib-btn-primary:hover:not(:disabled) {
+    filter: brightness(0.95);
+}
+
+.krib-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.krib-btn-secondary {
+    background: #f3f4f6;
+    color: #374151;
+}
+
+.krib-btn-secondary:hover {
+    background: #e5e7eb;
+}
+
+/* Footer */
+.krib-footer {
+    padding: 0 24px 16px;
+}
+
+/* Confirmation */
+.krib-step-confirm {
+    text-align: center;
+    padding: 16px 0;
+}
+
+.krib-confirm-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin: 0 auto 20px;
+}
+
+.krib-step-confirm h3 {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.krib-step-confirm > p {
+    color: #6b7280;
+    margin-bottom: 24px;
+}
+
+.krib-confirm-details {
+    background: #f9fafb;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: left;
+    margin-bottom: 20px;
+}
+
+.krib-confirm-code {
+    text-align: center;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.krib-confirm-code span {
+    display: block;
+    font-size: 12px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+
+.krib-confirm-code strong {
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: #111827;
+}
+
+.krib-confirm-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.krib-confirm-item span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.krib-confirm-item strong {
+    color: #111827;
+    font-size: 14px;
+    text-align: right;
+}
+
+.krib-confirm-note {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.krib-confirm-note strong {
+    color: #111827;
+}
+
+/* Powered By */
+.krib-powered {
+    text-align: center;
+    padding: 12px;
+    font-size: 12px;
+    color: #9ca3af;
+    border-top: 1px solid #f3f4f6;
+}
+
+.krib-powered a {
+    color: #6b7280;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.krib-powered a:hover {
+    color: #10b981;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .krib-widget {
+        border-radius: 0;
+        max-width: 100%;
+    }
+
+    .krib-header {
+        flex-wrap: wrap;
+    }
+
+    .krib-rating {
+        order: -1;
+        margin-left: auto;
+    }
+
+    .krib-content {
+        padding: 20px 16px;
+    }
+}

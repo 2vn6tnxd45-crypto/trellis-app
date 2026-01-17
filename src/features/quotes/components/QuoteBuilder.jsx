@@ -22,6 +22,8 @@ import { usePropertyData } from '../../../hooks/usePropertyData';
 import ContractorPropertyIntel from '../../contractor-pro/components/ContractorPropertyIntel';
 // Price Book Integration
 import { PriceBookPicker, PriceBookButton } from '../../contractor-pro/components/PriceBook';
+import { CreditCard } from 'lucide-react';
+import { calculateMonthlyPayment, formatCurrency as formatFinancingCurrency } from '../../../lib/wisetackService';
 
 // Inventory Intent System (for "Add to Home Record" feature)
 import {
@@ -795,7 +797,8 @@ const QuoteSummary = ({
     onSaveDraft,
     onSend,
     isSaving,
-    isSending
+    isSending,
+    financingSettings
 }) => {
     const subtotal = lineItems.reduce(
         (sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)),
@@ -824,6 +827,22 @@ const QuoteSummary = ({
                     <p className="text-sm text-slate-500">Quote Total</p>
                     <p className="text-3xl font-bold text-slate-800">${total.toFixed(2)}</p>
                 </div>
+
+                {/* Financing Preview - Show if financing is enabled and quote meets minimum */}
+                {financingSettings?.enabled && total >= (financingSettings?.minAmount || 500) && (
+                    <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                        <div className="flex items-center gap-2 mb-1">
+                            <CreditCard size={14} className="text-blue-600" />
+                            <span className="text-xs font-bold text-blue-700 uppercase">Financing Available</span>
+                        </div>
+                        <p className="text-sm text-blue-800">
+                            As low as <span className="font-bold">{formatFinancingCurrency(calculateMonthlyPayment(total, financingSettings?.defaultTermMonths || 12))}/mo</span>
+                        </p>
+                        <p className="text-[10px] text-blue-600 mt-1">
+                            Customer will see financing option on quote
+                        </p>
+                    </div>
+                )}
 
                 {depositRequired && (
                     <div className="grid grid-cols-2 gap-2 text-center">
@@ -879,6 +898,7 @@ export const QuoteBuilder = ({
     customers = [],
     templates = [],
     contractorProfile = null,
+    financingSettings = null,
     onBack,
     onSave,
     onSend,
@@ -1469,6 +1489,7 @@ export const QuoteBuilder = ({
                         onSend={handleSendQuote}
                         isSaving={isSaving}
                         isSending={isSending}
+                        financingSettings={financingSettings}
                     />
 
                     {/* Quick Actions */}

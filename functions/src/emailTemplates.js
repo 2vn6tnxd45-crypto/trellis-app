@@ -409,6 +409,334 @@ function generateWarrantyHtml(data) {
 }
 
 // ============================================
+// FINANCING APPROVED EMAIL (Customer)
+// ============================================
+function generateFinancingApprovedHtml(data) {
+  const {
+    customerName,
+    contractorName,
+    quoteTitle,
+    approvedAmount,
+    monthlyPayment,
+    termMonths,
+    apr,
+    applicationUrl,
+    quoteUrl
+  } = data;
+
+  const content = `
+    <div class="content">
+      <h1>🎉 Your Financing is Approved!</h1>
+      <p>
+        Great news, ${customerName || 'there'}! Your financing application with
+        <span class="highlight">${contractorName}</span> has been approved.
+      </p>
+
+      <div class="card" style="border-left: 4px solid ${BRAND.success}; background: #f0fdf4;">
+        <p style="font-size: 12px; color: ${BRAND.textLight}; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+          APPROVED FINANCING
+        </p>
+        <p style="font-size: 36px; font-weight: 800; color: ${BRAND.success}; margin: 0;">
+          $${(approvedAmount || 0).toLocaleString()}
+        </p>
+        <p style="font-size: 14px; color: ${BRAND.textLight}; margin: 8px 0 0;">
+          ${quoteTitle || 'Service Quote'}
+        </p>
+
+        <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #bbf7d0;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="padding: 8px 0;">
+                <span style="color: ${BRAND.textLight}; font-size: 14px;">Monthly Payment</span>
+              </td>
+              <td style="text-align: right; padding: 8px 0;">
+                <span style="color: ${BRAND.text}; font-weight: 700; font-size: 18px;">$${(monthlyPayment || 0).toLocaleString()}/mo</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">
+                <span style="color: ${BRAND.textLight}; font-size: 14px;">Term</span>
+              </td>
+              <td style="text-align: right; padding: 8px 0;">
+                <span style="color: ${BRAND.text}; font-weight: 600;">${termMonths || 12} months</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 8px 0;">
+                <span style="color: ${BRAND.textLight}; font-size: 14px;">APR</span>
+              </td>
+              <td style="text-align: right; padding: 8px 0;">
+                <span style="color: ${BRAND.text}; font-weight: 600;">${apr || '0'}%</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <p style="font-weight: 600; color: ${BRAND.text}; margin-top: 24px;">
+        Next Steps:
+      </p>
+      <ol style="color: ${BRAND.textLight}; padding-left: 20px; margin: 8px 0;">
+        <li style="margin-bottom: 12px;">Complete your loan agreement to finalize financing</li>
+        <li style="margin-bottom: 12px;">Once complete, ${contractorName} will be paid directly</li>
+        <li>Your work will be scheduled and completed</li>
+      </ol>
+
+      <div style="text-align: center; margin-top: 32px;">
+        ${applicationUrl ? `
+        <a href="${applicationUrl}" class="btn" style="background: ${BRAND.success};">
+          Complete Your Loan Agreement →
+        </a>
+        ` : `
+        <a href="${quoteUrl || 'https://mykrib.app'}" class="btn" style="background: ${BRAND.success};">
+          View Quote Details →
+        </a>
+        `}
+      </div>
+
+      <div class="divider"></div>
+
+      <p style="font-size: 14px; text-align: center; color: ${BRAND.textLight};">
+        Questions about your financing? Contact Wisetack at
+        <a href="mailto:support@wisetack.com" style="color: ${BRAND.primary};">support@wisetack.com</a>
+      </p>
+    </div>
+  `;
+
+  return baseLayout(content, `Your $${(approvedAmount || 0).toLocaleString()} financing is approved!`);
+}
+
+// ============================================
+// FINANCING DENIED EMAIL (Customer)
+// ============================================
+function generateFinancingDeniedHtml(data) {
+  const {
+    customerName,
+    contractorName,
+    quoteTitle,
+    quoteTotal,
+    quoteUrl,
+    contractorPhone
+  } = data;
+
+  const content = `
+    <div class="content">
+      <h1>Financing Update</h1>
+      <p>
+        Hi ${customerName || 'there'}, we wanted to let you know that your financing application
+        for the quote from <span class="highlight">${contractorName}</span> was not approved at this time.
+      </p>
+
+      <div class="card">
+        <p style="font-size: 14px; color: ${BRAND.textLight}; margin: 0 0 8px;">
+          ${quoteTitle || 'Service Quote'}
+        </p>
+        <p style="font-size: 24px; font-weight: 700; color: ${BRAND.text}; margin: 0;">
+          $${(quoteTotal || 0).toLocaleString()}
+        </p>
+      </div>
+
+      <p style="font-weight: 600; color: ${BRAND.text}; margin-top: 24px;">
+        What You Can Do:
+      </p>
+      <ul style="color: ${BRAND.textLight}; padding-left: 20px; margin: 8px 0;">
+        <li style="margin-bottom: 12px;">
+          <strong>Pay in full</strong> - You can still accept the quote and pay directly
+        </li>
+        <li style="margin-bottom: 12px;">
+          <strong>Discuss payment plans</strong> - Contact ${contractorName} about alternative payment arrangements
+        </li>
+        <li style="margin-bottom: 12px;">
+          <strong>Try again later</strong> - Credit factors change over time, you may qualify in the future
+        </li>
+      </ul>
+
+      ${contractorPhone ? `
+      <div class="card" style="text-align: center;">
+        <p style="margin: 0 0 8px; color: ${BRAND.textLight}; font-size: 14px;">
+          Contact ${contractorName}:
+        </p>
+        <a href="tel:${contractorPhone}" style="color: ${BRAND.primary}; font-size: 18px; font-weight: 600; text-decoration: none;">
+          📞 ${contractorPhone}
+        </a>
+      </div>
+      ` : ''}
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${quoteUrl || 'https://mykrib.app'}" class="btn btn-secondary" style="background: white; color: ${BRAND.text}; border: 2px solid #e2e8f0;">
+          View Quote Options →
+        </a>
+      </div>
+
+      <div class="divider"></div>
+
+      <p style="font-size: 12px; color: ${BRAND.textLight}; text-align: center;">
+        This decision was made by Wisetack based on credit evaluation. MyKrib does not make financing decisions.
+      </p>
+    </div>
+  `;
+
+  return baseLayout(content, 'Update on your financing application');
+}
+
+// ============================================
+// FINANCING FUNDED EMAIL (Contractor)
+// ============================================
+function generateFinancingFundedContractorHtml(data) {
+  const {
+    contractorName,
+    customerName,
+    customerEmail,
+    customerPhone,
+    customerAddress,
+    quoteTitle,
+    fundedAmount,
+    quoteId,
+    dashboardUrl
+  } = data;
+
+  const content = `
+    <div class="content">
+      <h1>💰 Financing Funded - Ready to Schedule!</h1>
+      <p>
+        Great news! The financing for <span class="highlight">${customerName}</span>'s quote has been
+        <span style="color: ${BRAND.success}; font-weight: 700;">funded</span>.
+        You'll receive payment directly from Wisetack.
+      </p>
+
+      <div class="card" style="border-left: 4px solid ${BRAND.success}; background: #f0fdf4;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding: 8px 0;">
+              <span style="color: ${BRAND.textLight}; font-size: 12px; text-transform: uppercase;">Customer</span>
+              <p style="margin: 4px 0 0; font-weight: 600; color: ${BRAND.text}; font-size: 16px;">${customerName}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 0;">
+              <span style="color: ${BRAND.textLight}; font-size: 12px; text-transform: uppercase;">Quote</span>
+              <p style="margin: 4px 0 0; color: ${BRAND.text}; font-size: 14px;">${quoteTitle || 'Service Quote'}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 0 8px;">
+              <span style="color: ${BRAND.textLight}; font-size: 12px; text-transform: uppercase;">Funded Amount</span>
+              <p style="margin: 4px 0 0; font-weight: 800; color: ${BRAND.success}; font-size: 28px;">
+                $${(fundedAmount || 0).toLocaleString()}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <p style="font-weight: 600; color: ${BRAND.text}; margin-top: 24px;">
+        Customer Contact Info:
+      </p>
+      <div class="card">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          ${customerPhone ? `
+          <tr>
+            <td style="padding: 8px 0;">
+              <span style="color: ${BRAND.textLight}; font-size: 14px;">📞 Phone:</span>
+              <a href="tel:${customerPhone}" style="color: ${BRAND.primary}; font-weight: 600; margin-left: 8px; text-decoration: none;">
+                ${customerPhone}
+              </a>
+            </td>
+          </tr>
+          ` : ''}
+          ${customerEmail ? `
+          <tr>
+            <td style="padding: 8px 0;">
+              <span style="color: ${BRAND.textLight}; font-size: 14px;">✉️ Email:</span>
+              <a href="mailto:${customerEmail}" style="color: ${BRAND.primary}; font-weight: 600; margin-left: 8px; text-decoration: none;">
+                ${customerEmail}
+              </a>
+            </td>
+          </tr>
+          ` : ''}
+          ${customerAddress ? `
+          <tr>
+            <td style="padding: 8px 0;">
+              <span style="color: ${BRAND.textLight}; font-size: 14px;">📍 Address:</span>
+              <span style="color: ${BRAND.text}; margin-left: 8px;">
+                ${customerAddress}
+              </span>
+            </td>
+          </tr>
+          ` : ''}
+        </table>
+      </div>
+
+      <p style="font-weight: 600; color: ${BRAND.text}; margin-top: 24px;">
+        Next Steps:
+      </p>
+      <ol style="color: ${BRAND.textLight}; padding-left: 20px; margin: 8px 0;">
+        <li style="margin-bottom: 12px;">Contact the customer to schedule the work</li>
+        <li style="margin-bottom: 12px;">A job has been automatically created in your dashboard</li>
+        <li>Complete the work and mark the job as done</li>
+      </ol>
+
+      <div style="text-align: center; margin-top: 32px;">
+        <a href="${dashboardUrl || 'https://mykrib.app/contractor'}" class="btn">
+          View in Dashboard →
+        </a>
+      </div>
+    </div>
+  `;
+
+  return baseLayout(content, `Financing funded: $${(fundedAmount || 0).toLocaleString()} from ${customerName}`);
+}
+
+// ============================================
+// FINANCING APPLICATION STARTED EMAIL (Contractor)
+// ============================================
+function generateFinancingStartedContractorHtml(data) {
+  const {
+    contractorName,
+    customerName,
+    quoteTitle,
+    quoteTotal,
+    quoteId,
+    dashboardUrl
+  } = data;
+
+  const content = `
+    <div class="content">
+      <h1>📋 Customer Started Financing Application</h1>
+      <p>
+        <span class="highlight">${customerName}</span> has started a financing application
+        for their quote. They're one step closer to accepting!
+      </p>
+
+      <div class="card">
+        <p style="font-size: 14px; color: ${BRAND.textLight}; margin: 0 0 8px;">
+          ${quoteTitle || 'Service Quote'}
+        </p>
+        <p style="font-size: 28px; font-weight: 700; color: ${BRAND.text}; margin: 0;">
+          $${(quoteTotal || 0).toLocaleString()}
+        </p>
+        <p style="font-size: 14px; color: ${BRAND.primary}; margin: 12px 0 0; font-weight: 600;">
+          ⏳ Financing Application Pending
+        </p>
+      </div>
+
+      <p style="color: ${BRAND.textLight};">
+        You'll receive another notification when the application is approved or if any action is needed.
+        Most applications are decided within minutes.
+      </p>
+
+      <div style="text-align: center; margin-top: 24px;">
+        <a href="${dashboardUrl || 'https://mykrib.app/contractor'}" class="btn btn-secondary" style="background: white; color: ${BRAND.text}; border: 2px solid #e2e8f0;">
+          View Quote →
+        </a>
+      </div>
+    </div>
+  `;
+
+  return baseLayout(content, `${customerName} started financing for ${quoteTitle || 'quote'}`);
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 module.exports = {
@@ -416,6 +744,10 @@ module.exports = {
   generateDigestHtml,
   generateOverdueHtml,
   generateWarrantyHtml,
+  generateFinancingApprovedHtml,
+  generateFinancingDeniedHtml,
+  generateFinancingFundedContractorHtml,
+  generateFinancingStartedContractorHtml,
   baseLayout,
   BRAND,
 };

@@ -41,6 +41,8 @@ import { QuoteAuthScreen } from './QuoteAuthScreen';
 import toast from 'react-hot-toast';
 import { createPaymentCheckout, formatCurrency as formatStripeCurrency } from '../../../lib/stripeService';
 import { parseAddressString, addressesMatch } from '../../../lib/addressUtils';
+import { FinancingSection } from './FinancingSection';
+import { getFinancingSettings } from '../../../lib/wisetackService';
 
 // ============================================
 // HELPERS
@@ -642,7 +644,9 @@ const QuoteContent = ({
     isAccepting,
     alreadyClaimed,
     onPayDeposit,
-    isProcessingPayment
+    isProcessingPayment,
+    financingSettings,
+    onFinancingStatusChange
 }) => {
     const [showDeclineModal, setShowDeclineModal] = useState(false);
     const [isSubmittingDecline, setIsSubmittingDecline] = useState(false);
@@ -950,34 +954,15 @@ const QuoteContent = ({
                             </div>
                         )}
                         
-                        {/* Financing CTA - Show for quotes over $1,000 */}
-                        {quote.total >= 1000 && !quote.payment?.depositPaid && (
-                            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-blue-100 rounded-lg">
-                                            <DollarSign size={18} className="text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-bold text-blue-900">Need financing?</p>
-                                            <p className="text-xs text-blue-700">
-                                                As low as {formatCurrency(Math.round(quote.total / 60))}/mo with approved credit
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <a 
-                                        href="https://www.wisetack.com/apply" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
-                                    >
-                                        Check Rates
-                                        <ChevronRight size={14} />
-                                    </a>
-                                </div>
-                                <p className="text-[10px] text-blue-600 mt-2">
-                                    Checking rates won't affect your credit score
-                                </p>
+                        {/* Financing Section - Show when financing is enabled and quote meets minimum */}
+                        {financingSettings?.enabled && !quote.payment?.depositPaid && (
+                            <div className="mt-4">
+                                <FinancingSection
+                                    quote={quote}
+                                    contractorId={contractorId}
+                                    financingSettings={financingSettings}
+                                    onStatusChange={onFinancingStatusChange}
+                                />
                             </div>
                         )}
                     </div>
@@ -1168,12 +1153,32 @@ export const PublicQuoteView = ({ shareToken, user }) => {
     // Payment Confirmation State
     const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
 
+    // Financing State
+    const [financingSettings, setFinancingSettings] = useState(null);
+
     // Check if already claimed
     useEffect(() => {
         if (user && data?.quote?.customerId === user.uid) {
             setAlreadyClaimed(true);
         }
     }, [user, data]);
+
+    // Load financing settings when contractor data is available
+    useEffect(() => {
+        if (!data?.contractorId) return;
+
+        const loadFinancingSettings = async () => {
+            try {
+                const settings = await getFinancingSettings(data.contractorId);
+                setFinancingSettings(settings);
+            } catch (err) {
+                console.error('Error loading financing settings:', err);
+                // Don't show error to user, just don't show financing option
+            }
+        };
+
+        loadFinancingSettings();
+    }, [data?.contractorId]);
 
     // Load quote with proper timeout handling
     useEffect(() => {
@@ -1520,6 +1525,28 @@ setUserProperties(props);
             toast.error('Failed to decline quote.');
         }
     };
+
+    // Handle financing status change
+    const handleFinancingStatusChange = (statusUpdate) => {
+        // Update quote data with new financing status
+        setData(prev => ({
+            ...prev,
+            quote: {
+                ...prev.quote,
+                financing: {
+                    ...prev.quote.financing,
+                    ...statusUpdate
+                }
+            }
+        }));
+
+        // Show toast based on status
+        if (statusUpdate.status === 'approved') {
+            toast.success('Congratulations! Your financing has been approved.');
+        } else if (statusUpdate.status === 'funded') {
+            toast.success('Your financing is complete!');
+        }
+    };
     
     // Render states
     if (loading) return <LoadingState />;
@@ -1618,6 +1645,8 @@ setUserProperties(props);
                 alreadyClaimed={alreadyClaimed}
                 onPayDeposit={handlePayDeposit}
                 isProcessingPayment={isProcessingPayment}
+                financingSettings={financingSettings}
+                onFinancingStatusChange={handleFinancingStatusChange}
             />
         </>
     );

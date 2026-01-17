@@ -18,6 +18,12 @@ import {
     uploadCompletionPhoto,
     uploadInvoiceFile
 } from '../../lib/jobCompletionService';
+import {
+    getPhotoRequirements,
+    validatePhotoRequirements,
+    PHOTO_TYPES as PHOTO_TYPE_ENUMS,
+    DEFAULT_PHOTO_REQUIREMENTS
+} from '../../lib/jobPhotoService';
 import toast from 'react-hot-toast';
 
 // Helper to format currency
@@ -173,6 +179,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     const photoInputRef = useRef(null);
     const [selectedPhotoType, setSelectedPhotoType] = useState('after');
 
+    // Photo requirements
+    const [photoRequirements, setPhotoRequirements] = useState(DEFAULT_PHOTO_REQUIREMENTS);
+    const [beforePhotos, setBeforePhotos] = useState([]); // Photos already taken at job start
+
     // Invoice
     const [invoice, setInvoice] = useState(null);
     const [uploadingInvoice, setUploadingInvoice] = useState(false);
@@ -186,6 +196,29 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     // Notes
     const [notes, setNotes] = useState('');
     const [recommendations, setRecommendations] = useState('');
+
+    // ============================================
+    // LOAD PHOTO REQUIREMENTS AND EXISTING PHOTOS
+    // ============================================
+    useEffect(() => {
+        const loadPhotoData = async () => {
+            // Load photo requirements from contractor settings
+            if (contractorId) {
+                try {
+                    const reqs = await getPhotoRequirements(contractorId);
+                    setPhotoRequirements(reqs);
+                } catch (error) {
+                    console.error('Error loading photo requirements:', error);
+                }
+            }
+
+            // Load existing before photos that were taken at job start
+            if (job?.beforePhotos && job.beforePhotos.length > 0) {
+                setBeforePhotos(job.beforePhotos);
+            }
+        };
+        loadPhotoData();
+    }, [contractorId, job]);
 
     // ============================================
     // PRE-POPULATE ITEMS FROM INVENTORY INTENTS (OR LEGACY QUOTE ITEMS)
@@ -369,7 +402,23 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     // SUBMIT
     // ============================================
     const handleSubmit = async () => {
-        if (photos.length === 0) {
+        // Combine before photos (from job start) with completion photos for validation
+        const allPhotos = [
+            ...beforePhotos.map(p => ({ ...p, type: p.type || PHOTO_TYPE_ENUMS.BEFORE })),
+            ...photos
+        ];
+
+        // Validate photo requirements
+        const validation = validatePhotoRequirements(allPhotos, photoRequirements, 'complete');
+
+        if (!validation.valid) {
+            toast.error(validation.errors[0]);
+            setActiveSection('photos');
+            return;
+        }
+
+        // Legacy check: ensure at least 1 photo
+        if (photos.length === 0 && beforePhotos.length === 0) {
             toast.error('Please add at least one photo');
             setActiveSection('photos');
             return;
@@ -514,8 +563,70 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold text-gray-900">Completion Photos</h3>
-                                <span className="text-sm text-gray-500">{photos.length} uploaded</span>
+                                <span className="text-sm text-gray-500">{photos.length + beforePhotos.length} total</span>
                             </div>
+
+                            {/* Before Photos (from job start) */}
+                            {beforePhotos.length > 0 && (
+                                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-lg">📷</span>
+                                        <span className="font-medium text-orange-800">Before Photos</span>
+                                        <span className="text-sm text-orange-600">
+                                            ({beforePhotos.length} captured at job start)
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-2 overflow-x-auto pb-2">
+                                        {beforePhotos.map((photo, idx) => (
+                                            <div
+                                                key={photo.id || idx}
+                                                className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden"
+                                            >
+                                                <img
+                                                    src={photo.url}
+                                                    alt={`Before ${idx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* After Photo Requirements */}
+                            {photoRequirements.afterPhotosRequired && (
+                                <div className={`rounded-xl p-4 border ${
+                                    photos.filter(p => p.type === 'after').length >= photoRequirements.minAfterPhotos
+                                        ? 'bg-emerald-50 border-emerald-200'
+                                        : 'bg-amber-50 border-amber-200'
+                                }`}>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg">✨</span>
+                                            <span className={`font-medium ${
+                                                photos.filter(p => p.type === 'after').length >= photoRequirements.minAfterPhotos
+                                                    ? 'text-emerald-800'
+                                                    : 'text-amber-800'
+                                            }`}>
+                                                After Photos Required
+                                            </span>
+                                        </div>
+                                        <span className={`text-sm font-medium ${
+                                            photos.filter(p => p.type === 'after').length >= photoRequirements.minAfterPhotos
+                                                ? 'text-emerald-600'
+                                                : 'text-amber-600'
+                                        }`}>
+                                            {photos.filter(p => p.type === 'after').length}/{photoRequirements.minAfterPhotos}
+                                        </span>
+                                    </div>
+                                    {photos.filter(p => p.type === 'after').length < photoRequirements.minAfterPhotos && (
+                                        <p className="text-sm text-amber-700 mt-2 flex items-center gap-1">
+                                            <AlertCircle className="w-4 h-4" />
+                                            Add {photoRequirements.minAfterPhotos - photos.filter(p => p.type === 'after').length} more after photo{photoRequirements.minAfterPhotos - photos.filter(p => p.type === 'after').length > 1 ? 's' : ''} to submit
+                                        </p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Photo Type Selector */}
                             <div className="flex gap-2">

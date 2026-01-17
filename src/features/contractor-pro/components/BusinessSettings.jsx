@@ -8,7 +8,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     Users, Truck, Clock, MapPin, Calendar, Sparkles,
     ChevronDown, ChevronUp, Save, Info, Building2,
-    Plus, Trash2, Check, FileText, Globe
+    Plus, Trash2, Check, FileText, Globe, Camera
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -139,7 +139,16 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
         },
 
         // Team members (if not solo)
-        teamMembers: profile?.scheduling?.teamMembers || []
+        teamMembers: profile?.scheduling?.teamMembers || [],
+
+        // Photo Requirements
+        photoSettings: profile?.photoSettings || {
+            beforePhotosRequired: true,
+            minBeforePhotos: 1,
+            afterPhotosRequired: true,
+            minAfterPhotos: 1,
+            syncToPropertyRecord: true
+        }
     });
 
     // Refs for Google Maps Autocomplete
@@ -214,8 +223,12 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
             const COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
             const contractorRef = doc(db, COLLECTION, contractorId);
 
+            // Extract photoSettings from settings to save separately
+            const { photoSettings, ...schedulingSettings } = settings;
+
             await updateDoc(contractorRef, {
-                'scheduling': settings,
+                'scheduling': schedulingSettings,
+                'photoSettings': photoSettings,
                 'updatedAt': serverTimestamp()
             });
 
@@ -619,6 +632,140 @@ export const BusinessSettings = ({ contractorId, profile, onUpdate }) => {
                                 {settings.defaultDepositType === 'percentage' ? '%' : '$'}
                             </span>
                         </div>
+                    </div>
+                </div>
+            </SettingsSection>
+
+            {/* Photo Requirements */}
+            <SettingsSection title="Job Photo Requirements" icon={Camera}>
+                <div className="space-y-4 pt-4">
+                    <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-xl mb-4">
+                        <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-blue-700">
+                            Require technicians to take before/after photos for job documentation.
+                            Photos sync to the homeowner's property record when the job is completed.
+                        </p>
+                    </div>
+
+                    {/* Before Photos */}
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">📷</span>
+                                <span className="font-bold text-slate-800">Before Photos</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={settings.photoSettings?.beforePhotosRequired ?? true}
+                                    onChange={(e) => setSettings(s => ({
+                                        ...s,
+                                        photoSettings: {
+                                            ...s.photoSettings,
+                                            beforePhotosRequired: e.target.checked
+                                        }
+                                    }))}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-300 peer-focus:ring-2 peer-focus:ring-orange-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                            </label>
+                        </div>
+                        {settings.photoSettings?.beforePhotosRequired && (
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-slate-600">Minimum required:</span>
+                                <Select
+                                    value={settings.photoSettings?.minBeforePhotos || 1}
+                                    onChange={(val) => setSettings(s => ({
+                                        ...s,
+                                        photoSettings: {
+                                            ...s.photoSettings,
+                                            minBeforePhotos: parseInt(val)
+                                        }
+                                    }))}
+                                    options={[1, 2, 3, 4, 5].map(n => ({
+                                        value: n,
+                                        label: `${n} photo${n > 1 ? 's' : ''}`
+                                    }))}
+                                    className="w-32"
+                                />
+                            </div>
+                        )}
+                        <p className="text-xs text-orange-700 mt-2">
+                            Required when technician starts working on a job
+                        </p>
+                    </div>
+
+                    {/* After Photos */}
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg">✨</span>
+                                <span className="font-bold text-slate-800">After Photos</span>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={settings.photoSettings?.afterPhotosRequired ?? true}
+                                    onChange={(e) => setSettings(s => ({
+                                        ...s,
+                                        photoSettings: {
+                                            ...s.photoSettings,
+                                            afterPhotosRequired: e.target.checked
+                                        }
+                                    }))}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-slate-300 peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                        </div>
+                        {settings.photoSettings?.afterPhotosRequired && (
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-slate-600">Minimum required:</span>
+                                <Select
+                                    value={settings.photoSettings?.minAfterPhotos || 1}
+                                    onChange={(val) => setSettings(s => ({
+                                        ...s,
+                                        photoSettings: {
+                                            ...s.photoSettings,
+                                            minAfterPhotos: parseInt(val)
+                                        }
+                                    }))}
+                                    options={[1, 2, 3, 4, 5].map(n => ({
+                                        value: n,
+                                        label: `${n} photo${n > 1 ? 's' : ''}`
+                                    }))}
+                                    className="w-32"
+                                />
+                            </div>
+                        )}
+                        <p className="text-xs text-emerald-700 mt-2">
+                            Required when submitting job completion
+                        </p>
+                    </div>
+
+                    {/* Sync to Property */}
+                    <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl">
+                        <div>
+                            <p className="font-medium text-slate-800">Sync to Property Record</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Automatically add photos to homeowner's property
+                            </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={settings.photoSettings?.syncToPropertyRecord ?? true}
+                                onChange={(e) => setSettings(s => ({
+                                    ...s,
+                                    photoSettings: {
+                                        ...s.photoSettings,
+                                        syncToPropertyRecord: e.target.checked
+                                    }
+                                }))}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-slate-300 peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                        </label>
                     </div>
                 </div>
             </SettingsSection>

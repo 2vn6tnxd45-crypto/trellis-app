@@ -15,7 +15,7 @@ import {
     Users, Calendar, Clock, Target, Award, ChevronDown, ChevronUp,
     ArrowUpRight, ArrowDownRight, Filter, Download, RefreshCw,
     PieChart, BarChart3, Activity, Zap, CheckCircle, XCircle,
-    Eye, Send, AlertCircle, Star, Loader2
+    Eye, Send, AlertCircle, Star, Loader2, CreditCard, Banknote
 } from 'lucide-react';
 import {
     LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart as RechartsPie, Pie, Cell,
@@ -806,6 +806,187 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
 };
 
 // ============================================
+// FINANCING METRICS COMPONENT
+// ============================================
+const FinancingMetrics = ({ quotes, financingStats }) => {
+    const metrics = useMemo(() => {
+        // Count quotes with financing
+        const quotesWithFinancing = quotes.filter(q =>
+            q.financing?.status && q.financing.status !== 'not_offered'
+        );
+
+        // Count by status
+        const statusCounts = {
+            offered: 0,
+            pending: 0,
+            approved: 0,
+            funded: 0,
+            denied: 0,
+        };
+
+        quotesWithFinancing.forEach(q => {
+            const status = q.financing?.status || 'offered';
+            if (statusCounts[status] !== undefined) {
+                statusCounts[status]++;
+            }
+        });
+
+        // Calculate funded amount
+        const fundedQuotes = quotesWithFinancing.filter(q => q.financing?.status === 'funded');
+        const totalFunded = fundedQuotes.reduce((sum, q) => sum + (q.financing?.approvedAmount || q.total || 0), 0);
+
+        // Approval rate (approved or funded / total applied)
+        const totalApplied = statusCounts.pending + statusCounts.approved + statusCounts.funded + statusCounts.denied;
+        const approvalRate = totalApplied > 0
+            ? ((statusCounts.approved + statusCounts.funded) / totalApplied) * 100
+            : 0;
+
+        // Average financed amount
+        const avgFinancedAmount = fundedQuotes.length > 0
+            ? totalFunded / fundedQuotes.length
+            : 0;
+
+        // Use stats from Firestore if available
+        const stats = financingStats || {};
+
+        return {
+            totalOffered: statusCounts.offered + totalApplied,
+            totalApplied,
+            approved: statusCounts.approved + statusCounts.funded,
+            funded: statusCounts.funded,
+            denied: statusCounts.denied,
+            pending: statusCounts.pending,
+            totalFunded: stats.totalFunded || totalFunded,
+            approvalRate: stats.approvalRate || approvalRate,
+            avgFinancedAmount: stats.avgAmount || avgFinancedAmount,
+            conversionRate: statusCounts.offered + totalApplied > 0
+                ? (totalApplied / (statusCounts.offered + totalApplied)) * 100
+                : 0,
+        };
+    }, [quotes, financingStats]);
+
+    // Don't show if no financing activity
+    if (metrics.totalOffered === 0 && !financingStats?.totalApplications) {
+        return null;
+    }
+
+    return (
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 p-6">
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-blue-100 rounded-xl">
+                        <CreditCard size={20} className="text-blue-600" />
+                    </div>
+                    <div>
+                        <h3 className="font-bold text-slate-800 text-lg">Financing Metrics</h3>
+                        <p className="text-sm text-slate-500">Wisetack consumer financing</p>
+                    </div>
+                </div>
+                {metrics.totalFunded > 0 && (
+                    <div className="text-right">
+                        <p className="text-2xl font-black text-blue-600">{formatCurrency(metrics.totalFunded)}</p>
+                        <p className="text-xs text-slate-500">Total funded</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white/60 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Eye size={14} className="text-slate-400" />
+                        <span className="text-xs text-slate-500 uppercase font-medium">Offered</span>
+                    </div>
+                    <p className="text-xl font-bold text-slate-800">{metrics.totalOffered}</p>
+                    <p className="text-xs text-slate-400">quotes with financing</p>
+                </div>
+
+                <div className="bg-white/60 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Send size={14} className="text-blue-500" />
+                        <span className="text-xs text-slate-500 uppercase font-medium">Applied</span>
+                    </div>
+                    <p className="text-xl font-bold text-blue-600">{metrics.totalApplied}</p>
+                    <p className="text-xs text-slate-400">
+                        {metrics.conversionRate.toFixed(0)}% of offered
+                    </p>
+                </div>
+
+                <div className="bg-white/60 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <CheckCircle size={14} className="text-emerald-500" />
+                        <span className="text-xs text-slate-500 uppercase font-medium">Approved</span>
+                    </div>
+                    <p className="text-xl font-bold text-emerald-600">{metrics.approved}</p>
+                    <p className="text-xs text-slate-400">
+                        {metrics.approvalRate.toFixed(0)}% approval rate
+                    </p>
+                </div>
+
+                <div className="bg-white/60 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Banknote size={14} className="text-green-500" />
+                        <span className="text-xs text-slate-500 uppercase font-medium">Funded</span>
+                    </div>
+                    <p className="text-xl font-bold text-green-600">{metrics.funded}</p>
+                    <p className="text-xs text-slate-400">
+                        avg {formatCurrency(metrics.avgFinancedAmount)}
+                    </p>
+                </div>
+            </div>
+
+            {/* Conversion Funnel */}
+            <div className="bg-white/40 rounded-xl p-4">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Financing Funnel</p>
+                <div className="space-y-2">
+                    {[
+                        { label: 'Offered', value: metrics.totalOffered, color: '#94a3b8' },
+                        { label: 'Applied', value: metrics.totalApplied, color: '#3b82f6' },
+                        { label: 'Approved', value: metrics.approved, color: '#10b981' },
+                        { label: 'Funded', value: metrics.funded, color: '#22c55e' },
+                    ].map((stage, index) => {
+                        const maxValue = Math.max(metrics.totalOffered, 1);
+                        const width = (stage.value / maxValue) * 100;
+
+                        return (
+                            <div key={stage.label} className="flex items-center gap-3">
+                                <div className="w-16 text-xs font-medium text-slate-600">{stage.label}</div>
+                                <div className="flex-1 h-6 bg-white rounded-md overflow-hidden">
+                                    <div
+                                        className="h-full rounded-md transition-all duration-500 flex items-center justify-end pr-2"
+                                        style={{
+                                            width: `${Math.max(width, 5)}%`,
+                                            backgroundColor: stage.color
+                                        }}
+                                    >
+                                        {width > 20 && (
+                                            <span className="text-white text-xs font-bold">{stage.value}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                {width <= 20 && (
+                                    <span className="text-xs font-bold text-slate-600 w-8">{stage.value}</span>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            {/* Pending Applications Warning */}
+            {metrics.pending > 0 && (
+                <div className="mt-4 flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <Clock size={16} className="text-amber-600" />
+                    <p className="text-sm text-amber-800">
+                        <span className="font-bold">{metrics.pending}</span> application{metrics.pending !== 1 ? 's' : ''} pending decision
+                    </p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================
 // MAIN REPORTING DASHBOARD COMPONENT
 // ============================================
 export const ReportingDashboard = ({
@@ -815,6 +996,7 @@ export const ReportingDashboard = ({
     jobs = [],
     invoices = [],
     customers = [],
+    financingStats = null,
     loading = false,
 }) => {
     const [selectedPeriod, setSelectedPeriod] = useState('this_month');
@@ -1070,6 +1252,9 @@ export const ReportingDashboard = ({
                 <PerformanceMetrics quotes={quotes} jobs={jobs} />
                 <RecentActivityFeed quotes={quotes} jobs={jobs} />
             </div>
+
+            {/* Financing Metrics Row */}
+            <FinancingMetrics quotes={quotes} financingStats={financingStats} />
         </div>
     );
 };

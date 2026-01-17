@@ -16,6 +16,10 @@ import {
     onSnapshot,
     serverTimestamp
 } from 'firebase/firestore';
+import {
+    sendOnTheWaySMS,
+    getSMSSettings
+} from '../../../lib/twilioService';
 
 // ============================================
 // CONSTANTS
@@ -307,8 +311,17 @@ export const updateJobFieldStatus = async (jobId, status, techLocation = null, n
 
 /**
  * Start traveling to a job (en route)
+ * @param {string} jobId - Job ID
+ * @param {string} techId - Technician ID
+ * @param {Object} techLocation - Current tech location
+ * @param {Object} options - Additional options
+ * @param {Object} options.job - Full job object for SMS
+ * @param {string} options.contractorId - Contractor ID for SMS settings
+ * @param {number} options.etaMinutes - Estimated arrival time in minutes
  */
-export const startEnRoute = async (jobId, techId, techLocation) => {
+export const startEnRoute = async (jobId, techId, techLocation, options = {}) => {
+    const { job, contractorId, etaMinutes } = options;
+
     // Update tech location with current job
     const techLocationRef = doc(db, TECH_LOCATIONS_PATH, techId);
     await updateDoc(techLocationRef, {
@@ -318,7 +331,27 @@ export const startEnRoute = async (jobId, techId, techLocation) => {
     });
 
     // Update job status
-    return updateJobFieldStatus(jobId, FIELD_STATUS.EN_ROUTE, techLocation);
+    const result = await updateJobFieldStatus(jobId, FIELD_STATUS.EN_ROUTE, techLocation);
+
+    // Send on-the-way SMS if enabled
+    if (job && contractorId) {
+        try {
+            const smsSettings = await getSMSSettings(contractorId);
+            if (smsSettings?.enabled && smsSettings?.onTheWay?.enabled && smsSettings?.onTheWay?.autoSend) {
+                const template = smsSettings.templates?.onTheWay ||
+                    "Hi {{customerName}}! {{techName}} is on the way and will arrive in approximately {{eta}}. - {{companyName}}";
+
+                await sendOnTheWaySMS(job, contractorId, template, etaMinutes);
+                console.log(`[Tracking] On-the-way SMS sent for job ${jobId}`);
+                result.smsSent = true;
+            }
+        } catch (smsError) {
+            console.warn('[Tracking] Failed to send on-the-way SMS:', smsError);
+            result.smsError = smsError.message;
+        }
+    }
+
+    return result;
 };
 
 /**

@@ -26,6 +26,7 @@ import {
 } from '../../../config/constants';
 import { formatAddress } from '../../../lib/addressUtils';
 import { recordJobOutcome } from '../../contractor-pro/lib/schedulingIntelligence';
+import { syncPhotosToPropertyRecord } from './jobPhotoService';
 
 // ============================================
 // CONSTANTS
@@ -542,6 +543,17 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
         } catch (learnError) {
             console.warn('Failed to record learning outcome:', learnError);
             // Don't fail the completion for learning errors
+        }
+
+        // Sync photos to property record (before/after photos)
+        try {
+            const syncResult = await syncPhotosToPropertyRecord(jobId, userId, propertyId);
+            if (syncResult.photoCount > 0) {
+                console.log(`[JobCompletion] Synced ${syncResult.photoCount} photos to property record`);
+            }
+        } catch (photoSyncError) {
+            console.warn('Failed to sync photos to property:', photoSyncError);
+            // Don't fail the completion for photo sync errors
         }
 
         return {

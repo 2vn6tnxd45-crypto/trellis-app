@@ -12,6 +12,7 @@ import {
     ChevronUp, ChevronDown, Car, Home
 } from 'lucide-react';
 import { FIELD_STATUS, STATUS_CONFIG } from '../lib/trackingService';
+import { StartJobWithPhotosModal } from '../../jobs/components/StartJobWithPhotosModal';
 
 // ============================================
 // STATUS ICON COMPONENT
@@ -129,18 +130,36 @@ export const FieldStatusControls = ({
     onStartWorking,
     onPauseWork,
     onCompleteJob,
-    loading = false
+    loading = false,
+    contractorId,
+    techId,
+    techName
 }) => {
     const [expanded, setExpanded] = useState(true);
     const [showPauseReason, setShowPauseReason] = useState(false);
     const [showCompletionNotes, setShowCompletionNotes] = useState(false);
     const [completionNotes, setCompletionNotes] = useState('');
+    const [showStartJobModal, setShowStartJobModal] = useState(false);
 
     const isEnRoute = fieldStatus === FIELD_STATUS.EN_ROUTE;
     const isArrived = fieldStatus === FIELD_STATUS.ARRIVED;
     const isWorking = fieldStatus === FIELD_STATUS.WORKING;
     const isPaused = fieldStatus === FIELD_STATUS.PAUSED;
     const isCompleted = fieldStatus === FIELD_STATUS.COMPLETED;
+
+    // Handle start work with photos
+    const handleStartWork = () => {
+        setShowStartJobModal(true);
+    };
+
+    // Called when job is successfully started with photos
+    const handleStartJobSuccess = () => {
+        setShowStartJobModal(false);
+        // Call the parent's onStartWorking to update field status
+        if (onStartWorking) {
+            onStartWorking();
+        }
+    };
 
     // Get next logical action
     const getNextAction = () => {
@@ -150,7 +169,7 @@ export const FieldStatusControls = ({
             case FIELD_STATUS.EN_ROUTE:
                 return { label: "I've Arrived", action: onMarkArrived, icon: MapPin, color: 'purple' };
             case FIELD_STATUS.ARRIVED:
-                return { label: 'Start Work', action: onStartWorking, icon: Wrench, color: 'amber' };
+                return { label: 'Start Work', action: handleStartWork, icon: Wrench, color: 'amber' };
             case FIELD_STATUS.WORKING:
                 return { label: 'Complete Job', action: () => setShowCompletionNotes(true), icon: CheckCircle, color: 'emerald' };
             case FIELD_STATUS.PAUSED:
@@ -353,6 +372,18 @@ export const FieldStatusControls = ({
                         </button>
                     </div>
                 </div>
+            )}
+
+            {/* Start Job With Photos Modal */}
+            {showStartJobModal && (
+                <StartJobWithPhotosModal
+                    job={job}
+                    contractorId={contractorId}
+                    techId={techId}
+                    techName={techName}
+                    onClose={() => setShowStartJobModal(false)}
+                    onSuccess={handleStartJobSuccess}
+                />
             )}
         </div>
     );

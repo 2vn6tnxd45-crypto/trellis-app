@@ -32,6 +32,10 @@ import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
 import { BusinessSettings } from './components/BusinessSettings';
 import { ReviewSettings } from './components/ReviewSettings';
+import { SMSSettings } from './components/SMSSettings';
+import { FinancingSettings } from './components/FinancingSettings';
+import { SMSLog } from './components/SMSLog';
+import { BookingWidgetSettings } from '../booking-widget';
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
@@ -1471,6 +1475,26 @@ export const ContractorProApp = () => {
         getMaintenanceAlerts
     } = useVehicles(contractorId);
 
+    // Financing settings state
+    const [financingSettings, setFinancingSettings] = useState(null);
+
+    // Load financing settings when contractorId is available
+    useEffect(() => {
+        if (!contractorId) return;
+
+        const loadFinancingSettings = async () => {
+            try {
+                const { getFinancingSettings } = await import('../../lib/wisetackService');
+                const settings = await getFinancingSettings(contractorId);
+                setFinancingSettings(settings);
+            } catch (err) {
+                console.error('Error loading financing settings:', err);
+            }
+        };
+
+        loadFinancingSettings();
+    }, [contractorId]);
+
     // Derived data
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
@@ -2066,6 +2090,7 @@ export const ContractorProApp = () => {
                             customers={customers}
                             templates={quoteTemplates}
                             contractorProfile={profile}
+                            financingSettings={financingSettings}
                             onBack={handleQuoteBack}
                             onSave={handleSaveQuote}
                             onSend={handleSendQuote}
@@ -2096,6 +2121,7 @@ export const ContractorProApp = () => {
                             customers={customers}
                             templates={quoteTemplates}
                             contractorProfile={profile}
+                            financingSettings={financingSettings}
                             onBack={handleQuoteBack}
                             onSave={handleSaveQuote}
                             onSend={handleSendQuote}
@@ -2275,6 +2301,38 @@ export const ContractorProApp = () => {
                                     onUpdate={(settings) => {
                                         console.log('Review settings updated:', settings);
                                     }}
+                                />
+                            </div>
+
+                            {/* SMS Notifications Settings */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                <SMSSettings
+                                    contractorId={contractorId}
+                                    companyName={profile?.businessName || profile?.companyName}
+                                />
+                            </div>
+
+                            {/* SMS Message Log */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                <SMSLog
+                                    contractorId={contractorId}
+                                />
+                            </div>
+
+                            {/* Consumer Financing Settings (Wisetack) */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                <FinancingSettings
+                                    contractorId={contractorId}
+                                    profile={profile}
+                                />
+                            </div>
+
+                            {/* Online Booking Widget */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                <BookingWidgetSettings
+                                    contractorId={contractorId}
+                                    profile={profile}
+                                    serviceTypes={profile?.serviceTypes || []}
                                 />
                             </div>
 
