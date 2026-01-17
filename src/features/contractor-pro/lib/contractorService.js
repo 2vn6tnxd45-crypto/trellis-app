@@ -169,22 +169,45 @@ export const updateContractorSettings = async (contractorId, settings) => {
 export const updateContractorProfile = async (contractorId, profileFields) => {
     try {
         const docRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
-        
+
         // Build update object with profile. prefix
         const updateData = {
             updatedAt: serverTimestamp()
         };
-        
+
         Object.keys(profileFields).forEach(key => {
             if (profileFields[key] !== undefined) {
                 updateData[`profile.${key}`] = profileFields[key];
             }
         });
-        
+
         await updateDoc(docRef, updateData);
         return { success: true };
     } catch (error) {
         console.error('Error updating contractor profile:', error);
+        throw error;
+    }
+};
+
+/**
+ * Update review settings for auto-requesting Google/Yelp reviews
+ */
+export const updateReviewSettings = async (contractorId, reviewSettings) => {
+    try {
+        const docRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
+        await updateDoc(docRef, {
+            reviewSettings: {
+                googleBusinessUrl: reviewSettings.googleBusinessUrl || '',
+                yelpUrl: reviewSettings.yelpUrl || '',
+                autoRequestReviews: reviewSettings.autoRequestReviews ?? true,
+                delayHours: reviewSettings.delayHours ?? 24,
+                customMessage: reviewSettings.customMessage || ''
+            },
+            updatedAt: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating review settings:', error);
         throw error;
     }
 };

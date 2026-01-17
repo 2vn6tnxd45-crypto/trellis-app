@@ -16,7 +16,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera, Package
+    ClipboardCheck, Camera, Package, Star
 } from 'lucide-react';
 import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -31,6 +31,7 @@ import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
 import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
 import { BusinessSettings } from './components/BusinessSettings';
+import { ReviewSettings } from './components/ReviewSettings';
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
@@ -391,6 +392,12 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
                                 <CheckCircle size={12} />
                                 Completed {formatDate(job.completedAt)}
+                            </p>
+                        )}
+                        {job.reviewRequestSent && (
+                            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                <Star size={12} />
+                                Review request sent
                             </p>
                         )}
                     </div>
@@ -2259,6 +2266,17 @@ export const ContractorProApp = () => {
                                     )}
                                 </div>
                             )}
+
+                            {/* Review Request Settings */}
+                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                                <ReviewSettings
+                                    contractorId={contractorId}
+                                    profile={profile}
+                                    onUpdate={(settings) => {
+                                        console.log('Review settings updated:', settings);
+                                    }}
+                                />
+                            </div>
 
                             <div className="pt-8 border-t border-slate-200">
                                 <SettingsView
