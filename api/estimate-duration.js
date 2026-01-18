@@ -7,9 +7,20 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://mykrib.app',
+    'https://www.mykrib.app',
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+].filter(Boolean);
+
 export default async function handler(req, res) {
-    // Set CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS headers - restrict to allowed origins
+    const origin = req.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

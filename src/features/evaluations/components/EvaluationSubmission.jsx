@@ -34,6 +34,7 @@ import toast from 'react-hot-toast';
 import { analyzeAndSaveEvaluation } from '../lib/evaluationAI';
 import { createEvaluationChatChannel } from '../../../lib/chatService';
 import { FullPageLoader } from '../../../components/common';
+import { validateFile, FILE_SIZE_LIMITS } from '../../../lib/fileValidation';
 
 // ============================================
 // MAIN COMPONENT
@@ -997,6 +998,13 @@ const PhotoPrompt = ({ prompt, index, photos, onAdd, onRemove, allPhotos, contra
 
         for (const file of files) {
             try {
+                // Validate file before upload
+                const validation = await validateFile(file, { category: 'image' });
+                if (!validation.valid) {
+                    alert(`${file.name}: ${validation.error}`);
+                    continue;
+                }
+
                 setUploadProgress(`Uploading ${file.name}...`);
                 const uploadedPhoto = await uploadEvaluationFile(contractorId, evaluationId, file, 'photo');
                 onAdd({ ...uploadedPhoto, promptId: prompt.id });
@@ -1058,6 +1066,15 @@ const VideoPrompt = ({ prompt, index, videos, onAdd, onRemove, allVideos, contra
     const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
+        // Validate video file before upload
+        const validation = await validateFile(file, { category: 'video' });
+        if (!validation.valid) {
+            alert(validation.error);
+            if (inputRef.current) inputRef.current.value = '';
+            return;
+        }
+
         setIsUploading(true);
         setUploadProgress(`Uploading ${file.name}...`);
 

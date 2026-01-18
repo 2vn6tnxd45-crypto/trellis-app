@@ -274,7 +274,7 @@ export default async function handler(req, res) {
 
         if (error) {
             console.error(`[SendReviewRequest] Resend error:`, error);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: 'Failed to send review request' });
         }
 
         // Mark job as review request sent
@@ -298,6 +298,6 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error('[SendReviewRequest] Error:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Failed to send review request' });
     }
 }

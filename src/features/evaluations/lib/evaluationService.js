@@ -5,9 +5,9 @@
 // Handles pre-quote evaluations (virtual & site visits)
 // for jobs requiring assessment before accurate quoting.
 
-import { 
+import {
     collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
-    query, where, orderBy, serverTimestamp, writeBatch
+    query, where, orderBy, limit, serverTimestamp, writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../../config/firebase';
@@ -200,12 +200,13 @@ export const getContractorEvaluations = async (contractorId, statusFilter = null
             q = query(
                 evaluationsRef,
                 where('status', '==', statusFilter),
-                orderBy('createdAt', 'desc')
+                orderBy('createdAt', 'desc'),
+                limit(100)
             );
         } else {
-            q = query(evaluationsRef, orderBy('createdAt', 'desc'));
+            q = query(evaluationsRef, orderBy('createdAt', 'desc'), limit(100));
         }
-        
+
         const snapshot = await getDocs(q);
         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         

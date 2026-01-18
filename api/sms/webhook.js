@@ -335,7 +335,7 @@ async function handleOptOut(db, phone, contractorId) {
             global: true
         }, { merge: true });
 
-        console.log(`[SMS] Opt-out recorded for ${phone}`);
+        console.log(`[SMS] Opt-out recorded`);
     } catch (error) {
         console.error('[SMS] Handle opt-out error:', error);
     }
@@ -356,7 +356,7 @@ async function handleOptIn(db, phone, contractorId) {
 
         await db.collection('smsOptOuts').doc(phone).update(optInData);
 
-        console.log(`[SMS] Opt-in recorded for ${phone}`);
+        console.log(`[SMS] Opt-in recorded`);
     } catch (error) {
         console.error('[SMS] Handle opt-in error:', error);
     }

@@ -7,6 +7,14 @@
 
 import twilio from 'twilio';
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://mykrib.app',
+    'https://www.mykrib.app',
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+].filter(Boolean);
+
 // Initialize Twilio client
 const getTwilioClient = () => {
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -57,6 +65,18 @@ const checkRateLimit = (contractorId) => {
 };
 
 export default async function handler(req, res) {
+    // CORS headers - restrict to allowed origins
+    const origin = req.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
     // Only allow POST
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
@@ -101,7 +121,7 @@ export default async function handler(req, res) {
         // Send message
         const twilioMessage = await client.messages.create(messageOptions);
 
-        console.log(`[SMS] Sent to ${to}: ${twilioMessage.sid} - Status: ${twilioMessage.status}`);
+        console.log(`[SMS] Sent: ${twilioMessage.sid} - Status: ${twilioMessage.status}`);
 
         return res.status(200).json({
             success: true,
@@ -132,15 +152,13 @@ export default async function handler(req, res) {
                     return res.status(401).json({ error: 'Invalid Twilio credentials' });
                 default:
                     return res.status(500).json({
-                        error: 'SMS send failed',
-                        code: error.code,
-                        details: error.message
+                        error: 'SMS send failed'
                     });
             }
         }
 
         return res.status(500).json({
-            error: error.message || 'Internal server error'
+            error: 'Internal server error'
         });
     }
 }

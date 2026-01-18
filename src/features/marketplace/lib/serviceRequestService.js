@@ -11,9 +11,11 @@ import {
     query, where, orderBy, limit, serverTimestamp, arrayUnion, increment,
     onSnapshot, Timestamp
 } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
 import { updateResponseMetrics } from './contractorMarketplaceService';
+import { compressImage } from '../../../lib/images';
 
 // ============================================
 // CONSTANTS
@@ -82,8 +84,38 @@ const getUserRequestsPath = (userId) =>
     `artifacts/${appId}/users/${userId}/serviceRequests`;
 
 // Contractor responses subcollection
-const getResponsesPath = (requestId) => 
+const getResponsesPath = (requestId) =>
     `artifacts/${appId}/public/data/serviceRequests/${requestId}/responses`;
+
+// ============================================
+// UPLOAD SERVICE REQUEST PHOTO
+// ============================================
+export const uploadServiceRequestPhoto = async (userId, file) => {
+    try {
+        // Compress image before upload
+        const compressedFile = await compressImage(file, {
+            maxWidth: 1920,
+            maxHeight: 1920,
+            quality: 0.8
+        });
+
+        // Create unique filename
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const path = `service-requests/${userId}/${timestamp}_${safeName}`;
+
+        // Upload to Firebase Storage
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, compressedFile);
+
+        // Get download URL
+        const downloadUrl = await getDownloadURL(storageRef);
+        return downloadUrl;
+    } catch (error) {
+        console.error('Failed to upload service request photo:', error);
+        throw new Error('Failed to upload photo. Please try again.');
+    }
+};
 
 // ============================================
 // CREATE SERVICE REQUEST

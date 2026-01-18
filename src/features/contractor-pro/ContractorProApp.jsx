@@ -6,7 +6,7 @@
 // UPDATED: Added Chat/Messages functionality and Profile Credentials
 // UPDATED: Added Evaluations feature for pre-quote assessments
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
@@ -28,7 +28,8 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
 import { FullPageLoader } from '../../components/common';
-import { InvoiceGenerator } from '../invoices/InvoiceGenerator';
+// Lazy-loaded heavy components (code splitting for performance)
+const InvoiceGenerator = lazy(() => import('../invoices/InvoiceGenerator').then(m => ({ default: m.InvoiceGenerator })));
 import { ContractorCalendar } from './components/ContractorCalendar';
 import { OfferTimeSlotsModal } from './components/OfferTimeSlotsModal';
 import { BusinessSettings } from './components/BusinessSettings';
@@ -51,7 +52,7 @@ import { VehicleManagement } from './components/VehicleManagement';
 import { useVehicles } from './hooks/useVehicles';
 // NEW: Price Book
 import { PriceBook } from './components/PriceBook';
-import { ReportingDashboard } from './components/ReportingDashboard';
+const ReportingDashboard = lazy(() => import('./components/ReportingDashboard').then(m => ({ default: m.ReportingDashboard })));
 import { NeedsAttention } from './components/NeedsAttention';
 import { ExpenseTracker } from './components/ExpenseTracker';
 import { useExpenses } from './hooks/useExpenses';
@@ -2240,17 +2241,19 @@ export const ContractorProApp = () => {
                             }}
                         />
                     )}
-                    {/* Reports Dashboard */}
+                    {/* Reports Dashboard - Lazy loaded */}
                     {activeView === 'reports' && (
-                        <ReportingDashboard
-                            contractorId={contractorId}
-                            profile={profile}
-                            quotes={quotes}
-                            jobs={jobs}
-                            invoices={invoices}
-                            customers={customers}
-                            loading={quotesLoading || jobsLoading}
-                        />
+                        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>}>
+                            <ReportingDashboard
+                                contractorId={contractorId}
+                                profile={profile}
+                                quotes={quotes}
+                                jobs={jobs}
+                                invoices={invoices}
+                                customers={customers}
+                                loading={quotesLoading || jobsLoading}
+                            />
+                        </Suspense>
                     )}
                     {/* Needs Attention */}
                     {activeView === 'attention' && (
@@ -2328,7 +2331,11 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'invoices' && <InvoicesView invoices={invoices} loading={invoicesLoading} onCreateInvoice={() => setActiveView('create-invoice')} />}
-                    {activeView === 'create-invoice' && <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />}
+                    {activeView === 'create-invoice' && (
+                        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>}>
+                            <InvoiceGenerator contractorProfile={profile} customers={customers} onBack={() => setActiveView('invoices')} />
+                        </Suspense>
+                    )}
 
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}

@@ -204,13 +204,13 @@ export default async function handler(req, res) {
 
         if (error) {
             console.error('[QuoteAccepted] Error:', error);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: 'Failed to send notification email' });
         }
 
-        console.log('[QuoteAccepted] Sent to:', contractorEmail, 'ID:', data.id);
+        console.log('[QuoteAccepted] Sent, ID:', data.id);
         return res.status(200).json({ success: true, id: data.id });
     } catch (err) {
         console.error('[QuoteAccepted] Exception:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Failed to send notification email' });
     }
 }

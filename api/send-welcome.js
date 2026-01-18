@@ -91,13 +91,13 @@ export default async function handler(req, res) {
 
         if (error) {
             console.error('[WelcomeEmail] Error:', error);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: 'Failed to send welcome email' });
         }
 
-        console.log('[WelcomeEmail] Sent to:', email);
+        console.log('[WelcomeEmail] Sent, ID:', data.id);
         return res.status(200).json({ success: true, id: data.id });
     } catch (err) {
         console.error('[WelcomeEmail] Exception:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Failed to send welcome email' });
     }
 }

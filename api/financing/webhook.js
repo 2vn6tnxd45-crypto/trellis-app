@@ -98,8 +98,8 @@ export default async function handler(req, res) {
         const signature = req.headers['x-wisetack-signature'] || req.headers['x-webhook-signature'];
         const webhookSecret = process.env.WISETACK_WEBHOOK_SECRET;
 
-        // Verify signature in production
-        if (process.env.NODE_ENV === 'production' && webhookSecret) {
+        // Verify signature if secret is configured
+        if (webhookSecret) {
             const isValid = verifyWebhookSignature(req.body, signature, webhookSecret);
             if (!isValid) {
                 console.error('[Webhook] Invalid signature');

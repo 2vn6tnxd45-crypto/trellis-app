@@ -5,19 +5,20 @@
 // Manages saved items/services with standard pricing
 // Enables quick quote creation and consistent pricing
 
-import { 
-    doc, 
-    getDoc, 
-    setDoc, 
+import {
+    doc,
+    getDoc,
+    setDoc,
     updateDoc,
     deleteDoc,
     addDoc,
-    collection, 
-    query, 
-    where, 
-    orderBy, 
-    getDocs, 
-    onSnapshot, 
+    collection,
+    query,
+    where,
+    orderBy,
+    limit,
+    getDocs,
+    onSnapshot,
     serverTimestamp,
     writeBatch
 } from 'firebase/firestore';
@@ -217,9 +218,10 @@ export const getPriceBookItems = async (contractorId, options = {}) => {
         }
         
         constraints.push(orderBy('name', 'asc'));
-        
+        constraints.push(limit(200));
+
         q = query(q, ...constraints);
-        
+
         const snapshot = await getDocs(q);
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         

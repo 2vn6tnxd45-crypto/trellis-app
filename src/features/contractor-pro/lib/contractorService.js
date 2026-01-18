@@ -266,7 +266,7 @@ export const getContractorInvitations = async (contractorId) => {
             INVITATIONS_SUBCOLLECTION
         );
         
-        const q = query(invitationsRef, orderBy('createdAt', 'desc'));
+        const q = query(invitationsRef, orderBy('createdAt', 'desc'), limit(100));
         const snapshot = await getDocs(q);
         
         return snapshot.docs.map(doc => ({

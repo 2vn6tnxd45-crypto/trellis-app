@@ -288,6 +288,14 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             throw new Error('Quote has already been accepted');
         }
 
+        // Check if quote has expired (server-side validation)
+        if (quote.validUntil) {
+            const expirationDate = quote.validUntil.toDate ? quote.validUntil.toDate() : new Date(quote.validUntil);
+            if (expirationDate < new Date()) {
+                throw new Error('This quote has expired. Please contact the contractor for an updated quote.');
+            }
+        }
+
         // STEP 2: Get Contractor Profile
         const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
         const contractorSnap = await getDoc(contractorRef);

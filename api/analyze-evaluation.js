@@ -98,12 +98,23 @@ async function fetchImageAsBase64(url, timeoutMs = 8000) {
     }
 }
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://mykrib.app',
+    'https://www.mykrib.app',
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+].filter(Boolean);
+
 // ============================================
 // MAIN HANDLER - With comprehensive error handling
 // ============================================
 export default async function handler(req, res) {
-    // CORS headers - set these FIRST before any processing
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS headers - restrict to allowed origins
+    const origin = req.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

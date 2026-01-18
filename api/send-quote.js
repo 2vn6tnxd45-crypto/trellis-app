@@ -179,13 +179,13 @@ export default async function handler(req, res) {
 
         if (error) {
             console.error('[SendQuote] Error:', error);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: 'Failed to send quote email' });
         }
 
-        console.log('[SendQuote] Sent to:', customerEmail, 'ID:', data.id);
+        console.log('[SendQuote] Sent, ID:', data.id);
         return res.status(200).json({ success: true, id: data.id });
     } catch (err) {
         console.error('[SendQuote] Exception:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Failed to send quote email' });
     }
 }

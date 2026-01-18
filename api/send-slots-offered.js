@@ -173,9 +173,20 @@ function generateSlotsEmailHtml({
     `;
 }
 
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+    'https://mykrib.app',
+    'https://www.mykrib.app',
+    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null,
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+].filter(Boolean);
+
 export default async function handler(req, res) {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    // CORS headers - restrict to allowed origins
+    const origin = req.headers.origin;
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    }
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -228,13 +239,13 @@ export default async function handler(req, res) {
 
         if (error) {
             console.error('[SendSlotsOffered] Error:', error);
-            return res.status(500).json({ error: error.message });
+            return res.status(500).json({ error: 'Failed to send slots email' });
         }
 
-        console.log('[SendSlotsOffered] Sent to:', customerEmail, 'ID:', data.id);
+        console.log('[SendSlotsOffered] Sent, ID:', data.id);
         return res.status(200).json({ success: true, id: data.id });
     } catch (err) {
         console.error('[SendSlotsOffered] Exception:', err);
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Failed to send slots email' });
     }
 }

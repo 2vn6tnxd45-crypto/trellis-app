@@ -13,9 +13,11 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
   writeBatch,
-  onSnapshot
+  onSnapshot,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 
@@ -136,6 +138,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 /**
  * Clock in to start work
+ * Uses transaction to prevent race conditions from multiple tabs/devices
  */
 export const clockIn = async (contractorId, techId, data = {}) => {
   const {
@@ -145,51 +148,57 @@ export const clockIn = async (contractorId, techId, data = {}) => {
     isTravelTime = false
   } = data;
 
-  // Check if already clocked in
-  const activeEntry = await getActiveTimeEntry(contractorId, techId);
-  if (activeEntry && activeEntry.status === ENTRY_STATUS.ACTIVE) {
-    throw new Error('Already clocked in. Please clock out first.');
-  }
-
   const entryId = `${techId}-${Date.now()}`;
   const now = Timestamp.now();
-
-  const entry = {
-    id: entryId,
-    techId,
-    jobId,
-    date: now,
-    clockIn: now,
-    clockOut: null,
-    breaks: [],
-    travelTime: isTravelTime ? { start: now, end: null } : null,
-    totalWorkMs: 0,
-    totalBreakMs: 0,
-    totalTravelMs: 0,
-    status: isTravelTime ? ENTRY_STATUS.TRAVELING : ENTRY_STATUS.ACTIVE,
-    location: location ? {
-      clockIn: location,
-      clockOut: null
-    } : null,
-    notes,
-    createdAt: now,
-    updatedAt: now
-  };
-
-  // Save to today's entries
   const dateStr = new Date().toISOString().split('T')[0];
-  await setDoc(
-    doc(db, 'contractors', contractorId, 'timeEntries', `${techId}-${dateStr}-${entryId}`),
-    entry
-  );
 
-  // Update tech's current status
-  await updateTechStatus(contractorId, techId, {
-    isClockedIn: true,
-    currentEntryId: entryId,
-    clockedInAt: now,
-    currentJobId: jobId,
-    status: isTravelTime ? 'traveling' : 'working'
+  const entryRef = doc(db, 'contractors', contractorId, 'timeEntries', `${techId}-${dateStr}-${entryId}`);
+  const techStatusRef = doc(db, 'contractors', contractorId, 'techStatuses', techId);
+
+  const entry = await runTransaction(db, async (transaction) => {
+    // Check current tech status within transaction
+    const techStatusDoc = await transaction.get(techStatusRef);
+    const techStatus = techStatusDoc.exists() ? techStatusDoc.data() : {};
+
+    if (techStatus.isClockedIn) {
+      throw new Error('Already clocked in. Please clock out first.');
+    }
+
+    const entryData = {
+      id: entryId,
+      techId,
+      jobId,
+      date: now,
+      clockIn: now,
+      clockOut: null,
+      breaks: [],
+      travelTime: isTravelTime ? { start: now, end: null } : null,
+      totalWorkMs: 0,
+      totalBreakMs: 0,
+      totalTravelMs: 0,
+      status: isTravelTime ? ENTRY_STATUS.TRAVELING : ENTRY_STATUS.ACTIVE,
+      location: location ? {
+        clockIn: location,
+        clockOut: null
+      } : null,
+      notes,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // Write entry and update status atomically
+    transaction.set(entryRef, entryData);
+    transaction.set(techStatusRef, {
+      ...techStatus,
+      isClockedIn: true,
+      currentEntryId: entryId,
+      clockedInAt: now,
+      currentJobId: jobId,
+      status: isTravelTime ? 'traveling' : 'working',
+      updatedAt: now
+    }, { merge: true });
+
+    return entryData;
   });
 
   return entry;
@@ -852,7 +861,8 @@ export const getPendingTimesheets = async (contractorId) => {
   const q = query(
     timesheetsRef,
     where('status', '==', TIMESHEET_STATUS.SUBMITTED),
-    orderBy('submittedAt', 'asc')
+    orderBy('submittedAt', 'asc'),
+    limit(100)
   );
 
   const snapshot = await getDocs(q);

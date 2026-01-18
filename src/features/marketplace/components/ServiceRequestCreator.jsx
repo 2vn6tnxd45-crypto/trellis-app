@@ -12,11 +12,13 @@ import {
     Thermometer, Droplet, Zap, Home, Wrench, HelpCircle,
     Sparkles, Check, Loader2
 } from 'lucide-react';
-import { 
-    SERVICE_CATEGORIES, 
-    URGENCY_LEVELS, 
-    createServiceRequest 
+import {
+    SERVICE_CATEGORIES,
+    URGENCY_LEVELS,
+    createServiceRequest,
+    uploadServiceRequestPhoto
 } from '../lib/serviceRequestService';
+import { validateFile } from '../../../lib/fileValidation';
 
 // Icon mapping for categories
 const CATEGORY_ICONS = {
@@ -72,21 +74,23 @@ const ServiceRequestCreator = ({
     // PHOTO HANDLING
     // ============================================
     
-    const handlePhotoUpload = (e) => {
+    const handlePhotoUpload = async (e) => {
         const files = Array.from(e.target.files);
         const maxPhotos = 5;
-        
+
         if (photos.length + files.length > maxPhotos) {
             setError(`Maximum ${maxPhotos} photos allowed`);
             return;
         }
-        
-        files.forEach(file => {
-            if (!file.type.startsWith('image/')) {
-                setError('Please upload only images');
-                return;
+
+        for (const file of files) {
+            // Validate file type and size
+            const validation = await validateFile(file, { category: 'image' });
+            if (!validation.valid) {
+                setError(validation.error);
+                continue;
             }
-            
+
             const reader = new FileReader();
             reader.onload = (event) => {
                 setPhotos(prev => [...prev, {
@@ -96,8 +100,8 @@ const ServiceRequestCreator = ({
                 }]);
             };
             reader.readAsDataURL(file);
-        });
-        
+        }
+
         setError(null);
     };
     
@@ -114,15 +118,20 @@ const ServiceRequestCreator = ({
             setError('Please select a category and provide a title');
             return;
         }
-        
+
         setIsSubmitting(true);
         setError(null);
-        
+
         try {
-            // In production, upload photos to storage first
-            // For MVP, we'll just include the base64 previews
-            const photoUrls = photos.map(p => p.preview);
-            
+            // Upload photos to Storage instead of storing base64 in Firestore
+            const photoUrls = [];
+            for (const photo of photos) {
+                if (photo.file) {
+                    const url = await uploadServiceRequestPhoto(userId, photo.file);
+                    photoUrls.push(url);
+                }
+            }
+
             const result = await createServiceRequest(userId, {
                 propertyId: property?.id,
                 category,

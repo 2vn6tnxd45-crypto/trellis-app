@@ -80,7 +80,7 @@ const getJobsForDate = (jobs, date, timezone) => {
 // DRAGGABLE JOB CARD (Sidebar)
 // ============================================
 
-const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
+const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd }) => {
     const [isDragging, setIsDragging] = useState(false);
 
     const handleDragStart = (e) => {
@@ -140,13 +140,18 @@ const DraggableJobCard = ({ job, onDragStart, onDragEnd }) => {
             </div>
         </div>
     );
-};
+}, (prevProps, nextProps) => {
+    // Custom comparison for performance
+    return prevProps.job.id === nextProps.job.id &&
+           prevProps.job.status === nextProps.job.status &&
+           prevProps.job.title === nextProps.job.title;
+});
 
 // ============================================
 // TIME SLOT (Drop Zone)
 // ============================================
 
-const TimeSlot = ({
+const TimeSlot = React.memo(({
     date,
     hour,
     jobs,
@@ -276,7 +281,7 @@ const TimeSlot = ({
             ))}
         </div>
     );
-};
+});
 
 // ============================================
 // DROP CONFIRMATION MODAL
@@ -631,7 +636,13 @@ export const DragDropCalendar = ({
         e.preventDefault();
 
         const jobId = e.dataTransfer.getData('jobId');
-        const jobData = JSON.parse(e.dataTransfer.getData('jobData') || '{}');
+        let jobData = null;
+        try {
+            const rawData = e.dataTransfer.getData('jobData');
+            jobData = rawData ? JSON.parse(rawData) : null;
+        } catch (err) {
+            console.error('Failed to parse job data from drag:', err);
+        }
 
         if (jobId && jobData) {
             setConfirmDrop({ job: jobData, date, hour });

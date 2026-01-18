@@ -16,7 +16,6 @@ export default async function handler(req, res) {
     try {
         // Get API key from environment (set in Vercel dashboard)
         const rentcastApiKey = process.env.RENTCAST_API_KEY;
-        console.log('RentCast API key present:', !!rentcastApiKey);
 
         // Execute fetches - use Promise.allSettled to handle partial failures
         const results = await Promise.allSettled([
@@ -51,7 +50,7 @@ export default async function handler(req, res) {
             property: getMockPropertyData(address),
             flood: null,
             fetchedAt: new Date().toISOString(),
-            _error: error.message
+            _error: 'Failed to fetch property data'
         });
     }
 }
