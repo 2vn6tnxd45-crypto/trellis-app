@@ -30,7 +30,8 @@ export {
 // Loading Overlay
 export { LoadingOverlay } from './LoadingOverlay';
 
-// Modals
+// Modals & Dialogs
+export { ConfirmDialog } from './ConfirmDialog';
 export { ConfirmationModal } from './ConfirmationModal';
 export { DeleteConfirmModal } from './DeleteConfirmModal';
 export { TaskCompletionModal } from './TaskCompletionModal';

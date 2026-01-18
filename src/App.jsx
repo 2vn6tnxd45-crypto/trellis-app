@@ -13,6 +13,7 @@ import { calculateNextDate } from './lib/utils';
 // Feature Imports
 import { useGemini } from './hooks/useGemini';
 import { useAppLogic } from './hooks/useAppLogic';
+import { useAppRoute, ROUTE_TYPES } from './hooks/useAppRoute';
 import { RecordEditorModal } from './features/records/RecordEditorModal';
 // CHANGE 1: Import ModernDashboard instead of ProgressiveDashboard
 import { ModernDashboard } from './features/dashboard/ModernDashboard';
@@ -97,6 +98,9 @@ const AppContent = () => {
         }
     });
 
+    // Centralized URL routing hook
+    const route = useAppRoute();
+
     // -- Derived UI Helpers --
     const contractorsList = useMemo(() => {
         return Object.values(app.activePropertyRecords.reduce((acc, r) => {
@@ -113,62 +117,20 @@ const AppContent = () => {
         }, {}));
     }, [app.activePropertyRecords]);
 
-    // -- Check for special routes (contractor portal, invitations) --
-    const urlParams = new URLSearchParams(window.location.search);
-    const isContractor = urlParams.get('requestId');
-    const inviteToken = urlParams.get('invite');
-    const proParam = urlParams.get('pro');
-    const quoteToken = urlParams.get('quote');
-    const evaluateParam = urlParams.get('evaluate');
-
-    // FIX: Use STATE to track "from=quote" so it persists even if URL is cleaned
-    const [comingFromQuote] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('from') === 'quote';
-    });
-
-    // NEW: Track payment success redirect
-    const [paymentSuccess] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('payment') === 'success';
-    });
-
-    const [paymentType] = useState(() => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('type') || null;
-    });
-
-    // Clean up URL params for aesthetics
+    // Handle payment success toast and URL cleanup (using route hook)
     useEffect(() => {
-        const newUrl = new URL(window.location.href);
-        let needsUpdate = false;
-
-        if (comingFromQuote && newUrl.searchParams.has('from')) {
-            newUrl.searchParams.delete('from');
-            needsUpdate = true;
-        }
-
-        // NEW: Clean up payment params and show success toast
-        if (paymentSuccess) {
-            newUrl.searchParams.delete('payment');
-            newUrl.searchParams.delete('type');
-            newUrl.searchParams.delete('job');
-            newUrl.searchParams.delete('quote');
-            needsUpdate = true;
-
-            // Show success toast after a brief delay
+        if (route.payment.success) {
             setTimeout(() => {
-                const message = paymentType === 'deposit'
+                const message = route.payment.type === 'deposit'
                     ? '✅ Deposit paid! Your project is now in Active Projects.'
                     : '✅ Payment successful!';
                 toast.success(message, { duration: 5000 });
             }, 500);
         }
-
-        if (needsUpdate) {
-            window.history.replaceState({}, '', newUrl.toString());
+        if (route.payment.success || route.payment.comingFromQuote) {
+            route.cleanupUrl();
         }
-    }, [comingFromQuote, paymentSuccess, paymentType]);
+    }, [route.payment.success, route.payment.comingFromQuote, route.payment.type, route.cleanupUrl]);
 
     // -- UI Handlers --
     const handleSwitchProperty = (propId) => { app.setActivePropertyId(propId); app.setIsSwitchingProp(false); toast.success("Switched property"); };
@@ -336,56 +298,52 @@ const AppContent = () => {
         closeAddModal();
     };
 
-    // -- Early Returns --
+    // -- Early Returns (using centralized route hook) --
 
-    // CHANGE 3: Quote View - Check this BEFORE auth to allow public access
-    // Skip if we just completed payment (quote is now a job, would show "not found")
-    if (quoteToken && !paymentSuccess) {
-        return <PublicQuoteView shareToken={quoteToken} user={app.user} />;
+    // Public Quote View (before auth check to allow public access)
+    if (route.routeType === ROUTE_TYPES.PUBLIC_QUOTE) {
+        return <PublicQuoteView shareToken={route.params.quoteToken} user={app.user} />;
     }
 
-    // CHANGE 2: Contractor Pro Dashboard (?pro=dashboard) or Landing (?pro)
-    if (proParam !== null && proParam !== 'invite') {
-        // If ?pro=dashboard, show the full Pro Dashboard
-        if (proParam === 'dashboard') {
-            return <ContractorProApp />;
-        }
-        // If ?pro=compare, show the comparison page
-        if (proParam === 'compare') {
-            return <ComparisonPage />;
-        }
-        // Otherwise (?pro or ?pro=landing), show the landing page
+    // Contractor Pro routes
+    if (route.routeType === ROUTE_TYPES.CONTRACTOR_DASHBOARD) {
+        return <ContractorProApp />;
+    }
+    if (route.routeType === ROUTE_TYPES.CONTRACTOR_COMPARE) {
+        return <ComparisonPage />;
+    }
+    if (route.routeType === ROUTE_TYPES.CONTRACTOR_LANDING) {
         return <ContractorLanding />;
     }
 
-    // Contractor creating invitation (?pro=invite)
-    if (proParam === 'invite') {
+    // Contractor creating invitation
+    if (route.routeType === ROUTE_TYPES.CONTRACTOR_INVITE_CREATOR) {
         return <ContractorInviteCreator />;
     }
 
     // Evaluation submission page (public homeowner access)
-    if (evaluateParam) {
+    if (route.routeType === ROUTE_TYPES.EVALUATION) {
         return <EvaluationPage />;
     }
 
-    // Customer claiming invitation (?invite=<token>)
-    if (inviteToken) {
+    // Customer claiming invitation
+    if (route.routeType === ROUTE_TYPES.INVITATION_CLAIM) {
         return (
             <InvitationClaimFlow
-                token={inviteToken}
+                token={route.params.inviteToken}
                 onComplete={() => window.location.reload()}
                 onCancel={() => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.delete('invite');
-                    window.history.replaceState({}, '', url.toString());
+                    route.clearInviteToken();
                     window.location.reload();
                 }}
             />
         );
     }
 
-    // Existing contractor submission flow
-    if (isContractor) return <ContractorPortal />;
+    // Contractor submission flow
+    if (route.routeType === ROUTE_TYPES.CONTRACTOR_SUBMISSION) {
+        return <ContractorPortal />;
+    }
 
     // Loading state
     if (app.loading) return <AppShellSkeleton />;

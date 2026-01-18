@@ -25,6 +25,10 @@ export const AuthScreen = () => {
     const [loading, setLoading] = useState(false);
     const [resetSent, setResetSent] = useState(false);  // ← ADDED
 
+    // Rate limiting state
+    const [failedAttempts, setFailedAttempts] = useState(0);
+    const [lockoutUntil, setLockoutUntil] = useState(null);
+
     // ADDED: Helper variables for cleaner code
     const isLogin = mode === 'signin';
     const isSignUp = mode === 'signup';
@@ -83,6 +87,13 @@ export const AuthScreen = () => {
         e.preventDefault();
         setError('');
 
+        // Client-side rate limiting check
+        if (lockoutUntil && Date.now() < lockoutUntil) {
+            const seconds = Math.ceil((lockoutUntil - Date.now()) / 1000);
+            setError(`Too many attempts. Please try again in ${seconds} seconds.`);
+            return;
+        }
+
         // EDGE CASE: Validate password strength during signup
         if (isSignUp) {
             const passwordError = validatePassword(password);
@@ -117,11 +128,25 @@ export const AuthScreen = () => {
                     await saveUserName(credential.user.uid, name.trim(), email);
                 }
             }
+            // Success - reset failed attempts
+            setFailedAttempts(0);
+            setLockoutUntil(null);
         } catch (err) {
+            // Track failed attempts for rate limiting
+            const newAttempts = failedAttempts + 1;
+            setFailedAttempts(newAttempts);
+
+            // Lock out after 5 failed attempts for 30 seconds
+            if (newAttempts >= 5) {
+                setLockoutUntil(Date.now() + 30000);
+                setFailedAttempts(0);
+            }
+
             // EDGE CASE: Provide user-friendly error messages
             const errorCode = err.code;
             if (errorCode === 'auth/email-already-in-use') {
-                setError('An account with this email already exists');
+                setError('An account with this email already exists. Try signing in instead.');
+                setMode('signin'); // Switch to sign-in mode
             } else if (errorCode === 'auth/invalid-email') {
                 setError('Please enter a valid email address');
             } else if (errorCode === 'auth/weak-password') {
@@ -291,7 +316,7 @@ export const AuthScreen = () => {
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="Password"
                                         required
-                                        minLength={6}
+                                        minLength={8}
                                         className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                     />
                                     <button

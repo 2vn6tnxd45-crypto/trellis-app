@@ -5,6 +5,19 @@ import { getBase64Data } from '../lib/images';
 import { toProperCase } from '../lib/utils';
 import { CATEGORIES, ROOMS } from '../config/constants';
 
+// Timeout wrapper for async operations
+const withTimeout = (promise, ms, errorMessage = 'Operation timed out') => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(errorMessage)), ms)
+        )
+    ]);
+};
+
+// Default timeout for AI operations (45 seconds)
+const AI_TIMEOUT_MS = 45000;
+
 export const useGemini = () => {
     const [isSuggesting, setIsSuggesting] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
@@ -511,10 +524,14 @@ export const useGemini = () => {
                 }
             `;
 
-            const result = await geminiModel.generateContent([
-                prompt,
-                { inlineData: { data: base64Data, mimeType: mimeType } }
-            ]);
+            const result = await withTimeout(
+                geminiModel.generateContent([
+                    prompt,
+                    { inlineData: { data: base64Data, mimeType: mimeType } }
+                ]),
+                AI_TIMEOUT_MS,
+                'AI analysis timed out. Please try again with a clearer image.'
+            );
 
             const text = result.response.text().replace(/```json|```/g, '').trim();
 
@@ -601,6 +618,17 @@ export const useGemini = () => {
 
         } catch (error) {
             console.error("Scan Error:", error);
+
+            // Re-throw specific errors so caller can show appropriate message
+            if (error.message?.includes('timed out')) {
+                throw error; // Preserve timeout message
+            }
+            if (error.message?.includes('network') ||
+                error.code === 'unavailable' ||
+                error.message?.includes('Failed to fetch')) {
+                throw new Error('Network error. Please check your connection and try again.');
+            }
+
             return null;
         } finally {
             setIsScanning(false);

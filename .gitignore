@@ -27,3 +27,7 @@ npm-debug.log*
 
 # Vercel
 .vercel
+
+# Firebase Admin SDK credentials - NEVER commit
+**/serviceAccountKey.json
+scripts/serviceAccountKey.json

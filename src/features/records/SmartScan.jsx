@@ -35,6 +35,12 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        // File size limit (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('File too large (Max 10MB)');
+            return;
+        }
+
         setCurrentFile(file);
         const loadingToast = toast.loading('Analyzing document for costs & items...');
 
@@ -68,7 +74,11 @@ export const SmartScan = ({ onBatchSave, onAutoFill }) => {
         } catch (error) {
             console.error(error);
             toast.dismiss(loadingToast);
-            toast.error("Scan failed.");
+            // Use specific error message if available (timeout, network)
+            const message = error.message?.includes('timed out') || error.message?.includes('Network')
+                ? error.message
+                : "Scan failed. Please try again.";
+            toast.error(message);
         }
         if (fileInputRef.current) fileInputRef.current.value = "";
     };

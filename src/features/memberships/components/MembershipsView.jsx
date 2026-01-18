@@ -14,7 +14,8 @@ import {
   Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { SectionLoader } from '../../../components/common';
+import { SectionLoader, ConfirmDialog } from '../../../components/common';
+import { useModal, useConfirmAction } from '../../../hooks';
 
 import { MembershipsList } from './MembershipsList';
 import { MembershipStats, MembershipMiniStats } from './MembershipStats';
@@ -39,10 +40,26 @@ export const MembershipsView = ({
   onRefresh
 }) => {
   const [activeTab, setActiveTab] = useState('members'); // 'members', 'stats', 'plans'
-  const [showSellModal, setShowSellModal] = useState(false);
+  const sellModal = useModal();
   const [showCreatePlan, setShowCreatePlan] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [expiringMemberships, setExpiringMemberships] = useState([]);
+
+  // Confirmation for cancelling memberships
+  const cancelMembershipAction = useConfirmAction(
+    async (membershipId) => {
+      await cancelMembership(contractorId, membershipId, 'Cancelled by contractor');
+      toast.success('Membership cancelled');
+      await onRefresh?.();
+    },
+    {
+      title: 'Cancel Membership?',
+      message: 'This will cancel the membership and stop all future benefits. This action cannot be undone.',
+      confirmText: 'Cancel Membership',
+      cancelText: 'Keep Active',
+      variant: 'danger'
+    }
+  );
 
   // Load expiring memberships
   React.useEffect(() => {
@@ -84,7 +101,7 @@ export const MembershipsView = ({
       });
 
       toast.success('Membership sold successfully!');
-      setShowSellModal(false);
+      sellModal.close();
       await onRefresh?.();
     } catch (err) {
       console.error('Error selling membership:', err);
@@ -104,18 +121,9 @@ export const MembershipsView = ({
     }
   };
 
-  // Handle cancel
-  const handleCancel = async (membershipId) => {
-    if (!confirm('Are you sure you want to cancel this membership?')) return;
-
-    try {
-      await cancelMembership(contractorId, membershipId, 'Cancelled by contractor');
-      toast.success('Membership cancelled');
-      await onRefresh?.();
-    } catch (err) {
-      console.error('Error cancelling membership:', err);
-      toast.error('Failed to cancel');
-    }
+  // Handle cancel - now uses useConfirmAction hook
+  const handleCancel = (membershipId) => {
+    cancelMembershipAction.trigger(membershipId);
   };
 
   // Handle create plan
@@ -187,7 +195,7 @@ export const MembershipsView = ({
           </button>
 
           <button
-            onClick={() => setShowSellModal(true)}
+            onClick={sellModal.open}
             disabled={activePlans.length === 0}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -320,12 +328,23 @@ export const MembershipsView = ({
 
       {/* Sell Membership Modal */}
       <SellMembershipModal
-        isOpen={showSellModal}
-        onClose={() => setShowSellModal(false)}
+        isOpen={sellModal.isOpen}
+        onClose={sellModal.close}
         plans={activePlans}
         customers={customers}
         onSell={handleSellMembership}
       />
+
+      {/* Cancel Membership Confirmation Dialog */}
+      {cancelMembershipAction.isConfirming && (
+        <ConfirmDialog
+          isOpen={cancelMembershipAction.isConfirming}
+          onConfirm={cancelMembershipAction.confirm}
+          onCancel={cancelMembershipAction.cancel}
+          loading={cancelMembershipAction.loading}
+          {...cancelMembershipAction.config}
+        />
+      )}
     </div>
   );
 };
@@ -362,6 +381,23 @@ const QuickStatCard = ({ label, value, icon: Icon, color = 'blue' }) => {
 const PlansListView = ({ plans, onCreatePlan, contractorId, onRefresh }) => {
   const [editingPlan, setEditingPlan] = useState(null);
 
+  // Confirmation for deactivating plans
+  const deactivatePlanAction = useConfirmAction(
+    async (planId) => {
+      const { deletePlan } = await import('../lib/membershipService');
+      await deletePlan(contractorId, planId);
+      toast.success('Plan deactivated');
+      await onRefresh?.();
+    },
+    {
+      title: 'Deactivate Plan?',
+      message: 'This plan will no longer be available for new memberships. Existing members will not be affected.',
+      confirmText: 'Deactivate',
+      cancelText: 'Keep Active',
+      variant: 'warning'
+    }
+  );
+
   const handleUpdatePlan = async (planData) => {
     try {
       const { updatePlan } = await import('../lib/membershipService');
@@ -375,18 +411,8 @@ const PlansListView = ({ plans, onCreatePlan, contractorId, onRefresh }) => {
     }
   };
 
-  const handleDeletePlan = async (planId) => {
-    if (!confirm('Are you sure you want to deactivate this plan?')) return;
-
-    try {
-      const { deletePlan } = await import('../lib/membershipService');
-      await deletePlan(contractorId, planId);
-      toast.success('Plan deactivated');
-      await onRefresh?.();
-    } catch (err) {
-      console.error('Error deleting plan:', err);
-      toast.error('Failed to deactivate plan');
-    }
+  const handleDeletePlan = (planId) => {
+    deactivatePlanAction.trigger(planId);
   };
 
   if (editingPlan) {
@@ -450,6 +476,17 @@ const PlansListView = ({ plans, onCreatePlan, contractorId, onRefresh }) => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Deactivate Plan Confirmation Dialog */}
+      {deactivatePlanAction.isConfirming && (
+        <ConfirmDialog
+          isOpen={deactivatePlanAction.isConfirming}
+          onConfirm={deactivatePlanAction.confirm}
+          onCancel={deactivatePlanAction.cancel}
+          loading={deactivatePlanAction.loading}
+          {...deactivatePlanAction.config}
+        />
       )}
     </div>
   );

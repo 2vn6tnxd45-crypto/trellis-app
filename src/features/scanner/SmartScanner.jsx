@@ -96,7 +96,11 @@ export const SmartScanner = ({ onClose, onProcessComplete, userAddress }) => {
 
         } catch (err) {
             console.error(err);
-            setError('Could not analyze document. Please try entering details manually.');
+            // Use specific error message if available (timeout, network)
+            const message = err.message?.includes('timed out') || err.message?.includes('Network')
+                ? err.message
+                : 'Could not analyze document. Please try entering details manually.';
+            setError(message);
             setAnalysis(null);
         }
         finally { setIsAnalyzing(false); }
