@@ -31,6 +31,8 @@ import { AIAnalysisSummary } from './AIAnalysisSummary';
 export const EvaluationReview = ({
     evaluation,
     onRequestMoreInfo,
+    onSendMessage,
+    onSchedule,
     onComplete,
     onConvertToQuote,
     onCancel,
@@ -40,6 +42,8 @@ export const EvaluationReview = ({
     const [activeTab, setActiveTab] = useState('submissions');
     const [showRequestInfoModal, setShowRequestInfoModal] = useState(false);
     const [showFindingsModal, setShowFindingsModal] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const timeRemaining = useEvaluationCountdown(evaluation?.expiresAt);
@@ -151,11 +155,30 @@ export const EvaluationReview = ({
         onConvertToQuote(evaluation);
     };
 
-    const handleCancel = async () => {
-        if (window.confirm('Are you sure you want to cancel this evaluation request?')) {
-            await onCancel(evaluation.id, 'Cancelled by contractor');
+    const handleCancelConfirm = async (reason) => {
+        setIsSubmitting(true);
+        try {
+            await onCancel(evaluation.id, reason || 'Cancelled by contractor');
+            setShowCancelModal(false);
+        } finally {
+            setIsSubmitting(false);
         }
     };
+
+    const handleScheduleConfirm = async (scheduleData) => {
+        if (!onSchedule) return;
+        setIsSubmitting(true);
+        try {
+            await onSchedule(evaluation.id, scheduleData);
+            setShowScheduleModal(false);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Check if this is a site visit type evaluation that can be scheduled
+    const canSchedule = evaluation?.type === EVALUATION_TYPES.SITE_VISIT &&
+        !['scheduled', 'completed', 'quoted', 'cancelled', 'expired'].includes(evaluation?.status);
 
     if (!evaluation) return null;
 
@@ -267,7 +290,10 @@ export const EvaluationReview = ({
                     <DetailsTab evaluation={evaluation} />
                 )}
                 {activeTab === 'messages' && (
-                    <MessagesTab evaluation={evaluation} />
+                    <MessagesTab
+                        evaluation={evaluation}
+                        onSendMessage={onSendMessage}
+                    />
                 )}
                 {activeTab === 'findings' && (
                     <FindingsTab evaluation={evaluation} />
@@ -278,10 +304,10 @@ export const EvaluationReview = ({
             <div className="px-6 py-4 border-t border-slate-200 bg-slate-50">
                 <div className="flex items-center justify-between">
                     <div className="flex gap-2">
-                        {evaluation.status !== EVALUATION_STATUS.QUOTED && 
+                        {evaluation.status !== EVALUATION_STATUS.QUOTED &&
                          evaluation.status !== EVALUATION_STATUS.CANCELLED && (
                             <button
-                                onClick={handleCancel}
+                                onClick={() => setShowCancelModal(true)}
                                 className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium"
                             >
                                 Cancel Request
@@ -289,6 +315,16 @@ export const EvaluationReview = ({
                         )}
                     </div>
                     <div className="flex gap-3">
+                        {/* Schedule Site Visit button */}
+                        {canSchedule && onSchedule && (
+                            <button
+                                onClick={() => setShowScheduleModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 border border-indigo-300 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors font-medium"
+                            >
+                                <Calendar className="w-4 h-4" />
+                                Schedule Visit
+                            </button>
+                        )}
                         {isActionable && evaluation.status !== EVALUATION_STATUS.COMPLETED && (
                             <>
                                 <button
@@ -343,6 +379,22 @@ export const EvaluationReview = ({
                     evaluation={evaluation}
                     onSubmit={handleCompleteFindgs}
                     onClose={() => setShowFindingsModal(false)}
+                    isSubmitting={isSubmitting}
+                />
+            )}
+            {showCancelModal && (
+                <CancelEvaluationModal
+                    evaluation={evaluation}
+                    onConfirm={handleCancelConfirm}
+                    onClose={() => setShowCancelModal(false)}
+                    isSubmitting={isSubmitting}
+                />
+            )}
+            {showScheduleModal && (
+                <ScheduleVisitModal
+                    evaluation={evaluation}
+                    onConfirm={handleScheduleConfirm}
+                    onClose={() => setShowScheduleModal(false)}
                     isSubmitting={isSubmitting}
                 />
             )}
@@ -678,62 +730,116 @@ const DetailsTab = ({ evaluation }) => {
 // MESSAGES TAB
 // ============================================
 
-const MessagesTab = ({ evaluation }) => {
+const MessagesTab = ({ evaluation, onSendMessage }) => {
+    const [newMessage, setNewMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const messages = evaluation.messages || [];
 
-    if (messages.length === 0) {
-        return (
-            <div className="text-center py-12">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <MessageSquare className="w-8 h-8 text-slate-400" />
-                </div>
-                <p className="text-slate-500">No messages</p>
-                <p className="text-sm text-slate-400 mt-1">
-                    Messages requesting additional info will appear here
-                </p>
-            </div>
-        );
-    }
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !onSendMessage) return;
+
+        setIsSending(true);
+        try {
+            await onSendMessage(evaluation.id, newMessage.trim());
+            setNewMessage('');
+        } catch (error) {
+            console.error('Error sending message:', error);
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
 
     return (
-        <div className="space-y-4">
-            {messages.map((msg) => (
-                <div 
-                    key={msg.id}
-                    className={`p-4 rounded-xl ${
-                        msg.from === 'contractor' 
-                            ? 'bg-indigo-50 border border-indigo-100 ml-8' 
-                            : 'bg-slate-50 border border-slate-100 mr-8'
-                    }`}
-                >
-                    <div className="flex items-center gap-2 mb-2">
-                        <span className={`text-xs font-semibold uppercase ${
-                            msg.from === 'contractor' ? 'text-indigo-600' : 'text-slate-600'
-                        }`}>
-                            {msg.from === 'contractor' ? 'You' : 'Customer'}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                            {new Date(msg.createdAt).toLocaleString()}
-                        </span>
-                    </div>
-                    <p className="text-slate-700">{msg.message}</p>
-                    {msg.additionalPrompts?.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-200">
-                            <p className="text-xs font-medium text-slate-500 mb-2">
-                                Additional requests:
-                            </p>
-                            <ul className="space-y-1">
-                                {msg.additionalPrompts.map((p, i) => (
-                                    <li key={i} className="text-sm text-slate-600 flex items-center gap-2">
-                                        <Camera className="w-3 h-3" />
-                                        {p.label}
-                                    </li>
-                                ))}
-                            </ul>
+        <div className="flex flex-col h-full">
+            {/* Messages List */}
+            <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+                {messages.length === 0 ? (
+                    <div className="text-center py-8">
+                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <MessageSquare className="w-6 h-6 text-slate-400" />
                         </div>
-                    )}
+                        <p className="text-slate-500 text-sm">No messages yet</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                            Send a message to the customer below
+                        </p>
+                    </div>
+                ) : (
+                    messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`p-4 rounded-xl ${
+                                msg.from === 'contractor'
+                                    ? 'bg-indigo-50 border border-indigo-100 ml-8'
+                                    : 'bg-slate-50 border border-slate-100 mr-8'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className={`text-xs font-semibold uppercase ${
+                                    msg.from === 'contractor' ? 'text-indigo-600' : 'text-slate-600'
+                                }`}>
+                                    {msg.from === 'contractor' ? 'You' : 'Customer'}
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                    {new Date(msg.createdAt).toLocaleString()}
+                                </span>
+                            </div>
+                            <p className="text-slate-700">{msg.message}</p>
+                            {msg.additionalPrompts?.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <p className="text-xs font-medium text-slate-500 mb-2">
+                                        Additional requests:
+                                    </p>
+                                    <ul className="space-y-1">
+                                        {msg.additionalPrompts.map((p, i) => (
+                                            <li key={i} className="text-sm text-slate-600 flex items-center gap-2">
+                                                <Camera className="w-3 h-3" />
+                                                {p.label}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Message Input */}
+            <div className="border-t border-slate-200 pt-4">
+                <div className="flex gap-2">
+                    <textarea
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type a message to the customer..."
+                        rows={2}
+                        className="flex-1 px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-sm"
+                        disabled={isSending}
+                    />
+                    <button
+                        onClick={handleSendMessage}
+                        disabled={!newMessage.trim() || isSending}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 self-end"
+                    >
+                        {isSending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Send className="w-4 h-4" />
+                        )}
+                        Send
+                    </button>
                 </div>
-            ))}
+                <p className="text-xs text-slate-400 mt-2">
+                    Press Enter to send, Shift+Enter for new line
+                </p>
+            </div>
         </div>
     );
 };
@@ -1034,6 +1140,194 @@ const FindingsModal = ({ evaluation, onSubmit, onClose, isSubmitting }) => {
                     >
                         {isSubmitting ? <ButtonLoader size={16} /> : <CheckCircle className="w-4 h-4" />}
                         Complete & Ready to Quote
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// SCHEDULE VISIT MODAL
+// ============================================
+
+const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) => {
+    // Default to tomorrow at 10am
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDate = tomorrow.toISOString().split('T')[0];
+
+    const [scheduledDate, setScheduledDate] = useState(defaultDate);
+    const [scheduledTime, setScheduledTime] = useState('10:00');
+    const [duration, setDuration] = useState(30);
+
+    const handleConfirm = () => {
+        // Combine date and time into ISO string
+        const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}:00`);
+        onConfirm({
+            scheduledFor: scheduledFor.toISOString(),
+            duration
+        });
+    };
+
+    const isValid = scheduledDate && scheduledTime;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-indigo-100 rounded-xl">
+                        <Calendar className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">Schedule Site Visit</h3>
+                        <p className="text-sm text-slate-500">Choose a date and time for the on-site evaluation.</p>
+                    </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                    <p className="text-sm text-slate-600 mb-1">Customer:</p>
+                    <p className="font-semibold text-slate-800">{evaluation?.customerName}</p>
+                    {evaluation?.propertyAddress && (
+                        <p className="text-sm text-slate-500 mt-1">{evaluation.propertyAddress}</p>
+                    )}
+                </div>
+
+                <div className="space-y-4 mb-6">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Date *
+                        </label>
+                        <input
+                            type="date"
+                            value={scheduledDate}
+                            onChange={(e) => setScheduledDate(e.target.value)}
+                            min={defaultDate}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Time *
+                        </label>
+                        <input
+                            type="time"
+                            value={scheduledTime}
+                            onChange={(e) => setScheduledTime(e.target.value)}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Duration
+                        </label>
+                        <select
+                            value={duration}
+                            onChange={(e) => setDuration(Number(e.target.value))}
+                            className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                            <option value={15}>15 minutes</option>
+                            <option value={30}>30 minutes</option>
+                            <option value={45}>45 minutes</option>
+                            <option value={60}>1 hour</option>
+                            <option value={90}>1.5 hours</option>
+                            <option value={120}>2 hours</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleConfirm}
+                        disabled={!isValid || isSubmitting}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                        {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Calendar className="w-4 h-4" />
+                        )}
+                        Schedule Visit
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// CANCEL EVALUATION MODAL
+// ============================================
+
+const CancelEvaluationModal = ({ evaluation, onConfirm, onClose, isSubmitting }) => {
+    const [reason, setReason] = useState('');
+
+    const handleConfirm = () => {
+        onConfirm(reason.trim() || 'Cancelled by contractor');
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-3 bg-red-100 rounded-xl">
+                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-slate-800">Cancel Evaluation?</h3>
+                        <p className="text-sm text-slate-500">This action cannot be undone.</p>
+                    </div>
+                </div>
+
+                <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                    <p className="text-sm text-slate-600 mb-1">Customer:</p>
+                    <p className="font-semibold text-slate-800">{evaluation?.customerName}</p>
+                    {evaluation?.jobDescription && (
+                        <p className="text-sm text-slate-500 mt-1">{evaluation.jobDescription}</p>
+                    )}
+                </div>
+
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Reason for cancellation (optional)
+                    </label>
+                    <textarea
+                        value={reason}
+                        onChange={(e) => setReason(e.target.value)}
+                        rows={2}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-red-500 resize-none text-sm"
+                        placeholder="e.g., Customer unresponsive, Job no longer needed..."
+                    />
+                </div>
+
+                <div className="flex justify-end gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={isSubmitting}
+                        className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors"
+                    >
+                        Keep Request
+                    </button>
+                    <button
+                        onClick={handleConfirm}
+                        disabled={isSubmitting}
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                        {isSubmitting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <X className="w-4 h-4" />
+                        )}
+                        Cancel Evaluation
                     </button>
                 </div>
             </div>

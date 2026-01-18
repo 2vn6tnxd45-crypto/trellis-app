@@ -1460,6 +1460,8 @@ export const ContractorProApp = () => {
         loading: evalsLoading,
         createEvaluation,
         requestMoreInfo,
+        sendMessage: sendEvaluationMessage,
+        schedule: scheduleEvaluationFn,
         complete: completeEvaluationFn,
         cancel: cancelEvaluationFn,
         prepareQuote: prepareQuoteFromEval,
@@ -2204,6 +2206,8 @@ export const ContractorProApp = () => {
                             <EvaluationReview
                                 evaluation={selectedEvaluation}
                                 onRequestMoreInfo={requestMoreInfo}
+                                onSendMessage={sendEvaluationMessage}
+                                onSchedule={scheduleEvaluationFn}
                                 onComplete={completeEvaluationFn}
                                 onConvertToQuote={handleConvertToQuote}
                                 onCancel={cancelEvaluationFn}

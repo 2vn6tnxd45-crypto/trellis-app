@@ -44,6 +44,64 @@ export const FEE_STATUS = {
 export const DEFAULT_EXPIRATION_DAYS = 7;
 
 // ============================================
+// HELPER: ADD PENDING EVALUATION TO HOMEOWNER
+// ============================================
+
+const addPendingEvaluationToHomeowner = async (customerEmail, evaluationData, contractorProfile) => {
+    if (!customerEmail) return;
+
+    try {
+        // Find user by email in users collection
+        const usersRef = collection(db, 'artifacts', appId, 'users');
+        const q = query(usersRef, where('email', '==', customerEmail.toLowerCase()));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            console.log('[addPendingEvaluationToHomeowner] No user found with email:', customerEmail);
+            return;
+        }
+
+        // Found a user with this email
+        const userDoc = snapshot.docs[0];
+        const userId = userDoc.id;
+
+        // Add to their profile's pendingEvaluations array
+        const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+        const profileSnap = await getDoc(profileRef);
+
+        const existingPending = profileSnap.exists() ? (profileSnap.data().pendingEvaluations || []) : [];
+
+        // Check if this evaluation already exists
+        const alreadyExists = existingPending.some(e => e.evaluationId === evaluationData.id);
+        if (alreadyExists) {
+            console.log('[addPendingEvaluationToHomeowner] Evaluation already in pending list:', evaluationData.id);
+            return;
+        }
+
+        const newPendingEval = {
+            evaluationId: evaluationData.id,
+            contractorId: evaluationData.contractorId,
+            contractorName: contractorProfile?.companyName || contractorProfile?.profile?.companyName || 'Contractor',
+            propertyAddress: evaluationData.propertyAddress || '',
+            jobDescription: evaluationData.jobDescription || '',
+            createdAt: new Date().toISOString(),
+            status: 'pending_submission'
+        };
+
+        await setDoc(profileRef, {
+            pendingEvaluations: [...existingPending, newPendingEval],
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        console.log('[addPendingEvaluationToHomeowner] Added evaluation to user profile:', userId);
+
+    } catch (error) {
+        console.error('[addPendingEvaluationToHomeowner] Error:', error);
+        // Don't throw - this is a non-critical operation
+    }
+};
+
+// ============================================
 // COLLECTION PATH
 // ============================================
 
@@ -157,9 +215,26 @@ export const createEvaluationRequest = async (contractorId, evaluationData) => {
         };
         
         await setDoc(newEvalRef, evaluation);
-        
+
+        // Try to add to homeowner's pending evaluations if they're an existing user
+        try {
+            // Get contractor profile for display name
+            const contractorRef = doc(db, 'artifacts', appId, 'public', 'data', 'contractors', contractorId);
+            const contractorSnap = await getDoc(contractorRef);
+            const contractorProfile = contractorSnap.exists() ? contractorSnap.data() : null;
+
+            await addPendingEvaluationToHomeowner(
+                evaluationData.customerEmail,
+                evaluation,
+                contractorProfile
+            );
+        } catch (homeownerError) {
+            console.warn('[createEvaluationRequest] Could not notify homeowner:', homeownerError);
+            // Non-critical, don't fail the evaluation creation
+        }
+
         return { evaluationId: newEvalRef.id, evaluation };
-        
+
     } catch (error) {
         console.error('Error creating evaluation request:', error);
         throw error;
@@ -538,6 +613,42 @@ export const linkQuoteToEvaluation = async (contractorId, evaluationId, quoteId)
 
     } catch (error) {
         console.error('Error linking quote to evaluation:', error);
+        throw error;
+    }
+};
+
+// ============================================
+// SEND EVALUATION MESSAGE (Simple chat message without status change)
+// ============================================
+
+export const sendEvaluationMessage = async (contractorId, evaluationId, message, fromRole = 'contractor') => {
+    try {
+        const evalRef = doc(db, getEvaluationsPath(contractorId), evaluationId);
+        const evalSnap = await getDoc(evalRef);
+
+        if (!evalSnap.exists()) {
+            throw new Error('Evaluation not found');
+        }
+
+        const evaluation = evalSnap.data();
+
+        // Create new message object
+        const newMessage = {
+            id: Date.now().toString(),
+            from: fromRole,
+            message,
+            createdAt: new Date().toISOString()
+        };
+
+        await updateDoc(evalRef, {
+            messages: [...(evaluation.messages || []), newMessage],
+            updatedAt: serverTimestamp()
+        });
+
+        return { success: true, message: newMessage };
+
+    } catch (error) {
+        console.error('Error sending evaluation message:', error);
         throw error;
     }
 };

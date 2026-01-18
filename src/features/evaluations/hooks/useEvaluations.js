@@ -22,6 +22,7 @@ import {
     checkExpiredEvaluations,
     getTimeRemaining,
     prepareQuoteFromEvaluation,
+    sendEvaluationMessage,
     EVALUATION_STATUS
 } from '../lib/evaluationService';
 
@@ -151,6 +152,11 @@ export const useEvaluations = (contractorId) => {
         return cancelEvaluation(contractorId, evaluationId, reason);
     }, [contractorId]);
 
+    const sendMessage = useCallback(async (evaluationId, message) => {
+        if (!contractorId) throw new Error('No contractor ID');
+        return sendEvaluationMessage(contractorId, evaluationId, message, 'contractor');
+    }, [contractorId]);
+
     const prepareQuote = useCallback((evaluation) => {
         return prepareQuoteFromEvaluation(evaluation);
     }, []);
@@ -194,6 +200,7 @@ export const useEvaluations = (contractorId) => {
         complete,
         linkQuote,
         cancel,
+        sendMessage,
         prepareQuote,
         refreshExpired
     };

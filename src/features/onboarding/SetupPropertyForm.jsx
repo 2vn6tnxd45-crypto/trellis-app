@@ -1,16 +1,46 @@
 // src/features/onboarding/SetupPropertyForm.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Home, MapPin, Loader2, LogOut } from 'lucide-react';
-import { googleMapsApiKey } from '../../config/constants';
+import { Home, MapPin, Loader2, LogOut, ClipboardList, Clock, ExternalLink, AlertTriangle } from 'lucide-react';
+import { googleMapsApiKey, appId } from '../../config/constants';
 import { Logo } from '../../components/common/Logo';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
+import { getAuth } from 'firebase/auth';
 
 export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [name, setName] = useState('');
     const [address, setAddress] = useState({ street: '', city: '', state: '', zip: '', placeId: '' });
     const [coordinates, setCoordinates] = useState(null);
     const [debugInfo, setDebugInfo] = useState(''); // For debugging
+    const [pendingEvaluations, setPendingEvaluations] = useState([]);
     const autocompleteRef = useRef(null);
     const inputRef = useRef(null);
+
+    // Fetch pending evaluations for this user
+    useEffect(() => {
+        const fetchPendingEvaluations = async () => {
+            try {
+                const auth = getAuth();
+                const user = auth.currentUser;
+                if (!user) return;
+
+                const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
+                const profileSnap = await getDoc(profileRef);
+
+                if (profileSnap.exists()) {
+                    const profile = profileSnap.data();
+                    const evals = profile.pendingEvaluations || [];
+                    // Filter out completed evaluations
+                    const pending = evals.filter(e => e.status !== 'quote_received' && e.status !== 'completed');
+                    setPendingEvaluations(pending);
+                }
+            } catch (err) {
+                console.error('Error fetching pending evaluations:', err);
+            }
+        };
+
+        fetchPendingEvaluations();
+    }, []);
 
     useEffect(() => {
         const loadGoogleMaps = () => {
@@ -114,6 +144,46 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
             )}
             
             <div className="w-full max-w-lg">
+                {/* Pending Evaluations Alert */}
+                {pendingEvaluations.length > 0 && (
+                    <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-lg">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="p-2 bg-amber-100 rounded-xl">
+                                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-amber-900">You have pending evaluation requests!</h2>
+                                <p className="text-sm text-amber-700">
+                                    Complete your property setup to view and respond to these requests.
+                                </p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            {pendingEvaluations.slice(0, 3).map((evalItem, index) => (
+                                <div key={evalItem.evaluationId || index} className="flex items-center justify-between bg-white rounded-xl p-3 border border-amber-100">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-slate-800 truncate">
+                                            {evalItem.jobDescription || 'Service Request'}
+                                        </p>
+                                        <p className="text-xs text-slate-500">
+                                            From: {evalItem.contractorName || 'Contractor'}
+                                        </p>
+                                    </div>
+                                    <span className="flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium shrink-0 ml-2">
+                                        <Clock className="h-3 w-3" />
+                                        Awaiting
+                                    </span>
+                                </div>
+                            ))}
+                            {pendingEvaluations.length > 3 && (
+                                <p className="text-xs text-amber-600 text-center font-medium">
+                                    +{pendingEvaluations.length - 3} more pending
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 <div className="text-center mb-10">
                     <Logo className="h-16 w-16 mx-auto mb-4" />
                     <h1 className="text-3xl font-extrabold text-emerald-950">Set up your Krib</h1>
