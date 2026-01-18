@@ -36,21 +36,41 @@ export const useContractorAuth = () => {
     // Listen to auth state changes AND profile changes
     useEffect(() => {
         let unsubscribeProfile = null;
-        
+        let loadingTimeout = null;
+
         const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
             setUser(firebaseUser);
-            
+
             // Clean up previous profile subscription if exists
             if (unsubscribeProfile) {
                 unsubscribeProfile();
                 unsubscribeProfile = null;
             }
-            
+
+            // Clear any existing timeout
+            if (loadingTimeout) {
+                clearTimeout(loadingTimeout);
+                loadingTimeout = null;
+            }
+
             if (firebaseUser) {
+                // Set a timeout fallback in case Firestore subscription never fires
+                // This prevents infinite loading spinner if there's a permissions/network issue
+                loadingTimeout = setTimeout(() => {
+                    console.warn('[useContractorAuth] Profile load timeout - forcing loading=false');
+                    setLoading(false);
+                }, 10000); // 10 second timeout
+
                 // Subscribe to real-time profile updates
                 const profileRef = doc(db, CONTRACTORS_COLLECTION, firebaseUser.uid);
-                
+
                 unsubscribeProfile = onSnapshot(profileRef, (snap) => {
+                    // Clear timeout since we got a response
+                    if (loadingTimeout) {
+                        clearTimeout(loadingTimeout);
+                        loadingTimeout = null;
+                    }
+
                     if (snap.exists()) {
                         const profileData = { id: snap.id, ...snap.data() };
                         setProfile(profileData);
@@ -60,6 +80,12 @@ export const useContractorAuth = () => {
                     }
                     setLoading(false);
                 }, (error) => {
+                    // Clear timeout since we got a response (even if error)
+                    if (loadingTimeout) {
+                        clearTimeout(loadingTimeout);
+                        loadingTimeout = null;
+                    }
+
                     console.error('[useContractorAuth] Profile subscription error:', error);
                     setProfile(null);
                     setLoading(false);
@@ -69,10 +95,11 @@ export const useContractorAuth = () => {
                 setLoading(false);
             }
         });
-        
+
         return () => {
             unsubscribeAuth();
             if (unsubscribeProfile) unsubscribeProfile();
+            if (loadingTimeout) clearTimeout(loadingTimeout);
         };
     }, []);
     
