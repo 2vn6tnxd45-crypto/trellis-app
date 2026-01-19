@@ -20,6 +20,10 @@ import {
   runTransaction
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ============================================================================
 // CONSTANTS
@@ -152,8 +156,8 @@ export const clockIn = async (contractorId, techId, data = {}) => {
   const now = Timestamp.now();
   const dateStr = new Date().toISOString().split('T')[0];
 
-  const entryRef = doc(db, 'contractors', contractorId, 'timeEntries', `${techId}-${dateStr}-${entryId}`);
-  const techStatusRef = doc(db, 'contractors', contractorId, 'techStatuses', techId);
+  const entryRef = doc(db, getContractorPath(contractorId), 'timeEntries', `${techId}-${dateStr}-${entryId}`);
+  const techStatusRef = doc(db, getContractorPath(contractorId), 'techStatuses', techId);
 
   const entry = await runTransaction(db, async (transaction) => {
     // Check current tech status within transaction
@@ -240,7 +244,7 @@ export const clockOut = async (contractorId, techId, data = {}) => {
 
   // Get the entry document reference
   const dateStr = clockInTime.toISOString().split('T')[0];
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -306,7 +310,7 @@ export const startBreak = async (contractorId, techId, breakType = 'break') => {
   });
 
   // Find and update the entry
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -354,7 +358,7 @@ export const endBreak = async (contractorId, techId) => {
     const totalBreakMs = (activeEntry.totalBreakMs || 0) + breakMs;
 
     // Find and update the entry
-    const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+    const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
     const q = query(
       entriesRef,
       where('techId', '==', techId),
@@ -400,7 +404,7 @@ export const startTravel = async (contractorId, techId, jobId, location = null) 
   const now = Timestamp.now();
 
   // Find and update the entry
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -445,7 +449,7 @@ export const endTravel = async (contractorId, techId, location = null) => {
   const totalTravelMs = (activeEntry.totalTravelMs || 0) + travelMs;
 
   // Find and update the entry
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -475,7 +479,7 @@ export const endTravel = async (contractorId, techId, location = null) => {
  * Get active time entry for a tech
  */
 export const getActiveTimeEntry = async (contractorId, techId) => {
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -493,7 +497,7 @@ export const getActiveTimeEntry = async (contractorId, techId) => {
  * Update tech status document
  */
 const updateTechStatus = async (contractorId, techId, status) => {
-  const techStatusRef = doc(db, 'contractors', contractorId, 'techStatus', techId);
+  const techStatusRef = doc(db, getContractorPath(contractorId), 'techStatus', techId);
   await setDoc(techStatusRef, {
     ...status,
     updatedAt: Timestamp.now()
@@ -504,7 +508,7 @@ const updateTechStatus = async (contractorId, techId, status) => {
  * Get tech's current status
  */
 export const getTechStatus = async (contractorId, techId) => {
-  const techStatusRef = doc(db, 'contractors', contractorId, 'techStatus', techId);
+  const techStatusRef = doc(db, getContractorPath(contractorId), 'techStatus', techId);
   const snapshot = await getDoc(techStatusRef);
   return snapshot.exists() ? snapshot.data() : null;
 };
@@ -517,7 +521,7 @@ export const getTechStatus = async (contractorId, techId) => {
  * Edit a time entry (manual correction)
  */
 export const editTimeEntry = async (contractorId, entryId, updates, editedBy) => {
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(entriesRef, where('id', '==', entryId));
   const snapshot = await getDocs(q);
 
@@ -610,7 +614,7 @@ export const addManualEntry = async (contractorId, techId, data, addedBy) => {
   };
 
   await setDoc(
-    doc(db, 'contractors', contractorId, 'timeEntries', `${techId}-${dateStr}-${entryId}`),
+    doc(db, getContractorPath(contractorId), 'timeEntries', `${techId}-${dateStr}-${entryId}`),
     entry
   );
 
@@ -621,7 +625,7 @@ export const addManualEntry = async (contractorId, techId, data, addedBy) => {
  * Delete a time entry
  */
 export const deleteTimeEntry = async (contractorId, entryId, deletedBy, reason) => {
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(entriesRef, where('id', '==', entryId));
   const snapshot = await getDocs(q);
 
@@ -656,7 +660,7 @@ export const getWeeklyTimesheet = async (contractorId, techId, weekStart = new D
   const weekId = getWeekId(weekStart);
 
   // Get time entries for the week
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -718,7 +722,7 @@ export const getWeeklyTimesheet = async (contractorId, techId, weekStart = new D
   const regularMs = weeklyTotals.totalWorkMs - overtimeMs;
 
   // Check for existing timesheet record
-  const timesheetRef = doc(db, 'contractors', contractorId, 'timesheets', `${techId}-${weekId}`);
+  const timesheetRef = doc(db, getContractorPath(contractorId), 'timesheets', `${techId}-${weekId}`);
   const timesheetSnap = await getDoc(timesheetRef);
   const existingTimesheet = timesheetSnap.exists() ? timesheetSnap.data() : null;
 
@@ -750,7 +754,7 @@ export const getWeeklyTimesheet = async (contractorId, techId, weekStart = new D
  * Submit timesheet for approval
  */
 export const submitTimesheet = async (contractorId, techId, weekId, techNotes = '') => {
-  const timesheetRef = doc(db, 'contractors', contractorId, 'timesheets', `${techId}-${weekId}`);
+  const timesheetRef = doc(db, getContractorPath(contractorId), 'timesheets', `${techId}-${weekId}`);
 
   // Get current timesheet data
   const timesheet = await getWeeklyTimesheet(contractorId, techId, new Date(weekId.split('-W')[0], 0, 1 + (parseInt(weekId.split('-W')[1]) - 1) * 7));
@@ -775,7 +779,7 @@ export const submitTimesheet = async (contractorId, techId, weekId, techNotes = 
  * Approve a timesheet
  */
 export const approveTimesheet = async (contractorId, techId, weekId, approvedBy, notes = '') => {
-  const timesheetRef = doc(db, 'contractors', contractorId, 'timesheets', `${techId}-${weekId}`);
+  const timesheetRef = doc(db, getContractorPath(contractorId), 'timesheets', `${techId}-${weekId}`);
 
   await updateDoc(timesheetRef, {
     status: TIMESHEET_STATUS.APPROVED,
@@ -792,7 +796,7 @@ export const approveTimesheet = async (contractorId, techId, weekId, approvedBy,
  * Reject a timesheet
  */
 export const rejectTimesheet = async (contractorId, techId, weekId, rejectedBy, reason) => {
-  const timesheetRef = doc(db, 'contractors', contractorId, 'timesheets', `${techId}-${weekId}`);
+  const timesheetRef = doc(db, getContractorPath(contractorId), 'timesheets', `${techId}-${weekId}`);
 
   await updateDoc(timesheetRef, {
     status: TIMESHEET_STATUS.REJECTED,
@@ -809,7 +813,7 @@ export const rejectTimesheet = async (contractorId, techId, weekId, rejectedBy, 
  * Mark timesheet as paid
  */
 export const markTimesheetPaid = async (contractorId, techId, weekId, paymentDetails = {}) => {
-  const timesheetRef = doc(db, 'contractors', contractorId, 'timesheets', `${techId}-${weekId}`);
+  const timesheetRef = doc(db, getContractorPath(contractorId), 'timesheets', `${techId}-${weekId}`);
 
   await updateDoc(timesheetRef, {
     status: TIMESHEET_STATUS.PAID,
@@ -829,7 +833,7 @@ export const markTimesheetPaid = async (contractorId, techId, weekId, paymentDet
  * Get timesheets for a date range
  */
 export const getTimesheetsByDateRange = async (contractorId, startDate, endDate, techId = null) => {
-  const timesheetsRef = collection(db, 'contractors', contractorId, 'timesheets');
+  const timesheetsRef = collection(db, getContractorPath(contractorId), 'timesheets');
 
   let q;
   if (techId) {
@@ -857,7 +861,7 @@ export const getTimesheetsByDateRange = async (contractorId, startDate, endDate,
  * Get all pending timesheets for approval
  */
 export const getPendingTimesheets = async (contractorId) => {
-  const timesheetsRef = collection(db, 'contractors', contractorId, 'timesheets');
+  const timesheetsRef = collection(db, getContractorPath(contractorId), 'timesheets');
   const q = query(
     timesheetsRef,
     where('status', '==', TIMESHEET_STATUS.SUBMITTED),
@@ -882,7 +886,7 @@ export const exportTimesheetsCSV = async (contractorId, options = {}) => {
   } = options;
 
   // Get all time entries for the range
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   let q;
 
   if (techId) {
@@ -1039,7 +1043,7 @@ export const calculatePayroll = async (contractorId, techId, weekId, hourlyRate,
  */
 export const getPayrollSummary = async (contractorId, weekId, techRates = {}) => {
   // Get all techs
-  const techsRef = collection(db, 'contractors', contractorId, 'team');
+  const techsRef = collection(db, getContractorPath(contractorId), 'team');
   const techsSnapshot = await getDocs(techsRef);
   const techs = techsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
@@ -1090,7 +1094,7 @@ export const getPayrollSummary = async (contractorId, weekId, techRates = {}) =>
  * Subscribe to tech status changes
  */
 export const subscribeToTechStatus = (contractorId, techId, callback) => {
-  const statusRef = doc(db, 'contractors', contractorId, 'techStatus', techId);
+  const statusRef = doc(db, getContractorPath(contractorId), 'techStatus', techId);
   return onSnapshot(statusRef, (snapshot) => {
     callback(snapshot.exists() ? snapshot.data() : null);
   });
@@ -1100,7 +1104,7 @@ export const subscribeToTechStatus = (contractorId, techId, callback) => {
  * Subscribe to active time entry
  */
 export const subscribeToActiveEntry = (contractorId, techId, callback) => {
-  const entriesRef = collection(db, 'contractors', contractorId, 'timeEntries');
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
   const q = query(
     entriesRef,
     where('techId', '==', techId),
@@ -1120,7 +1124,7 @@ export const subscribeToActiveEntry = (contractorId, techId, callback) => {
  * Subscribe to pending timesheets
  */
 export const subscribeToPendingTimesheets = (contractorId, callback) => {
-  const timesheetsRef = collection(db, 'contractors', contractorId, 'timesheets');
+  const timesheetsRef = collection(db, getContractorPath(contractorId), 'timesheets');
   const q = query(
     timesheetsRef,
     where('status', '==', TIMESHEET_STATUS.SUBMITTED),

@@ -17,7 +17,10 @@ import {
     writeBatch
 } from 'firebase/firestore';
 import { db, storage } from '../../../config/firebase';
-import { REQUESTS_COLLECTION_PATH, appId } from '../../../config/constants';
+import { REQUESTS_COLLECTION_PATH, CONTRACTORS_COLLECTION_PATH, appId } from '../../../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ============================================
 // CONSTANTS
@@ -236,7 +239,7 @@ export const validatePhotoRequirements = (photos = [], requirements = {}, action
  */
 export const getPhotoRequirements = async (contractorId) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         const contractorSnap = await getDoc(contractorRef);
 
         if (!contractorSnap.exists()) {

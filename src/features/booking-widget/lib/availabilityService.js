@@ -14,6 +14,10 @@ import {
     getDocs,
     Timestamp
 } from 'firebase/firestore';
+import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ============================================
 // CONSTANTS
@@ -116,7 +120,7 @@ const rangesOverlap = (start1, end1, start2, end2) => {
  */
 export const getBookingSettings = async (contractorId) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         const contractorDoc = await getDoc(contractorRef);
 
         if (!contractorDoc.exists()) {
@@ -146,7 +150,7 @@ export const getBookingSettings = async (contractorId) => {
  */
 export const getScheduledJobs = async (contractorId, startDate, endDate) => {
     try {
-        const jobsRef = collection(db, 'contractors', contractorId, 'jobs');
+        const jobsRef = collection(db, getContractorPath(contractorId), 'jobs');
 
         // Query for jobs within date range
         const q = query(
@@ -385,7 +389,7 @@ export const getNextAvailableDates = async (contractorId, count = 5) => {
 export const updateBookingSettings = async (contractorId, settings) => {
     try {
         const { updateDoc, serverTimestamp } = await import('firebase/firestore');
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
 
         await updateDoc(contractorRef, {
             bookingWidget: settings,

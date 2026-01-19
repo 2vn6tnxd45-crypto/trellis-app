@@ -7,6 +7,10 @@
 
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { CONTRACTORS_COLLECTION_PATH } from '../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ============================================
 // CONSTANTS
@@ -609,7 +613,7 @@ export const formatAppointmentTime = (time) => {
  */
 export const getSMSSettings = async (contractorId) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         const contractorDoc = await getDoc(contractorRef);
 
         if (contractorDoc.exists()) {
@@ -631,7 +635,7 @@ export const getSMSSettings = async (contractorId) => {
  */
 export const updateSMSSettings = async (contractorId, settings) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         await updateDoc(contractorRef, {
             smsSettings: settings,
             updatedAt: serverTimestamp()

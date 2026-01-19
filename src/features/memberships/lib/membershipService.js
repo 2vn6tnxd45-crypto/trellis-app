@@ -18,6 +18,10 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
+import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ===========================================
 // PLAN MANAGEMENT
@@ -27,7 +31,7 @@ import { db } from '../../../config/firebase';
  * Create a new membership plan
  */
 export const createPlan = async (contractorId, planData) => {
-  const plansRef = collection(db, 'contractors', contractorId, 'membershipPlans');
+  const plansRef = collection(db, getContractorPath(contractorId), 'membershipPlans');
 
   const plan = {
     ...planData,
@@ -47,7 +51,7 @@ export const createPlan = async (contractorId, planData) => {
  * Update an existing membership plan
  */
 export const updatePlan = async (contractorId, planId, updates) => {
-  const planRef = doc(db, 'contractors', contractorId, 'membershipPlans', planId);
+  const planRef = doc(db, getContractorPath(contractorId), 'membershipPlans', planId);
 
   const updateData = {
     ...updates,
@@ -62,7 +66,7 @@ export const updatePlan = async (contractorId, planId, updates) => {
  * Get a single membership plan
  */
 export const getPlan = async (contractorId, planId) => {
-  const planRef = doc(db, 'contractors', contractorId, 'membershipPlans', planId);
+  const planRef = doc(db, getContractorPath(contractorId), 'membershipPlans', planId);
   const planSnap = await getDoc(planRef);
 
   if (!planSnap.exists()) {
@@ -76,7 +80,7 @@ export const getPlan = async (contractorId, planId) => {
  * Get all membership plans for a contractor
  */
 export const getPlans = async (contractorId, includeInactive = false) => {
-  const plansRef = collection(db, 'contractors', contractorId, 'membershipPlans');
+  const plansRef = collection(db, getContractorPath(contractorId), 'membershipPlans');
 
   let q = query(plansRef, orderBy('createdAt', 'desc'));
 
@@ -92,7 +96,7 @@ export const getPlans = async (contractorId, includeInactive = false) => {
  * Delete (deactivate) a membership plan
  */
 export const deletePlan = async (contractorId, planId) => {
-  const planRef = doc(db, 'contractors', contractorId, 'membershipPlans', planId);
+  const planRef = doc(db, getContractorPath(contractorId), 'membershipPlans', planId);
 
   // Soft delete - just mark as inactive
   await updateDoc(planRef, {
@@ -109,7 +113,7 @@ export const deletePlan = async (contractorId, planId) => {
  * Create a new customer membership
  */
 export const createMembership = async (contractorId, membershipData) => {
-  const membershipsRef = collection(db, 'contractors', contractorId, 'memberships');
+  const membershipsRef = collection(db, getContractorPath(contractorId), 'memberships');
 
   // Get the plan details
   const plan = await getPlan(contractorId, membershipData.planId);
@@ -180,7 +184,7 @@ export const createMembership = async (contractorId, membershipData) => {
   const docRef = await addDoc(membershipsRef, membership);
 
   // Update plan member count
-  const planRef = doc(db, 'contractors', contractorId, 'membershipPlans', membershipData.planId);
+  const planRef = doc(db, getContractorPath(contractorId), 'membershipPlans', membershipData.planId);
   const planSnap = await getDoc(planRef);
   if (planSnap.exists()) {
     await updateDoc(planRef, {
@@ -196,7 +200,7 @@ export const createMembership = async (contractorId, membershipData) => {
  * Get a single membership
  */
 export const getMembership = async (contractorId, membershipId) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {
@@ -210,7 +214,7 @@ export const getMembership = async (contractorId, membershipId) => {
  * Get all memberships for a contractor
  */
 export const getMemberships = async (contractorId, filters = {}) => {
-  const membershipsRef = collection(db, 'contractors', contractorId, 'memberships');
+  const membershipsRef = collection(db, getContractorPath(contractorId), 'memberships');
 
   let q = query(membershipsRef, orderBy('createdAt', 'desc'));
 
@@ -242,7 +246,7 @@ export const getMemberships = async (contractorId, filters = {}) => {
  * Get active membership for a specific customer
  */
 export const getMembershipForCustomer = async (contractorId, customerId) => {
-  const membershipsRef = collection(db, 'contractors', contractorId, 'memberships');
+  const membershipsRef = collection(db, getContractorPath(contractorId), 'memberships');
 
   const q = query(
     membershipsRef,
@@ -269,7 +273,7 @@ export const getMembershipForCustomer = async (contractorId, customerId) => {
  * Cancel a membership
  */
 export const cancelMembership = async (contractorId, membershipId, reason = '') => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {
@@ -286,7 +290,7 @@ export const cancelMembership = async (contractorId, membershipId, reason = '') 
   });
 
   // Update plan member count
-  const planRef = doc(db, 'contractors', contractorId, 'membershipPlans', membership.planId);
+  const planRef = doc(db, getContractorPath(contractorId), 'membershipPlans', membership.planId);
   const planSnap = await getDoc(planRef);
   if (planSnap.exists()) {
     await updateDoc(planRef, {
@@ -302,7 +306,7 @@ export const cancelMembership = async (contractorId, membershipId, reason = '') 
  * Renew a membership
  */
 export const renewMembership = async (contractorId, membershipId) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {
@@ -341,7 +345,7 @@ export const renewMembership = async (contractorId, membershipId) => {
  * Update membership (for general updates)
  */
 export const updateMembership = async (contractorId, membershipId, updates) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
 
   await updateDoc(membershipRef, {
     ...updates,
@@ -359,7 +363,7 @@ export const updateMembership = async (contractorId, membershipId, updates) => {
  * Apply membership discount to a job/quote
  */
 export const applyMembershipDiscount = async (contractorId, membershipId, jobId, originalTotal) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {
@@ -404,7 +408,7 @@ export const applyMembershipDiscount = async (contractorId, membershipId, jobId,
  * Waive a fee (diagnostic fee, trip fee, etc.)
  */
 export const waiveFee = async (contractorId, membershipId, jobId, feeType, feeAmount) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {
@@ -436,7 +440,7 @@ export const waiveFee = async (contractorId, membershipId, jobId, feeType, feeAm
  * Record usage of an included service
  */
 export const recordServiceUsage = async (contractorId, membershipId, serviceType, jobId) => {
-  const membershipRef = doc(db, 'contractors', contractorId, 'memberships', membershipId);
+  const membershipRef = doc(db, getContractorPath(contractorId), 'memberships', membershipId);
   const membershipSnap = await getDoc(membershipRef);
 
   if (!membershipSnap.exists()) {

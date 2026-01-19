@@ -18,6 +18,10 @@ import {
     orderBy,
     serverTimestamp
 } from 'firebase/firestore';
+import { CONTRACTORS_COLLECTION_PATH } from '../config/constants';
+
+// Helper to get the correct contractor path
+const getContractorPath = (contractorId) => `${CONTRACTORS_COLLECTION_PATH}/${contractorId}`;
 
 // ============================================
 // CONSTANTS
@@ -253,7 +257,7 @@ export const getApplicationStatus = async (applicationId) => {
  */
 export const getFinancingSettings = async (contractorId) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         const contractorDoc = await getDoc(contractorRef);
 
         if (!contractorDoc.exists()) {
@@ -279,7 +283,7 @@ export const getFinancingSettings = async (contractorId) => {
  */
 export const updateFinancingSettings = async (contractorId, settings) => {
     try {
-        const contractorRef = doc(db, 'contractors', contractorId);
+        const contractorRef = doc(db, getContractorPath(contractorId));
         await updateDoc(contractorRef, {
             financing: settings,
             updatedAt: serverTimestamp()
@@ -299,7 +303,7 @@ export const updateFinancingSettings = async (contractorId, settings) => {
  */
 export const updateQuoteFinancing = async (quoteId, contractorId, financingData) => {
     try {
-        const quoteRef = doc(db, 'contractors', contractorId, 'quotes', quoteId);
+        const quoteRef = doc(db, getContractorPath(contractorId), 'quotes', quoteId);
         await updateDoc(quoteRef, {
             financing: financingData,
             updatedAt: serverTimestamp()
