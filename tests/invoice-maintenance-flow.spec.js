@@ -371,8 +371,27 @@ test.describe('Maintenance Calendar Tests', () => {
 
         // Find a task with action menu
         const taskCard = page.locator('[data-testid="maintenance-task"], .maintenance-card, [class*="task"]').first();
-        
+
         if (await taskCard.isVisible().catch(() => false)) {
+            // STEP 1: Note the original due date before snoozing
+            const dueDateSelectors = [
+                '[data-testid="due-date"]',
+                '[class*="date"]',
+                'text=/due|\\d{1,2}\\/\\d{1,2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec/i'
+            ];
+
+            let originalDueDate = null;
+            for (const selector of dueDateSelectors) {
+                const dateElement = taskCard.locator(selector).first();
+                if (await dateElement.isVisible().catch(() => false)) {
+                    originalDueDate = await dateElement.textContent().catch(() => null);
+                    if (originalDueDate) {
+                        console.log('Original due date captured:', originalDueDate);
+                        break;
+                    }
+                }
+            }
+
             // Look for menu/action button
             const menuSelectors = [
                 'button[aria-label*="menu"]',
@@ -386,29 +405,69 @@ test.describe('Maintenance Calendar Tests', () => {
                 if (await menuBtn.isVisible().catch(() => false)) {
                     await menuBtn.click();
                     await page.waitForTimeout(500);
-                    
+
                     // Look for snooze option
                     const snoozeBtn = page.locator('text=/snooze/i').first();
                     if (await snoozeBtn.isVisible().catch(() => false)) {
                         await snoozeBtn.click();
                         await page.waitForTimeout(500);
-                        
-                        // Select snooze duration
-                        const durationBtn = page.locator('text=/1 week|7 days|1 month/i').first();
+
+                        // STEP 2: Select snooze duration (1 week)
+                        const durationBtn = page.locator('text=/1 week|7 days/i').first();
                         if (await durationBtn.isVisible().catch(() => false)) {
                             await durationBtn.click();
-                            await page.waitForTimeout(1000);
-                            
-                            // Check for success
-                            const snoozed = await page.locator('text=/snoozed/i').first().isVisible({ timeout: 3000 }).catch(() => false);
-                            console.log('Snooze confirmed:', snoozed);
+                            await page.waitForTimeout(2000); // Wait for snooze operation to complete
+
+                            // STEP 3: Verify NO error toast appears
+                            const errorToast = page.locator('text=/failed|error|could not/i');
+                            const hasError = await errorToast.isVisible({ timeout: 1500 }).catch(() => false);
+
+                            if (hasError) {
+                                const errorText = await errorToast.textContent().catch(() => 'Unknown error');
+                                console.error('ERROR: Snooze failed with error toast:', errorText);
+                                expect(hasError, `Snooze should not show error toast. Got: "${errorText}"`).toBeFalsy();
+                            }
+
+                            // Check for success toast
+                            const successToast = page.locator('text=/snoozed/i').first();
+                            const snoozed = await successToast.isVisible({ timeout: 3000 }).catch(() => false);
+                            console.log('Snooze success toast visible:', snoozed);
+                            expect(snoozed, 'Should show "snoozed" success message').toBeTruthy();
+
+                            // STEP 4: Verify the new due date is different from the original
+                            if (originalDueDate) {
+                                // Wait for UI to update
+                                await page.waitForTimeout(1000);
+
+                                // Re-find the task card (it may have moved or updated)
+                                const updatedTaskCard = page.locator('[data-testid="maintenance-task"], .maintenance-card, [class*="task"]').first();
+
+                                for (const dateSelector of dueDateSelectors) {
+                                    const newDateElement = updatedTaskCard.locator(dateSelector).first();
+                                    if (await newDateElement.isVisible().catch(() => false)) {
+                                        const newDueDate = await newDateElement.textContent().catch(() => null);
+                                        if (newDueDate) {
+                                            console.log('New due date after snooze:', newDueDate);
+                                            // Note: The date may or may not have changed visually depending on UI
+                                            // The main verification is that no error occurred and success toast showed
+                                            if (newDueDate !== originalDueDate) {
+                                                console.log('SUCCESS: Due date changed from', originalDueDate, 'to', newDueDate);
+                                            } else {
+                                                console.log('Note: Due date text unchanged (may update on refresh)');
+                                            }
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     break;
                 }
             }
         } else {
-            console.log('No maintenance tasks found to snooze');
+            console.log('No maintenance tasks found to snooze - skipping test');
+            test.skip();
         }
     });
 

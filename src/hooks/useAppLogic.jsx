@@ -613,10 +613,13 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
 
         try {
             if (!task.recordId) { toast.error("Could not update - missing record ID"); return; }
-            // Use helper to get correct path (supports both old and new structures)
-            const recordRef = getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId);
             const record = records.find(r => r.id === task.recordId);
             if (!record) return;
+
+            // FIX: Use record.propertyId (source of truth) instead of task.propertyId
+            // This ensures we use the correct path for records that may exist in old house_records
+            const propertyIdForPath = record.propertyId || null;
+            const recordRef = getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath);
 
             debug.log('[DEBUG] Found record:', {
                 recordId: record.id,
@@ -813,22 +816,24 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 return;
             }
 
+            // FIX: Use record.propertyId (source of truth) instead of task.propertyId
+            // This ensures we use the correct path for records that may exist in old house_records
+            const propertyIdForPath = record.propertyId || null;
+
             // For granular tasks, remove from maintenanceTasks array
             if (task.isGranular && record.maintenanceTasks) {
                 const updatedTasks = record.maintenanceTasks.filter(t => t.task !== task.taskName);
 
-                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     { maintenanceTasks: updatedTasks }
                 );
 
                 toast.success(`"${task.taskName}" deleted`, { icon: '🗑️' });
             } else {
                 // For non-granular (record-level) tasks, set frequency to 'none'
-                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     { maintenanceFrequency: 'none', nextServiceDate: null }
                 );
 
@@ -859,6 +864,10 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 return;
             }
 
+            // FIX: Use record.propertyId (source of truth) instead of task.propertyId
+            // This ensures we use the correct path for records that may exist in old house_records
+            const propertyIdForPath = record.propertyId || null;
+
             // For granular tasks, update the specific task in maintenanceTasks array
             if (task.isGranular && record.maintenanceTasks) {
                 const updatedTasks = record.maintenanceTasks.map(t => {
@@ -874,16 +883,14 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     return t;
                 });
 
-                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     { maintenanceTasks: updatedTasks }
                 );
             } else {
                 // For non-granular tasks, store at record level
-                // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     {
                         scheduledDate: scheduledDate,
                         scheduledNotes: notes || null,
@@ -908,7 +915,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     const handleSnoozeTask = useCallback(async (task, days) => {
         try {
             debug.log('[App] Snoozing task:', { task, days });
-            
+
             if (!task.recordId) {
                 debug.error('[App] Snooze task failed: Missing recordId');
                 toast.error("Cannot snooze: Missing record ID");
@@ -916,12 +923,16 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const record = records.find(r => r.id === task.recordId);
-            
+
             if (!record) {
                 debug.error(`[App] Snooze task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
                 return;
             }
+
+            // FIX: Use record.propertyId (source of truth) instead of task.propertyId
+            // This ensures we use the correct path for records that may exist in old house_records
+            const propertyIdForPath = record.propertyId || null;
 
             // Calculate new due date
             const currentDue = task.nextDate ? new Date(task.nextDate) : new Date();
@@ -948,14 +959,14 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
 
                 // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     { maintenanceTasks: updatedTasks }
                 );
             } else {
                 // For non-granular tasks, update at record level
                 // Use helper to get correct path (supports both old and new structures)
                 await updateDoc(
-                    getRecordDocRef(db, appId, user.uid, task.recordId, task.propertyId),
+                    getRecordDocRef(db, appId, user.uid, task.recordId, propertyIdForPath),
                     {
                         nextServiceDate: newDueDate,
                         snoozedUntil: newDueDate,
