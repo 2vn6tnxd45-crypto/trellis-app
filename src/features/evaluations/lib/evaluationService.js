@@ -216,13 +216,18 @@ export const createEvaluationRequest = async (contractorId, evaluationData) => {
         
         await setDoc(newEvalRef, evaluation);
 
-        // Try to add to homeowner's pending evaluations if they're an existing user
+        // Get contractor profile for display name and email
+        let contractorProfile = null;
         try {
-            // Get contractor profile for display name
             const contractorRef = doc(db, 'artifacts', appId, 'public', 'data', 'contractors', contractorId);
             const contractorSnap = await getDoc(contractorRef);
-            const contractorProfile = contractorSnap.exists() ? contractorSnap.data() : null;
+            contractorProfile = contractorSnap.exists() ? contractorSnap.data() : null;
+        } catch (err) {
+            console.warn('[createEvaluationRequest] Could not fetch contractor profile:', err);
+        }
 
+        // Try to add to homeowner's pending evaluations if they're an existing user
+        try {
             await addPendingEvaluationToHomeowner(
                 evaluationData.customerEmail,
                 evaluation,
@@ -231,6 +236,34 @@ export const createEvaluationRequest = async (contractorId, evaluationData) => {
         } catch (homeownerError) {
             console.warn('[createEvaluationRequest] Could not notify homeowner:', homeownerError);
             // Non-critical, don't fail the evaluation creation
+        }
+
+        // Send email notification to customer (non-blocking)
+        if (evaluationData.customerEmail) {
+            try {
+                const evaluationLink = `${window.location.origin}/app?evaluate=${newEvalRef.id}&contractor=${contractorId}`;
+                const contractorName = contractorProfile?.profile?.companyName || contractorProfile?.companyName || 'Your Contractor';
+                const contractorPhone = contractorProfile?.profile?.phone || contractorProfile?.phone || '';
+
+                await fetch('/api/send-evaluation-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customerEmail: evaluationData.customerEmail,
+                        customerName: evaluationData.customerName || '',
+                        contractorName,
+                        contractorPhone,
+                        jobDescription: evaluationData.jobDescription || '',
+                        evaluationType: evaluationData.type || EVALUATION_TYPES.VIRTUAL,
+                        evaluationLink,
+                        expiresAt: expiresAt.toISOString()
+                    })
+                });
+                console.log('[createEvaluationRequest] Email sent to customer');
+            } catch (emailError) {
+                console.warn('[createEvaluationRequest] Could not send email:', emailError);
+                // Non-critical, don't fail the evaluation creation
+            }
         }
 
         return { evaluationId: newEvalRef.id, evaluation };
