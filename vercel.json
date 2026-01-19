@@ -11,6 +11,14 @@
     {
       "source": "/home/(.*)",
       "destination": "/home/index.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/app/(.*)",
+      "destination": "/index.html"
     }
   ],
   "crons": [
