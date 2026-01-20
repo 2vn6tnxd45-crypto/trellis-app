@@ -291,6 +291,202 @@ export const getMultiDaySummary = (multiDaySchedule) => {
     return `${multiDaySchedule.totalDays} days (${totalHours}hrs) • ${formatDate(startDate)} - ${formatDate(endDate)}`;
 };
 
+/**
+ * Check crew member availability across all days of a multi-day job
+ * @param {Array} segments - Day segments from generateDaySegments
+ * @param {Array} teamMembers - Team members with workingHours
+ * @param {Array} existingJobs - Existing scheduled jobs to check conflicts
+ * @returns {Map<string, {available: boolean, unavailableDays: Array, conflicts: Array}>}
+ */
+export const checkCrewMultiDayAvailability = (segments, teamMembers, existingJobs = []) => {
+    const availability = new Map();
+
+    for (const member of teamMembers) {
+        const unavailableDays = [];
+        const conflicts = [];
+
+        for (const segment of segments) {
+            const segmentDate = new Date(segment.date);
+            const dayName = segmentDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+            // Check if member works on this day
+            const dayConfig = member.workingHours?.[dayName];
+            if (dayConfig?.enabled === false) {
+                unavailableDays.push({
+                    date: segment.date,
+                    dayNumber: segment.dayNumber,
+                    reason: 'day_off',
+                    message: `Off on ${dayName}s`
+                });
+                continue;
+            }
+
+            // Check for existing job conflicts on this day
+            const memberJobs = existingJobs.filter(job => {
+                if (!job.assignedTechId && !job.assignedCrewIds?.includes(member.id)) return false;
+                if (job.assignedTechId !== member.id && !job.assignedCrewIds?.includes(member.id)) return false;
+
+                const jobDate = job.scheduledTime || job.scheduledDate;
+                if (!jobDate) return false;
+
+                const jobDateObj = new Date(jobDate);
+                const jobDateStr = getLocalDateString(jobDateObj);
+                return jobDateStr === segment.date;
+            });
+
+            if (memberJobs.length > 0) {
+                // Check for actual time conflicts
+                const segmentStart = parseTimeToMinutes(segment.startTime);
+                const segmentEnd = parseTimeToMinutes(segment.endTime);
+
+                for (const job of memberJobs) {
+                    const jobTime = new Date(job.scheduledTime || job.scheduledDate);
+                    const jobStart = jobTime.getHours() * 60 + jobTime.getMinutes();
+                    const jobDuration = job.estimatedDuration || 120;
+                    const jobEnd = jobStart + jobDuration;
+
+                    // Check for overlap
+                    if (!(segmentEnd <= jobStart || segmentStart >= jobEnd)) {
+                        conflicts.push({
+                            date: segment.date,
+                            dayNumber: segment.dayNumber,
+                            jobId: job.id,
+                            jobTitle: job.title || job.description,
+                            customer: job.customer?.name || job.customerName,
+                            time: `${formatMinutesToTime(jobStart)} - ${formatMinutesToTime(jobEnd)}`
+                        });
+                    }
+                }
+            }
+
+            // Check for PTO/time off (if member has timeOff array)
+            if (member.timeOff?.length) {
+                const segmentDateStr = segment.date;
+                const hasTimeOff = member.timeOff.some(to => {
+                    const startDate = to.startDate?.split('T')[0];
+                    const endDate = to.endDate?.split('T')[0];
+                    return segmentDateStr >= startDate && segmentDateStr <= endDate;
+                });
+
+                if (hasTimeOff) {
+                    unavailableDays.push({
+                        date: segment.date,
+                        dayNumber: segment.dayNumber,
+                        reason: 'time_off',
+                        message: 'Scheduled time off'
+                    });
+                }
+            }
+        }
+
+        availability.set(member.id, {
+            memberId: member.id,
+            memberName: member.name,
+            available: unavailableDays.length === 0 && conflicts.length === 0,
+            fullyAvailable: unavailableDays.length === 0 && conflicts.length === 0,
+            partiallyAvailable: unavailableDays.length > 0 || conflicts.length > 0,
+            unavailableDays,
+            conflicts,
+            availableDayCount: segments.length - unavailableDays.length - conflicts.filter(c =>
+                !unavailableDays.some(u => u.date === c.date)
+            ).length
+        });
+    }
+
+    return availability;
+};
+
+/**
+ * Format minutes to time string
+ */
+const formatMinutesToTime = (minutes) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour = h % 12 || 12;
+    return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+};
+
+/**
+ * Get crew assignment summary for a multi-day job
+ * Shows which crew is available for which days
+ * @param {Array} segments - Day segments
+ * @param {Array} selectedCrewIds - Selected crew member IDs
+ * @param {Map} availabilityMap - Result from checkCrewMultiDayAvailability
+ * @param {number} requiredCrewSize - Minimum crew size needed
+ * @returns {Object} Summary with warnings and per-day breakdown
+ */
+export const getMultiDayCrewSummary = (segments, selectedCrewIds, availabilityMap, requiredCrewSize) => {
+    const dayBreakdown = [];
+    const warnings = [];
+    let hasShortage = false;
+
+    for (const segment of segments) {
+        const availableCrewForDay = selectedCrewIds.filter(crewId => {
+            const crewAvail = availabilityMap.get(crewId);
+            if (!crewAvail) return true; // Assume available if no data
+
+            // Check if unavailable on this specific day
+            const unavailOnDay = crewAvail.unavailableDays.some(u => u.date === segment.date);
+            const conflictOnDay = crewAvail.conflicts.some(c => c.date === segment.date);
+
+            return !unavailOnDay && !conflictOnDay;
+        });
+
+        const shortage = requiredCrewSize - availableCrewForDay.length;
+
+        dayBreakdown.push({
+            date: segment.date,
+            dayNumber: segment.dayNumber,
+            availableCrewIds: availableCrewForDay,
+            availableCount: availableCrewForDay.length,
+            shortage: shortage > 0 ? shortage : 0,
+            meetsRequirement: availableCrewForDay.length >= requiredCrewSize
+        });
+
+        if (shortage > 0) {
+            hasShortage = true;
+            warnings.push({
+                type: 'crew_shortage',
+                dayNumber: segment.dayNumber,
+                date: segment.date,
+                message: `Day ${segment.dayNumber}: Only ${availableCrewForDay.length}/${requiredCrewSize} crew available`,
+                shortage
+            });
+        }
+    }
+
+    return {
+        dayBreakdown,
+        warnings,
+        hasShortage,
+        allDaysMeetRequirement: !hasShortage,
+        totalDays: segments.length,
+        daysWithFullCrew: dayBreakdown.filter(d => d.meetsRequirement).length
+    };
+};
+
+/**
+ * Create per-day crew assignment object for flexible multi-day scheduling
+ * @param {Array} segments - Day segments
+ * @param {Array} defaultCrewIds - Default crew to assign to all days
+ * @returns {Object} Per-day crew assignment map
+ */
+export const createPerDayCrewAssignment = (segments, defaultCrewIds = []) => {
+    const assignment = {};
+
+    for (const segment of segments) {
+        assignment[segment.date] = {
+            dayNumber: segment.dayNumber,
+            crewIds: [...defaultCrewIds],
+            startTime: segment.startTime,
+            endTime: segment.endTime
+        };
+    }
+
+    return assignment;
+};
+
 export default {
     calculateDaysNeeded,
     isMultiDayJob,
@@ -302,5 +498,8 @@ export default {
     formatSegmentDisplay,
     getMultiDayLabel,
     jobIsMultiDay,
-    getMultiDaySummary
+    getMultiDaySummary,
+    checkCrewMultiDayAvailability,
+    getMultiDayCrewSummary,
+    createPerDayCrewAssignment
 };

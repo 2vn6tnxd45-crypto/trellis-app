@@ -5,7 +5,7 @@
 // Assign jobs to team members and view workload distribution
 
 import React, { useState, useMemo } from 'react';
-import { 
+import {
     Users, User, Calendar, Clock, MapPin,
     ChevronDown, ChevronUp, Check, AlertCircle,
     Briefcase, TrendingUp, Filter
@@ -14,6 +14,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
+import { getAssignedTechIds, assignCrewToJob, removeTechFromCrew, createCrewMember } from '../lib/crewService';
 
 // ============================================
 // WORKLOAD CHART
@@ -23,7 +24,7 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
     // Calculate workload per team member
     const workload = useMemo(() => {
         const stats = {};
-        
+
         // Initialize all team members
         teamMembers.forEach(member => {
             stats[member.id] = {
@@ -34,7 +35,7 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
                 jobs: []
             };
         });
-        
+
         // Add unassigned bucket
         stats['unassigned'] = {
             member: { id: 'unassigned', name: 'Unassigned', color: '#94A3B8' },
@@ -43,23 +44,34 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
             totalRevenue: 0,
             jobs: []
         };
-        
+
         // Count jobs
         jobs.forEach(job => {
-            const assignee = job.assignedTo || 'unassigned';
-            if (stats[assignee]) {
-                stats[assignee].jobCount++;
-                stats[assignee].totalMinutes += job.estimatedDuration || 120;
-                stats[assignee].totalRevenue += job.total || 0;
-                stats[assignee].jobs.push(job);
+            const assignedTechIds = getAssignedTechIds(job);
+
+            if (assignedTechIds.length > 0) {
+                // Job is assigned to one or more techs
+                assignedTechIds.forEach(techId => {
+                    if (stats[techId]) {
+                        stats[techId].jobCount++;
+                        // For multi-tech jobs, we might want to split or duplicate stats.
+                        // Duplicating for now to show load on schedule.
+                        stats[techId].totalMinutes += job.estimatedDuration || 120;
+
+                        // Revenue might be split, but usually we just show total value associated
+                        stats[techId].totalRevenue += job.total || 0;
+                        stats[techId].jobs.push(job);
+                    }
+                });
             } else {
+                // Job is completely unassigned
                 stats['unassigned'].jobCount++;
                 stats['unassigned'].totalMinutes += job.estimatedDuration || 120;
                 stats['unassigned'].totalRevenue += job.total || 0;
                 stats['unassigned'].jobs.push(job);
             }
         });
-        
+
         return Object.values(stats);
     }, [teamMembers, jobs]);
 
@@ -70,13 +82,13 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
             {workload.map(({ member, jobCount, totalMinutes, totalRevenue }) => (
                 <div key={member.id} className="flex items-center gap-3">
                     {/* Avatar */}
-                    <div 
+                    <div
                         className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                         style={{ backgroundColor: member.color || '#64748B' }}
                     >
                         {member.name?.charAt(0) || '?'}
                     </div>
-                    
+
                     {/* Name and stats */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
@@ -87,12 +99,12 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
                                 {jobCount} jobs • {Math.round(totalMinutes / 60)}h
                             </span>
                         </div>
-                        
+
                         {/* Bar */}
                         <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                            <div 
+                            <div
                                 className="h-full rounded-full transition-all"
-                                style={{ 
+                                style={{
                                     width: `${(jobCount / maxJobs) * 100}%`,
                                     backgroundColor: member.color || '#64748B'
                                 }}
@@ -138,10 +150,10 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
                                     {job.title || job.description || 'Service'}
                                 </p>
                                 <p className="text-xs text-slate-500">
-                                    {job.scheduledTime 
-                                        ? new Date(job.scheduledTime).toLocaleDateString('en-US', { 
-                                            weekday: 'short', 
-                                            month: 'short', 
+                                    {job.scheduledTime
+                                        ? new Date(job.scheduledTime).toLocaleDateString('en-US', {
+                                            weekday: 'short',
+                                            month: 'short',
                                             day: 'numeric',
                                             hour: 'numeric',
                                             minute: '2-digit'
@@ -153,7 +165,7 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
                         </div>
                         {expandedJob === job.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
-                    
+
                     {expandedJob === job.id && (
                         <div className="p-3 pt-0 border-t border-slate-100">
                             <p className="text-xs font-medium text-slate-500 mb-2">Assign to:</p>
@@ -164,7 +176,7 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
                                         onClick={() => onAssign(job.id, member.id)}
                                         className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
                                     >
-                                        <div 
+                                        <div
                                             className="w-4 h-4 rounded-full"
                                             style={{ backgroundColor: member.color || '#64748B' }}
                                         />
@@ -186,7 +198,7 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
 
 const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
     const [expanded, setExpanded] = useState(false);
-    
+
     // Sort jobs by time
     const sortedJobs = [...jobs].sort((a, b) => {
         const timeA = new Date(a.scheduledTime || a.scheduledDate || 0);
@@ -204,7 +216,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                 className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
             >
                 <div className="flex items-center gap-3">
-                    <div 
+                    <div
                         className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
                         style={{ backgroundColor: member.color || '#64748B' }}
                     >
@@ -215,7 +227,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                         <p className="text-xs text-slate-500">{member.role || 'Technician'}</p>
                     </div>
                 </div>
-                
+
                 <div className="flex items-center gap-4">
                     <div className="text-right">
                         <p className="text-sm font-bold text-slate-800">{jobs.length} jobs</p>
@@ -224,7 +236,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                     {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </div>
             </button>
-            
+
             {expanded && (
                 <div className="border-t border-slate-100">
                     {sortedJobs.length === 0 ? (
@@ -242,10 +254,10 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                                         <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
                                             <Clock size={10} />
                                             <span>
-                                                {job.scheduledTime 
-                                                    ? new Date(job.scheduledTime).toLocaleTimeString('en-US', { 
-                                                        hour: 'numeric', 
-                                                        minute: '2-digit' 
+                                                {job.scheduledTime
+                                                    ? new Date(job.scheduledTime).toLocaleTimeString('en-US', {
+                                                        hour: 'numeric',
+                                                        minute: '2-digit'
                                                     })
                                                     : 'TBD'
                                                 }
@@ -259,7 +271,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => onUnassign(job.id)}
+                                        onClick={() => onUnassign(job.id, member.id)}
                                         className="px-2 py-1 text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                     >
                                         Remove
@@ -268,7 +280,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                             ))}
                         </div>
                     )}
-                    
+
                     {/* Summary */}
                     <div className="p-3 bg-slate-50 flex items-center justify-between text-sm">
                         <span className="text-slate-500">Total Revenue</span>
@@ -284,8 +296,8 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
 // MAIN TECH ASSIGNMENT PANEL
 // ============================================
 
-export const TechAssignmentPanel = ({ 
-    jobs = [], 
+export const TechAssignmentPanel = ({
+    jobs = [],
     teamMembers = [],
     onJobUpdate
 }) => {
@@ -296,33 +308,42 @@ export const TechAssignmentPanel = ({
         const assigned = [];
         const unassigned = [];
         const byMember = {};
-        
+
         // Initialize member buckets
         teamMembers.forEach(m => {
             byMember[m.id] = [];
         });
-        
+
         jobs.forEach(job => {
             if (['completed', 'cancelled'].includes(job.status)) return;
-            
-            if (job.assignedTo && byMember[job.assignedTo]) {
+
+            const assignedTechIds = getAssignedTechIds(job);
+
+            if (assignedTechIds.length > 0) {
                 assigned.push(job);
-                byMember[job.assignedTo].push(job);
+                assignedTechIds.forEach(techId => {
+                    if (byMember[techId]) {
+                        byMember[techId].push(job);
+                    }
+                });
             } else {
                 unassigned.push(job);
             }
         });
-        
+
         return { assignedJobs: assigned, unassignedJobs: unassigned, jobsByMember: byMember };
     }, [jobs, teamMembers]);
 
     // Handle assignment
     const handleAssign = async (jobId, memberId) => {
+        const member = teamMembers.find(m => m.id === memberId);
+        if (!member) return;
+
         try {
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, jobId), {
-                assignedTo: memberId,
-                lastActivity: serverTimestamp()
-            });
+            // Create a new crew with this member as lead
+            const newMember = createCrewMember(member, 'lead');
+            await assignCrewToJob(jobId, [newMember], 'manual');
+
             toast.success('Job assigned!');
             if (onJobUpdate) onJobUpdate();
         } catch (error) {
@@ -332,12 +353,13 @@ export const TechAssignmentPanel = ({
     };
 
     // Handle unassignment
-    const handleUnassign = async (jobId) => {
+    const handleUnassign = async (jobId, memberId) => {
+        // Find the job to get current crew context (needed for removeTechFromCrew logic)
+        const job = jobs.find(j => j.id === jobId);
+        if (!job) return;
+
         try {
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, jobId), {
-                assignedTo: null,
-                lastActivity: serverTimestamp()
-            });
+            await removeTechFromCrew(jobId, job, memberId);
             toast.success('Job unassigned');
             if (onJobUpdate) onJobUpdate();
         } catch (error) {
@@ -374,22 +396,20 @@ export const TechAssignmentPanel = ({
             <div className="flex bg-slate-100 rounded-xl p-1">
                 <button
                     onClick={() => setView('overview')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                        view === 'overview' 
-                            ? 'bg-white text-slate-800 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${view === 'overview'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
                 >
                     <TrendingUp size={14} className="inline mr-2" />
                     Overview
                 </button>
                 <button
                     onClick={() => setView('unassigned')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                        view === 'unassigned' 
-                            ? 'bg-white text-slate-800 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${view === 'unassigned'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
                 >
                     <AlertCircle size={14} className="inline mr-2" />
                     Unassigned
@@ -401,11 +421,10 @@ export const TechAssignmentPanel = ({
                 </button>
                 <button
                     onClick={() => setView('team')}
-                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                        view === 'team' 
-                            ? 'bg-white text-slate-800 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-700'
-                    }`}
+                    className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${view === 'team'
+                        ? 'bg-white text-slate-800 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                        }`}
                 >
                     <Users size={14} className="inline mr-2" />
                     By Team
@@ -416,8 +435,8 @@ export const TechAssignmentPanel = ({
             {view === 'overview' && (
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
                     <h3 className="font-bold text-slate-800 mb-4">Workload Distribution</h3>
-                    <WorkloadChart 
-                        teamMembers={teamMembers} 
+                    <WorkloadChart
+                        teamMembers={teamMembers}
                         jobs={[...assignedJobs, ...unassignedJobs]}
                     />
                 </div>
