@@ -274,12 +274,12 @@ export const HomeownerJobCard = ({
     // Format date for display (Timezone Aware!)
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
-        return formatInTimezone(dateStr, 'EEE, MMM d', displayTimezone);
+        return formatInTimezone(dateStr, displayTimezone, { weekday: 'short', month: 'short', day: 'numeric' });
     };
 
     const formatTime = (dateStr) => {
         if (!dateStr) return '';
-        return formatInTimezone(dateStr, 'h:mm a', displayTimezone);
+        return formatInTimezone(dateStr, displayTimezone, { hour: 'numeric', minute: '2-digit' });
     };
 
     const formatTimeRange = (start, end) => {

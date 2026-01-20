@@ -206,9 +206,13 @@ const EventDetailModal = ({
                                 event.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' :
                                 event.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                                 event.status === 'overdue' ? 'bg-red-100 text-red-700' :
+                                event.status === 'scheduling' ? 'bg-amber-100 text-amber-700' :
+                                event.status === 'slots_offered' ? 'bg-purple-100 text-purple-700' :
                                 'bg-slate-100 text-slate-600'
                             }`}>
-                                {event.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                {event.status === 'scheduling' ? 'Proposed' :
+                                 event.status === 'slots_offered' ? 'Pending Confirmation' :
+                                 event.status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                             </span>
                         </div>
                     )}
@@ -419,16 +423,17 @@ export const UnifiedCalendar = ({
         if (!userId) return;
 
         // Query jobs for this user (both as createdBy and customerId)
+        // Include "scheduling" status to show jobs with proposed times
         const q1 = query(
             collection(db, REQUESTS_COLLECTION_PATH),
             where("createdBy", "==", userId),
-            where("status", "in", ["scheduled", "in_progress", "slots_offered"])
+            where("status", "in", ["scheduled", "in_progress", "slots_offered", "scheduling"])
         );
 
         const q2 = query(
             collection(db, REQUESTS_COLLECTION_PATH),
             where("customerId", "==", userId),
-            where("status", "in", ["scheduled", "in_progress", "slots_offered"])
+            where("status", "in", ["scheduled", "in_progress", "slots_offered", "scheduling"])
         );
 
         let results1 = [];
@@ -516,6 +521,27 @@ export const UnifiedCalendar = ({
                         rawData: job
                     });
                 });
+            }
+
+            // Show proposed times (from scheduling negotiation)
+            if (job.proposedTimes?.length > 0 && !job.scheduledTime) {
+                // Get the most recent proposal
+                const latestProposal = job.proposedTimes[job.proposedTimes.length - 1];
+                if (latestProposal?.date) {
+                    const proposedDate = new Date(latestProposal.date);
+                    const proposedBy = latestProposal.proposedBy === 'homeowner' ? 'You' : 'Contractor';
+                    events.push({
+                        id: `job-proposed-${job.id}`,
+                        type: 'JOB',
+                        title: `${job.title || 'Work'} (Proposed)`,
+                        date: proposedDate,
+                        time: proposedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+                        contractor: job.contractorName || null,
+                        description: `${proposedBy} proposed this time - awaiting response`,
+                        status: 'scheduling',
+                        rawData: job
+                    });
+                }
             }
         });
 
