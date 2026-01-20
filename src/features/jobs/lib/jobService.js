@@ -5,6 +5,7 @@ import { doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from 'fir
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
+import { isMultiDayJob, createMultiDaySchedule } from '../../contractor-pro/lib/multiDayUtils';
 
 export const JOB_STATUSES = {
     PENDING: 'pending',
@@ -44,12 +45,14 @@ const normalizeDate = (date) => {
 };
 
 // Build proper schedule fields from date + time inputs
-const buildScheduleFields = (jobData) => {
+// Handles both single-day and multi-day jobs
+const buildScheduleFields = (jobData, workingHours = {}) => {
     if (!jobData.scheduledDate) {
         return {
             scheduledDate: null,
             scheduledTime: null,
-            scheduledEndTime: null
+            scheduledEndTime: null,
+            multiDaySchedule: null
         };
     }
 
@@ -58,14 +61,43 @@ const buildScheduleFields = (jobData) => {
     const timePart = jobData.scheduledTime || '09:00'; // "09:00" or default to 9am
     const scheduledDateTime = new Date(`${datePart}T${timePart}:00`);
 
-    // Calculate end time based on duration
     const durationMinutes = jobData.estimatedDuration || 60;
+
+    // Check if this is a multi-day job (> 8 hours = 480 minutes)
+    if (isMultiDayJob(durationMinutes)) {
+        const multiDaySchedule = createMultiDaySchedule(scheduledDateTime, durationMinutes, workingHours);
+
+        // For multi-day, use first segment's times
+        const firstSegment = multiDaySchedule.segments[0];
+        const [startH, startM] = firstSegment.startTime.split(':').map(Number);
+        const [endH, endM] = firstSegment.endTime.split(':').map(Number);
+
+        const startDateTime = new Date(scheduledDateTime);
+        startDateTime.setHours(startH, startM, 0, 0);
+
+        const endDateTime = new Date(scheduledDateTime);
+        endDateTime.setHours(endH, endM, 0, 0);
+
+        return {
+            scheduledDate: startDateTime.toISOString(),
+            scheduledTime: startDateTime.toISOString(),
+            scheduledEndTime: endDateTime.toISOString(),
+            multiDaySchedule: {
+                ...multiDaySchedule,
+                dailyStartTime: firstSegment.startTime,
+                dailyEndTime: firstSegment.endTime
+            }
+        };
+    }
+
+    // Single-day job - calculate end time based on duration
     const endDateTime = new Date(scheduledDateTime.getTime() + durationMinutes * 60 * 1000);
 
     return {
         scheduledDate: scheduledDateTime.toISOString(),
         scheduledTime: scheduledDateTime.toISOString(),
-        scheduledEndTime: endDateTime.toISOString()
+        scheduledEndTime: endDateTime.toISOString(),
+        multiDaySchedule: null
     };
 };
 
