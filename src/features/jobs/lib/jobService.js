@@ -746,4 +746,142 @@ export const resumeJob = async (contractorId, jobId, options = {}) => {
         }
     };
 
+// ============================================
+// HOMEOWNER EMAIL MATCHING ON LOGIN
+// ============================================
+
+/**
+ * Match and link jobs to homeowner when they log in
+ * Finds all jobs with homeownerLookupPending=true that match the homeowner's email
+ * and links them to the homeowner's account
+ *
+ * @param {string} userId - The homeowner's user ID
+ * @param {string} userEmail - The homeowner's email address
+ * @param {string} [propertyId] - Optional default property ID to link to
+ * @returns {Promise<{success: boolean, linked: number, jobs: Array}>}
+ */
+export const matchJobsToHomeowner = async (userId, userEmail, propertyId = null) => {
+    if (!userId || !userEmail) {
+        return { success: false, linked: 0, jobs: [], error: 'Missing userId or userEmail' };
+    }
+
+    try {
+        const normalizedEmail = userEmail.toLowerCase().trim();
+        console.log('[jobService] Matching jobs for homeowner:', normalizedEmail);
+
+        // Import Firestore query functions
+        const { collection: firestoreCollection, query: firestoreQuery, where, getDocs, writeBatch } = await import('firebase/firestore');
+
+        // Query 1: Find jobs with pending homeowner lookup matching this email
+        const pendingQuery = firestoreQuery(
+            firestoreCollection(db, REQUESTS_COLLECTION_PATH),
+            where('homeownerLookupPending', '==', true),
+            where('homeownerLookupEmail', '==', normalizedEmail)
+        );
+
+        // Query 2: Also find jobs by customer.email that aren't linked yet
+        const emailQuery = firestoreQuery(
+            firestoreCollection(db, REQUESTS_COLLECTION_PATH),
+            where('customer.email', '==', normalizedEmail),
+            where('homeownerLinked', '==', false)
+        );
+
+        // Run both queries
+        const [pendingSnapshot, emailSnapshot] = await Promise.all([
+            getDocs(pendingQuery),
+            getDocs(emailQuery)
+        ]);
+
+        // Combine results, deduplicating by job ID
+        const jobsMap = new Map();
+
+        pendingSnapshot.docs.forEach(doc => {
+            jobsMap.set(doc.id, { id: doc.id, ...doc.data() });
+        });
+
+        emailSnapshot.docs.forEach(doc => {
+            if (!jobsMap.has(doc.id)) {
+                jobsMap.set(doc.id, { id: doc.id, ...doc.data() });
+            }
+        });
+
+        const jobsToLink = Array.from(jobsMap.values());
+
+        if (jobsToLink.length === 0) {
+            console.log('[jobService] No pending jobs found for homeowner');
+            return { success: true, linked: 0, jobs: [] };
+        }
+
+        console.log(`[jobService] Found ${jobsToLink.length} jobs to link for homeowner`);
+
+        // Batch update all matching jobs
+        const batch = writeBatch(db);
+        const linkedJobs = [];
+
+        for (const job of jobsToLink) {
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+
+            batch.update(jobRef, {
+                homeownerId: userId,
+                homeownerLinked: true,
+                homeownerLinkedAt: serverTimestamp(),
+                homeownerLookupPending: false,
+                // Link to property if provided
+                ...(propertyId && !job.propertyId ? { propertyId } : {}),
+                // Also set createdBy if not already set (for homeowner dashboard queries)
+                ...(!job.createdBy ? { createdBy: userId } : {}),
+                updatedAt: serverTimestamp()
+            });
+
+            linkedJobs.push({
+                jobId: job.id,
+                jobNumber: job.jobNumber,
+                title: job.title,
+                contractorName: job.contractorName,
+                status: job.status
+            });
+        }
+
+        await batch.commit();
+
+        console.log(`[jobService] Successfully linked ${linkedJobs.length} jobs to homeowner ${userId}`);
+
+        return {
+            success: true,
+            linked: linkedJobs.length,
+            jobs: linkedJobs
+        };
+
+    } catch (error) {
+        console.error('[jobService] Error matching jobs to homeowner:', error);
+        return { success: false, linked: 0, jobs: [], error: error.message };
+    }
+};
+
+/**
+ * Get count of jobs waiting to be linked for a specific email
+ * Useful for showing "X jobs found" message during onboarding
+ */
+export const getPendingJobCountForEmail = async (email) => {
+    if (!email) return 0;
+
+    try {
+        const normalizedEmail = email.toLowerCase().trim();
+        const { collection: firestoreCollection, query: firestoreQuery, where, getDocs } = await import('firebase/firestore');
+
+        const q = firestoreQuery(
+            firestoreCollection(db, REQUESTS_COLLECTION_PATH),
+            where('customer.email', '==', normalizedEmail),
+            where('type', '==', 'job')
+        );
+
+        const snapshot = await getDocs(q);
+        return snapshot.size;
+
+    } catch (error) {
+        console.error('[jobService] Error getting pending job count:', error);
+        return 0;
+    }
+};
+
 // End of file

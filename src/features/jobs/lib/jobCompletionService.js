@@ -812,23 +812,101 @@ export const processAutoClose = async (jobId) => {
 export const getJobsNeedingAutoClose = async () => {
     try {
         const now = Timestamp.now();
-        
+
         const q = query(
             collection(db, REQUESTS_COLLECTION_PATH),
             where('status', '==', COMPLETION_STATUS.PENDING_COMPLETION),
             where('completion.autoCloseAt', '<=', now)
         );
-        
+
         const snapshot = await getDocs(q);
-        
+
         return snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
-        
+
     } catch (error) {
         console.error('Error getting auto-close jobs:', error);
         return [];
+    }
+};
+
+/**
+ * Process all jobs that need auto-closing
+ * Call this on app initialization, contractor dashboard load, or via scheduled function
+ * @param {string} [contractorId] - Optional: only process jobs for this contractor
+ * @returns {Promise<{processed: number, succeeded: number, failed: number, results: Array}>}
+ */
+export const processAllAutoCloseJobs = async (contractorId = null) => {
+    try {
+        const now = Timestamp.now();
+
+        // Build query - optionally filter by contractor
+        let q;
+        if (contractorId) {
+            q = query(
+                collection(db, REQUESTS_COLLECTION_PATH),
+                where('status', '==', COMPLETION_STATUS.PENDING_COMPLETION),
+                where('contractorId', '==', contractorId),
+                where('completion.autoCloseAt', '<=', now)
+            );
+        } else {
+            q = query(
+                collection(db, REQUESTS_COLLECTION_PATH),
+                where('status', '==', COMPLETION_STATUS.PENDING_COMPLETION),
+                where('completion.autoCloseAt', '<=', now)
+            );
+        }
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            console.log('[AutoClose] No jobs need auto-closing');
+            return { processed: 0, succeeded: 0, failed: 0, results: [] };
+        }
+
+        console.log(`[AutoClose] Found ${snapshot.size} jobs to auto-close`);
+
+        const results = [];
+        let succeeded = 0;
+        let failed = 0;
+
+        for (const jobDoc of snapshot.docs) {
+            const jobId = jobDoc.id;
+            const jobData = jobDoc.data();
+
+            try {
+                const result = await processAutoClose(jobId);
+
+                if (result.success) {
+                    succeeded++;
+                    results.push({ jobId, success: true, jobNumber: jobData.jobNumber });
+                    console.log(`[AutoClose] Successfully auto-closed job ${jobData.jobNumber || jobId}`);
+                } else {
+                    failed++;
+                    results.push({ jobId, success: false, reason: result.reason });
+                    console.warn(`[AutoClose] Failed to auto-close job ${jobId}: ${result.reason}`);
+                }
+            } catch (error) {
+                failed++;
+                results.push({ jobId, success: false, reason: error.message });
+                console.error(`[AutoClose] Error processing job ${jobId}:`, error);
+            }
+        }
+
+        console.log(`[AutoClose] Complete: ${succeeded} succeeded, ${failed} failed out of ${snapshot.size} jobs`);
+
+        return {
+            processed: snapshot.size,
+            succeeded,
+            failed,
+            results
+        };
+
+    } catch (error) {
+        console.error('[AutoClose] Error processing auto-close jobs:', error);
+        return { processed: 0, succeeded: 0, failed: 0, results: [], error: error.message };
     }
 };
 
