@@ -10,7 +10,8 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { appId } from '../config/constants';
 import { debug } from '../lib/debug';
-import { normalizeAddress, removeUndefined } from '../lib/utils';
+import { normalizeAddress } from '../lib/addressUtils';
+import { removeUndefined } from '../lib/utils';
 import toast from 'react-hot-toast';
 
 /**

@@ -1,5 +1,6 @@
 // tests/utils/test-helpers.js
 // Shared utilities for Playwright tests
+// REWRITTEN: Uses fresh user signup pattern to avoid rate limiting
 
 import { expect } from '@playwright/test';
 import fs from 'fs';
@@ -11,274 +12,324 @@ import path from 'path';
 const BASE_URL = process.env.LOCAL_TEST === '1' ? 'http://localhost:5173' : 'https://mykrib.app';
 console.log(`[TestConfig] Using base URL: ${BASE_URL}`);
 
-// Session cache with TTL tracking
-const SESSION_CACHE = {
-    homeowner: { lastLogin: 0, valid: false },
-    contractor: { lastLogin: 0, valid: false }
-};
-const SESSION_TTL = 30 * 60 * 1000; // 30 minutes
-
 // ============================================
 // AUTHENTICATION HELPERS
 // ============================================
 
 /**
- * Check if stored session is still valid (not expired)
+ * Generate unique test account credentials
+ * Creates a fresh user for each test to avoid rate limiting
  */
-function isSessionValid(userType) {
-    const cache = SESSION_CACHE[userType];
-    const now = Date.now();
-    const timeSinceLogin = now - cache.lastLogin;
-
-    if (cache.valid && timeSinceLogin < SESSION_TTL) {
-        console.log(`[Auth] ${userType} session still valid (${Math.round(timeSinceLogin / 1000)}s old)`);
-        return true;
-    }
-    return false;
+function generateTestAccount(type = 'contractor') {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    return {
+        email: `test.${type}.${timestamp}.${random}@gmail.com`,
+        password: 'KribTest123!',
+        name: `Test ${type.charAt(0).toUpperCase() + type.slice(1)} ${timestamp}`,
+        companyName: `Test Company ${timestamp}`,
+        phone: '5555555555'
+    };
 }
 
 /**
- * Mark session as valid after successful login
- */
-function markSessionValid(userType) {
-    SESSION_CACHE[userType] = { lastLogin: Date.now(), valid: true };
-}
-
-/**
- * Invalidate session (e.g., after logout or error)
- */
-function invalidateSession(userType) {
-    SESSION_CACHE[userType] = { lastLogin: 0, valid: false };
-}
-
-/**
- * Login as homeowner using stored session or fresh login
- * FIXED: Better session validation and login flow handling
+ * Login as homeowner by creating a fresh account
+ * FIXED: Creates new user every time to avoid rate limiting
  */
 export async function loginAsHomeowner(page, options = {}) {
-    const {
-        email = 'danvdova@gmail.com',
-        password = 'Password123',
-        useStoredSession = true,
-        storageStatePath = 'tests/auth/homeowner.json'
-    } = options;
-
-    // Check memory cache first to avoid unnecessary checks
-    if (useStoredSession && isSessionValid('homeowner') && fs.existsSync(storageStatePath)) {
-        console.log('[Auth] Using cached homeowner session');
-        await page.goto(`${BASE_URL}/home`);
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(2000);
-
-        // Quick verification - check for dashboard content
-        const dashboardContent = await page.locator('text="Your Home", text="Dashboard", text="Records", nav, aside').first().isVisible({ timeout: 5000 }).catch(() => false);
-
-        if (dashboardContent) {
-            console.log('[Auth] Stored homeowner session confirmed valid');
-            return true;
-        }
-
-        // Check if we hit login page
-        const onLoginPage = await page.locator('text="Sign in", text="Welcome back"').first().isVisible({ timeout: 2000 }).catch(() => false);
-        if (onLoginPage) {
-            console.log('[Auth] Stored session expired, need fresh login');
-            invalidateSession('homeowner');
-        }
-    }
-
-    // Fresh login with rate limit protection
-    console.log('[Auth] Performing fresh homeowner login');
+    const account = generateTestAccount('homeowner');
+    console.log(`[Auth] Creating fresh homeowner: ${account.email}`);
 
     try {
-        await page.goto(`${BASE_URL}`);
+        // Navigate to homeowner signup
+        await page.goto(`${BASE_URL}/home`);
         await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(1000);
 
-        // Check if we're already on the homeowner login page
-        let onHomePage = await page.locator('input[type="email"]').first().isVisible({ timeout: 3000 }).catch(() => false);
-
-        if (!onHomePage) {
-            // Click homeowner button on landing page
-            const homeownerButton = page.locator('text="I\'m a Homeowner", button:has-text("Homeowner")').first();
-            if (await homeownerButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-                await homeownerButton.click();
-                await page.waitForLoadState('domcontentloaded');
-                await page.waitForTimeout(1500);
-            }
-        }
-
-        // Check for rate limiting BEFORE attempting login
-        const rateLimitError = await page.locator('text="Too many attempts"').isVisible({ timeout: 1000 }).catch(() => false);
-        if (rateLimitError) {
-            console.log('[Auth] Rate limited - waiting 60 seconds');
-            await page.waitForTimeout(60000);
-        }
-
-        // Switch to login mode if on signup form
-        const signInLink = page.locator('text="Sign In", a:has-text("Sign in"), text="Already have an account"').first();
-        if (await signInLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-            await signInLink.click();
-            await page.waitForTimeout(1000);
-        }
-
-        // Enter credentials
-        const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-        const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-
-        await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-        await emailInput.fill(email);
-        await passwordInput.fill(password);
-
-        // Click sign in button (avoid Google button)
-        const signInButton = page.locator('button:has-text("Sign In"), button:has-text("Sign in"), button:has-text("Log in")')
-            .filter({ hasNot: page.locator('text="Google"') }).first();
-        await signInButton.click();
-
-        // Wait for redirect to dashboard
-        await page.waitForTimeout(3000);
-
-        // Check for successful login
-        const loggedIn = await page.locator('nav, aside, text="Your Home", text="Dashboard"').first().isVisible({ timeout: 10000 }).catch(() => false);
-
-        if (loggedIn) {
-            console.log('[Auth] Homeowner login successful');
-            await saveSession(page, storageStatePath);
-            markSessionValid('homeowner');
+        // Check if already logged in (sidebar visible)
+        const alreadyLoggedIn = await page.locator('aside, nav').first().isVisible({ timeout: 2000 }).catch(() => false);
+        if (alreadyLoggedIn) {
+            console.log('[Auth] Already logged in as homeowner');
             return true;
         }
 
-        // Check for rate limit or error
-        const errorVisible = await page.locator('text="Too many attempts", text="Invalid", [class*="error"]').first().isVisible({ timeout: 2000 }).catch(() => false);
-        if (errorVisible) {
-            const errorText = await page.locator('text="Too many attempts", text="Invalid", [class*="error"]').first().textContent();
-            console.log(`[Auth] Login error: ${errorText}`);
-            throw new Error(`Login failed: ${errorText}`);
+        // Handle landing page - click "I'm a Homeowner" if present
+        const homeownerButton = page.locator(
+            'button:has-text("Homeowner"), ' +
+            'a:has-text("Homeowner"), ' +
+            'text="I\'m a Homeowner"'
+        ).first();
+
+        if (await homeownerButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log('[Auth] Clicking homeowner button on landing page');
+            await homeownerButton.click();
+            await page.waitForLoadState('domcontentloaded');
+            await page.waitForTimeout(1500);
         }
 
-        // May still be on login page but credentials accepted - wait longer
-        await page.waitForTimeout(5000);
-        console.log('[Auth] Homeowner login completed (may need verification)');
-        await saveSession(page, storageStatePath);
-        markSessionValid('homeowner');
+        // Look for Sign Up link (create account instead of logging in)
+        const signUpLink = page.locator('text=/sign up|create account/i').last();
+        if (await signUpLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+            console.log('[Auth] Navigating to Sign Up');
+            await signUpLink.click();
+            await page.waitForTimeout(1000);
+        } else {
+            // May need to click Sign In first, then Sign Up
+            const signInButton = page.locator('text=/sign in|log in|get started/i').first();
+            if (await signInButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInButton.click();
+                await page.waitForTimeout(1000);
+                const innerSignUp = page.locator('text=/sign up|create account/i').last();
+                if (await innerSignUp.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await innerSignUp.click();
+                    await page.waitForTimeout(1000);
+                }
+            }
+        }
+
+        // Fill Sign Up Form
+        console.log(`[Auth] Filling signup form for ${account.email}`);
+
+        // Fill Name
+        const nameInput = page.locator('input[placeholder*="name" i], input[type="text"]').first();
+        if (await nameInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await nameInput.fill(account.name);
+        }
+
+        // Fill Email & Password
+        await page.fill('input[type="email"]', account.email);
+        await page.fill('input[type="password"]', account.password);
+
+        // Submit signup
+        const submitBtn = page.locator(
+            'button:has-text("Create Account"), ' +
+            'button:has-text("Sign Up"), ' +
+            'button:has-text("Get Started"), ' +
+            'button[type="submit"]'
+        ).first();
+
+        if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await submitBtn.click();
+            await page.waitForTimeout(2000);
+        }
+
+        // Handle Onboarding screens including property setup
+        console.log('[Auth] Checking for onboarding screens...');
+        for (let i = 0; i < 8; i++) {
+            const sidebarVisible = await page.locator('aside').first().isVisible({ timeout: 1000 }).catch(() => false);
+            if (sidebarVisible) {
+                console.log('[Auth] Sidebar visible - onboarding complete');
+                break;
+            }
+
+            // Check for property setup form
+            const propertyAddressInput = page.locator('input[placeholder*="address" i]').first();
+            if (await propertyAddressInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+                console.log('[Auth] Property setup form detected');
+                // Fill nickname
+                const nicknameInput = page.locator('input[placeholder*="home" i], input[placeholder*="nickname" i]').first();
+                if (await nicknameInput.isVisible({ timeout: 1000 }).catch(() => false)) {
+                    await nicknameInput.fill('Test Home');
+                }
+                // Fill address and select from autocomplete
+                await propertyAddressInput.fill('123 Test St');
+                await page.waitForTimeout(1500);
+                // Click on the first autocomplete suggestion
+                const suggestion = page.locator('text=/123 Test St.*USA/i').first();
+                if (await suggestion.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    console.log('[Auth] Selecting address from autocomplete');
+                    await suggestion.click();
+                    await page.waitForTimeout(1000);
+                }
+                // Click create button
+                const createBtn = page.locator('button:has-text("Kreate"), button:has-text("Create"), button:has-text("Get Started")').first();
+                if (await createBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await createBtn.click();
+                    await page.waitForTimeout(2000);
+                }
+                continue;
+            }
+
+            // Try clicking continue/skip buttons
+            const continueBtn = page.locator('button:has-text("Continue"), button:has-text("Skip"), button:has-text("Next")').first();
+            if (await continueBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+                await continueBtn.click();
+                await page.waitForTimeout(1000);
+            }
+            await page.waitForTimeout(500);
+        }
+
+        console.log('[Auth] Homeowner login complete');
         return true;
 
     } catch (error) {
         console.log(`[Auth] Homeowner login failed: ${error.message}`);
-        invalidateSession('homeowner');
         throw error;
     }
 }
 
 /**
- * Login as contractor using stored session or fresh login
- * FIXED: Better session validation and rate limit handling
+ * Login as contractor by creating a fresh account
+ * FIXED: Creates new user every time to avoid rate limiting
+ * Copied directly from working contractor.spec.js pattern
  */
 export async function loginAsContractor(page, options = {}) {
-    const {
-        email = 'daviladevon@gmail.com',
-        password = 'Password123',
-        useStoredSession = true,
-        storageStatePath = 'tests/auth/contractor.json'
-    } = options;
-
-    // Check memory cache first
-    if (useStoredSession && isSessionValid('contractor') && fs.existsSync(storageStatePath)) {
-        console.log('[Auth] Using cached contractor session');
-        await page.goto(`${BASE_URL}/home?pro=dashboard`);
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(2000);
-
-        // Quick verification - check for contractor sidebar
-        const sidebarVisible = await page.locator('nav >> text="Dashboard", nav >> text="Quotes", aside').first().isVisible({ timeout: 5000 }).catch(() => false);
-
-        if (sidebarVisible) {
-            console.log('[Auth] Stored contractor session confirmed valid');
-            return true;
-        }
-
-        console.log('[Auth] Stored contractor session expired, need fresh login');
-        invalidateSession('contractor');
-    }
-
-    // Fresh login
-    console.log('[Auth] Performing fresh contractor login');
+    // Generate unique user for this test run
+    const timestamp = Date.now();
+    const account = {
+        email: `test.contractor.${timestamp}.${Math.floor(Math.random() * 1000)}@gmail.com`,
+        password: 'KribTest123!',
+        companyName: 'Test Contractor ' + timestamp
+    };
+    console.log(`[Auth] Creating fresh contractor: ${account.email}`);
 
     try {
-        await page.goto(`${BASE_URL}`);
+        // 1. Initial Navigation to /home?pro
+        await page.goto(`${BASE_URL}/home?pro`);
         await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(1000);
 
-        // Click contractor button on landing
-        const contractorButton = page.locator('text="I\'m a Contractor", button:has-text("Contractor"), text="For Professionals"').first();
-        if (await contractorButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await contractorButton.click();
-            await page.waitForLoadState('domcontentloaded');
-            await page.waitForTimeout(1500);
-        }
-
-        // Check for rate limiting
-        const rateLimitError = await page.locator('text="Too many attempts"').isVisible({ timeout: 1000 }).catch(() => false);
-        if (rateLimitError) {
-            console.log('[Auth] Rate limited - waiting 60 seconds');
-            await page.waitForTimeout(60000);
-        }
-
-        // Click Sign In link if on landing page
-        const signInLink = page.locator('text="Sign In", a:has-text("Sign in")').first();
-        if (await signInLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await signInLink.click();
-            await page.waitForLoadState('domcontentloaded');
-            await page.waitForTimeout(1500);
-        }
-
-        // Enter credentials
-        const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-        const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-
-        await emailInput.waitFor({ state: 'visible', timeout: 10000 });
-        await emailInput.fill(email);
-        await passwordInput.fill(password);
-
-        // Click sign in button
-        const signInButton = page.locator('button:has-text("Sign In"), button:has-text("Sign in")')
-            .filter({ hasNot: page.locator('text="Google"') }).first();
-        await signInButton.click();
-
-        // Wait for contractor dashboard
-        await page.waitForTimeout(3000);
-
-        const dashboardLoaded = await page.locator('nav >> text="Dashboard", nav >> text="Quotes"').first().isVisible({ timeout: 15000 }).catch(() => false);
-
-        if (dashboardLoaded) {
-            console.log('[Auth] Contractor login successful');
-            await saveSession(page, storageStatePath);
-            markSessionValid('contractor');
+        // 2. Check if already logged in (Sidebar visible)
+        const alreadyLoggedIn = await page.locator('aside').first().isVisible().catch(() => false);
+        if (alreadyLoggedIn) {
+            console.log('[Auth] Already logged in as contractor');
             return true;
         }
 
-        // Check for errors
-        const errorVisible = await page.locator('text="Too many attempts", text="Invalid"').first().isVisible({ timeout: 2000 }).catch(() => false);
-        if (errorVisible) {
-            const errorText = await page.locator('text="Too many attempts", text="Invalid"').first().textContent();
-            throw new Error(`Login failed: ${errorText}`);
+        // 3. Go Directly to Sign Up
+        // Look for "Sign up" link usually below Sign In form
+        const signUpLink = page.locator('text=/sign up|create account/i').last();
+
+        if (await signUpLink.isVisible()) {
+            console.log(`[Auth] Navigating to Sign Up for ${account.email}...`);
+            await signUpLink.click();
+            await page.waitForTimeout(1000);
+        } else {
+            // If not found, maybe click "Sign In" first then "Sign Up"?
+            const authButton = page.locator('text=/sign in|log in|get started|start free/i').first();
+            if (await authButton.isVisible()) {
+                await authButton.click();
+                await page.waitForTimeout(1000);
+                const innerSignUp = page.locator('text=/sign up|create account/i').last();
+                if (await innerSignUp.isVisible()) await innerSignUp.click();
+            }
         }
 
-        // Assume login worked, just slow
-        await page.waitForTimeout(5000);
-        console.log('[Auth] Contractor login completed');
-        await saveSession(page, storageStatePath);
-        markSessionValid('contractor');
+        // 4. Fill Sign Up Form
+        console.log(`[Auth] Signing up new user ${account.email}...`);
+
+        // Fill Name (Robust Selectors)
+        const nameInput = page.locator('input[placeholder="John Smith"], input[type="text"]').nth(0);
+        // Wait a bit for form to animate
+        if (await nameInput.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await nameInput.fill(account.companyName.split(' ')[0] + ' User');
+
+            // Fill Company
+            const companyInput = page.locator('input[placeholder="ABC Plumbing"], input[placeholder*="Company"]').first();
+            if (await companyInput.isVisible()) await companyInput.fill(account.companyName);
+
+            // Fill Phone
+            const phoneInput = page.locator('input[type="tel"]').first();
+            if (await phoneInput.isVisible()) await phoneInput.fill('5555555555');
+
+            // Fill Email & Password
+            await page.fill('input[type="email"]', account.email);
+            await page.fill('input[type="password"]', account.password);
+
+            // Submit
+            const submitBtn = page.locator('button:has-text("Create Account")').first();
+            if (await submitBtn.isVisible()) await submitBtn.click();
+
+            await page.waitForTimeout(2000);
+        } else {
+            console.log('[Auth] Sign Up form not found.');
+        }
+
+        // 5. Handle Onboarding (Robust Loop)
+        console.log('[Auth] Checking for Onboarding screen...');
+        for (let i = 0; i < 5; i++) {
+            const sidebarVisible = await page.locator('aside').first().isVisible().catch(() => false);
+            if (sidebarVisible) {
+                console.log('[Auth] Sidebar found. Signup complete.');
+                break;
+            }
+
+            const welcome = page.locator('text=/welcome|setup|get started/i').first();
+            if (await welcome.isVisible({ timeout: 2000 }).catch(() => false)) {
+                console.log(`[Auth] Onboarding step ${i + 1} detected. Clicking continue/skip...`);
+                const buttons = [
+                    'button:has-text("Continue")',
+                    'button:has-text("Next")',
+                    'button:has-text("Skip")',
+                    'button:has-text("Get Started")',
+                    '[data-testid="onboarding-next"]'
+                ];
+                for (const selector of buttons) {
+                    const btn = page.locator(selector).first();
+                    if (await btn.isVisible()) {
+                        await btn.click();
+                        await page.waitForTimeout(1000);
+                        break;
+                    }
+                }
+            }
+            await page.waitForTimeout(1000);
+        }
+
+        console.log('[Auth] Contractor login complete');
         return true;
 
     } catch (error) {
         console.log(`[Auth] Contractor login failed: ${error.message}`);
-        invalidateSession('contractor');
         throw error;
     }
 }
 
 /**
- * Save browser session state for reuse
+ * Handle onboarding screens after signup
+ */
+async function handleOnboarding(page) {
+    console.log('[Auth] Checking for onboarding screens...');
+
+    for (let i = 0; i < 5; i++) {
+        // Check if we've reached the dashboard
+        const sidebarVisible = await page.locator('aside').first().isVisible({ timeout: 1000 }).catch(() => false);
+        if (sidebarVisible) {
+            console.log('[Auth] Sidebar found - onboarding complete');
+            break;
+        }
+
+        // Look for onboarding/welcome screens
+        const onboardingText = page.locator('text=/welcome|setup|get started|let\'s go/i').first();
+        if (await onboardingText.isVisible({ timeout: 2000 }).catch(() => false)) {
+            console.log(`[Auth] Onboarding screen ${i + 1} detected - clicking through`);
+
+            // Try various continue/skip buttons
+            const buttons = [
+                'button:has-text("Continue")',
+                'button:has-text("Next")',
+                'button:has-text("Skip")',
+                'button:has-text("Get Started")',
+                'button:has-text("Let\'s Go")',
+                '[data-testid="onboarding-next"]'
+            ];
+
+            for (const selector of buttons) {
+                const btn = page.locator(selector).first();
+                if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
+                    await btn.click();
+                    await page.waitForTimeout(1000);
+                    break;
+                }
+            }
+        }
+
+        await page.waitForTimeout(1000);
+    }
+}
+
+/**
+ * Save browser session state for reuse (optional, for session persistence)
  */
 async function saveSession(page, filePath) {
     const dir = path.dirname(filePath);
