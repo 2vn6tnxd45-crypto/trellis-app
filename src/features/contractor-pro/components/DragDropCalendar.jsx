@@ -18,6 +18,7 @@ import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { getTimezoneAbbreviation, isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
+import { isMultiDayJob } from '../lib/multiDayUtils';
 
 // ============================================
 // HELPERS
