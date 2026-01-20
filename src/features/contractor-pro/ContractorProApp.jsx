@@ -83,6 +83,7 @@ import { ContractorLeadDashboard } from '../marketplace';
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
 import { CancellationApprovalModal } from '../jobs/CancellationApprovalModal';
+import CreateJobModal from '../jobs/components/CreateJobModal';
 
 // Job Completion Components
 import { JobCompletionForm } from '../jobs/components/completion';
@@ -285,36 +286,103 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
 // ============================================
 // MOBILE NAV
 // ============================================
-const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount }) => (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-40">
-        <div className="flex justify-around items-center">
-            {[
-                { id: 'dashboard', icon: Home, label: 'Home' },
-                { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: unscheduledJobsCount },
-                { id: 'messages', icon: MessageSquare, label: 'Messages', badge: unreadMessageCount },
-                { id: 'quotes', icon: FileText, label: 'Quotes', badge: pendingQuotesCount },
-                { id: 'settings', icon: SettingsIcon, label: 'Settings' }
-            ].map(item => (
-                <button
-                    key={item.id}
-                    onClick={() => onNavigate(item.id)}
-                    className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
-                        ? 'text-emerald-600'
-                        : 'text-slate-400'
+const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, activeJobsCount, unscheduledJobsCount, unreadMessageCount, pendingEvaluationsCount = 0 }) => {
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+    const mainItems = [
+        { id: 'dashboard', icon: Home, label: 'Home' },
+        { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: unscheduledJobsCount },
+        { id: 'messages', icon: MessageSquare, label: 'Messages', badge: unreadMessageCount },
+        { id: 'quotes', icon: FileText, label: 'Quotes', badge: pendingQuotesCount },
+    ];
+
+    const moreItems = [
+        { id: 'evaluations', icon: ClipboardCheck, label: 'Evaluations', badge: pendingEvaluationsCount },
+        { id: 'schedule', icon: Calendar, label: 'Schedule' },
+        { id: 'customers', icon: Users, label: 'Customers' },
+        { id: 'invoices', icon: Receipt, label: 'Invoices' },
+        { id: 'memberships', icon: Crown, label: 'Memberships' },
+        { id: 'team', icon: Users, label: 'Team' },
+        { id: 'reports', icon: TrendingUp, label: 'Reports' },
+        { id: 'settings', icon: SettingsIcon, label: 'Settings' },
+    ];
+
+    const moreActiveViews = moreItems.map(i => i.id);
+    const isMoreActive = moreActiveViews.includes(activeView);
+
+    return (
+        <>
+            {/* More Menu Overlay */}
+            {showMoreMenu && (
+                <div className="lg:hidden fixed inset-0 z-50">
+                    <div
+                        className="absolute inset-0 bg-black/40"
+                        onClick={() => setShowMoreMenu(false)}
+                    />
+                    <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl shadow-xl border-t border-slate-200 p-4 animate-slide-up">
+                        <div className="grid grid-cols-4 gap-4">
+                            {moreItems.map(item => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        onNavigate(item.id);
+                                        setShowMoreMenu(false);
+                                    }}
+                                    className={`flex flex-col items-center p-3 rounded-xl transition-colors relative ${
+                                        activeView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <item.icon size={24} />
+                                    <span className="text-xs mt-1.5 font-medium text-center">{item.label}</span>
+                                    {item.badge > 0 && (
+                                        <span className="absolute top-1 right-1 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                            {item.badge > 9 ? '9+' : item.badge}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Bottom Nav */}
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-2 py-2 z-40">
+                <div className="flex justify-around items-center">
+                    {mainItems.map(item => (
+                        <button
+                            key={item.id}
+                            onClick={() => onNavigate(item.id)}
+                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
+                                activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                                    ? 'text-emerald-600'
+                                    : 'text-slate-400'
+                            }`}
+                        >
+                            <item.icon size={22} />
+                            <span className="text-xs mt-1 font-medium">{item.label}</span>
+                            {item.badge > 0 && (
+                                <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                    {item.badge > 9 ? '9+' : item.badge}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                    {/* More Button */}
+                    <button
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                        className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
+                            isMoreActive || showMoreMenu ? 'text-emerald-600' : 'text-slate-400'
                         }`}
-                >
-                    <item.icon size={22} />
-                    <span className="text-xs mt-1 font-medium">{item.label}</span>
-                    {item.badge > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
-                            {item.badge > 9 ? '9+' : item.badge}
-                        </span>
-                    )}
-                </button>
-            ))}
-        </div>
-    </nav>
-);
+                    >
+                        <Menu size={22} />
+                        <span className="text-xs mt-1 font-medium">More</span>
+                    </button>
+                </div>
+            </nav>
+        </>
+    );
+};
 
 // ============================================
 // HELPER FUNCTIONS
@@ -331,7 +399,7 @@ const formatDate = (date) => {
 // ============================================
 // JOBS VIEW
 // ============================================
-const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation }) => {
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
 
@@ -462,11 +530,20 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
-                <p className="text-slate-500">
-                    {activeJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
+                    <p className="text-slate-500">
+                        {activeJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
+                    </p>
+                </div>
+                <button
+                    onClick={onCreateJob}
+                    className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
+                >
+                    <Plus size={18} />
+                    New Job
+                </button>
             </div>
 
             {totalJobs === 0 ? (
@@ -1394,6 +1471,7 @@ export const ContractorProApp = () => {
     const [completingJob, setCompletingJob] = useState(null);
     const [ratingHomeowner, setRatingHomeowner] = useState(null);
     const [reviewingCancellation, setReviewingCancellation] = useState(null);
+    const [showCreateJobModal, setShowCreateJobModal] = useState(false);
 
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -1977,6 +2055,7 @@ export const ContractorProApp = () => {
                             onJobClick={handleJobClick}
                             onCompleteJob={handleCompleteJob}
                             onReviewCancellation={setReviewingCancellation}
+                            onCreateJob={() => setShowCreateJobModal(true)}
                         />
                     )}
 
@@ -2449,6 +2528,7 @@ export const ContractorProApp = () => {
                     activeJobsCount={activeJobsCount}
                     unscheduledJobsCount={unscheduledJobsCount}
                     unreadMessageCount={unreadMessageCount}
+                    pendingEvaluationsCount={pendingEvaluations?.length || 0}
                 />
             </div>
 
@@ -2550,6 +2630,16 @@ export const ContractorProApp = () => {
                     }}
                 />
             )}
+            {/* Create Job Modal */}
+            <CreateJobModal
+                isOpen={showCreateJobModal}
+                onClose={() => setShowCreateJobModal(false)}
+                contractorId={contractorId}
+                onJobCreated={(job) => {
+                    setShowCreateJobModal(false);
+                    toast.success(`Job ${job.jobNumber} created!`);
+                }}
+            />
         </div>
     );
 };
