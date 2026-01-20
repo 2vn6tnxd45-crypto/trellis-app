@@ -7,6 +7,7 @@ import {
     deleteDoc,
     addDoc,
     collection,
+    collectionGroup,
     query,
     where,
     orderBy,
@@ -639,6 +640,57 @@ export async function unclaimQuote(contractorId, quoteId) {
     const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
     await updateDoc(quoteRef, { customerId: null, updatedAt: serverTimestamp() });
     return { success: true };
+}
+
+// ============================================
+// LINK QUOTES BY EMAIL ON ACCOUNT CREATION
+// ============================================
+/**
+ * When a user creates an account, find all quotes sent to their email
+ * that don't have a customerId and link them to the new user.
+ * This ensures quotes appear in the homeowner's dashboard even if
+ * they created their account after the contractor sent the quote.
+ */
+export async function linkQuotesByEmail(userId, userEmail) {
+    if (!userId || !userEmail) {
+        console.warn('[linkQuotesByEmail] Missing userId or userEmail');
+        return { success: false, linked: 0 };
+    }
+
+    try {
+        console.log('[linkQuotesByEmail] Searching for quotes with email:', userEmail);
+
+        // Query all quotes where customer.email matches and customerId is null
+        const quotesQuery = query(
+            collectionGroup(db, 'quotes'),
+            where('customer.email', '==', userEmail.toLowerCase())
+        );
+
+        const snapshot = await getDocs(quotesQuery);
+        let linkedCount = 0;
+
+        for (const quoteDoc of snapshot.docs) {
+            const quoteData = quoteDoc.data();
+
+            // Only link if customerId is not already set
+            if (!quoteData.customerId) {
+                await updateDoc(quoteDoc.ref, {
+                    customerId: userId,
+                    linkedAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+                linkedCount++;
+                console.log('[linkQuotesByEmail] Linked quote:', quoteDoc.id);
+            }
+        }
+
+        console.log(`[linkQuotesByEmail] Linked ${linkedCount} quotes to user ${userId}`);
+        return { success: true, linked: linkedCount };
+
+    } catch (error) {
+        console.error('[linkQuotesByEmail] Error:', error);
+        return { success: false, linked: 0, error: error.message };
+    }
 }
 
 // ============================================

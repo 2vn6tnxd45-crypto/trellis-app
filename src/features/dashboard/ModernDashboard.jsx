@@ -13,7 +13,6 @@ import { useHomeHealth } from '../../hooks/useHomeHealth';
 import { MAINTENANCE_FREQUENCIES, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { DashboardSection } from '../../components/common/DashboardSection';
 import { HomeArchive } from '../archive';
-import { MyContractorsSection } from './components/MyContractorsSection';
 import { ActionRequiredBanner } from './components/ActionRequiredBanner';
 import { SchedulingRequiredBanner } from './components/SchedulingRequiredBanner';
 import { TodayAppointmentCard } from './components/TodayAppointmentCard';
@@ -1223,6 +1222,8 @@ export const ModernDashboard = ({
             <DashboardSection
                 title="My Home"
                 icon={Home}
+                priority="high"
+                testId="section-my-home"
                 defaultOpen={userState !== 'active-work'}
                 summary={<span className="text-xs text-emerald-600 font-medium">✨ Auto-discovered</span>}
             >
@@ -1245,6 +1246,8 @@ export const ModernDashboard = ({
             <DashboardSection
                 title="Home Calendar"
                 icon={Calendar}
+                priority="high"
+                testId="section-home-calendar"
                 defaultOpen={true}
                 summary={
                     maintenanceTasks.some(t => t.daysUntil < 0)
@@ -1264,18 +1267,12 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* MY CONTRACTORS - Single consolidated instance */}
-            <MyContractorsSection
-                contractors={contractors}
-                userId={userId}
-                onNavigateToContractors={onNavigateToContractors}
-                onCreateContractorLink={onCreateContractorLink}
-            />
-
             {/* HISTORY & ARCHIVE */}
             <DashboardSection
                 title="History & Archive"
                 icon={Archive}
+                priority="low"
+                testId="section-history-archive"
                 defaultOpen={false}
                 summary={<span className="text-xs text-slate-500">Past jobs & quotes</span>}
             >
@@ -1287,11 +1284,13 @@ export const ModernDashboard = ({
                 />
             </DashboardSection>
 
-            {/* QUICK ACTIONS - Moved to bottom */}
+            {/* QUICK ACTIONS - High priority, always expanded */}
             <DashboardSection
                 title="Quick Actions"
                 icon={Sparkles}
-                defaultOpen={false}
+                priority="high"
+                testId="section-quick-actions"
+                defaultOpen={true}
             >
                 <div className="grid grid-cols-2 gap-3">
                     <ActionButton icon={Camera} label="Scan Receipt" sublabel="AI-powered" onClick={onScanReceipt} variant="primary" />

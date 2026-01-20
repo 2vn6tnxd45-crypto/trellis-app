@@ -6,11 +6,12 @@ import {
     signInWithPopup,
     GoogleAuthProvider,
     updateProfile,
-    sendPasswordResetEmail  // ← ADDED
+    sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../config/firebase';
 import { appId } from '../../config/constants';
+import { linkQuotesByEmail } from '../quotes/lib/quoteService';
 import { Logo } from '../../components/common/Logo';
 import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
@@ -35,30 +36,53 @@ export const AuthScreen = () => {
     const isReset = mode === 'reset';
 
     /**
-     * Save the user's name to their profile document
-     * This is called after signup (email or Google) to persist the name
+     * Save the user's name to their profile document and handle new user setup
+     * This is called after signup (email or Google) to persist the name.
+     * For new users: sends welcome email and links any existing quotes.
+     * For returning users (Google sign-in): skips welcome email.
      */
-    const saveUserName = async (userId, userName, userEmail) => {
+    const saveUserName = async (userId, userName, userEmail, isNewUser = false) => {
         try {
             const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+
+            // Check if profile already exists (for Google sign-in detection)
+            const existingProfile = await getDoc(profileRef);
+            const isExistingUser = existingProfile.exists() && existingProfile.data()?.createdAt;
+
             await setDoc(profileRef, {
                 name: userName,
                 email: userEmail,
-                createdAt: serverTimestamp(),
+                ...(isExistingUser ? {} : { createdAt: serverTimestamp() }),
                 updatedAt: serverTimestamp()
             }, { merge: true });
             console.log('[AuthScreen] Saved user name to profile:', userName);
 
-            // Send welcome email (non-blocking)
-            fetch('/api/send-welcome', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail, userName })
-            }).then(() => {
-                console.log('[AuthScreen] Welcome email sent');
-            }).catch((err) => {
-                console.warn('[AuthScreen] Welcome email failed:', err);
-            });
+            // Only for NEW users: send welcome email and link quotes
+            if (isNewUser || !isExistingUser) {
+                console.log('[AuthScreen] New user detected, running onboarding tasks');
+
+                // Link any quotes sent to this email (non-blocking)
+                linkQuotesByEmail(userId, userEmail).then((result) => {
+                    if (result.linked > 0) {
+                        console.log(`[AuthScreen] Linked ${result.linked} quotes to new user`);
+                    }
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Quote linking failed:', err);
+                });
+
+                // Send welcome email (non-blocking)
+                fetch('/api/send-welcome', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, userName })
+                }).then(() => {
+                    console.log('[AuthScreen] Welcome email sent');
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Welcome email failed:', err);
+                });
+            } else {
+                console.log('[AuthScreen] Existing user, skipping welcome email');
+            }
 
         } catch (err) {
             // Don't fail signup if profile save fails - it can be added later
@@ -125,7 +149,8 @@ export const AuthScreen = () => {
                     });
 
                     // Also save to Firestore profile for our app to use
-                    await saveUserName(credential.user.uid, name.trim(), email);
+                    // Pass isNewUser=true since this is email signup (always new)
+                    await saveUserName(credential.user.uid, name.trim(), email, true);
                 }
             }
             // Success - reset failed attempts
@@ -266,37 +291,43 @@ export const AuthScreen = () => {
                         {/* NAME FIELD - Only shown during signup */}
                         {isSignUp && (
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                <label htmlFor="auth-name" className="block text-sm font-medium text-slate-700 mb-1.5">
                                     Your Name
                                 </label>
                                 <div className="relative">
-                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                    <User className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden="true" />
                                     <input
+                                        id="auth-name"
                                         type="text"
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         placeholder="John Smith"
+                                        data-testid="auth-name-input"
+                                        aria-describedby="name-help"
                                         className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                     />
                                 </div>
-                                <p className="text-xs text-slate-400 mt-1">
+                                <p id="name-help" className="text-xs text-slate-400 mt-1">
                                     This helps contractors know who they're working with
                                 </p>
                             </div>
                         )}
 
                         <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                            <label htmlFor="auth-email" className="block text-sm font-medium text-slate-700 mb-1.5">
                                 Email
                             </label>
                             <div className="relative">
-                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden="true" />
                                 <input
+                                    id="auth-email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
                                     required
+                                    data-testid="auth-email-input"
+                                    autoComplete="email"
                                     className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                 />
                             </div>
@@ -305,23 +336,27 @@ export const AuthScreen = () => {
                         {/* PASSWORD FIELD - CHANGED: Hide during reset mode */}
                         {!isReset && (
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                                <label htmlFor="auth-password" className="block text-sm font-medium text-slate-700 mb-1.5">
                                     Password
                                 </label>
                                 <div className="relative">
-                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden="true" />
                                     <input
+                                        id="auth-password"
                                         type={showPassword ? 'text' : 'password'}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         placeholder="Password"
                                         required
                                         minLength={8}
+                                        data-testid="auth-password-input"
+                                        autoComplete={isLogin ? 'current-password' : 'new-password'}
                                         className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
+                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                     >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -367,6 +402,7 @@ export const AuthScreen = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
+                                data-testid="auth-submit-button"
                                 className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50"
                             >
                                 {loading ? 'Please wait...' : (

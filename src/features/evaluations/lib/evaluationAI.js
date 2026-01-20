@@ -4,10 +4,6 @@
 // ============================================
 // Client-side utilities for AI-powered evaluation analysis
 
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../../config/firebase';
-import { appId } from '../../../config/constants';
-
 // ============================================
 // CONSTANTS
 // ============================================
@@ -142,30 +138,32 @@ export async function analyzeEvaluation({
 
 /**
  * Save AI analysis to the evaluation document in Firestore
- * 
- * @param {string} contractorId 
- * @param {string} evaluationId 
- * @param {Object} analysis 
+ * Uses server-side API endpoint to bypass client-side security rules,
+ * allowing homeowners (who may be unauthenticated) to save analysis results.
+ *
+ * @param {string} contractorId
+ * @param {string} evaluationId
+ * @param {Object} analysis
  */
 export async function saveAnalysisToEvaluation(contractorId, evaluationId, analysis) {
     try {
-        const evalRef = doc(
-            db, 
-            'artifacts', appId, 
-            'public', 'data',
-            'contractors', contractorId, 
-            'evaluations', evaluationId
-        );
-
-        await updateDoc(evalRef, {
-            aiAnalysis: {
-                ...analysis,
-                savedAt: new Date().toISOString()
-            },
-            updatedAt: serverTimestamp()
+        const response = await fetch('/api/save-evaluation-analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contractorId,
+                evaluationId,
+                analysis
+            })
         });
 
-        return { success: true };
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return { success: data.success };
 
     } catch (error) {
         console.error('[evaluationAI] Error saving analysis:', error);
