@@ -18,7 +18,7 @@ import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { getTimezoneAbbreviation, isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
-import { isMultiDayJob } from '../lib/multiDayUtils';
+import { isMultiDayJob, jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
 
 // ============================================
 // HELPERS
@@ -166,10 +166,15 @@ const TimeSlot = React.memo(({
     onEvaluationClick,  // NEW: Handler for evaluation clicks
     preferences
 }) => {
-    // Filter jobs for this hour
+    // Filter jobs that START in this hour (not just any job for the day)
     const slotJobs = jobs.filter(job => {
         const jobDate = new Date(job.scheduledTime || job.scheduledDate);
         return jobDate.getHours() === hour;
+    }).map(job => {
+        // Calculate how many hour slots this job spans
+        const durationMinutes = job.estimatedDuration || 60;
+        const durationHours = Math.max(1, Math.ceil(durationMinutes / 60));
+        return { ...job, _durationHours: durationHours, _durationMinutes: durationMinutes };
     });
 
     // NEW: Filter pending slots for this hour
@@ -219,30 +224,47 @@ const TimeSlot = React.memo(({
                     : 'bg-slate-50'
                 }`}
         >
-            {/* Confirmed Jobs */}
-            {slotJobs.map(job => (
-                <button
-                    key={job.id}
-                    onClick={() => onJobClick?.(job)}
-                    className={`w-full mb-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm ${job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
+            {/* Confirmed Jobs - Height scaled by duration */}
+            {slotJobs.map(job => {
+                // Calculate visual height: each hour = 60px (matches min-h-[60px])
+                const heightPx = Math.max(56, (job._durationHours || 1) * 60 - 4); // -4 for margin
+                const showDuration = (job._durationMinutes || 60) >= 30;
+
+                return (
+                    <button
+                        key={job.id}
+                        onClick={() => onJobClick?.(job)}
+                        style={{ height: `${heightPx}px`, minHeight: `${heightPx}px` }}
+                        className={`w-full p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm relative overflow-hidden ${
+                            job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
                         }`}
-                >
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
-                        {isRecurringJob(job) && (
-                            <span className="text-[9px] bg-white/30 px-1 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5">
-                                <RotateCcw size={8} />
-                            </span>
+                    >
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
+                            {isRecurringJob(job) && (
+                                <span className="text-[9px] bg-white/30 px-1 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5">
+                                    <RotateCcw size={8} />
+                                </span>
+                            )}
+                            {job._multiDayInfo && (
+                                <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold shrink-0">
+                                    {job._multiDayInfo.label}
+                                </span>
+                            )}
+                        </div>
+                        <p className="truncate opacity-80">{job.customer?.name}</p>
+                        {showDuration && (
+                            <p className="text-[10px] opacity-70 mt-0.5 flex items-center gap-1">
+                                <Clock size={9} />
+                                {job._durationMinutes >= 60
+                                    ? `${Math.floor(job._durationMinutes / 60)}h${job._durationMinutes % 60 > 0 ? ` ${job._durationMinutes % 60}m` : ''}`
+                                    : `${job._durationMinutes}m`
+                                }
+                            </p>
                         )}
-                        {job._multiDayInfo && (
-                            <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold shrink-0">
-                                {job._multiDayInfo.label}
-                            </span>
-                        )}
-                    </div>
-                    <p className="truncate opacity-80">{job.customer?.name}</p>
-                </button>
-            ))}
+                    </button>
+                );
+            })}
 
             {/* NEW: Pending/Offered Slots */}
             {slotPending.map((slot, idx) => (
@@ -517,12 +539,18 @@ export const DragDropCalendar = ({
         const pending = [];
 
         jobs.forEach(job => {
+            // Skip completed/cancelled jobs
             if (['completed', 'cancelled'].includes(job.status)) return;
 
-            if (job.scheduledTime || job.scheduledDate) {
+            // Job is SCHEDULED if it has a scheduledTime or scheduledDate AND status is 'scheduled'
+            const hasSchedule = job.scheduledTime || job.scheduledDate;
+            const isScheduledStatus = job.status === 'scheduled' || job.status === 'in_progress';
+
+            if (hasSchedule && isScheduledStatus) {
+                // Fully scheduled - show on calendar, NOT in sidebar
                 scheduled.push(job);
             } else if (job.scheduling?.offeredSlots?.length > 0) {
-                // Extract offered slots as "pending" calendar items (Item #12)
+                // Has offered slots but not confirmed - show in pending AND sidebar
                 job.scheduling.offeredSlots
                     .filter(slot => slot.status === 'offered')
                     .forEach(slot => {
@@ -530,14 +558,20 @@ export const DragDropCalendar = ({
                             ...job,
                             id: job.id,
                             isPendingSlot: true,
-                            slotStart: slot.start, // ISO string
+                            slotStart: slot.start,
                             slotEnd: slot.end,
                             slotId: slot.id,
                             customerName: job.customer?.name || 'Customer'
                         });
                     });
-                unscheduled.push(job); // Still technically unscheduled until confirmed
+                // Still show in sidebar until customer confirms
+                unscheduled.push(job);
+            } else if (hasSchedule && job.status === 'pending') {
+                // Has a schedule but status is still pending - show on calendar
+                // This can happen when contractor schedules but hasn't confirmed
+                scheduled.push(job);
             } else {
+                // No schedule at all - show in sidebar
                 unscheduled.push(job);
             }
         });

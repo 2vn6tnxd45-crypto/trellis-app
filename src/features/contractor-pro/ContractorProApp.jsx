@@ -1918,11 +1918,21 @@ export const ContractorProApp = () => {
     }, []);
 
     const handleJobClick = useCallback((job) => {
-        if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
-            setOfferingTimesJob(job);
-        } else if (job.status === 'scheduled') {
+        // Check if job already has a confirmed schedule
+        const hasSchedule = job.scheduledTime || job.scheduledDate;
+        const isScheduledStatus = job.status === 'scheduled' || job.status === 'in_progress';
+
+        if (isScheduledStatus || (hasSchedule && job.status !== 'slots_offered')) {
+            // Job is scheduled - show job details
             setSelectedJob(job);
+        } else if (['quoted', 'scheduling', 'pending_schedule', 'slots_offered', 'accepted'].includes(job.status)) {
+            // Job needs scheduling - show time slots modal
+            setOfferingTimesJob(job);
+        } else if (job.status === 'pending' && !hasSchedule) {
+            // Pending job without schedule - show time slots modal to schedule
+            setOfferingTimesJob(job);
         } else {
+            // Default - show job details
             setSelectedJob(job);
         }
     }, []);
