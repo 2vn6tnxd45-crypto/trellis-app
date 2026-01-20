@@ -489,12 +489,43 @@ export const DispatchBoard = ({
         );
     }, [jobs]);
 
+    // Identify overdue/backlog jobs (unassigned and in the past)
+    const backlogJobs = useMemo(() => {
+        return jobs.filter(job => {
+            if (['completed', 'cancelled', 'draft'].includes(job.status)) return false;
+
+            // Check if already assigned
+            const assignedTechIds = getAssignedTechIds(job);
+            if (assignedTechIds.length > 0) return false;
+
+            // Must have a date that is strictly BEFORE the selected date (midnight)
+            if (!job.scheduledDate && !job.scheduledTime) return false;
+
+            const jobDateRaw = job.scheduledDate || job.scheduledTime;
+            const jobDate = jobDateRaw.toDate ? jobDateRaw.toDate() : new Date(jobDateRaw);
+
+            // Normalize to midnight for comparison
+            const jobMidnight = new Date(jobDate);
+            jobMidnight.setHours(0, 0, 0, 0);
+
+            const selectedMidnight = new Date(selectedDate);
+            selectedMidnight.setHours(0, 0, 0, 0);
+
+            return jobMidnight < selectedMidnight;
+        });
+    }, [jobs, selectedDate]);
+
     // Split into assigned and unassigned
     const { assignedJobs, unassignedJobs } = useMemo(() => {
         const assigned = [];
         const unassigned = [];
+        const seenIds = new Set(); // Prevent duplicates across categories
 
+        // 1. Process jobs for the selected date
         jobsForDate.forEach(job => {
+            if (seenIds.has(job.id)) return;
+            seenIds.add(job.id);
+
             const assignedTechIds = getAssignedTechIds(job);
             if (assignedTechIds.length > 0) {
                 assigned.push(job);
@@ -503,8 +534,30 @@ export const DispatchBoard = ({
             }
         });
 
-        return { assignedJobs: assigned, unassignedJobs: [...unassigned, ...unscheduledJobs] };
-    }, [jobsForDate, unscheduledJobs]);
+        // 2. Add backlog jobs to unassigned
+        backlogJobs.forEach(job => {
+            if (seenIds.has(job.id)) return;
+            seenIds.add(job.id);
+            unassigned.push({ ...job, isOverdue: true }); // Mark as overdue for UI
+        });
+
+        // 3. Add unscheduled jobs to unassigned
+        unscheduledJobs.forEach(job => {
+            if (seenIds.has(job.id)) return;
+            seenIds.add(job.id);
+            unassigned.push(job);
+        });
+
+        // Sort unassigned: Overdue first, then Today, then Unscheduled
+        // Actually, maybe better to sort by Date?
+        unassigned.sort((a, b) => {
+            if (a.isOverdue && !b.isOverdue) return -1;
+            if (!a.isOverdue && b.isOverdue) return 1;
+            return 0; // Keep existing order
+        });
+
+        return { assignedJobs: assigned, unassignedJobs: unassigned };
+    }, [jobsForDate, backlogJobs, unscheduledJobs]);
 
     // Group assigned jobs by tech (multi-tech jobs appear in multiple columns)
     const jobsByTech = useMemo(() => {
