@@ -49,6 +49,9 @@ export const analyzeCancellationImpact = (targetJob, allJobs, options = {}) => {
         };
     }
 
+    // Create Date object for comparisons
+    const targetJobDate = new Date(targetDate);
+
     // Resolve timezone
     const timezone = options.timezone || detectTimezone();
 
@@ -165,7 +168,7 @@ export const analyzeCancellationImpact = (targetJob, allJobs, options = {}) => {
         severity,
         summary,
         sameDayJobCount: sameDayJobs.length,
-        targetDate: targetJobDateStr
+        targetDate: targetDate
     };
 };
 
