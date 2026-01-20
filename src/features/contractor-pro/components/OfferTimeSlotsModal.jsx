@@ -175,6 +175,8 @@ export const OfferTimeSlotsModal = ({
     const [showAISuggestions, setShowAISuggestions] = useState(true);
     const [showManualEntry, setShowManualEntry] = useState(false);
     const [slotConflicts, setSlotConflicts] = useState({});
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
 
     // Customer preferences from job
     const customerPrefs = useMemo(() => {
@@ -517,6 +519,39 @@ export const OfferTimeSlotsModal = ({
         }
     };
 
+    // Cancel job handler
+    const handleCancelJob = async () => {
+        if (isCancelling) return;
+        setIsCancelling(true);
+
+        try {
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+            await updateDoc(jobRef, {
+                status: 'cancelled',
+                cancellation: {
+                    cancelledAt: serverTimestamp(),
+                    cancelledBy: 'contractor',
+                    reason: 'Cancelled by contractor'
+                },
+                scheduledTime: null,
+                scheduledDate: null,
+                scheduledEndTime: null,
+                multiDaySchedule: null,
+                'scheduling.offeredSlots': null,
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Job cancelled');
+            setShowCancelConfirm(false);
+            onClose();
+            if (onSuccess) onSuccess();
+        } catch (error) {
+            console.error('Error cancelling job:', error);
+            toast.error('Failed to cancel job');
+        } finally {
+            setIsCancelling(false);
+        }
+    };
 
     const filledSlotsCount = slots.filter(s => s.date).length;
 
@@ -894,34 +929,94 @@ export const OfferTimeSlotsModal = ({
                 </div>
 
                 {/* Footer */}
-                <div className="p-5 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+                <div className="p-5 border-t border-slate-100 bg-slate-50 shrink-0">
+                    <div className="flex gap-3 mb-3">
+                        <button
+                            onClick={onClose}
+                            type="button"
+                            className="flex-1 px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"
+                        >
+                            Close
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isSubmitting || filledSlotsCount === 0}
+                            type="button"
+                            className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                    Sending...
+                                </>
+                            ) : (
+                                <>
+                                    <Send size={16} />
+                                    Send {filledSlotsCount} Option{filledSlotsCount !== 1 ? 's' : ''}
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    {/* Cancel Job Button */}
                     <button
-                        onClick={onClose}
+                        onClick={() => setShowCancelConfirm(true)}
                         type="button"
-                        className="flex-1 px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"
+                        className="w-full py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
                     >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={isSubmitting || filledSlotsCount === 0}
-                        type="button"
-                        className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {isSubmitting ? (
-                            <>
-                                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                                Sending...
-                            </>
-                        ) : (
-                            <>
-                                <Send size={16} />
-                                Send {filledSlotsCount} Option{filledSlotsCount !== 1 ? 's' : ''}
-                            </>
-                        )}
+                        <Trash2 size={16} />
+                        Cancel This Job
                     </button>
                 </div>
             </div>
+
+            {/* Cancel Job Confirmation Modal */}
+            {showCancelConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCancelConfirm(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-red-100 rounded-full">
+                                <Trash2 className="text-red-600" size={24} />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800">Cancel Job?</h3>
+                                <p className="text-sm text-slate-500">This action cannot be undone</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                            <p className="font-medium text-slate-800">{job?.title || job?.serviceType || 'This job'}</p>
+                            <p className="text-sm text-slate-500">{job?.customer?.name || job?.customerName || 'Customer'}</p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowCancelConfirm(false)}
+                                className="flex-1 px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100"
+                            >
+                                Keep Job
+                            </button>
+                            <button
+                                onClick={handleCancelJob}
+                                disabled={isCancelling}
+                                className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                {isCancelling ? (
+                                    <>
+                                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                        Cancelling...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 size={18} />
+                                        Cancel Job
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
