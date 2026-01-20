@@ -43,6 +43,32 @@ const normalizeDate = (date) => {
     return null;
 };
 
+// Build proper schedule fields from date + time inputs
+const buildScheduleFields = (jobData) => {
+    if (!jobData.scheduledDate) {
+        return {
+            scheduledDate: null,
+            scheduledTime: null,
+            scheduledEndTime: null
+        };
+    }
+
+    // Combine date and time into full ISO timestamp
+    const datePart = jobData.scheduledDate; // "2026-01-19"
+    const timePart = jobData.scheduledTime || '09:00'; // "09:00" or default to 9am
+    const scheduledDateTime = new Date(`${datePart}T${timePart}:00`);
+
+    // Calculate end time based on duration
+    const durationMinutes = jobData.estimatedDuration || 60;
+    const endDateTime = new Date(scheduledDateTime.getTime() + durationMinutes * 60 * 1000);
+
+    return {
+        scheduledDate: scheduledDateTime.toISOString(),
+        scheduledTime: scheduledDateTime.toISOString(),
+        scheduledEndTime: endDateTime.toISOString()
+    };
+};
+
 export const createJobDirect = async (contractorId, jobData) => {
     try {
         if (!contractorId) {
@@ -77,7 +103,8 @@ export const createJobDirect = async (contractorId, jobData) => {
             customer: {
                 name: jobData.customerName,
                 phone: jobData.customerPhone || '',
-                email: jobData.customerEmail || ''
+                email: jobData.customerEmail || '',
+                address: jobData.propertyAddress
             },
             customerName: jobData.customerName, // Duplicate for backwards compatibility
             customerPhone: jobData.customerPhone || '',
@@ -92,8 +119,7 @@ export const createJobDirect = async (contractorId, jobData) => {
 
             // Status & Scheduling
             status: jobData.scheduledDate ? JOB_STATUSES.SCHEDULED : JOB_STATUSES.PENDING,
-            scheduledDate: normalizeDate(jobData.scheduledDate),
-            scheduledTime: jobData.scheduledTime || null,
+            ...buildScheduleFields(jobData),
             scheduledTimezone: jobData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
 
             // Assignment
