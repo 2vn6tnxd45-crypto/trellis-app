@@ -904,17 +904,20 @@ export const ModernDashboard = ({
                         const nextDate = new Date(t.nextDue);
                         if (!isNaN(nextDate.getTime())) {
                             const daysUntil = Math.ceil((nextDate - now) / (1000 * 60 * 60 * 24));
+                            // Normalize task name - records may store as 't.task' or 't.taskName'
+                            const taskName = t.task || t.taskName || 'Maintenance';
                             tasks.push({
-                                id: `${record.id}-${t.taskName}`,
+                                id: `${record.id}-${taskName}`,
                                 recordId: record.id,
-                                propertyId: record.propertyId || null,  // CRITICAL: Include propertyId for correct Firestore path
+                                propertyId: record.propertyId || null,
                                 item: record.item,
-                                taskName: t.taskName,
+                                taskName: taskName,
                                 nextDate: nextDate,
                                 daysUntil: daysUntil,
                                 frequency: t.frequency,
                                 contractor: record.contractor || null,
-                                scheduledDate: t.scheduledDate || null
+                                scheduledDate: t.scheduledDate || null,
+                                isGranular: true
                             });
                         }
                     }
@@ -961,8 +964,10 @@ export const ModernDashboard = ({
             }
 
             // Find and update the specific maintenance task
+            // Check both t.task and t.taskName due to inconsistent field naming
             const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                if (t.taskName === task.taskName) {
+                const storedTaskName = t.task || t.taskName;
+                if (storedTaskName === task.taskName) {
                     // Calculate next due date based on frequency
                     const freq = MAINTENANCE_FREQUENCIES.find(f => f.value === t.frequency);
                     const nextDue = new Date();
@@ -982,10 +987,8 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
-            const recordRef = task.propertyId
-                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
-                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
+            // Update the record in Firestore - all records live in house_records
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
@@ -1013,8 +1016,10 @@ export const ModernDashboard = ({
             }
 
             // Find and update the specific maintenance task
+            // Check both t.task and t.taskName due to inconsistent field naming
             const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                if (t.taskName === task.taskName) {
+                const storedTaskName = t.task || t.taskName;
+                if (storedTaskName === task.taskName) {
                     const newDueDate = new Date();
                     newDueDate.setDate(newDueDate.getDate() + days);
 
@@ -1028,10 +1033,8 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
-            const recordRef = task.propertyId
-                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
-                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
+            // Update the record in Firestore - all records live in house_records
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
@@ -1059,8 +1062,10 @@ export const ModernDashboard = ({
             }
 
             // Find and update the specific maintenance task
+            // Check both t.task and t.taskName due to inconsistent field naming
             const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                if (t.taskName === task.taskName) {
+                const storedTaskName = t.task || t.taskName;
+                if (storedTaskName === task.taskName) {
                     return {
                         ...t,
                         scheduledDate: scheduledDate,
@@ -1071,10 +1076,8 @@ export const ModernDashboard = ({
                 return t;
             });
 
-            // Update the record in Firestore - use task.propertyId if available (new path), else fall back
-            const recordRef = task.propertyId
-                ? doc(db, 'artifacts', appId, 'users', userId, 'properties', task.propertyId, 'records', task.recordId)
-                : doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
+            // Update the record in Firestore - all records live in house_records
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
             await updateDoc(recordRef, {
                 maintenanceTasks: updatedTasks,
                 lastActivity: new Date()
