@@ -286,6 +286,11 @@ const TimeSlot = React.memo(({
                                     <RotateCcw size={8} />
                                 </span>
                             )}
+                            {job.scheduleHistory?.length > 0 && (
+                                <span className="text-[9px] bg-amber-300/50 px-1 py-0.5 rounded font-bold shrink-0" title={`Rescheduled ${job.scheduleHistory.length}x`}>
+                                    R
+                                </span>
+                            )}
                             {job._multiDayInfo && (
                                 <span className="text-[9px] bg-white/20 px-1.5 py-0.5 rounded font-bold shrink-0">
                                     {job._multiDayInfo.label}

@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     Calendar, Clock, CheckCircle, XCircle, MessageSquare,
-    DollarSign, Send, AlertCircle, ChevronRight, Trash2
+    DollarSign, Send, AlertCircle, ChevronRight, Trash2, RefreshCw
 } from 'lucide-react';
 import { updateDoc, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -13,6 +13,7 @@ import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarning
 import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
 import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTimezone } from '../contractor-pro/lib/timezoneUtils';
 import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
+import { RescheduleJobModal } from './RescheduleJobModal';
 
 // Helper to format time string like "08:00" to "8:00 AM"
 const formatTimeString = (timeStr) => {
@@ -133,7 +134,8 @@ const formatScheduledTimeRange = (job, timezone) => {
 // ADD: contractorId prop to link the schedule to the specific pro
 // ADD: allJobs prop for cascade warning impact analysis
 // ADD: timezone prop to ensure scheduling happens in the correct zone (e.g. valid even if user is traveling)
-export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezone, onUpdate, onClose }) => {
+// ADD: workingHours prop for multi-day reschedule calculation
+export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezone, workingHours = {}, onUpdate, onClose }) => {
     // userType: 'homeowner' | 'contractor'
     const [isProposing, setIsProposing] = useState(false);
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
@@ -142,6 +144,7 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false);
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
 
     // Analyze cancellation impact for cascade warning
     const cancellationImpact = useMemo(() => {
@@ -471,15 +474,24 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                             </div>
                         </div>
 
-                        {/* Contractor Cancel Button */}
+                        {/* Contractor Actions: Reschedule & Cancel */}
                         {userType === 'contractor' && (
-                            <button
-                                onClick={() => setShowCancelConfirm(true)}
-                                className="w-full py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Trash2 size={16} />
-                                Cancel This Job
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowRescheduleModal(true)}
+                                    className="flex-1 py-2.5 text-amber-600 font-medium rounded-lg border border-amber-200 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <RefreshCw size={16} />
+                                    Reschedule
+                                </button>
+                                <button
+                                    onClick={() => setShowCancelConfirm(true)}
+                                    className="flex-1 py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={16} />
+                                    Cancel
+                                </button>
+                            </div>
                         )}
                     </div>
                 ) : (
@@ -632,6 +644,20 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Reschedule Modal */}
+            {showRescheduleModal && (
+                <RescheduleJobModal
+                    job={job}
+                    onClose={() => setShowRescheduleModal(false)}
+                    onSuccess={() => {
+                        if (onUpdate) onUpdate();
+                    }}
+                    timezone={timezone}
+                    workingHours={workingHours}
+                    allJobs={allJobs}
+                />
             )}
         </div>
     );

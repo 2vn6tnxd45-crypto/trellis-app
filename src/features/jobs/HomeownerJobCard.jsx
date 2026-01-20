@@ -9,7 +9,7 @@ import {
     Calendar, Clock, ChevronRight, CheckCircle, XCircle,
     Building2, MapPin, Phone, Mail, MoreVertical,
     AlertTriangle, Wrench, Info, MessageSquare,
-    ClipboardCheck, RotateCcw, CalendarDays, CalendarPlus
+    ClipboardCheck, RotateCcw, CalendarDays, CalendarPlus, RefreshCw
 } from 'lucide-react';
 import { isRecurringJob } from '../recurring/lib/recurringService';
 import {
@@ -355,6 +355,21 @@ export const HomeownerJobCard = ({
                             <StatusIcon size={12} />
                             {statusConfig.label}
                         </span>
+
+                        {/* Rescheduled Indicator */}
+                        {job.scheduleHistory?.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 flex items-center gap-1">
+                                <RefreshCw size={10} />
+                                Rescheduled
+                            </span>
+                        )}
+
+                        {/* Reschedule Request Pending */}
+                        {job.rescheduleRequest && !job.rescheduleRequest.resolved && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-700">
+                                Reschedule Requested
+                            </span>
+                        )}
 
                         {/* Message Button (standalone when prominent) */}
                         {canMessage && (
