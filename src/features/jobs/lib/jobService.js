@@ -98,12 +98,12 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         scheduledTime: scheduledDateTime.toISOString(),
         scheduledEndTime: endDateTime.toISOString(),
         multiDaySchedule: null
-
     };
+};
 
-    // ============================================
-    // HOMEOWNER LINKING FUNCTIONS
-    // ============================================
+// ============================================
+// HOMEOWNER LINKING FUNCTIONS
+// ============================================
 
     /**
      * Look up homeowner by email and link job to their property
@@ -112,7 +112,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * @param {string} customerEmail - Customer email to look up
      * @returns {Promise<{success: boolean, homeownerId?: string, propertyId?: string}>}
      */
-    export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => {
+export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => {
         if (!customerEmail) {
             return { success: false, error: 'Customer email is required' };
         }
@@ -159,7 +159,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * Directly link a job to a known homeowner and property
      * Used when we already know the homeowner ID (e.g., from quote or evaluation)
      */
-    export const setJobHomeownerLink = async (jobId, homeownerId, propertyId) => {
+export const setJobHomeownerLink = async (jobId, homeownerId, propertyId) => {
         try {
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
 
@@ -183,7 +183,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * Get all jobs for a homeowner (by email or userId)
      * This allows homeowners to see jobs from contractors
      */
-    export const getJobsForHomeowner = async (identifier, identifierType = 'email') => {
+export const getJobsForHomeowner = async (identifier, identifierType = 'email') => {
         try {
             const { collection: firestoreCollection, query: firestoreQuery, where, getDocs, orderBy } = await import('firebase/firestore');
 
@@ -224,7 +224,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
     /**
      * Get upcoming jobs for a homeowner (scheduled, not yet completed)
      */
-    export const getUpcomingJobsForHomeowner = async (identifier, identifierType = 'email') => {
+export const getUpcomingJobsForHomeowner = async (identifier, identifierType = 'email') => {
         const result = await getJobsForHomeowner(identifier, identifierType);
 
         if (!result.success) return result;
@@ -234,7 +234,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
 
         return { success: true, jobs: upcomingJobs };
     };
-    export const createJobDirect = async (contractorId, jobData) => {
+export const createJobDirect = async (contractorId, jobData) => {
         try {
             if (!contractorId) {
                 return { success: false, error: 'Contractor ID is required' };
@@ -333,7 +333,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         }
     };
 
-    export const updateJobStatus = async (contractorId, jobId, newStatus, statusData = {}) => {
+export const updateJobStatus = async (contractorId, jobId, newStatus, statusData = {}) => {
         try {
             // Jobs are stored in the main requests collection
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
@@ -356,7 +356,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         }
     };
 
-    export const assignJobResources = async (contractorId, jobId, resources) => {
+export const assignJobResources = async (contractorId, jobId, resources) => {
         try {
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
             const updates = { updatedAt: serverTimestamp() };
@@ -380,7 +380,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         }
     };
 
-    export const scheduleJob = async (contractorId, jobId, scheduleData) => {
+export const scheduleJob = async (contractorId, jobId, scheduleData) => {
         try {
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
             const updates = {
@@ -407,7 +407,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         }
     };
 
-    export const getJob = async (contractorId, jobId) => {
+export const getJob = async (contractorId, jobId) => {
         try {
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
             const jobSnap = await getDoc(jobRef);
@@ -423,7 +423,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         }
     };
 
-    export const updateJob = async (contractorId, jobId, updates) => {
+export const updateJob = async (contractorId, jobId, updates) => {
         try {
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
             await updateDoc(jobRef, { ...updates, updatedAt: serverTimestamp() });
@@ -448,7 +448,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * @param {Object} options.location - GPS location if available
      * @returns {Promise<{success: boolean, timesheetEntry?: Object}>}
      */
-    export const startJob = async (contractorId, jobId, options = {}) => {
+export const startJob = async (contractorId, jobId, options = {}) => {
         const {
             autoClockIn = true,
             startedBy = null,
@@ -559,7 +559,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * @param {string} options.notes - Completion notes
      * @returns {Promise<{success: boolean, timesheetEntry?: Object}>}
      */
-    export const completeJob = async (contractorId, jobId, options = {}) => {
+export const completeJob = async (contractorId, jobId, options = {}) => {
         const {
             autoClockOut = true,
             completedBy = null,
@@ -641,7 +641,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
      * Pause a job - For multi-day jobs or lunch breaks
      * Optionally pauses timesheet too
      */
-    export const pauseJob = async (contractorId, jobId, options = {}) => {
+export const pauseJob = async (contractorId, jobId, options = {}) => {
         const { reason = 'break', pauseTimesheet = true } = options;
 
         try {
@@ -694,7 +694,7 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
     /**
      * Resume a paused job
      */
-    export const resumeJob = async (contractorId, jobId, options = {}) => {
+export const resumeJob = async (contractorId, jobId, options = {}) => {
         const { resumeTimesheet = true } = options;
 
         try {
