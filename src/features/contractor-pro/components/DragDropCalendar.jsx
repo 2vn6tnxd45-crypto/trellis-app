@@ -64,13 +64,15 @@ const getJobsForDate = (jobs, date, timezone) => {
         // Add multi-day context if applicable
         if (jobIsMultiDay(job)) {
             const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
+            const totalDays = job.multiDaySchedule.totalDays || job.multiDaySchedule.segments?.length || 1;
+            const displayDayNumber = dayNumber || 1;
             return {
                 ...job,
                 _multiDayInfo: {
-                    dayNumber,
-                    totalDays: job.multiDaySchedule.totalDays,
+                    dayNumber: displayDayNumber,
+                    totalDays,
                     segment,
-                    label: `Day ${dayNumber}/${job.multiDaySchedule.totalDays}`
+                    label: `Day ${displayDayNumber}/${totalDays}`
                 }
             };
         }
@@ -182,11 +184,29 @@ const TimeSlot = React.memo(({
 }) => {
     // Filter jobs that START in this hour (not just any job for the day)
     const slotJobs = jobs.filter(job => {
+        // For multi-day jobs, check if this is a segment day and use segment's start hour
+        if (job._multiDayInfo?.segment) {
+            const segmentStartHour = job._multiDayInfo.segment.startHour;
+            // If segment has explicit startHour, use it
+            if (typeof segmentStartHour === 'number') {
+                return segmentStartHour === hour;
+            }
+            // Fallback: parse from startTime string
+            const startTimeParts = job._multiDayInfo.segment.startTime?.split(':');
+            if (startTimeParts) {
+                return parseInt(startTimeParts[0]) === hour;
+            }
+        }
+        // For regular jobs, use the scheduled time
         const jobDate = new Date(job.scheduledTime || job.scheduledDate);
         return jobDate.getHours() === hour;
     }).map(job => {
         // Calculate how many hour slots this job spans
-        const durationMinutes = job.estimatedDuration || 60;
+        // For multi-day segments, use the segment's duration
+        let durationMinutes = job.estimatedDuration || 60;
+        if (job._multiDayInfo?.segment?.durationMinutes) {
+            durationMinutes = job._multiDayInfo.segment.durationMinutes;
+        }
         const durationHours = Math.max(1, Math.ceil(durationMinutes / 60));
         return { ...job, _durationHours: durationHours, _durationMinutes: durationMinutes };
     });

@@ -27,16 +27,29 @@ export const isMultiDayJob = (durationMinutes, maxDayMinutes = 480) => {
 };
 
 /**
+ * Get local date string (YYYY-MM-DD) without timezone conversion issues
+ * @param {Date} date - Date object
+ * @returns {string} Date string in YYYY-MM-DD format
+ */
+const getLocalDateString = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+/**
  * Generate day segments for a multi-day job
  * @param {Date} startDate - The start date for the job
  * @param {number} totalMinutes - Total duration in minutes
  * @param {Object} workingHours - Working hours configuration by day
  * @param {number} minutesPerDay - Default working minutes per day
- * @returns {Array<{date: string, dayNumber: number, startTime: string, endTime: string, durationMinutes: number}>}
+ * @returns {Array<{date: string, dayNumber: number, startTime: string, endTime: string, startHour: number, durationMinutes: number}>}
  */
 export const generateDaySegments = (startDate, totalMinutes, workingHours = {}, minutesPerDay = 480) => {
     const segments = [];
     let remainingMinutes = totalMinutes;
+    // Create a new date from the start date, preserving local time
     let currentDate = new Date(startDate);
     let dayNumber = 1;
 
@@ -68,9 +81,10 @@ export const generateDaySegments = (startDate, totalMinutes, workingHours = {}, 
         const segmentEndTime = `${segmentEndH.toString().padStart(2, '0')}:${segmentEndM.toString().padStart(2, '0')}`;
 
         segments.push({
-            date: currentDate.toISOString().split('T')[0],
+            date: getLocalDateString(currentDate), // Use local date, not UTC
             dayNumber,
             startTime,
+            startHour: startH, // Store numeric start hour for easy lookup
             endTime: segmentEndTime,
             durationMinutes: dayMinutes,
             isComplete: remainingMinutes <= availableMinutes
@@ -121,9 +135,19 @@ export const getSegmentForDate = (date, multiDaySchedule) => {
         return { isInSchedule: false, segment: null, dayNumber: null };
     }
 
-    const dateStr = typeof date === 'string'
-        ? date.split('T')[0]
-        : new Date(date).toISOString().split('T')[0];
+    // Convert date to local date string (YYYY-MM-DD) without timezone shift
+    let dateStr;
+    if (typeof date === 'string') {
+        // If it's already a string, extract just the date part
+        dateStr = date.split('T')[0];
+    } else {
+        // For Date objects, use local date components to avoid UTC shift
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+    }
 
     const segment = multiDaySchedule.segments.find(s => s.date === dateStr);
 
