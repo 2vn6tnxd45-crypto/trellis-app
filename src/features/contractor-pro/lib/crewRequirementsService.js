@@ -6,7 +6,7 @@
 // Validates crew assignments against requirements
 // Integrates with scheduling and route optimization
 
-import { getCrewSize, getAssignedTechIds, jobHasCrew } from './crewService';
+import { getCrewSize, getAssignedTechIds, jobHasCrew } from './crewUtils';
 
 // ============================================
 // CONSTANTS
@@ -44,8 +44,8 @@ export const extractCrewRequirements = (lineItems = []) => {
         };
     }
 
-    const laborItems = lineItems.filter(item => 
-        item.type === 'labor' || 
+    const laborItems = lineItems.filter(item =>
+        item.type === 'labor' ||
         item.category?.toLowerCase() === 'labor' ||
         item.isLabor === true
     );
@@ -59,13 +59,13 @@ export const extractCrewRequirements = (lineItems = []) => {
     laborItems.forEach(item => {
         const itemCrewSize = parseInt(item.crewSize) || 0;
         const itemHours = parseFloat(item.hours) || parseFloat(item.quantity) || 0;
-        
+
         if (itemCrewSize > maxSpecifiedCrew) {
             maxSpecifiedCrew = itemCrewSize;
         }
-        
+
         totalLaborHours += itemHours * (itemCrewSize || 1);
-        
+
         if (itemCrewSize > 1) {
             notes.push(`${item.description || item.name || 'Labor'}: ${itemCrewSize} techs`);
         }
@@ -116,7 +116,7 @@ export const extractCrewRequirements = (lineItems = []) => {
  */
 export const buildJobCrewRequirements = (quote) => {
     const requirements = extractCrewRequirements(quote.lineItems);
-    
+
     return {
         crewRequirements: {
             required: requirements.requiredCrewSize,
@@ -209,7 +209,7 @@ export const validateProposedCrew = (proposedCrew, job) => {
         requiredSize,
         minimumSize,
         shortfall: Math.max(0, requiredSize - proposedSize),
-        message: proposedSize >= requiredSize 
+        message: proposedSize >= requiredSize
             ? 'Crew meets requirements'
             : proposedSize >= minimumSize
                 ? `Crew is ${requiredSize - proposedSize} tech(s) short of ideal`
@@ -248,7 +248,7 @@ export const validateVehicleCapacity = (vehicle, crewSize) => {
         crewSize,
         availableSeats: passengerCapacity - crewSize,
         canAccommodate,
-        warning: !canAccommodate 
+        warning: !canAccommodate
             ? `Vehicle "${vehicle.name}" only seats ${passengerCapacity}, crew has ${crewSize} members`
             : null
     };
@@ -301,7 +301,7 @@ export const validateCrewAvailability = (job, date, availableTechs, existingJobs
     const requirements = job.crewRequirements || extractCrewRequirements(job.lineItems);
     const requiredSize = requirements.required || requirements.requiredCrewSize || 1;
     const minimumSize = requirements.minimum || requirements.minimumCrewSize || 1;
-    
+
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const dateStr = date.toISOString().split('T')[0];
 
@@ -312,7 +312,7 @@ export const validateCrewAvailability = (job, date, availableTechs, existingJobs
         if (!hours?.enabled) return false;
 
         // Check time off
-        const hasTimeOff = timeOffEntries.some(entry => 
+        const hasTimeOff = timeOffEntries.some(entry =>
             entry.techId === tech.id &&
             dateStr >= entry.startDate &&
             dateStr <= entry.endDate
@@ -321,12 +321,12 @@ export const validateCrewAvailability = (job, date, availableTechs, existingJobs
 
         // Check if at capacity
         const techJobsOnDate = existingJobs.filter(j => {
-            const jobDate = j.scheduledDate?.toDate?.() 
+            const jobDate = j.scheduledDate?.toDate?.()
                 ? j.scheduledDate.toDate().toISOString().split('T')[0]
                 : j.scheduledDate?.split?.('T')?.[0];
             return jobDate === dateStr && getAssignedTechIds(j).includes(tech.id);
         });
-        
+
         const maxJobs = tech.maxJobsPerDay || 4;
         if (techJobsOnDate.length >= maxJobs) return false;
 
@@ -397,10 +397,10 @@ export const getRouteCrewFactors = (job) => {
 export const checkRouteCrewCompatibility = (job, route, vehicles = []) => {
     const jobRequirements = job.crewRequirements || extractCrewRequirements(job.lineItems);
     const requiredSize = jobRequirements.required || jobRequirements.requiredCrewSize || 1;
-    
+
     // If route has assigned crew, check if it meets this job's requirements
     const routeCrewSize = route.assignedCrew?.length || (route.assignedTechId ? 1 : 0);
-    
+
     if (routeCrewSize === 0) {
         return {
             compatible: true,
