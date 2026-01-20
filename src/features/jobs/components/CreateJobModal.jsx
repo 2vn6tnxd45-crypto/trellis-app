@@ -1,9 +1,10 @@
 // src/features/jobs/components/CreateJobModal.jsx
 // Modal for creating jobs directly (without quote workflow)
 
-import React, { useState } from 'react';
-import { X, Briefcase, User, MapPin, Phone, Mail, Clock, DollarSign, Calendar, Save, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { X, Briefcase, User, MapPin, Phone, Mail, Clock, DollarSign, Calendar, Save, Loader2, Users } from 'lucide-react';
 import { createJobDirect, JOB_PRIORITY } from '../lib/jobService';
+import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 
 const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
     const [loading, setLoading] = useState(false);
@@ -20,8 +21,55 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
         priority: 'normal',
         scheduledDate: '',
         scheduledTime: '',
-        notes: ''
+        notes: '',
+        crewSize: 1
     });
+
+    // Google Maps autocomplete
+    const mapsLoaded = useGoogleMaps();
+    const addressInputRef = useRef(null);
+    const autocompleteRef = useRef(null);
+    const formDataRef = useRef(formData);
+
+    // Keep formData ref current
+    useEffect(() => {
+        formDataRef.current = formData;
+    }, [formData]);
+
+    // Initialize Google Places Autocomplete
+    useEffect(() => {
+        if (!mapsLoaded || !addressInputRef.current || autocompleteRef.current || !isOpen) return;
+
+        try {
+            autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+                types: ['address'],
+                componentRestrictions: { country: 'us' }
+            });
+
+            autocompleteRef.current.addListener('place_changed', () => {
+                const place = autocompleteRef.current.getPlace();
+                if (place.formatted_address) {
+                    setFormData(prev => ({ ...prev, propertyAddress: place.formatted_address }));
+                }
+            });
+        } catch (err) {
+            console.warn('Autocomplete init error:', err);
+        }
+
+        return () => {
+            // Cleanup autocomplete on unmount
+            if (autocompleteRef.current) {
+                window.google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
+            }
+        };
+    }, [mapsLoaded, isOpen]);
+
+    // Reset autocomplete ref when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            autocompleteRef.current = null;
+        }
+    }, [isOpen]);
 
     const categories = [
         'General',
@@ -56,7 +104,8 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
             const jobData = {
                 ...formData,
                 price: formData.price ? parseFloat(formData.price) : null,
-                estimatedDuration: parseInt(formData.estimatedDuration) || 60
+                estimatedDuration: parseInt(formData.estimatedDuration) || 60,
+                crewSize: parseInt(formData.crewSize) || 1
             };
 
             const result = await createJobDirect(contractorId, jobData);
@@ -77,7 +126,8 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
                     priority: 'normal',
                     scheduledDate: '',
                     scheduledTime: '',
-                    notes: ''
+                    notes: '',
+                    crewSize: 1
                 });
             } else {
                 alert(result.error || 'Failed to create job');
@@ -229,13 +279,15 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
                                 Service Address <span className="text-red-500">*</span>
                             </label>
                             <input
+                                ref={addressInputRef}
                                 type="text"
                                 value={formData.propertyAddress}
                                 onChange={(e) => handleChange('propertyAddress', e.target.value)}
-                                placeholder="123 Main St, City, State 12345"
+                                placeholder="Start typing address..."
                                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                 required
                             />
+                            <p className="text-xs text-slate-400 mt-1">Address suggestions powered by Google</p>
                         </div>
                     </div>
 
@@ -270,7 +322,7 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
                                     <Clock size={14} className="inline mr-1" />
@@ -282,6 +334,20 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
                                     onChange={(e) => handleChange('estimatedDuration', e.target.value)}
                                     min="15"
                                     step="15"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                    <Users size={14} className="inline mr-1" />
+                                    Crew Size
+                                </label>
+                                <input
+                                    type="number"
+                                    value={formData.crewSize}
+                                    onChange={(e) => handleChange('crewSize', e.target.value)}
+                                    min="1"
+                                    max="10"
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                 />
                             </div>

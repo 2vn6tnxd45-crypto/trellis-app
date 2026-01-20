@@ -10,7 +10,8 @@ import {
     Users, Plus, X, Edit2, Save, Trash2,
     Clock, MapPin, Award, Briefcase, Calendar,
     ChevronDown, ChevronUp, CheckCircle, AlertCircle,
-    User, Phone, Mail, Palette
+    User, Phone, Mail, Palette, DollarSign, Truck,
+    Shield, FileText, Camera, Heart
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import toast from 'react-hot-toast';
@@ -54,7 +55,7 @@ const COLORS = [
 // TECH EDITOR MODAL
 // ============================================
 
-const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
+const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }) => {
     const [formData, setFormData] = useState({
         id: tech?.id || `tech_${Date.now()}`,
         name: tech?.name || '',
@@ -69,7 +70,19 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
         maxJobsPerDay: tech?.maxJobsPerDay || 4,
         maxHoursPerDay: tech?.maxHoursPerDay || 8,
         defaultBufferMinutes: tech?.defaultBufferMinutes || 30,
-        workingHours: tech?.workingHours || { ...DEFAULT_HOURS }
+        workingHours: tech?.workingHours || { ...DEFAULT_HOURS },
+        // New enhanced profile fields
+        hourlyRate: tech?.hourlyRate || '',
+        primaryVehicleId: tech?.primaryVehicleId || '',
+        hireDate: tech?.hireDate || '',
+        notes: tech?.notes || '',
+        photoUrl: tech?.photoUrl || '',
+        emergencyContact: tech?.emergencyContact || {
+            name: '',
+            phone: '',
+            relationship: ''
+        },
+        certificationExpiry: tech?.certificationExpiry || {}
     });
 
     const [activeTab, setActiveTab] = useState('basic');
@@ -125,6 +138,26 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
         }));
     };
 
+    const updateEmergencyContact = (field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            emergencyContact: {
+                ...prev.emergencyContact,
+                [field]: value
+            }
+        }));
+    };
+
+    const updateCertExpiry = (cert, date) => {
+        setFormData(prev => ({
+            ...prev,
+            certificationExpiry: {
+                ...prev.certificationExpiry,
+                [cert]: date
+            }
+        }));
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
@@ -140,12 +173,13 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-slate-100 shrink-0">
+                <div className="flex border-b border-slate-100 shrink-0 overflow-x-auto">
                     {[
-                        { id: 'basic', label: 'Basic Info', icon: User },
+                        { id: 'basic', label: 'Basic', icon: User },
+                        { id: 'employment', label: 'Employment', icon: Briefcase },
                         { id: 'skills', label: 'Skills', icon: Award },
                         { id: 'schedule', label: 'Schedule', icon: Calendar },
-                        { id: 'capacity', label: 'Capacity', icon: Briefcase }
+                        { id: 'capacity', label: 'Capacity', icon: Clock }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -266,6 +300,124 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false }) => {
                                         className="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
                                     />
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Employment Tab */}
+                    {activeTab === 'employment' && (
+                        <div className="space-y-6">
+                            {/* Hourly Rate & Hire Date */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Hourly Rate</label>
+                                    <div className="relative">
+                                        <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            type="number"
+                                            value={formData.hourlyRate}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, hourlyRate: e.target.value }))}
+                                            placeholder="25.00"
+                                            step="0.50"
+                                            min="0"
+                                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-1">For labor cost calculations</p>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Hire Date</label>
+                                    <div className="relative">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                        <input
+                                            type="date"
+                                            value={formData.hireDate}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, hireDate: e.target.value }))}
+                                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Primary Vehicle */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Primary Vehicle</label>
+                                <div className="relative">
+                                    <Truck className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                                    <select
+                                        value={formData.primaryVehicleId}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, primaryVehicleId: e.target.value }))}
+                                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none appearance-none bg-white"
+                                    >
+                                        <option value="">No vehicle assigned</option>
+                                        {vehicles.map(v => (
+                                            <option key={v.id} value={v.id}>
+                                                {v.name || v.make} {v.model} ({v.licensePlate || 'No plate'})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">Default vehicle for routing</p>
+                            </div>
+
+                            {/* Emergency Contact */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-3">
+                                    <span className="flex items-center gap-2">
+                                        <Heart size={14} className="text-red-400" />
+                                        Emergency Contact
+                                    </span>
+                                </label>
+                                <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">Name</label>
+                                            <input
+                                                type="text"
+                                                value={formData.emergencyContact.name}
+                                                onChange={(e) => updateEmergencyContact('name', e.target.value)}
+                                                placeholder="Contact name"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-slate-500 mb-1">Phone</label>
+                                            <input
+                                                type="tel"
+                                                value={formData.emergencyContact.phone}
+                                                onChange={(e) => updateEmergencyContact('phone', e.target.value)}
+                                                placeholder="(555) 123-4567"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-500 mb-1">Relationship</label>
+                                        <input
+                                            type="text"
+                                            value={formData.emergencyContact.relationship}
+                                            onChange={(e) => updateEmergencyContact('relationship', e.target.value)}
+                                            placeholder="Spouse, Parent, etc."
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Notes */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Internal Notes</label>
+                                <div className="relative">
+                                    <FileText className="absolute left-3 top-3 text-slate-400" size={16} />
+                                    <textarea
+                                        value={formData.notes}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                                        placeholder="Private notes about this team member..."
+                                        rows={3}
+                                        className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none resize-none"
+                                    />
+                                </div>
+                                <p className="text-xs text-slate-400 mt-1">Only visible to managers</p>
                             </div>
                         </div>
                     )}
@@ -517,6 +669,12 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                             <Clock size={12} />
                             {tech.maxHoursPerDay || 8}h max
                         </span>
+                        {tech.hourlyRate && (
+                            <span className="flex items-center gap-1 text-emerald-600">
+                                <DollarSign size={12} />
+                                ${tech.hourlyRate}/hr
+                            </span>
+                        )}
                         {workDays && (
                             <span className="flex items-center gap-1 capitalize">
                                 <Calendar size={12} />
@@ -574,7 +732,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
 // MAIN COMPONENT
 // ============================================
 
-export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => {
+export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate, vehicles = [] }) => {
     const [members, setMembers] = useState(teamMembers);
     const [editingTech, setEditingTech] = useState(null);
     const [isAddingNew, setIsAddingNew] = useState(false);
@@ -699,6 +857,7 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate }) => 
                         setEditingTech(null);
                         setIsAddingNew(false);
                     }}
+                    vehicles={vehicles}
                 />
             )}
         </div>

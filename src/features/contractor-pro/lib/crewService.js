@@ -8,6 +8,7 @@
 import { db } from '../../../config/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import { extractCrewRequirements, validateCrewAvailability } from './crewRequirementsService';
 
 // ============================================
 // CONSTANTS
@@ -342,21 +343,33 @@ export const suggestCrewForJob = (job, availableTechs, existingJobs, date, optio
     const suggestedCrew = [];
     const reasoning = [];
 
-    // Determine job complexity
-    const duration = job.estimatedDuration || 120;
-    const durationHours = duration / 60;
+    // Check if job has explicit crew requirements (from quote or direct specification)
+    const crewReqs = job.crewRequirements || extractCrewRequirements(job.lineItems);
+    let targetCrewSize;
 
-    let complexity = 'simple';
-    if (durationHours >= 8 || job.complexity === 'major') {
-        complexity = 'major';
-    } else if (durationHours >= 4 || job.complexity === 'complex') {
-        complexity = 'complex';
-    } else if (durationHours >= 2 || job.complexity === 'moderate') {
-        complexity = 'moderate';
+    if (crewReqs.requiredCrewSize > 0) {
+        targetCrewSize = crewReqs.requiredCrewSize;
+        reasoning.push(`Crew requirement from ${crewReqs.source}: ${targetCrewSize} tech${targetCrewSize > 1 ? 's' : ''}`);
+        if (crewReqs.notes?.length > 0) {
+            crewReqs.notes.forEach(note => reasoning.push(`  - ${note}`));
+        }
+    } else {
+        // Fall back to complexity-based sizing
+        const duration = job.estimatedDuration || 120;
+        const durationHours = duration / 60;
+
+        let complexity = 'simple';
+        if (durationHours >= 8 || job.complexity === 'major') {
+            complexity = 'major';
+        } else if (durationHours >= 4 || job.complexity === 'complex') {
+            complexity = 'complex';
+        } else if (durationHours >= 2 || job.complexity === 'moderate') {
+            complexity = 'moderate';
+        }
+
+        targetCrewSize = JOB_COMPLEXITY[complexity].suggestedCrew;
+        reasoning.push(`Job complexity: ${complexity} (suggests ${targetCrewSize} tech${targetCrewSize > 1 ? 's' : ''})`);
     }
-
-    const { suggestedCrew: suggestedSize } = JOB_COMPLEXITY[complexity];
-    reasoning.push(`Job complexity: ${complexity} (suggests ${suggestedSize} tech${suggestedSize > 1 ? 's' : ''})`);
 
     // Filter techs by availability
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -421,7 +434,7 @@ export const suggestCrewForJob = (job, availableTechs, existingJobs, date, optio
     scoredTechs.sort((a, b) => b.score - a.score);
 
     // Select crew
-    const selectedCount = Math.min(suggestedSize, scoredTechs.length);
+    const selectedCount = Math.min(targetCrewSize, scoredTechs.length);
 
     for (let i = 0; i < selectedCount; i++) {
         const { tech, notes } = scoredTechs[i];
