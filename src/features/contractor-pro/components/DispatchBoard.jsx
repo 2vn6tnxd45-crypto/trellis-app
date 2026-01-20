@@ -38,7 +38,9 @@ import {
 // ============================================
 
 const formatDate = (date) => {
-    return date.toLocaleDateString('en-US', {
+    // Ensure date is valid
+    if (!date || isNaN(new Date(date).getTime())) return 'Invalid Date';
+    return new Date(date).toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric'
@@ -74,11 +76,21 @@ const JobCard = ({
 }) => {
     const [expanded, setExpanded] = useState(false);
     const duration = parseDurationToMinutes(job.estimatedDuration);
-    const hours = Math.floor(duration / 60);
-    const mins = duration % 60;
-    const durationStr = hours > 0
-        ? `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
-        : `${mins}m`;
+
+    // Formatting Duration
+    let durationStr = '';
+    const isMultiDay = duration > 1440; // More than 24h
+
+    if (isMultiDay) {
+        const days = Math.ceil(duration / 1440);
+        durationStr = `${days} Days`;
+    } else {
+        const hours = Math.floor(duration / 60);
+        const mins = duration % 60;
+        durationStr = hours > 0
+            ? `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
+            : `${mins}m`;
+    }
 
     return (
         <div
@@ -89,7 +101,7 @@ const JobCard = ({
             }}
             onDragEnd={onDragEnd}
             className={`
-                bg-white rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing
+                bg-white rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing relative
                 ${isDragging ? 'opacity-50 border-emerald-400 shadow-lg' : 'border-slate-200 hover:border-slate-300'}
                 ${compact ? 'p-2' : 'p-3'}
             `}
@@ -98,15 +110,23 @@ const JobCard = ({
             <div className="flex items-start gap-2">
                 <GripVertical size={16} className="text-slate-300 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
-                    <p className={`font-bold text-slate-800 truncate ${compact ? 'text-sm' : ''}`}>
-                        {job.title || job.serviceType || 'Job'}
-                    </p>
+                    <div className="flex items-center gap-2">
+                        <p className={`font-bold text-slate-800 truncate ${compact ? 'text-sm' : ''}`}>
+                            {job.title || job.serviceType || 'Job'}
+                        </p>
+                        {isMultiDay && (
+                            <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px] font-bold">
+                                Multi-Day
+                            </span>
+                        )}
+                    </div>
+
                     <p className="text-sm text-slate-500 truncate">
                         {job.customer?.name || job.customerName || 'Customer'}
                     </p>
 
                     {/* Crew Avatars (if multiple techs assigned) */}
-                    {job.assignedCrew && job.assignedCrew.length > 1 && (
+                    {job.assignedCrew && job.assignedCrew.length > 0 && (
                         <div className="flex items-center gap-1 mt-1">
                             <div className="flex -space-x-2">
                                 {job.assignedCrew.slice(0, 4).map((member, idx) => (
@@ -134,7 +154,7 @@ const JobCard = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1 shrink-0">
-                    {/* Crew Assignment Button */}
+                    {/* Crew Assignment Button - Always visible to allow fixing crews */}
                     {onOpenCrewModal && (
                         <button
                             onClick={(e) => {
@@ -256,7 +276,10 @@ const TechColumn = ({
     const hoursPercent = Math.min(100, (totalHours / maxHours) * 100);
 
     // Check if tech works today
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const safeDate = new Date(date);
+    const dayName = isNaN(safeDate.getTime())
+        ? 'monday'
+        : safeDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const worksToday = tech.workingHours?.[dayName]?.enabled !== false;
 
     const handleDragOver = (e) => {
@@ -596,43 +619,40 @@ export const DispatchBoard = ({
         if (!tech) return;
 
         try {
-            // Check if job already has a crew (e.g. dragging an already assigned job to another tech)
-            // Decisions:
-            // 1. If unassigned -> Create new crew with this tech as lead
-            // 2. If assigned -> Add this tech to existing crew? Or Transfer lead?
-            //    Standard drag-drop usually implies "Assign this job to X".
-            //    If we want "Add X to crew", we use the modal.
-            //    But if I drag from Unassigned -> Tech A, it's a new assignment.
+            const assignedTechIds = getAssignedTechIds(job);
 
-            // Simpler approach for Board Drag-Drop: 
-            // - If unassigned: New Crew (Tech A as Lead)
-            // - If assigned:
-            //   - If tech is already in crew: Do nothing?
-            //   - If tech is NOT in crew: Add to crew?
-            //     Let's default to "Add to or Update Crew" logic.
+            if (assignedTechIds.length > 0) {
+                // Job is already assigned.
+                if (assignedTechIds.includes(techId)) {
+                    toast('Technician already assigned to this job', { icon: 'ℹ️' });
+                    return;
+                }
 
-            // Actually, for the Dispatch Board day view, dragging usually means "Make this person do the job".
-            // If I drag a job from Unassigned to Tech A, I expect Tech A to do it.
-            // If I drag a job from Tech A to Tech B, I might expect Transfer? 
-            // But let's stick to "Add/Assign" via the crew service helper which handles "Assign full crew".
+                // ADD to existing crew
+                let crewToSave = [];
+                if (job.assignedCrew && job.assignedCrew.length > 0) {
+                    crewToSave = [...job.assignedCrew];
+                } else if (job.assignedTechId) {
+                    // Legacy to Crew conversion
+                    crewToSave = [{
+                        techId: job.assignedTechId,
+                        techName: job.assignedTechName || 'Technician',
+                        role: 'lead',
+                        color: '#64748B',
+                        assignedAt: new Date().toISOString()
+                    }];
+                }
 
-            // Re-creating crew with just this tech (standard single-assign behavior)
-            // UNLESS we want to support building crews by dragging?
-            // "Add tech to crew" seems safer if we want to support multi-tech.
-            // BUT if I drag to Tech B, do I want Tech A removed?
-            // Standard behavior usually: replace assignment. 
-            // However, the user specifically wants MULTI-TECH support.
+                crewToSave.push(createCrewMember(tech, 'helper'));
+                await assignCrewToJob(job.id, crewToSave, 'manual');
+                toast.success(`Added ${techName} to crew`);
+            } else {
+                // Unassigned -> New Assignment (Lead)
+                const newMember = createCrewMember(tech, 'lead');
+                await assignCrewToJob(job.id, [newMember], 'manual');
+                toast.success(`Assigned to ${techName}`);
+            }
 
-            // Let's use `assignCrewToJob` with a SINGLE member for now if it's from unassigned.
-            // If it's already assigned, we probably shouldn't be dragging it around easily without clarification.
-            // BUT, `handleAssign` is called by `UnassignedColumn`. So it's mostly "Unassigned -> Assigned".
-
-            const newMember = createCrewMember(tech, 'lead');
-            // We overwrite existing crew if dragging from unassigned (which implies no crew).
-            // If calling from somewhere else, we might need care.
-            await assignCrewToJob(job.id, [newMember], 'manual');
-
-            toast.success(`Assigned to ${techName}`);
             onJobUpdate?.();
         } catch (error) {
             console.error('Assign error:', error);
