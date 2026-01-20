@@ -133,7 +133,7 @@ const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, t
     const timeOffCheck = isDateBlockedByTimeOff(date, techTimeOff);
     if (timeOffCheck.blocked) return false;
 
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'lowercase' });
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const techHours = tech.workingHours?.[dayName];
 
     // Check if tech works this day
