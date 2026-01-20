@@ -290,15 +290,16 @@ const TimeSlot = React.memo(({
                 const topOffset = 4 + (slotJobs.length * 4) + (idx * 4);
                 const isHomeownerProposal = slot.isHomeownerProposal;
                 return (
-                    <div
+                    <button
                         key={`${slot.id}-${slot.slotId || 'proposal'}-${idx}`}
+                        onClick={() => onJobClick?.({ ...slot, _isProposal: true })}
                         style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
-                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 ${
+                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity ${
                             isHomeownerProposal
-                                ? 'bg-blue-50 border-blue-400'
-                                : 'bg-amber-50 border-amber-300'
+                                ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
+                                : 'bg-amber-50 border-amber-300 hover:bg-amber-100'
                         }`}
-                        title={isHomeownerProposal ? 'Customer proposed this time' : 'Offered time slot (Pending confirmation)'}
+                        title={isHomeownerProposal ? 'Click to accept or counter-propose' : 'Offered time slot (Pending confirmation)'}
                     >
                         <div className="flex items-center gap-1 mb-0.5">
                             <Clock size={10} className={isHomeownerProposal ? 'text-blue-600' : 'text-amber-600'} />
@@ -309,7 +310,7 @@ const TimeSlot = React.memo(({
                         <p className={`truncate ${isHomeownerProposal ? 'text-blue-600' : 'text-amber-600'}`}>
                             {slot.customerName}
                         </p>
-                    </div>
+                    </button>
                 );
             })}
 
@@ -542,6 +543,192 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
 };
 
 // ============================================
+// ACCEPT PROPOSAL MODAL
+// ============================================
+
+const AcceptProposalModal = ({ job, allJobs = [], onAccept, onCounter, onCancel, isProcessing, timezone }) => {
+    const [showCounterForm, setShowCounterForm] = useState(false);
+    const [counterDate, setCounterDate] = useState('');
+    const [counterTime, setCounterTime] = useState('09:00');
+
+    // Get the latest homeowner proposal
+    const latestProposal = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner').pop();
+    const proposedDate = latestProposal?.date ? new Date(latestProposal.date) : null;
+    const proposalCreatedAt = latestProposal?.createdAt ? new Date(latestProposal.createdAt) : null;
+
+    // Check if proposal is in the past
+    const isPastProposal = proposedDate && proposedDate < new Date();
+
+    // Check if proposal is stale (created more than 7 days ago)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const isStaleProposal = proposalCreatedAt && proposalCreatedAt < sevenDaysAgo;
+
+    // Check if proposal conflicts with any scheduled job
+    const hasConflict = useMemo(() => {
+        if (!proposedDate || isPastProposal) return null;
+
+        const proposedStart = proposedDate.getTime();
+        const jobDuration = job.estimatedDuration || 120;
+        const proposedEnd = proposedStart + jobDuration * 60 * 1000;
+
+        for (const otherJob of allJobs) {
+            // Skip this job, unscheduled jobs, and completed/cancelled jobs
+            if (otherJob.id === job.id) continue;
+            if (!otherJob.scheduledTime) continue;
+            if (['completed', 'cancelled'].includes(otherJob.status)) continue;
+
+            const otherStart = new Date(otherJob.scheduledTime).getTime();
+            const otherDuration = otherJob.estimatedDuration || 120;
+            const otherEnd = otherStart + otherDuration * 60 * 1000;
+
+            // Check for overlap
+            if (proposedStart < otherEnd && proposedEnd > otherStart) {
+                return otherJob;
+            }
+        }
+        return null;
+    }, [proposedDate, job, allJobs, isPastProposal]);
+
+    const formatProposedTime = () => {
+        if (!proposedDate) return 'Unknown time';
+        return proposedDate.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    };
+
+    const handleCounter = () => {
+        if (!counterDate || !counterTime) {
+            toast.error('Please select a date and time');
+            return;
+        }
+        const counterDateTime = new Date(`${counterDate}T${counterTime}:00`);
+        if (counterDateTime < new Date()) {
+            toast.error('Cannot propose a time in the past');
+            return;
+        }
+        onCounter(counterDateTime.toISOString());
+    };
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
+                <h3 className="font-bold text-lg text-slate-800 mb-2">Customer Proposed a Time</h3>
+
+                {/* Job Info */}
+                <div className="bg-slate-50 rounded-xl p-4 mb-4">
+                    <h4 className="font-bold text-slate-800">
+                        {job.title || job.description || 'Service'}
+                    </h4>
+                    <p className="text-sm text-slate-500">{job.customer?.name || job.customerName}</p>
+                    {job.customer?.address && (
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                            <MapPin size={12} />
+                            {job.customer.address}
+                        </p>
+                    )}
+                </div>
+
+                {/* Proposed Time */}
+                <div className={`p-4 rounded-xl mb-4 ${isPastProposal ? 'bg-red-50 border border-red-200' : hasConflict ? 'bg-amber-50 border border-amber-200' : 'bg-blue-50 border border-blue-200'}`}>
+                    <p className={`text-xs font-bold uppercase mb-1 ${isPastProposal ? 'text-red-800' : hasConflict ? 'text-amber-800' : 'text-blue-800'}`}>Proposed Time</p>
+                    <p className={`text-lg font-bold ${isPastProposal ? 'text-red-700' : hasConflict ? 'text-amber-900' : 'text-blue-900'}`}>
+                        {formatProposedTime()}
+                    </p>
+                    {isPastProposal && (
+                        <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                            <AlertCircle size={12} />
+                            This time has passed - please counter-propose
+                        </p>
+                    )}
+                    {hasConflict && !isPastProposal && (
+                        <p className="text-xs text-amber-700 mt-1 flex items-center gap-1">
+                            <AlertCircle size={12} />
+                            Conflicts with "{hasConflict.title || 'another job'}" - consider counter-proposing
+                        </p>
+                    )}
+                    {isStaleProposal && !isPastProposal && (
+                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                            <Clock size={12} />
+                            Proposal was made over a week ago - customer may have moved on
+                        </p>
+                    )}
+                </div>
+
+                {/* Counter Proposal Form */}
+                {showCounterForm ? (
+                    <div className="p-4 border border-amber-200 rounded-xl bg-amber-50 mb-4 animate-in slide-in-from-bottom-2">
+                        <p className="text-xs font-bold text-amber-800 uppercase mb-2">Counter-Propose</p>
+                        <div className="flex gap-2 mb-3">
+                            <input
+                                type="date"
+                                className="flex-1 p-2 rounded-lg border border-amber-200 outline-none focus:ring-2 focus:ring-amber-500"
+                                value={counterDate}
+                                onChange={e => setCounterDate(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
+                            />
+                            <input
+                                type="time"
+                                className="w-28 p-2 rounded-lg border border-amber-200 outline-none focus:ring-2 focus:ring-amber-500"
+                                value={counterTime}
+                                onChange={e => setCounterTime(e.target.value)}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleCounter}
+                                disabled={isProcessing}
+                                className="flex-1 bg-amber-500 text-white font-bold py-2.5 rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                            >
+                                {isProcessing ? 'Sending...' : 'Send Counter'}
+                            </button>
+                            <button
+                                onClick={() => setShowCounterForm(false)}
+                                className="px-4 bg-white text-slate-500 font-bold py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50"
+                            >
+                                Back
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex gap-3">
+                        <button
+                            onClick={onCancel}
+                            className="flex-1 px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100"
+                        >
+                            Close
+                        </button>
+                        <button
+                            onClick={() => setShowCounterForm(true)}
+                            className="flex-1 px-4 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 flex items-center justify-center gap-2"
+                        >
+                            <Clock size={18} />
+                            Counter
+                        </button>
+                        {!isPastProposal && (
+                            <button
+                                onClick={() => onAccept(latestProposal.date)}
+                                disabled={isProcessing}
+                                className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                                <Check size={18} />
+                                {isProcessing ? 'Accepting...' : 'Accept'}
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // MAIN DRAG & DROP CALENDAR
 // ============================================
 
@@ -560,6 +747,8 @@ export const DragDropCalendar = ({
     const [draggedJob, setDraggedJob] = useState(null);
     const [dropTarget, setDropTarget] = useState(null);
     const [confirmDrop, setConfirmDrop] = useState(null);
+    const [proposalJob, setProposalJob] = useState(null); // For Accept/Counter modal
+    const [isProcessingProposal, setIsProcessingProposal] = useState(false);
 
     const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate]);
     const today = new Date();
@@ -582,11 +771,32 @@ export const DragDropCalendar = ({
             if (hasSchedule && isScheduledStatus) {
                 // Fully scheduled - show on calendar, NOT in sidebar
                 scheduled.push(job);
-            } else if (job.scheduling?.offeredSlots?.length > 0) {
-                // Has offered slots but not confirmed - show in pending AND sidebar
-                job.scheduling.offeredSlots
-                    .filter(slot => slot.status === 'offered')
-                    .forEach(slot => {
+            } else {
+                // Check for homeowner proposals first - they need contractor action
+                const homeownerProposals = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner') || [];
+                const latestHomeownerProposal = homeownerProposals.length > 0 ? homeownerProposals[homeownerProposals.length - 1] : null;
+
+                // Check for contractor offered slots
+                const offeredSlots = job.scheduling?.offeredSlots?.filter(s => s.status === 'offered') || [];
+
+                // Priority: Homeowner proposals need action, then offered slots, then unscheduled
+                if (latestHomeownerProposal?.date && job.status === 'scheduling') {
+                    // Homeowner proposed a time - show in pending on calendar AND sidebar
+                    pending.push({
+                        ...job,
+                        id: job.id,
+                        isPendingSlot: true,
+                        isHomeownerProposal: true,
+                        slotStart: latestHomeownerProposal.date,
+                        slotEnd: null,
+                        proposedBy: latestHomeownerProposal.proposedBy,
+                        customerName: job.customer?.name || 'Customer'
+                    });
+                    // Also show in sidebar with special flag
+                    unscheduled.push({ ...job, hasHomeownerProposal: true });
+                } else if (offeredSlots.length > 0) {
+                    // Has offered slots but not confirmed - show in pending AND sidebar
+                    offeredSlots.forEach(slot => {
                         pending.push({
                             ...job,
                             id: job.id,
@@ -597,32 +807,15 @@ export const DragDropCalendar = ({
                             customerName: job.customer?.name || 'Customer'
                         });
                     });
-                // Still show in sidebar until customer confirms
-                unscheduled.push(job);
-            } else if (job.proposedTimes?.length > 0 && job.status === 'scheduling') {
-                // Homeowner proposed a time - show in pending on calendar AND sidebar
-                const latestProposal = job.proposedTimes[job.proposedTimes.length - 1];
-                if (latestProposal?.date) {
-                    pending.push({
-                        ...job,
-                        id: job.id,
-                        isPendingSlot: true,
-                        isHomeownerProposal: true,
-                        slotStart: latestProposal.date,
-                        slotEnd: null, // Duration unknown
-                        proposedBy: latestProposal.proposedBy,
-                        customerName: job.customer?.name || 'Customer'
-                    });
+                    // Still show in sidebar until customer confirms
+                    unscheduled.push(job);
+                } else if (hasSchedule && job.status === 'pending') {
+                    // Has a schedule but status is still pending - show on calendar
+                    scheduled.push(job);
+                } else {
+                    // No schedule at all - show in sidebar
+                    unscheduled.push(job);
                 }
-                // Also show in sidebar with special flag
-                unscheduled.push({ ...job, hasHomeownerProposal: true });
-            } else if (hasSchedule && job.status === 'pending') {
-                // Has a schedule but status is still pending - show on calendar
-                // This can happen when contractor schedules but hasn't confirmed
-                scheduled.push(job);
-            } else {
-                // No schedule at all - show in sidebar
-                unscheduled.push(job);
             }
         });
 
@@ -828,6 +1021,83 @@ export const DragDropCalendar = ({
         setConfirmDrop(null);
     };
 
+    // Handle accepting a homeowner's proposed time
+    const handleAcceptProposal = async (proposedDate) => {
+        if (!proposalJob) return;
+        setIsProcessingProposal(true);
+
+        try {
+            // Calculate end time based on job duration
+            const startTime = new Date(proposedDate);
+            const durationMinutes = proposalJob.estimatedDuration || 120;
+            const endTime = new Date(startTime);
+            endTime.setMinutes(endTime.getMinutes() + durationMinutes);
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, proposalJob.id), {
+                scheduledTime: proposedDate,
+                scheduledDate: proposedDate,
+                scheduledEndTime: endTime.toISOString(),
+                status: 'scheduled',
+                'scheduling.confirmedSlot': {
+                    start: proposedDate,
+                    end: endTime.toISOString(),
+                    confirmedAt: new Date().toISOString(),
+                    confirmedBy: 'contractor'
+                },
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Time accepted! Job scheduled.');
+            setProposalJob(null);
+            if (onJobUpdate) onJobUpdate();
+        } catch (error) {
+            console.error('Error accepting proposal:', error);
+            toast.error('Failed to accept proposed time');
+        } finally {
+            setIsProcessingProposal(false);
+        }
+    };
+
+    // Handle counter-proposing a different time
+    const handleCounterProposal = async (counterDate) => {
+        if (!proposalJob) return;
+        setIsProcessingProposal(true);
+
+        try {
+            const newProposal = {
+                date: counterDate,
+                proposedBy: 'contractor',
+                createdAt: new Date().toISOString()
+            };
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, proposalJob.id), {
+                proposedTimes: [...(proposalJob.proposedTimes || []), newProposal],
+                status: 'scheduling',
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Counter-proposal sent!');
+            setProposalJob(null);
+            if (onJobUpdate) onJobUpdate();
+        } catch (error) {
+            console.error('Error sending counter-proposal:', error);
+            toast.error('Failed to send counter-proposal');
+        } finally {
+            setIsProcessingProposal(false);
+        }
+    };
+
+    // Internal click handler that routes to proposal modal or external handler
+    const handleInternalJobClick = useCallback((job) => {
+        // Check if this is a homeowner proposal that needs accept/counter
+        if (job._isProposal && job.isHomeownerProposal) {
+            setProposalJob(job);
+        } else {
+            // Pass to external handler
+            onJobClick?.(job);
+        }
+    }, [onJobClick]);
+
     const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
     return (
@@ -846,6 +1116,21 @@ export const DragDropCalendar = ({
                     <p className="text-xs text-slate-500 mt-1">
                         Drag jobs onto the calendar
                     </p>
+                    {/* Badge for jobs with customer proposals */}
+                    {(() => {
+                        const proposalCount = unscheduledJobs.filter(j => j.hasHomeownerProposal || j.proposedTimes?.some(p => p.proposedBy === 'homeowner')).length;
+                        if (proposalCount > 0) {
+                            return (
+                                <div className="mt-2 px-2 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                                        <Clock size={12} />
+                                        {proposalCount} {proposalCount === 1 ? 'customer' : 'customers'} proposed times
+                                    </p>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -951,7 +1236,7 @@ export const DragDropCalendar = ({
                                             handleDragEnter(date, hour);
                                         }}
                                         onDragLeave={handleDragLeave}
-                                        onJobClick={onJobClick}
+                                        onJobClick={handleInternalJobClick}
                                         onEvaluationClick={onEvaluationClick}
                                         preferences={preferences}
                                     />
@@ -972,6 +1257,19 @@ export const DragDropCalendar = ({
                     timezone={timezone}
                     onConfirm={handleConfirmSchedule}
                     onCancel={() => setConfirmDrop(null)}
+                />
+            )}
+
+            {/* Accept/Counter Proposal Modal */}
+            {proposalJob && (
+                <AcceptProposalModal
+                    job={proposalJob}
+                    allJobs={scheduledJobs}
+                    onAccept={handleAcceptProposal}
+                    onCounter={handleCounterProposal}
+                    onCancel={() => setProposalJob(null)}
+                    isProcessing={isProcessingProposal}
+                    timezone={timezone}
                 />
             )}
         </div>

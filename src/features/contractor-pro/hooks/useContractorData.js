@@ -242,9 +242,12 @@ export const useCreateInvitation = (contractorId) => {
 // ============================================
 // JOBS HOOK
 // ============================================
-export const useContractorJobs = (contractorId) => {
+export const useContractorJobs = (contractorId, options = {}) => {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Track seen proposals to detect new ones
+    const [seenProposalIds, setSeenProposalIds] = useState(new Set());
+    const { onNewProposal } = options;
 
     useEffect(() => {
         if (!contractorId) {
@@ -253,22 +256,65 @@ export const useContractorJobs = (contractorId) => {
         }
 
         const unsubscribe = subscribeToContractorJobs(contractorId, (data) => {
+            // Check for new homeowner proposals
+            if (onNewProposal && jobs.length > 0) {
+                data.forEach(job => {
+                    if (job.proposedTimes?.length > 0) {
+                        job.proposedTimes.forEach((proposal, idx) => {
+                            // Only notify for homeowner proposals
+                            if (proposal.proposedBy === 'homeowner') {
+                                const proposalId = `${job.id}-${proposal.createdAt || idx}`;
+                                if (!seenProposalIds.has(proposalId)) {
+                                    onNewProposal(job, proposal);
+                                    setSeenProposalIds(prev => new Set([...prev, proposalId]));
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Initialize seen proposals on first load (don't notify for existing)
+            if (jobs.length === 0 && data.length > 0) {
+                const initialSeen = new Set();
+                data.forEach(job => {
+                    if (job.proposedTimes?.length > 0) {
+                        job.proposedTimes.forEach((proposal, idx) => {
+                            if (proposal.proposedBy === 'homeowner') {
+                                initialSeen.add(`${job.id}-${proposal.createdAt || idx}`);
+                            }
+                        });
+                    }
+                });
+                setSeenProposalIds(initialSeen);
+            }
+
             setJobs(data);
             setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [contractorId]);
+    }, [contractorId, onNewProposal]);
 
     // Derived state for convenience
     const activeJobs = jobs.filter(j => j.status !== 'completed' && j.status !== 'cancelled');
     const completedJobs = jobs.filter(j => j.status === 'completed');
 
-    return { 
-        jobs, 
+    // Jobs with pending homeowner proposals
+    const jobsWithProposals = useMemo(() => {
+        return jobs.filter(job =>
+            job.proposedTimes?.some(p => p.proposedBy === 'homeowner') &&
+            job.status === 'scheduling' &&
+            !job.scheduledTime
+        );
+    }, [jobs]);
+
+    return {
+        jobs,
         activeJobs,
         completedJobs,
-        loading 
+        jobsWithProposals,
+        loading
     };
 };
 

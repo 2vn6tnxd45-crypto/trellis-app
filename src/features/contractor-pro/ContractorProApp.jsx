@@ -1496,7 +1496,25 @@ export const ContractorProApp = () => {
     // Data hooks
     const { invitations, loading: invitationsLoading, pendingInvitations } = useInvitations(user?.uid);
     const { customers, loading: customersLoading, byLastContact: customersByLastContact } = useCustomers(user?.uid);
-    const { jobs, loading: jobsLoading } = useContractorJobs(user?.uid);
+    const handleNewProposal = useCallback((job, proposal) => {
+        const customerName = job.customer?.name || 'A customer';
+        toast.success(
+            `${customerName} proposed a time for "${job.title || 'a job'}"`,
+            {
+                duration: 5000,
+                icon: '📅',
+                style: {
+                    background: '#EFF6FF',
+                    border: '1px solid #3B82F6',
+                    color: '#1E40AF'
+                }
+            }
+        );
+    }, []);
+
+    const { jobs, jobsWithProposals, loading: jobsLoading } = useContractorJobs(user?.uid, {
+        onNewProposal: handleNewProposal
+    });
     const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
 
     // Calendar events hook - merges jobs and evaluations for calendar display
