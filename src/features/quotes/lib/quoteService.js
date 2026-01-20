@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { parseAddressString } from '../../../lib/addressUtils';
+import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 
 // HARDCODED to avoid circular dependency issues
 const appId = 'krib-app';
@@ -380,6 +381,26 @@ export async function acceptQuote(contractorId, quoteId, customerMessage = '') {
             scheduledDate: null,
             scheduledTime: null,
             estimatedDuration: quote.estimatedDuration || null,
+
+            // Crew Requirements - extracted from quote line items
+            // This ensures crew size specified in quotes persists to jobs
+            ...(() => {
+                const crewReqs = extractCrewRequirements(quote.lineItems);
+                return {
+                    crewRequirements: {
+                        required: crewReqs.requiredCrewSize,
+                        minimum: crewReqs.minimumCrewSize,
+                        maximum: crewReqs.maximumCrewSize,
+                        source: crewReqs.source,
+                        requiresMultipleTechs: crewReqs.requiresMultipleTechs,
+                        totalLaborHours: crewReqs.totalLaborHours,
+                        notes: crewReqs.notes,
+                        extractedAt: new Date().toISOString()
+                    },
+                    // Also set top-level field for easy querying/filtering
+                    requiredCrewSize: crewReqs.requiredCrewSize
+                };
+            })(),
 
             // Work tracking
             workNotes: [],

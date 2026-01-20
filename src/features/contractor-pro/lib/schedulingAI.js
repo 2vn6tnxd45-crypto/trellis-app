@@ -19,6 +19,8 @@ import {
 import { formatInTimezone } from './timezoneUtils';
 import { calculateLearningScore } from './schedulingIntelligence';
 import { isTechAvailableOnDate, isDateBlockedByTimeOff } from './timeOffService';
+import { validateCrewAvailability, extractCrewRequirements, getRouteCrewFactors } from './crewRequirementsService';
+import { checkVehicleCrewCapacity, findVehiclesForCrewSize } from './vehicleService';
 
 // ============================================
 // CONSTANTS
@@ -33,6 +35,7 @@ const SCORING_WEIGHTS = {
     WORKLOAD_BALANCE: 20,     // Prefer less-loaded techs
     PREFERRED_ZONE: 15,       // Job in tech's preferred area
     TRAVEL_DISTANCE: -2,      // Penalty per mile beyond base radius
+    CREW_SHORTFALL: -100,     // Heavy penalty if job needs more techs than available
 };
 
 // Job type to skill mapping
@@ -250,6 +253,20 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
         warnings.push(`On ${timeOffCheck.reason}`);
         // Return early for time-off - tech is completely unavailable
         return { score, reasons, warnings, isBlocked: true, blockReason: `On ${timeOffCheck.reason}` };
+    }
+
+    // 0.5. CREW REQUIREMENTS CHECK
+    // If job requires multiple techs, a single tech assignment is problematic
+    const crewFactors = getRouteCrewFactors(job);
+    const requiredCrewSize = crewFactors.requiredCrewSize || 1;
+
+    if (requiredCrewSize > 1) {
+        // Job needs multiple techs - single tech assignment gets a warning
+        warnings.push(`Job requires ${requiredCrewSize} techs`);
+        score += SCORING_WEIGHTS.CREW_SHORTFALL * (requiredCrewSize - 1);
+
+        // Add info about crew requirement
+        reasons.push(`Multi-tech job (needs ${requiredCrewSize})`);
     }
 
     // 1. SKILL MATCHING
@@ -1304,6 +1321,222 @@ export const batchRescheduleJobs = async (schedule) => {
     return batchUpdateJobs(operations);
 };
 
+// ============================================
+// COMPREHENSIVE SCHEDULING VALIDATION
+// ============================================
+
+/**
+ * Validate a complete scheduling assignment including crew requirements
+ *
+ * @param {Object} job - Job to schedule
+ * @param {Date} date - Proposed date
+ * @param {Object[]} assignedCrew - Crew members to assign (array of tech objects)
+ * @param {Object} vehicle - Vehicle to assign
+ * @param {Object[]} allTeamMembers - All available team members
+ * @param {Object[]} existingJobs - Already scheduled jobs
+ * @param {Object[]} timeOffEntries - Time-off entries
+ * @param {Object[]} vehicles - All vehicles
+ * @returns {Object} Validation result
+ */
+export const validateSchedulingAssignment = (
+    job,
+    date,
+    assignedCrew = [],
+    vehicle = null,
+    allTeamMembers = [],
+    existingJobs = [],
+    timeOffEntries = [],
+    vehicles = []
+) => {
+    const errors = [];
+    const warnings = [];
+    const suggestions = [];
+
+    // 1. Check crew requirements
+    const crewFactors = getRouteCrewFactors(job);
+    const requiredCrewSize = crewFactors.requiredCrewSize || 1;
+    const assignedCrewSize = assignedCrew.length;
+
+    if (assignedCrewSize === 0) {
+        errors.push({
+            type: 'no_crew',
+            message: `Job requires ${requiredCrewSize} tech(s), none assigned`
+        });
+    } else if (assignedCrewSize < requiredCrewSize) {
+        const shortfall = requiredCrewSize - assignedCrewSize;
+        errors.push({
+            type: 'crew_shortfall',
+            message: `Job requires ${requiredCrewSize} tech(s), only ${assignedCrewSize} assigned (need ${shortfall} more)`
+        });
+
+        // Suggest available techs
+        const crewValidation = validateCrewAvailability(
+            job, date, allTeamMembers, existingJobs, timeOffEntries
+        );
+
+        if (crewValidation.availableTechs.length >= shortfall) {
+            const unassignedAvailable = crewValidation.availableTechs
+                .filter(t => !assignedCrew.some(c => c.id === t.id))
+                .slice(0, shortfall);
+
+            suggestions.push({
+                type: 'add_techs',
+                message: `Consider adding: ${unassignedAvailable.map(t => t.name).join(', ')}`,
+                techs: unassignedAvailable
+            });
+        }
+    }
+
+    // 2. Validate each assigned tech
+    for (const tech of assignedCrew) {
+        const techResult = scoreTechForJob(tech, job, existingJobs, date, timeOffEntries);
+
+        if (techResult.isBlocked) {
+            errors.push({
+                type: 'tech_blocked',
+                techId: tech.id,
+                message: `${tech.name}: ${techResult.blockReason}`
+            });
+        } else if (techResult.hasWarnings) {
+            techResult.warnings.forEach(w => {
+                warnings.push({
+                    type: 'tech_warning',
+                    techId: tech.id,
+                    message: `${tech.name}: ${w}`
+                });
+            });
+        }
+    }
+
+    // 3. Validate vehicle capacity
+    if (vehicle) {
+        const vehicleCapacity = vehicle.capacity?.passengers || 2;
+        if (vehicleCapacity < assignedCrewSize) {
+            errors.push({
+                type: 'vehicle_capacity',
+                message: `Vehicle "${vehicle.name}" seats ${vehicleCapacity}, but ${assignedCrewSize} techs assigned`
+            });
+
+            // Suggest suitable vehicles
+            const suitableVehicles = findVehiclesForCrewSize(vehicles, job, { includeEquipmentCheck: true });
+            if (suitableVehicles.length > 0) {
+                suggestions.push({
+                    type: 'change_vehicle',
+                    message: `Consider: ${suitableVehicles.slice(0, 3).map(v => v.name).join(', ')}`,
+                    vehicles: suitableVehicles.slice(0, 3)
+                });
+            }
+        }
+    } else if (assignedCrewSize > 0) {
+        // No vehicle assigned but crew is assigned
+        warnings.push({
+            type: 'no_vehicle',
+            message: 'No vehicle assigned for this job'
+        });
+
+        // Suggest vehicles
+        const suitableVehicles = findVehiclesForCrewSize(vehicles, job, { includeEquipmentCheck: true });
+        if (suitableVehicles.length > 0) {
+            suggestions.push({
+                type: 'assign_vehicle',
+                message: `Suggested vehicles: ${suitableVehicles.slice(0, 3).map(v => v.name).join(', ')}`,
+                vehicles: suitableVehicles.slice(0, 3)
+            });
+        }
+    }
+
+    // 4. Check overall availability on date
+    const crewAvailability = validateCrewAvailability(
+        job, date, allTeamMembers, existingJobs, timeOffEntries
+    );
+
+    if (!crewAvailability.canSchedule && assignedCrewSize === 0) {
+        errors.push({
+            type: 'insufficient_availability',
+            message: crewAvailability.message
+        });
+    }
+
+    return {
+        isValid: errors.length === 0,
+        canProceedWithWarnings: errors.length === 0 && warnings.length > 0,
+        errors,
+        warnings,
+        suggestions,
+        crewRequirement: {
+            required: requiredCrewSize,
+            assigned: assignedCrewSize,
+            isMet: assignedCrewSize >= requiredCrewSize
+        },
+        crewAvailability
+    };
+};
+
+/**
+ * Get a staffing summary for jobs on a given date
+ *
+ * @param {Object[]} jobs - Jobs scheduled for the date
+ * @param {Object[]} teamMembers - All team members
+ * @param {Date} date - The date to analyze
+ * @returns {Object} Staffing summary
+ */
+export const getStaffingSummaryForDate = (jobs, teamMembers, date, timeOffEntries = []) => {
+    let totalCrewNeeded = 0;
+    let totalCrewAssigned = 0;
+    const understaffedJobs = [];
+    const wellStaffedJobs = [];
+
+    for (const job of jobs) {
+        const crewFactors = getRouteCrewFactors(job);
+        const required = crewFactors.requiredCrewSize || 1;
+        const assigned = job.assignedCrew?.length || (job.assignedTechId ? 1 : 0);
+
+        totalCrewNeeded += required;
+        totalCrewAssigned += assigned;
+
+        if (assigned < required) {
+            understaffedJobs.push({
+                jobId: job.id,
+                jobNumber: job.jobNumber,
+                title: job.title,
+                required,
+                assigned,
+                shortfall: required - assigned
+            });
+        } else {
+            wellStaffedJobs.push({
+                jobId: job.id,
+                jobNumber: job.jobNumber,
+                title: job.title,
+                required,
+                assigned
+            });
+        }
+    }
+
+    // Check available techs for the day
+    const availability = validateCrewAvailability(
+        { crewRequirements: { required: 1 } },
+        date,
+        teamMembers,
+        jobs,
+        timeOffEntries
+    );
+
+    return {
+        date: date.toISOString().split('T')[0],
+        totalJobs: jobs.length,
+        totalCrewNeeded,
+        totalCrewAssigned,
+        shortfall: Math.max(0, totalCrewNeeded - totalCrewAssigned),
+        understaffedJobCount: understaffedJobs.length,
+        understaffedJobs,
+        wellStaffedJobs,
+        availableTechCount: availability.availableTechCount,
+        canCoverAllJobs: availability.availableTechCount >= totalCrewNeeded
+    };
+};
+
 export default {
     // Tech assignment functions
     scoreTechForJob,
@@ -1329,5 +1562,8 @@ export default {
     // Batch operations
     batchUpdateJobs,
     bulkAssignJobsAtomic,
-    batchRescheduleJobs
+    batchRescheduleJobs,
+    // Crew validation
+    validateSchedulingAssignment,
+    getStaffingSummaryForDate
 };

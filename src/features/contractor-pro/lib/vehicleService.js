@@ -693,6 +693,185 @@ export function checkMaintenanceNeeded(vehicle, maintenanceIntervalMiles = 5000,
 }
 
 // ============================================
+// CREW CAPACITY VALIDATION
+// ============================================
+
+/**
+ * Check if a vehicle can accommodate the required crew for a job
+ *
+ * @param {Object} vehicle - The vehicle to check
+ * @param {Object} job - The job with crew requirements
+ * @returns {Object} { canAccommodate, capacity, required, warning }
+ */
+export function checkVehicleCrewCapacity(vehicle, job) {
+    if (!vehicle) {
+        return {
+            canAccommodate: false,
+            capacity: 0,
+            required: 1,
+            warning: 'No vehicle specified'
+        };
+    }
+
+    const vehicleCapacity = vehicle.capacity?.passengers || 2;
+
+    // Get crew requirement from job
+    const crewRequired = job.crewRequirements?.required
+        || job.requiredCrewSize
+        || 1;
+
+    const canAccommodate = vehicleCapacity >= crewRequired;
+
+    return {
+        canAccommodate,
+        capacity: vehicleCapacity,
+        required: crewRequired,
+        availableSeats: Math.max(0, vehicleCapacity - crewRequired),
+        warning: !canAccommodate
+            ? `Vehicle "${vehicle.name}" seats ${vehicleCapacity}, job needs ${crewRequired} techs`
+            : null,
+        severity: !canAccommodate ? 'error' : null
+    };
+}
+
+/**
+ * Find vehicles that can accommodate a job's crew requirements
+ *
+ * @param {Object[]} vehicles - Available vehicles
+ * @param {Object} job - Job with crew requirements
+ * @param {Object} options - Additional options
+ * @returns {Object[]} Suitable vehicles sorted by best fit
+ */
+export function findVehiclesForCrewSize(vehicles, job, options = {}) {
+    const { preferredTechId = null, includeEquipmentCheck = true } = options;
+
+    if (!vehicles || vehicles.length === 0) return [];
+
+    const crewRequired = job.crewRequirements?.required
+        || job.requiredCrewSize
+        || 1;
+
+    const requiredEquipment = job.requiredEquipment || [];
+
+    return vehicles
+        .filter(v => v.status === 'available' || v.status === 'in_use')
+        .map(vehicle => {
+            const capacity = vehicle.capacity?.passengers || 2;
+            const canFitCrew = capacity >= crewRequired;
+
+            // Check equipment if required
+            let hasEquipment = true;
+            let missingEquipment = [];
+            if (includeEquipmentCheck && requiredEquipment.length > 0) {
+                const vehicleEquip = vehicle.equipment || [];
+                missingEquipment = requiredEquipment.filter(eq => !vehicleEquip.includes(eq));
+                hasEquipment = missingEquipment.length === 0;
+            }
+
+            // Calculate suitability score
+            let score = 0;
+            if (canFitCrew) score += 50;
+            if (hasEquipment) score += 30;
+            if (vehicle.status === 'available') score += 10;
+            if (preferredTechId && vehicle.defaultTechId === preferredTechId) score += 20;
+
+            // Prefer vehicles with closest capacity (less wasted space)
+            const extraSeats = capacity - crewRequired;
+            score -= extraSeats * 2; // Slight penalty for extra capacity
+
+            return {
+                ...vehicle,
+                suitability: {
+                    canFitCrew,
+                    capacity,
+                    crewRequired,
+                    extraSeats: Math.max(0, extraSeats),
+                    hasEquipment,
+                    missingEquipment,
+                    score,
+                    recommended: canFitCrew && hasEquipment
+                }
+            };
+        })
+        .filter(v => v.suitability.canFitCrew) // Only return vehicles that can fit the crew
+        .sort((a, b) => b.suitability.score - a.suitability.score);
+}
+
+/**
+ * Comprehensive job assignment validation
+ * Checks vehicle capacity, equipment, and conflicts
+ *
+ * @param {Object} vehicle - Vehicle to assign
+ * @param {Object} job - Job to assign to
+ * @param {Object[]} scheduledJobs - Existing scheduled jobs
+ * @param {Object} options - Additional options
+ * @returns {Object} { canAssign, errors, warnings }
+ */
+export function validateVehicleJobAssignment(vehicle, job, scheduledJobs = [], options = {}) {
+    const errors = [];
+    const warnings = [];
+
+    if (!vehicle) {
+        return { canAssign: false, errors: ['No vehicle specified'], warnings: [] };
+    }
+
+    // 1. Check crew capacity
+    const crewCheck = checkVehicleCrewCapacity(vehicle, job);
+    if (!crewCheck.canAccommodate) {
+        errors.push({
+            type: 'crew_capacity',
+            message: crewCheck.warning
+        });
+    }
+
+    // 2. Check equipment
+    const requiredEquipment = job.requiredEquipment || [];
+    if (requiredEquipment.length > 0) {
+        const equipCheck = checkVehicleEquipment(vehicle, requiredEquipment);
+        if (!equipCheck.hasAll) {
+            equipCheck.warnings.forEach(w => warnings.push(w));
+        }
+    }
+
+    // 3. Check time conflicts
+    if (job.scheduledDate && job.scheduledTime) {
+        const conflictCheck = checkVehicleConflict(
+            vehicle.id,
+            job.scheduledDate,
+            job.scheduledTime,
+            job.estimatedDuration || 60,
+            scheduledJobs,
+            { excludeJobId: job.id }
+        );
+
+        if (conflictCheck.hasConflict) {
+            conflictCheck.conflicts.forEach(c => errors.push(c));
+        }
+        conflictCheck.warnings.forEach(w => warnings.push(w));
+    }
+
+    // 4. Check vehicle status
+    if (vehicle.status === 'maintenance') {
+        errors.push({
+            type: 'vehicle_status',
+            message: `Vehicle "${vehicle.name}" is currently in maintenance`
+        });
+    } else if (vehicle.status === 'retired') {
+        errors.push({
+            type: 'vehicle_status',
+            message: `Vehicle "${vehicle.name}" is retired`
+        });
+    }
+
+    return {
+        canAssign: errors.length === 0,
+        errors,
+        warnings,
+        crewCapacity: crewCheck
+    };
+}
+
+// ============================================
 // DEFAULT EXPORT
 // ============================================
 
@@ -725,6 +904,11 @@ export default {
     // Conflict & Equipment Checking
     checkVehicleConflict,
     checkVehicleEquipment,
+
+    // Crew Capacity Validation
+    checkVehicleCrewCapacity,
+    findVehiclesForCrewSize,
+    validateVehicleJobAssignment,
 
     // Stats
     getVehicleUtilization,

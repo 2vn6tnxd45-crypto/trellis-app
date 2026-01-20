@@ -6,6 +6,13 @@
 // Implements Vehicle Routing Problem (VRP) solving
 
 import { getDistanceMatrix } from './distanceMatrixService';
+import {
+    extractCrewRequirements,
+    validateVehicleCapacity,
+    getRouteCrewFactors,
+    checkRouteCrewCompatibility
+} from './crewRequirementsService';
+import { getCrewSize } from './crewService';
 
 // ============================================
 // CONSTANTS
@@ -19,7 +26,8 @@ export const DEFAULT_WEIGHTS = {
     TIME_WINDOW: 2.0,        // Heavily penalize missing time windows
     URGENCY: 1.5,            // Prioritize urgent jobs
     WORKLOAD_BALANCE: 0.5,   // Balance work across vehicles/techs
-    SKILL_MATCH: 0.3         // Prefer matching skills (if applicable)
+    SKILL_MATCH: 0.3,        // Prefer matching skills (if applicable)
+    CREW_MISMATCH: 5.0       // Heavily penalize crew size mismatches
 };
 
 /**
@@ -393,15 +401,20 @@ export const multiVehicleOptimize = async (
         };
     }
 
-    // Initialize vehicle routes
+    // Initialize vehicle routes with crew capacity info
     const assignments = {};
     vehicles.forEach(v => {
+        const vehicleCrewCapacity = v.capacity?.passengers || 2;
         assignments[v.id] = {
             vehicle: v,
             tech: v.defaultTechId ? { id: v.defaultTechId, name: v.defaultTechName } : null,
             jobs: [],
             totalTime: 0,
-            score: 0
+            score: 0,
+            // Track crew capacity for this vehicle/route
+            crewCapacity: vehicleCrewCapacity,
+            currentCrewSize: v.defaultTechId ? 1 : 0,
+            crewWarnings: []
         };
     });
 
@@ -433,6 +446,10 @@ export const multiVehicleOptimize = async (
         let bestPosition = 0;
         let bestCost = Infinity;
 
+        // Get crew requirements for this job
+        const jobCrewFactors = getRouteCrewFactors(job);
+        const requiredCrew = jobCrewFactors.requiredCrewSize;
+
         // Try inserting into each vehicle's route
         for (const vehicleId of Object.keys(assignments)) {
             const assignment = assignments[vehicleId];
@@ -446,6 +463,16 @@ export const multiVehicleOptimize = async (
                     assignment.tech.skills.includes(s)
                 );
                 if (!hasSkills) continue;
+            }
+
+            // Check crew capacity - can this vehicle's crew handle this job?
+            const routeCrewSize = assignment.currentCrewSize || 1;
+            const vehicleCapacity = assignment.crewCapacity || 2;
+
+            // If job needs more crew than currently assigned to route, check if vehicle can hold them
+            if (requiredCrew > routeCrewSize && requiredCrew > vehicleCapacity) {
+                // Vehicle can't physically hold the required crew - skip
+                continue;
             }
 
             // Try each insertion position
@@ -466,6 +493,18 @@ export const multiVehicleOptimize = async (
                     insertionCost += deviation * weights.WORKLOAD_BALANCE * 10;
                 }
 
+                // Crew mismatch penalty - prefer routes where crew matches requirements
+                if (requiredCrew > routeCrewSize) {
+                    // Job needs more crew than route has - add penalty
+                    const crewShortfall = requiredCrew - routeCrewSize;
+                    insertionCost += crewShortfall * (weights.CREW_MISMATCH || 5.0) * 10;
+                }
+
+                // Bonus for routes that already have the required crew
+                if (routeCrewSize >= requiredCrew && requiredCrew > 1) {
+                    insertionCost -= 20; // Prefer assigning multi-crew jobs to routes with matching crew
+                }
+
                 if (insertionCost < bestCost) {
                     bestCost = insertionCost;
                     bestVehicle = vehicleId;
@@ -479,8 +518,28 @@ export const multiVehicleOptimize = async (
             const assignment = assignments[bestVehicle];
             assignment.jobs.splice(bestPosition, 0, job);
             assignment.score = bestCost;
+
+            // Track crew requirements - update max required for this route
+            const routeCrewSize = assignment.currentCrewSize || 1;
+            if (requiredCrew > routeCrewSize) {
+                assignment.crewWarnings.push({
+                    jobId: job.id,
+                    jobTitle: job.title,
+                    requiredCrew,
+                    routeCrewSize,
+                    message: `Job "${job.title}" needs ${requiredCrew} tech(s), route has ${routeCrewSize}`
+                });
+                // Update route's required crew to the max of any job
+                if (requiredCrew > (assignment.requiredCrewSize || 1)) {
+                    assignment.requiredCrewSize = requiredCrew;
+                }
+            }
         } else {
-            unassigned.push(job);
+            // Check if job was unassigned due to crew requirements
+            const crewReason = requiredCrew > 1
+                ? ` (requires ${requiredCrew} techs)`
+                : '';
+            unassigned.push({ ...job, unassignedReason: `No suitable vehicle${crewReason}` });
         }
     }
 
@@ -513,6 +572,15 @@ export const multiVehicleOptimize = async (
     const totalJobs = Object.values(assignments)
         .reduce((sum, a) => sum + a.jobs.length, 0);
 
+    // Aggregate crew warnings
+    const allCrewWarnings = Object.values(assignments)
+        .flatMap(a => a.crewWarnings || []);
+
+    // Count routes that need additional crew
+    const routesNeedingMoreCrew = Object.values(assignments)
+        .filter(a => a.requiredCrewSize && a.requiredCrewSize > (a.currentCrewSize || 1))
+        .length;
+
     return {
         assignments,
         unassigned,
@@ -520,8 +588,13 @@ export const multiVehicleOptimize = async (
             totalTravelTime,
             totalJobs,
             unassignedCount: unassigned.length,
-            vehiclesUsed: Object.values(assignments).filter(a => a.jobs.length > 0).length
-        }
+            vehiclesUsed: Object.values(assignments).filter(a => a.jobs.length > 0).length,
+            // Crew-related stats
+            crewWarningsCount: allCrewWarnings.length,
+            routesNeedingMoreCrew,
+            hasCrewIssues: allCrewWarnings.length > 0 || routesNeedingMoreCrew > 0
+        },
+        crewWarnings: allCrewWarnings
     };
 };
 

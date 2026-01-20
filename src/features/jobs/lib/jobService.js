@@ -4,6 +4,7 @@
 import { doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
+import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 
 export const JOB_STATUSES = {
     PENDING: 'pending',
@@ -78,6 +79,23 @@ export const createJobDirect = async (contractorId, jobData) => {
             assignedTechName: jobData.assignedTechName || null,
             assignedVehicleId: jobData.assignedVehicleId || null,
             assignedCrewIds: jobData.assignedCrewIds || [],
+            // Crew Requirements - for direct jobs, use provided crewSize or default to 1
+            ...(() => {
+                const crewSize = parseInt(jobData.crewSize) || 1;
+                return {
+                    crewRequirements: {
+                        required: crewSize,
+                        minimum: Math.max(1, crewSize - 1),
+                        maximum: crewSize + 2,
+                        source: jobData.crewSize ? 'specified' : 'default',
+                        requiresMultipleTechs: crewSize > 1,
+                        totalLaborHours: (jobData.estimatedDuration || 60) / 60 * crewSize,
+                        notes: crewSize > 1 ? [`Direct job: ${crewSize} techs specified`] : [],
+                        extractedAt: new Date().toISOString()
+                    },
+                    requiredCrewSize: crewSize
+                };
+            })(),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             createdBy: jobData.createdBy || 'contractor',
