@@ -2152,6 +2152,7 @@ export const ContractorProApp = () => {
                                     jobs={jobs}
                                     evaluations={calendarEvaluations}
                                     timezone={profile?.scheduling?.timezone}
+                                    preferences={profile?.scheduling}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
@@ -2160,6 +2161,7 @@ export const ContractorProApp = () => {
                                         setActiveView('evaluations');
                                     }}
                                     teamMembers={[]}
+                                    onSetupTeam={() => setActiveView('settings')}
                                 />
                             )}
 
@@ -2169,6 +2171,7 @@ export const ContractorProApp = () => {
                                     jobs={jobs}
                                     evaluations={calendarEvaluations}
                                     timezone={profile?.scheduling?.timezone}
+                                    preferences={profile?.scheduling}
                                     selectedDate={selectedDate}
                                     onDateChange={setSelectedDate}
                                     onJobClick={handleJobClick}
@@ -2176,6 +2179,7 @@ export const ContractorProApp = () => {
                                         setActiveView('evaluations');
                                     }}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
+                                    onSetupTeam={() => setActiveView('settings')}
                                 />
                             )}
 

@@ -9,7 +9,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon, Globe, RotateCcw
+    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
@@ -19,6 +19,7 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { getTimezoneAbbreviation, isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
 import { isMultiDayJob, jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
+import { validateProposedCrew } from '../lib/crewRequirementsService';
 
 // ============================================
 // HELPERS
@@ -344,15 +345,33 @@ const TimeSlot = React.memo(({
 // DROP CONFIRMATION MODAL
 // ============================================
 
-const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone }) => {
+const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone, onSetupTeam }) => {
     const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
-    const [selectedTech, setSelectedTech] = useState('');
+    const [selectedCrew, setSelectedCrew] = useState([]); // Multi-select crew
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
     const [customerConfirmed, setCustomerConfirmed] = useState(false);
 
     // Multi-day detection
     const isMultiDay = isMultiDayJob(duration);
     const estimatedDays = Math.ceil(duration / 480);
+
+    // Get crew requirements from job
+    const crewRequirements = job.crewRequirements || null;
+    const requiredCrew = crewRequirements?.required || 1;
+    const minimumCrew = crewRequirements?.minimum || 1;
+    const requiresMultipleTechs = crewRequirements?.requiresMultipleTechs || requiredCrew > 1;
+
+    // Validate current crew selection
+    const crewValidation = useMemo(() => {
+        if (!requiresMultipleTechs && selectedCrew.length <= 1) {
+            return { isValid: true, meetsRequirement: true };
+        }
+        const proposedCrew = selectedCrew.map(id => ({ techId: id }));
+        return validateProposedCrew(proposedCrew, job);
+    }, [selectedCrew, job, requiresMultipleTechs]);
+
+    const hasTeamMembers = teamMembers && teamMembers.length > 0;
+    const needsTeamButNoMembers = requiresMultipleTechs && !hasTeamMembers;
 
     const timeOptions = [];
     for (let h = 6; h <= 20; h++) {
@@ -363,13 +382,20 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         }
     }
 
+    const toggleCrewMember = (memberId) => {
+        setSelectedCrew(prev =>
+            prev.includes(memberId)
+                ? prev.filter(id => id !== memberId)
+                : [...prev, memberId]
+        );
+    };
+
     const handleConfirm = () => {
         const [hours, minutes] = selectedTime.split(':').map(Number);
 
         let scheduledDateTime;
 
         if (timezone) {
-            // Use timezone utility if timezone is provided
             scheduledDateTime = createDateInTimezone(
                 date.getFullYear(),
                 date.getMonth(),
@@ -379,19 +405,29 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                 timezone
             );
         } else {
-            // Fallback to local time (naive)
             scheduledDateTime = new Date(date);
             scheduledDateTime.setHours(hours, minutes, 0, 0);
         }
 
-        // Calculate end time based on duration
         const endDateTime = new Date(scheduledDateTime);
         endDateTime.setMinutes(endDateTime.getMinutes() + duration);
+
+        // Build crew array for multi-assign
+        const crewArray = selectedCrew.map(techId => {
+            const member = teamMembers?.find(m => m.id === techId);
+            return {
+                techId,
+                name: member?.name || 'Unknown',
+                role: member?.role || 'Technician',
+                assignedAt: new Date().toISOString()
+            };
+        });
 
         onConfirm({
             scheduledTime: scheduledDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
-            assignedTo: selectedTech || null,
+            assignedTo: selectedCrew.length === 1 ? selectedCrew[0] : null,
+            crew: crewArray.length > 0 ? crewArray : null,
             estimatedDuration: duration,
             isDirectSchedule: customerConfirmed,
             isMultiDay,
@@ -403,7 +439,7 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
 
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                 <h3 className="font-bold text-lg text-slate-800 mb-4">Schedule Job</h3>
 
                 {/* Job Info */}
@@ -419,6 +455,60 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         </p>
                     )}
                 </div>
+
+                {/* Crew Requirements Banner */}
+                {requiresMultipleTechs && (
+                    <div className={`mb-4 p-3 rounded-xl border ${
+                        crewValidation.meetsRequirement
+                            ? 'bg-emerald-50 border-emerald-200'
+                            : crewValidation.isValid
+                                ? 'bg-amber-50 border-amber-200'
+                                : 'bg-red-50 border-red-200'
+                    }`}>
+                        <div className="flex items-start gap-2">
+                            <UsersIcon size={16} className={`mt-0.5 shrink-0 ${
+                                crewValidation.meetsRequirement
+                                    ? 'text-emerald-600'
+                                    : crewValidation.isValid
+                                        ? 'text-amber-600'
+                                        : 'text-red-600'
+                            }`} />
+                            <div className="flex-1">
+                                <div className="flex items-center justify-between">
+                                    <p className={`font-medium ${
+                                        crewValidation.meetsRequirement
+                                            ? 'text-emerald-800'
+                                            : crewValidation.isValid
+                                                ? 'text-amber-800'
+                                                : 'text-red-800'
+                                    }`}>
+                                        Crew Required: {requiredCrew} {requiredCrew === 1 ? 'person' : 'people'}
+                                    </p>
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                                        crewValidation.meetsRequirement
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : crewValidation.isValid
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : 'bg-red-100 text-red-700'
+                                    }`}>
+                                        {selectedCrew.length}/{requiredCrew} selected
+                                    </span>
+                                </div>
+                                {crewRequirements?.source === 'specified' && crewRequirements?.notes?.length > 0 && (
+                                    <p className="text-xs text-slate-600 mt-1">
+                                        From quote: {crewRequirements.notes[0]}
+                                    </p>
+                                )}
+                                {!crewValidation.meetsRequirement && selectedCrew.length > 0 && (
+                                    <p className="text-xs mt-1 flex items-center gap-1">
+                                        <AlertCircle size={10} />
+                                        {crewValidation.message}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Date Display */}
                 <div className="mb-4">
@@ -481,27 +571,85 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                     </div>
                 )}
 
-                {/* Tech Assignment (if team) */}
-                {teamMembers && teamMembers.length > 0 && (
+                {/* Crew Assignment - Multi-select */}
+                {hasTeamMembers && (
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-slate-700 mb-1">
-                            Assign To
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Assign Crew {requiresMultipleTechs && <span className="text-slate-400">(select {requiredCrew})</span>}
                         </label>
-                        <Select
-                            value={selectedTech}
-                            onChange={(val) => setSelectedTech(val)}
-                            options={[
-                                { value: '', label: 'Unassigned' },
-                                ...teamMembers.map(member => ({
-                                    value: member.id,
-                                    label: `${member.name} (${member.role})`
-                                }))
-                            ]}
-                        />
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {teamMembers.map(member => {
+                                const isSelected = selectedCrew.includes(member.id);
+                                return (
+                                    <button
+                                        key={member.id}
+                                        type="button"
+                                        onClick={() => toggleCrewMember(member.id)}
+                                        className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
+                                            isSelected
+                                                ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
+                                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                            isSelected
+                                                ? 'border-emerald-500 bg-emerald-500'
+                                                : 'border-slate-300'
+                                        }`}>
+                                            {isSelected && <Check size={12} className="text-white" />}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className={`font-medium truncate ${isSelected ? 'text-emerald-800' : 'text-slate-800'}`}>
+                                                {member.name}
+                                            </p>
+                                            <p className="text-xs text-slate-500">{member.role}</p>
+                                        </div>
+                                        {member.color && (
+                                            <div
+                                                className="w-3 h-3 rounded-full shrink-0"
+                                                style={{ backgroundColor: member.color }}
+                                            />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
-                {/* Actions */}
+                {/* No Team Members - Prompt to Set Up */}
+                {needsTeamButNoMembers && (
+                    <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-start gap-3">
+                            <UserPlus size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p className="font-medium text-amber-800">Team Setup Needed</p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                    This job requires {requiredCrew} crew members, but you haven't set up your team yet.
+                                </p>
+                                {onSetupTeam && (
+                                    <button
+                                        onClick={onSetupTeam}
+                                        className="mt-2 px-3 py-1.5 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 transition-colors"
+                                    >
+                                        Set Up Team
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Single Tech (no team) or Solo Assignment */}
+                {!hasTeamMembers && !requiresMultipleTechs && (
+                    <div className="mb-4 p-3 bg-slate-50 rounded-xl">
+                        <div className="flex items-center gap-2">
+                            <User size={16} className="text-slate-500" />
+                            <p className="text-sm text-slate-600">Job will be assigned to you</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Customer Confirmed Checkbox */}
                 <div className="mb-4 p-3 bg-slate-50 rounded-xl">
                     <label className="flex items-start gap-3 cursor-pointer">
@@ -517,6 +665,18 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         </div>
                     </label>
                 </div>
+
+                {/* Understaffed Warning */}
+                {requiresMultipleTechs && !crewValidation.isValid && selectedCrew.length > 0 && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                            <p className="text-xs text-red-700">
+                                <span className="font-bold">Warning:</span> Scheduling with fewer crew members than required may impact job quality or completion time.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Actions */}
                 <div className="flex gap-3 mt-6">
@@ -739,7 +899,8 @@ export const DragDropCalendar = ({
     timezone,  // IANA timezone identifier
     onJobUpdate,
     onJobClick,
-    onEvaluationClick  // Handler for evaluation clicks
+    onEvaluationClick,  // Handler for evaluation clicks
+    onSetupTeam  // Handler to navigate to team management
 }) => {
     // Get timezone abbreviation for display
     const timezoneAbbr = timezone ? getTimezoneAbbreviation(timezone) : null;
@@ -948,6 +1109,11 @@ export const DragDropCalendar = ({
                     lastActivity: serverTimestamp()
                 };
 
+                // Add crew array if multiple techs assigned
+                if (scheduleData.crew && scheduleData.crew.length > 0) {
+                    updateData.crew = scheduleData.crew;
+                }
+
                 // Handle multi-day jobs
                 if (scheduleData.isMultiDay) {
                     const { createMultiDaySchedule } = await import('../lib/multiDayUtils');
@@ -1001,14 +1167,21 @@ export const DragDropCalendar = ({
                     createdAt: new Date().toISOString()
                 };
 
-                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), {
+                const proposeUpdateData = {
                     'scheduling.offeredSlots': [offeredSlot],
                     'scheduling.offeredAt': serverTimestamp(),
                     assignedTo: scheduleData.assignedTo,
                     estimatedDuration: scheduleData.estimatedDuration,
                     status: 'slots_offered',
                     lastActivity: serverTimestamp()
-                });
+                };
+
+                // Add crew array if multiple techs assigned
+                if (scheduleData.crew && scheduleData.crew.length > 0) {
+                    proposeUpdateData.crew = scheduleData.crew;
+                }
+
+                await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), proposeUpdateData);
                 toast.success('Time proposed! Waiting for customer confirmation.');
             }
 
@@ -1257,6 +1430,10 @@ export const DragDropCalendar = ({
                     timezone={timezone}
                     onConfirm={handleConfirmSchedule}
                     onCancel={() => setConfirmDrop(null)}
+                    onSetupTeam={onSetupTeam ? () => {
+                        setConfirmDrop(null);
+                        onSetupTeam();
+                    } : null}
                 />
             )}
 
