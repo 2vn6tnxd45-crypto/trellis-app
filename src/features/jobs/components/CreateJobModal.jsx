@@ -87,8 +87,25 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
         'Other'
     ];
 
+    // Format phone number as user types
+    const formatPhoneNumber = (value) => {
+        if (!value) return value;
+        const phoneNumber = value.replace(/[^\d]/g, '');
+        const phoneNumberLength = phoneNumber.length;
+        if (phoneNumberLength < 4) return phoneNumber;
+        if (phoneNumberLength < 7) {
+            return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+        }
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+    };
+
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handlePhoneChange = (e) => {
+        const formatted = formatPhoneNumber(e.target.value);
+        setFormData(prev => ({ ...prev, customerPhone: formatted }));
     };
 
     const handleSubmit = async (e) => {
@@ -253,8 +270,9 @@ const CreateJobModal = ({ isOpen, onClose, contractorId, onJobCreated }) => {
                                 <input
                                     type="tel"
                                     value={formData.customerPhone}
-                                    onChange={(e) => handleChange('customerPhone', e.target.value)}
+                                    onChange={handlePhoneChange}
                                     placeholder="(555) 123-4567"
+                                    maxLength={14}
                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                                 />
                             </div>
