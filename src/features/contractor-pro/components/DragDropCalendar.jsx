@@ -97,14 +97,25 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd }) => {
         onDragEnd?.();
     };
 
+    const hasProposal = job.hasHomeownerProposal || job.proposedTimes?.length > 0;
+
     return (
         <div
             draggable
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`p-3 bg-white rounded-xl border border-slate-200 cursor-grab active:cursor-grabbing transition-all ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'
-                }`}
+            className={`p-3 rounded-xl border cursor-grab active:cursor-grabbing transition-all ${
+                hasProposal
+                    ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
+                    : 'bg-white border-slate-200'
+            } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
         >
+            {hasProposal && (
+                <div className="mb-2 px-2 py-1 bg-blue-100 rounded-lg text-[10px] font-bold text-blue-700 flex items-center gap-1">
+                    <Clock size={10} />
+                    Customer proposed a time
+                </div>
+            )}
             <div className="flex items-start gap-2">
                 <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
@@ -145,7 +156,9 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd }) => {
     // Custom comparison for performance
     return prevProps.job.id === nextProps.job.id &&
            prevProps.job.status === nextProps.job.status &&
-           prevProps.job.title === nextProps.job.title;
+           prevProps.job.title === nextProps.job.title &&
+           prevProps.job.hasHomeownerProposal === nextProps.job.hasHomeownerProposal &&
+           prevProps.job.proposedTimes?.length === nextProps.job.proposedTimes?.length;
 });
 
 // ============================================
@@ -275,18 +288,27 @@ const TimeSlot = React.memo(({
             {/* NEW: Pending/Offered Slots - positioned after jobs */}
             {slotPending.map((slot, idx) => {
                 const topOffset = 4 + (slotJobs.length * 4) + (idx * 4);
+                const isHomeownerProposal = slot.isHomeownerProposal;
                 return (
                     <div
-                        key={`${slot.id}-${slot.slotId}-${idx}`}
+                        key={`${slot.id}-${slot.slotId || 'proposal'}-${idx}`}
                         style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
-                        className="absolute left-1 right-1 h-[52px] p-2 bg-amber-50 border border-amber-300 border-dashed rounded-lg text-xs text-left opacity-90"
-                        title="Offered time slot (Pending confirmation)"
+                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 ${
+                            isHomeownerProposal
+                                ? 'bg-blue-50 border-blue-400'
+                                : 'bg-amber-50 border-amber-300'
+                        }`}
+                        title={isHomeownerProposal ? 'Customer proposed this time' : 'Offered time slot (Pending confirmation)'}
                     >
                         <div className="flex items-center gap-1 mb-0.5">
-                            <Clock size={10} className="text-amber-600" />
-                            <span className="font-bold text-amber-700 truncate">{slot.title || 'Pending'}</span>
+                            <Clock size={10} className={isHomeownerProposal ? 'text-blue-600' : 'text-amber-600'} />
+                            <span className={`font-bold truncate ${isHomeownerProposal ? 'text-blue-700' : 'text-amber-700'}`}>
+                                {isHomeownerProposal ? 'Customer Proposed' : (slot.title || 'Pending')}
+                            </span>
                         </div>
-                        <p className="truncate text-amber-600">{slot.customerName}</p>
+                        <p className={`truncate ${isHomeownerProposal ? 'text-blue-600' : 'text-amber-600'}`}>
+                            {slot.customerName}
+                        </p>
                     </div>
                 );
             })}
@@ -577,6 +599,23 @@ export const DragDropCalendar = ({
                     });
                 // Still show in sidebar until customer confirms
                 unscheduled.push(job);
+            } else if (job.proposedTimes?.length > 0 && job.status === 'scheduling') {
+                // Homeowner proposed a time - show in pending on calendar AND sidebar
+                const latestProposal = job.proposedTimes[job.proposedTimes.length - 1];
+                if (latestProposal?.date) {
+                    pending.push({
+                        ...job,
+                        id: job.id,
+                        isPendingSlot: true,
+                        isHomeownerProposal: true,
+                        slotStart: latestProposal.date,
+                        slotEnd: null, // Duration unknown
+                        proposedBy: latestProposal.proposedBy,
+                        customerName: job.customer?.name || 'Customer'
+                    });
+                }
+                // Also show in sidebar with special flag
+                unscheduled.push({ ...job, hasHomeownerProposal: true });
             } else if (hasSchedule && job.status === 'pending') {
                 // Has a schedule but status is still pending - show on calendar
                 // This can happen when contractor schedules but hasn't confirmed
