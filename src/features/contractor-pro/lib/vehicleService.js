@@ -353,6 +353,131 @@ export function getAvailableVehicles(vehicles, date, scheduledJobs = []) {
 }
 
 /**
+ * Check if assigning a vehicle to a job would create a conflict
+ * Returns detailed conflict information for UI display
+ *
+ * @param {string} vehicleId - Vehicle to check
+ * @param {Date} jobDate - The date of the job
+ * @param {string} jobStartTime - Start time (HH:MM or ISO)
+ * @param {number} jobDurationMinutes - Duration of the job
+ * @param {Object[]} scheduledJobs - All jobs scheduled for that day
+ * @param {Object} options - Additional options
+ * @returns {Object} { hasConflict, conflicts, warnings }
+ */
+export function checkVehicleConflict(vehicleId, jobDate, jobStartTime, jobDurationMinutes, scheduledJobs = [], options = {}) {
+    const conflicts = [];
+    const warnings = [];
+    const { excludeJobId = null, bufferMinutes = 30 } = options;
+
+    // Filter jobs for this vehicle on this day
+    const dateStr = jobDate instanceof Date
+        ? jobDate.toISOString().split('T')[0]
+        : (jobDate || '').split('T')[0];
+
+    const vehicleJobs = scheduledJobs.filter(job => {
+        if (job.assignedVehicleId !== vehicleId) return false;
+        if (excludeJobId && job.id === excludeJobId) return false;
+
+        // Check same day
+        const jobDateStr = job.scheduledDate instanceof Date
+            ? job.scheduledDate.toISOString().split('T')[0]
+            : (job.scheduledDate || '').split('T')[0];
+
+        return jobDateStr === dateStr;
+    });
+
+    if (vehicleJobs.length === 0) {
+        return { hasConflict: false, conflicts, warnings };
+    }
+
+    // Parse new job time
+    let newJobStart = 0;
+    if (typeof jobStartTime === 'string' && jobStartTime.includes(':')) {
+        const [h, m] = jobStartTime.split(':').map(Number);
+        newJobStart = h * 60 + m;
+    }
+    const newJobEnd = newJobStart + jobDurationMinutes;
+
+    // Check each existing job for time overlap
+    for (const existingJob of vehicleJobs) {
+        let exStart = 0;
+        if (existingJob.scheduledTime) {
+            if (typeof existingJob.scheduledTime === 'string' && existingJob.scheduledTime.includes(':')) {
+                const [h, m] = existingJob.scheduledTime.split(':').map(Number);
+                exStart = h * 60 + m;
+            }
+        }
+
+        const exDuration = existingJob.estimatedDuration || 60;
+        const exEnd = exStart + (typeof exDuration === 'number' ? exDuration : 60);
+
+        // Check overlap with buffer
+        const overlap = !(newJobEnd + bufferMinutes <= exStart || newJobStart >= exEnd + bufferMinutes);
+
+        if (overlap) {
+            conflicts.push({
+                type: 'time_overlap',
+                severity: 'error',
+                jobId: existingJob.id,
+                jobTitle: existingJob.title || existingJob.serviceType || 'Existing Job',
+                scheduledTime: existingJob.scheduledTime,
+                message: `Vehicle already assigned to "${existingJob.title || 'another job'}" at this time`
+            });
+        }
+    }
+
+    // Warning if vehicle already has jobs that day (even if no time conflict)
+    if (vehicleJobs.length > 0 && conflicts.length === 0) {
+        warnings.push({
+            type: 'busy_vehicle',
+            severity: 'warning',
+            jobCount: vehicleJobs.length,
+            message: `Vehicle has ${vehicleJobs.length} other job(s) scheduled this day`
+        });
+    }
+
+    return {
+        hasConflict: conflicts.length > 0,
+        conflicts,
+        warnings,
+        existingJobCount: vehicleJobs.length
+    };
+}
+
+/**
+ * Check if a vehicle has the required equipment for a job
+ *
+ * @param {Vehicle} vehicle - The vehicle to check
+ * @param {string[]} requiredEquipment - Equipment IDs needed for the job
+ * @returns {Object} { hasAll, missing, warnings }
+ */
+export function checkVehicleEquipment(vehicle, requiredEquipment = []) {
+    if (!requiredEquipment.length) {
+        return { hasAll: true, missing: [], warnings: [] };
+    }
+
+    const vehicleEquipment = vehicle.equipment || [];
+    const missing = requiredEquipment.filter(eq => !vehicleEquipment.includes(eq));
+
+    const warnings = missing.map(eq => {
+        const equipmentInfo = VEHICLE_EQUIPMENT_OPTIONS.find(e => e.id === eq);
+        return {
+            type: 'missing_equipment',
+            severity: 'warning',
+            equipmentId: eq,
+            equipmentLabel: equipmentInfo?.label || eq,
+            message: `Vehicle missing: ${equipmentInfo?.label || eq}`
+        };
+    });
+
+    return {
+        hasAll: missing.length === 0,
+        missing,
+        warnings
+    };
+}
+
+/**
  * Find the best vehicle for a job based on equipment needs
  * @param {Vehicle[]} vehicles - Available vehicles
  * @param {string[]} requiredEquipment - Equipment IDs needed for the job
@@ -596,6 +721,10 @@ export default {
     assignVehicleToJob,
     unassignVehicleFromJob,
     getEquipmentForJobType,
+
+    // Conflict & Equipment Checking
+    checkVehicleConflict,
+    checkVehicleEquipment,
 
     // Stats
     getVehicleUtilization,

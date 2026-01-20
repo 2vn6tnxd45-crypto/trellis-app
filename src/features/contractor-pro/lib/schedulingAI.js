@@ -18,6 +18,7 @@ import {
 } from './multiDayUtils';
 import { formatInTimezone } from './timezoneUtils';
 import { calculateLearningScore } from './schedulingIntelligence';
+import { isTechAvailableOnDate, isDateBlockedByTimeOff } from './timeOffService';
 
 // ============================================
 // CONSTANTS
@@ -123,7 +124,12 @@ const normalizeTime = (time, timezone) => {
 /**
  * Check if a time slot is available for a tech
  */
-const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, timezone) => {
+const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, timezone, timeOffEntries = []) => {
+    // Check for time-off first
+    const techTimeOff = timeOffEntries.filter(t => t.techId === tech.id);
+    const timeOffCheck = isDateBlockedByTimeOff(date, techTimeOff);
+    if (timeOffCheck.blocked) return false;
+
     const dayName = date.toLocaleDateString('en-US', { weekday: 'lowercase' });
     const techHours = tech.workingHours?.[dayName];
 
@@ -231,10 +237,20 @@ const techHasSkills = (tech, requiredSkills) => {
  * Calculate a comprehensive score for how well a tech matches a job
  * Higher score = better match
  */
-export const scoreTechForJob = (tech, job, allJobsForDay, date) => {
+export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries = []) => {
     let score = 0;
     const reasons = [];
     const warnings = [];
+
+    // 0. TIME-OFF CHECK (highest priority)
+    const techTimeOff = timeOffEntries.filter(t => t.techId === tech.id);
+    const timeOffCheck = isDateBlockedByTimeOff(date, techTimeOff);
+    if (timeOffCheck.blocked) {
+        score -= 200; // Major penalty - tech is on time-off
+        warnings.push(`On ${timeOffCheck.reason}`);
+        // Return early for time-off - tech is completely unavailable
+        return { score, reasons, warnings, isBlocked: true, blockReason: `On ${timeOffCheck.reason}` };
+    }
 
     // 1. SKILL MATCHING
     const requiredSkills = getRequiredSkills(job);
