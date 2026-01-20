@@ -60,13 +60,17 @@ const formatScheduledBadge = (job, timezone) => {
     const dateStr = formatInTimezone(job.scheduledTime, 'MMM d', displayTimezone);
     const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
 
-    // Check if we have an end time from slot selection
-    if (job.scheduling?.confirmedSlot?.end) {
-        const endTime = formatInTimezone(job.scheduling.confirmedSlot.end, 'h:mm a', displayTimezone);
-        return `${dateStr} • ${startTime} - ${endTime}`;
+    // Check if we have an end time - try multiple sources
+    const endTimeSource = job.scheduledEndTime || job.scheduling?.confirmedSlot?.end;
+    if (endTimeSource) {
+        const endTime = formatInTimezone(endTimeSource, 'h:mm a', displayTimezone);
+        // Only show range if end time is different from start time
+        if (endTime !== startTime) {
+            return `${dateStr} • ${startTime} - ${endTime}`;
+        }
     }
 
-    // Fallback to just start time for proposal-based scheduling
+    // Fallback to just start time
     return `${dateStr} • ${startTime}`;
 };
 
@@ -111,13 +115,17 @@ const formatScheduledTimeRange = (job, timezone) => {
     const dateStr = formatInTimezone(job.scheduledTime, 'MMM d, yyyy', displayTimezone);
     const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
 
-    // Check if we have an end time from slot selection
-    if (job.scheduling?.confirmedSlot?.end) {
-        const endTime = formatInTimezone(job.scheduling.confirmedSlot.end, 'h:mm a', displayTimezone);
-        return `${dateStr} • ${startTime} - ${endTime}`;
+    // Check if we have an end time - try multiple sources
+    const endTimeSource = job.scheduledEndTime || job.scheduling?.confirmedSlot?.end;
+    if (endTimeSource) {
+        const endTime = formatInTimezone(endTimeSource, 'h:mm a', displayTimezone);
+        // Only show range if end time is different from start time
+        if (endTime !== startTime) {
+            return `${dateStr} • ${startTime} - ${endTime}`;
+        }
     }
 
-    // Fallback to just start time for proposal-based scheduling
+    // Fallback to just start time
     return `${dateStr} • ${startTime}`;
 };
 

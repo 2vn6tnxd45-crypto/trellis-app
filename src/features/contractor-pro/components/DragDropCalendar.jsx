@@ -217,25 +217,31 @@ const TimeSlot = React.memo(({
             onDrop={(e) => onDrop(e, date, hour)}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
-            className={`min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors flex flex-col gap-1 ${isDropTarget
+            className={`h-[60px] border-b border-r border-slate-100 p-1 transition-colors relative ${isDropTarget
                 ? 'bg-emerald-100 border-emerald-300'
                 : isWithinWorkingHours
                     ? 'bg-white hover:bg-slate-50'
                     : 'bg-slate-50'
                 }`}
         >
-            {/* Confirmed Jobs - Height scaled by duration */}
-            {slotJobs.map(job => {
-                // Calculate visual height: each hour = 60px (matches min-h-[60px])
-                const heightPx = Math.max(56, (job._durationHours || 1) * 60 - 4); // -4 for margin
+            {/* Confirmed Jobs - Height scaled by duration, positioned absolutely to overlap cells */}
+            {slotJobs.map((job, jobIndex) => {
+                // Calculate visual height: each hour = 60px
+                const heightPx = Math.max(52, (job._durationHours || 1) * 60 - 8); // -8 for padding
                 const showDuration = (job._durationMinutes || 60) >= 30;
+                // Offset for multiple jobs starting at same hour
+                const topOffset = 4 + (jobIndex * 4);
 
                 return (
                     <button
                         key={job.id}
                         onClick={() => onJobClick?.(job)}
-                        style={{ height: `${heightPx}px`, minHeight: `${heightPx}px` }}
-                        className={`w-full p-2 text-white rounded-lg text-xs text-left transition-colors shadow-sm relative overflow-hidden ${
+                        style={{
+                            height: `${heightPx}px`,
+                            top: `${topOffset}px`,
+                            zIndex: 10 + jobIndex
+                        }}
+                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${
                             job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
                         }`}
                     >
@@ -266,42 +272,47 @@ const TimeSlot = React.memo(({
                 );
             })}
 
-            {/* NEW: Pending/Offered Slots */}
-            {slotPending.map((slot, idx) => (
-                <div
-                    key={`${slot.id}-${slot.slotId}-${idx}`}
-                    className="w-full mb-1 p-2 bg-amber-50 border border-amber-300 border-dashed rounded-lg text-xs text-left opacity-90"
-                    title="Offered time slot (Pending confirmation)"
-                >
-                    <div className="flex items-center gap-1 mb-0.5">
-                        <Clock size={10} className="text-amber-600" />
-                        <span className="font-bold text-amber-700 truncate">{slot.title || 'Pending'}</span>
+            {/* NEW: Pending/Offered Slots - positioned after jobs */}
+            {slotPending.map((slot, idx) => {
+                const topOffset = 4 + (slotJobs.length * 4) + (idx * 4);
+                return (
+                    <div
+                        key={`${slot.id}-${slot.slotId}-${idx}`}
+                        style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
+                        className="absolute left-1 right-1 h-[52px] p-2 bg-amber-50 border border-amber-300 border-dashed rounded-lg text-xs text-left opacity-90"
+                        title="Offered time slot (Pending confirmation)"
+                    >
+                        <div className="flex items-center gap-1 mb-0.5">
+                            <Clock size={10} className="text-amber-600" />
+                            <span className="font-bold text-amber-700 truncate">{slot.title || 'Pending'}</span>
+                        </div>
+                        <p className="truncate text-amber-600">{slot.customerName}</p>
                     </div>
-                    <p className="truncate text-amber-600">{slot.customerName}</p>
-                </div>
-            ))}
+                );
+            })}
 
-            {/* NEW: Scheduled Evaluations */}
-            {slotEvaluations.map(evaluation => (
-                <button
-                    key={evaluation.id}
-                    onClick={() => onEvaluationClick?.(evaluation._original || evaluation)}
-                    className="w-full mb-1 p-2 bg-purple-500 text-white rounded-lg text-xs text-left hover:bg-purple-600 transition-colors shadow-sm"
-                >
-                    <div className="flex items-center gap-1 mb-0.5">
-                        {evaluation.evaluationType === 'virtual' ? (
-                            <span className="text-[10px] bg-purple-400 px-1 rounded">VIDEO</span>
-                        ) : (
-                            <span className="text-[10px] bg-purple-400 px-1 rounded">SITE</span>
-                        )}
-                        <p className="font-bold truncate flex-1">{evaluation.title}</p>
-                    </div>
-                    <p className="truncate opacity-80">{evaluation.customer?.name}</p>
-                    {evaluation.duration && (
-                        <p className="text-[10px] opacity-70">{evaluation.duration}min</p>
-                    )}
-                </button>
-            ))}
+            {/* NEW: Scheduled Evaluations - positioned after jobs and pending */}
+            {slotEvaluations.map((evaluation, idx) => {
+                const topOffset = 4 + (slotJobs.length * 4) + (slotPending.length * 4) + (idx * 4);
+                return (
+                    <button
+                        key={evaluation.id}
+                        onClick={() => onEvaluationClick?.(evaluation._original || evaluation)}
+                        style={{ top: `${topOffset}px`, zIndex: 5 + slotPending.length + idx }}
+                        className="absolute left-1 right-1 h-[52px] p-2 bg-purple-500 text-white rounded-lg text-xs text-left hover:bg-purple-600 transition-colors shadow-sm overflow-hidden"
+                    >
+                        <div className="flex items-center gap-1 mb-0.5">
+                            {evaluation.evaluationType === 'virtual' ? (
+                                <span className="text-[10px] bg-purple-400 px-1 rounded">VIDEO</span>
+                            ) : (
+                                <span className="text-[10px] bg-purple-400 px-1 rounded">SITE</span>
+                            )}
+                            <p className="font-bold truncate flex-1">{evaluation.title}</p>
+                        </div>
+                        <p className="truncate opacity-80">{evaluation.customer?.name}</p>
+                    </button>
+                );
+            })}
         </div>
     );
 });

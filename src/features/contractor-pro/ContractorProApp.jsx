@@ -2548,11 +2548,17 @@ export const ContractorProApp = () => {
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedJob(null)} />
                     <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 h-[80vh] flex flex-col">
                         <div className="p-4 border-b border-slate-100 flex justify-between items-center shrink-0">
-                            <div>
-                                <h3 className="font-bold text-slate-800">Manage Job</h3>
-                                <p className="text-xs text-slate-500">{selectedJob.customerName || 'Customer'}</p>
+                            <div className="flex-1 min-w-0">
+                                <h3 className="font-bold text-slate-800">{selectedJob.title || selectedJob.description || 'Manage Job'}</h3>
+                                <p className="text-sm text-slate-600">{selectedJob.customer?.name || selectedJob.customerName || 'Customer'}</p>
+                                {(selectedJob.customer?.address || selectedJob.serviceAddress?.formatted) && (
+                                    <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                                        <MapPin size={10} className="shrink-0" />
+                                        {selectedJob.serviceAddress?.formatted || selectedJob.customer?.address}
+                                    </p>
+                                )}
                             </div>
-                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-lg">
+                            <button onClick={() => setSelectedJob(null)} className="p-2 hover:bg-slate-100 rounded-lg shrink-0">
                                 <X size={20} className="text-slate-400" />
                             </button>
                         </div>
