@@ -28,6 +28,7 @@ import { CrewAssignmentModal } from './CrewAssignmentModal';
 import {
     getAssignedTechIds,
     assignCrewToJob,
+    unassignAllCrew,
     createCrewMember,
     removeTechFromCrew
 } from '../lib/crewService';
@@ -666,49 +667,7 @@ export const DispatchBoard = ({
 
     const handleUnassign = useCallback(async (job) => {
         try {
-            // This unassigns EVERYONE (resets job to unassigned state)
-            // If we want to remove just one person (e.g. from their column), 
-            // we'd need to know WHICH column the button was clicked in.
-            // The `onUnassign` prop in TechColumn passes `job`. 
-            // We can modify TechColumn to pass `techId` too if we want specific removal.
-
-            // Current `unassignJob` removes everything. 
-            // `removeTechFromCrew` removes specific tech.
-            // Let's assume global unassign for now to clear the job, unless we update the UI to be specific.
-            // Actually, JobCard onUnassign is generic.
-
-            // Let's stick to global unassign to match previous behavior for now, 
-            // OR ideally, we'd remove just the tech if it's a multi-tech crew.
-
-            // Since we don't have the context of "which tech column this was clicked in" passed easily yet,
-            // let's look at `TechColumn`. It calls `onUnassign(job)`.
-            // If we change it to partial unassign, we need techId.
-
-            // Simple fix: Reset to empty crew.
-            await assignCrewToJob(job.id, [], 'manual'); // Sending empty array checks? verify service.
-            // The service throws "Crew cannot be empty" on assignCrewToJob.
-            // We should use the explicit unassign logic or pass empty.
-            // crewService: removeTechFromCrew with 0 members left does the full clear.
-
-            // Let's use `unassignJob` from schedulingAI which forces nulls? 
-            // No, consistency. Let's use a specialized clear.
-            // Or just update the job manually here to nulls as `unassignJob` did, but ensuring we clear `assignedCrew`.
-
-            // Actually, let's use `removeTechFromCrew` but finding the lead?
-            // No, just clear it.
-
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
-                assignedCrew: null,
-                crewSize: 0,
-                assignedTechId: null,
-                assignedTechName: null,
-                assignedVehicleId: null,
-                assignedVehicleName: null,
-                assignedAt: null,
-                assignedBy: null,
-                lastActivity: serverTimestamp()
-            });
-
+            await unassignAllCrew(job.id);
             toast.success('Job unassigned');
             onJobUpdate?.();
         } catch (error) {

@@ -204,6 +204,36 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual') => {
 };
 
 /**
+ * Remove ALL crew members from a job (full unassign)
+ * @param {string} jobId
+ * @returns {Promise<{success: boolean}>}
+ */
+export const unassignAllCrew = async (jobId) => {
+    if (!jobId) throw new Error('Job ID is required');
+
+    const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+
+    await updateDoc(jobRef, {
+        // Clear crew fields
+        assignedCrew: null,
+        crewSize: 0,
+
+        // Clear legacy fields
+        assignedTechId: null,
+        assignedTechName: null,
+        assignedVehicleId: null,
+        assignedVehicleName: null,
+
+        // Metadata
+        assignedAt: null,
+        assignedBy: null,
+        lastActivity: serverTimestamp()
+    });
+
+    return { success: true };
+};
+
+/**
  * Add a single tech to an existing crew
  * @param {string} jobId
  * @param {Object} job - Current job data (to get existing crew)
@@ -555,6 +585,7 @@ export default {
 
     // Operations
     assignCrewToJob,
+    unassignAllCrew,
     addTechToCrew,
     removeTechFromCrew,
     updateCrewMemberRole,
