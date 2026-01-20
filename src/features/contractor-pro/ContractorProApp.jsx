@@ -2635,9 +2635,11 @@ export const ContractorProApp = () => {
                 isOpen={showCreateJobModal}
                 onClose={() => setShowCreateJobModal(false)}
                 contractorId={contractorId}
+                teamMembers={profile?.scheduling?.teamMembers || []}
+                vehicles={profile?.scheduling?.vehicles || []}
                 onJobCreated={(job) => {
                     setShowCreateJobModal(false);
-                    toast.success(`Job ${job.jobNumber} created!`);
+                    // Toast already shown in modal
                 }}
             />
         </div>

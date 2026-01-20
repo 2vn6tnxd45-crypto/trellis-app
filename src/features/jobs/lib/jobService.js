@@ -3,7 +3,7 @@
 
 import { doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { CONTRACTORS_COLLECTION_PATH } from '../../../config/constants';
+import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 
 export const JOB_STATUSES = {
@@ -53,51 +53,75 @@ export const createJobDirect = async (contractorId, jobData) => {
         }
 
         const jobNumber = generateJobNumber();
+        const crewSize = parseInt(jobData.crewSize) || 1;
+
+        // Build job document - matches structure expected by subscribeToContractorJobs
         const job = {
+            // Identity & Source
             jobNumber,
             contractorId,
             source: JOB_SOURCE_TYPES.DIRECT,
+            type: 'job', // Marks this as a job in the requests collection
+
+            // Job Details
             title: jobData.title,
             description: jobData.description || jobData.title,
             category: jobData.category || 'General',
+            serviceType: jobData.category || 'General',
             estimatedDuration: jobData.estimatedDuration || 60,
             price: jobData.price || null,
             notes: jobData.notes || '',
             priority: jobData.priority || JOB_PRIORITY.NORMAL,
+
+            // Customer Info
             customer: {
                 name: jobData.customerName,
                 phone: jobData.customerPhone || '',
                 email: jobData.customerEmail || ''
             },
+            customerName: jobData.customerName, // Duplicate for backwards compatibility
+            customerPhone: jobData.customerPhone || '',
+            customerEmail: jobData.customerEmail || '',
+
+            // Location
             propertyAddress: jobData.propertyAddress,
-            serviceLocation: { address: jobData.propertyAddress, coordinates: jobData.coordinates || null },
+            serviceLocation: {
+                address: jobData.propertyAddress,
+                coordinates: jobData.coordinates || null
+            },
+
+            // Status & Scheduling
             status: jobData.scheduledDate ? JOB_STATUSES.SCHEDULED : JOB_STATUSES.PENDING,
             scheduledDate: normalizeDate(jobData.scheduledDate),
             scheduledTime: jobData.scheduledTime || null,
             scheduledTimezone: jobData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+
+            // Assignment
             assignedTechId: jobData.assignedTechId || null,
             assignedTechName: jobData.assignedTechName || null,
             assignedVehicleId: jobData.assignedVehicleId || null,
+            assignedCrew: jobData.assignedCrew || [],
             assignedCrewIds: jobData.assignedCrewIds || [],
-            // Crew Requirements - for direct jobs, use provided crewSize or default to 1
-            ...(() => {
-                const crewSize = parseInt(jobData.crewSize) || 1;
-                return {
-                    crewRequirements: {
-                        required: crewSize,
-                        minimum: Math.max(1, crewSize - 1),
-                        maximum: crewSize + 2,
-                        source: jobData.crewSize ? 'specified' : 'default',
-                        requiresMultipleTechs: crewSize > 1,
-                        totalLaborHours: (jobData.estimatedDuration || 60) / 60 * crewSize,
-                        notes: crewSize > 1 ? [`Direct job: ${crewSize} techs specified`] : [],
-                        extractedAt: new Date().toISOString()
-                    },
-                    requiredCrewSize: crewSize
-                };
-            })(),
+
+            // Crew Requirements
+            crewRequirements: {
+                required: crewSize,
+                minimum: Math.max(1, crewSize - 1),
+                maximum: crewSize + 2,
+                source: jobData.crewSize ? 'specified' : 'default',
+                requiresMultipleTechs: crewSize > 1,
+                totalLaborHours: (jobData.estimatedDuration || 60) / 60 * crewSize,
+                notes: crewSize > 1 ? [`Direct job: ${crewSize} techs specified`] : [],
+                extractedAt: new Date().toISOString()
+            },
+            requiredCrewSize: crewSize,
+
+            // Timestamps
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
+            lastActivity: serverTimestamp(), // Important for ordering in subscription
+
+            // Metadata
             createdBy: jobData.createdBy || 'contractor',
             quoteId: null,
             requestId: null,
@@ -106,9 +130,10 @@ export const createJobDirect = async (contractorId, jobData) => {
             completion: null
         };
 
-        const jobsRef = collection(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs');
+        // Write to the main requests collection (same as quote-based jobs)
+        const jobsRef = collection(db, REQUESTS_COLLECTION_PATH);
         const docRef = await addDoc(jobsRef, job);
-        console.log('[jobService] Created direct job:', docRef.id, jobNumber);
+        console.log('[jobService] Created direct job in requests collection:', docRef.id, jobNumber);
 
         return { success: true, jobId: docRef.id, jobNumber, job: { id: docRef.id, ...job } };
     } catch (error) {
@@ -119,7 +144,8 @@ export const createJobDirect = async (contractorId, jobData) => {
 
 export const updateJobStatus = async (contractorId, jobId, newStatus, statusData = {}) => {
     try {
-        const jobRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs', jobId);
+        // Jobs are stored in the main requests collection
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         const updates = { status: newStatus, updatedAt: serverTimestamp(), ...statusData };
 
         if (newStatus === JOB_STATUSES.COMPLETED) {
@@ -141,7 +167,7 @@ export const updateJobStatus = async (contractorId, jobId, newStatus, statusData
 
 export const assignJobResources = async (contractorId, jobId, resources) => {
     try {
-        const jobRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs', jobId);
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         const updates = { updatedAt: serverTimestamp() };
 
         if (resources.techId !== undefined) {
@@ -165,7 +191,7 @@ export const assignJobResources = async (contractorId, jobId, resources) => {
 
 export const scheduleJob = async (contractorId, jobId, scheduleData) => {
     try {
-        const jobRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs', jobId);
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         const updates = {
             status: JOB_STATUSES.SCHEDULED,
             scheduledDate: normalizeDate(scheduleData.date),
@@ -192,7 +218,7 @@ export const scheduleJob = async (contractorId, jobId, scheduleData) => {
 
 export const getJob = async (contractorId, jobId) => {
     try {
-        const jobRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs', jobId);
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         const jobSnap = await getDoc(jobRef);
 
         if (!jobSnap.exists()) {
@@ -208,7 +234,7 @@ export const getJob = async (contractorId, jobId) => {
 
 export const updateJob = async (contractorId, jobId, updates) => {
     try {
-        const jobRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId, 'jobs', jobId);
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
         await updateDoc(jobRef, { ...updates, updatedAt: serverTimestamp() });
         return { success: true };
     } catch (error) {
