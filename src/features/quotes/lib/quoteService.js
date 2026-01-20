@@ -598,6 +598,37 @@ export async function linkQuoteToJob(contractorId, quoteId, jobId) {
     return { success: true };
 }
 
+/**
+ * Mark a quote as job_cancelled when its linked job is cancelled.
+ * This allows contractors to see that the job fell through and potentially re-engage.
+ * @param {string} contractorId - The contractor's ID
+ * @param {string} quoteId - The quote ID to update
+ * @param {string} cancelledBy - Who cancelled: 'contractor' or 'homeowner'
+ * @param {string} reason - Optional cancellation reason
+ */
+export async function markQuoteJobCancelled(contractorId, quoteId, cancelledBy = 'contractor', reason = '') {
+    if (!contractorId || !quoteId) {
+        console.warn('[markQuoteJobCancelled] Missing contractorId or quoteId');
+        return { success: false, error: 'Missing required parameters' };
+    }
+
+    try {
+        const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+        await updateDoc(quoteRef, {
+            status: 'job_cancelled',
+            jobCancelledAt: serverTimestamp(),
+            jobCancelledBy: cancelledBy,
+            jobCancellationReason: reason || null,
+            updatedAt: serverTimestamp()
+        });
+        console.log(`[markQuoteJobCancelled] Quote ${quoteId} marked as job_cancelled`);
+        return { success: true };
+    } catch (error) {
+        console.error('[markQuoteJobCancelled] Error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 export async function getQuoteStats(contractorId) {
     const quotesRef = collection(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION);
     const snapshot = await getDocs(quotesRef);

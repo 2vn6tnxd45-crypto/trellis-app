@@ -6,8 +6,8 @@
 // from homeowners who have paid a deposit
 
 import React, { useState } from 'react';
-import { 
-    X, AlertTriangle, CheckCircle, XCircle, 
+import {
+    X, AlertTriangle, CheckCircle, XCircle,
     DollarSign, Clock, MessageSquare, User,
     Calendar, FileText, Loader2
 } from 'lucide-react';
@@ -16,6 +16,7 @@ import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import { formatCurrency } from '../../lib/utils';
 import toast from 'react-hot-toast';
+import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -107,6 +108,12 @@ export const CancellationApprovalModal = ({ job, onClose, onSuccess }) => {
                 'cancellationRequest.refundAmount': refundAmount,
                 lastActivity: serverTimestamp()
             });
+
+            // Update the source quote status if this job came from a quote
+            if (job.sourceQuoteId && job.contractorId) {
+                markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'homeowner', cancellationRequest.reason)
+                    .catch(err => console.warn('Failed to update quote status:', err));
+            }
 
             // Notify homeowner (non-blocking)
             notifyHomeowner(true);

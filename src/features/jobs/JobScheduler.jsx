@@ -12,6 +12,7 @@ import { SlotPicker } from './SlotPicker';
 import { CascadeWarningModal } from '../contractor-pro/components/CascadeWarningModal';
 import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactAnalysis';
 import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTimezone } from '../contractor-pro/lib/timezoneUtils';
+import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
 
 // Helper to format time string like "08:00" to "8:00 AM"
 const formatTimeString = (timeStr) => {
@@ -352,6 +353,12 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                 multiDaySchedule: null,
                 lastActivity: serverTimestamp()
             });
+
+            // Update the source quote status if this job came from a quote
+            if (job.sourceQuoteId && job.contractorId) {
+                markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'contractor')
+                    .catch(err => console.warn('Failed to update quote status:', err));
+            }
 
             toast.success('Job cancelled');
             setShowCancelConfirm(false);

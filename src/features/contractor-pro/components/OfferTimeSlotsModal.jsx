@@ -26,6 +26,8 @@ import { CalendarPicker } from '../../../components/common/CalendarPicker';
 import { checkForConflicts } from '../lib/schedulingAI';
 // Import multi-day utilities
 import { isMultiDayJob as checkIsMultiDay, calculateDaysNeeded } from '../lib/multiDayUtils';
+// Import quote service for updating quote status on cancellation
+import { markQuoteJobCancelled } from '../../quotes/lib/quoteService';
 
 // Quick time presets
 const TIME_PRESETS = [
@@ -540,6 +542,12 @@ export const OfferTimeSlotsModal = ({
                 'scheduling.offeredSlots': null,
                 lastActivity: serverTimestamp()
             });
+
+            // Update the source quote status if this job came from a quote
+            if (job.sourceQuoteId && job.contractorId) {
+                markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'contractor')
+                    .catch(err => console.warn('Failed to update quote status:', err));
+            }
 
             toast.success('Job cancelled');
             setShowCancelConfirm(false);

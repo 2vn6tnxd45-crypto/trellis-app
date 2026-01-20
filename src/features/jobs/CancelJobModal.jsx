@@ -11,6 +11,7 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
+import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
 
 const CANCEL_REASONS = [
     { id: 'found_another', label: 'Found another contractor' },
@@ -120,6 +121,12 @@ export const CancelJobModal = ({ job, onClose, onSuccess }) => {
                     },
                     lastActivity: serverTimestamp()
                 });
+
+                // Update the source quote status if this job came from a quote
+                if (job.sourceQuoteId && job.contractorId) {
+                    markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'homeowner', reason)
+                        .catch(err => console.warn('Failed to update quote status:', err));
+                }
 
                 // Notify contractor (non-blocking)
                 notifyContractor(reason, false);
