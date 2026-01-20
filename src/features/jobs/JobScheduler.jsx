@@ -57,13 +57,13 @@ const formatScheduledBadge = (job, timezone) => {
     }
 
     // Regular single-day job
-    const dateStr = formatInTimezone(job.scheduledTime, 'MMM d', displayTimezone);
-    const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
+    const dateStr = formatInTimezone(job.scheduledTime, displayTimezone, { month: 'short', day: 'numeric' });
+    const startTime = formatInTimezone(job.scheduledTime, displayTimezone, { hour: 'numeric', minute: '2-digit' });
 
     // Check if we have an end time - try multiple sources
     const endTimeSource = job.scheduledEndTime || job.scheduling?.confirmedSlot?.end;
     if (endTimeSource) {
-        const endTime = formatInTimezone(endTimeSource, 'h:mm a', displayTimezone);
+        const endTime = formatInTimezone(endTimeSource, displayTimezone, { hour: 'numeric', minute: '2-digit' });
         // Only show range if end time is different from start time
         if (endTime !== startTime) {
             return `${dateStr} • ${startTime} - ${endTime}`;
@@ -101,8 +101,8 @@ const formatScheduledTimeRange = (job, timezone) => {
     // Legacy format with segments
     if (job.multiDaySchedule?.segments?.length > 1) {
         const schedule = job.multiDaySchedule;
-        const startDateStr = formatInTimezone(schedule.startDate, 'MMM d', displayTimezone);
-        const endDateStr = formatInTimezone(schedule.endDate, 'MMM d', displayTimezone);
+        const startDateStr = formatInTimezone(schedule.startDate, displayTimezone, { month: 'short', day: 'numeric' });
+        const endDateStr = formatInTimezone(schedule.endDate, displayTimezone, { month: 'short', day: 'numeric' });
 
         const firstSegment = schedule.segments[0];
         const startTime = formatTimeString(firstSegment.startTime);
@@ -112,13 +112,13 @@ const formatScheduledTimeRange = (job, timezone) => {
     }
 
     // Regular single-day job
-    const dateStr = formatInTimezone(job.scheduledTime, 'MMM d, yyyy', displayTimezone);
-    const startTime = formatInTimezone(job.scheduledTime, 'h:mm a', displayTimezone);
+    const dateStr = formatInTimezone(job.scheduledTime, displayTimezone, { month: 'short', day: 'numeric', year: 'numeric' });
+    const startTime = formatInTimezone(job.scheduledTime, displayTimezone, { hour: 'numeric', minute: '2-digit' });
 
     // Check if we have an end time - try multiple sources
     const endTimeSource = job.scheduledEndTime || job.scheduling?.confirmedSlot?.end;
     if (endTimeSource) {
-        const endTime = formatInTimezone(endTimeSource, 'h:mm a', displayTimezone);
+        const endTime = formatInTimezone(endTimeSource, displayTimezone, { hour: 'numeric', minute: '2-digit' });
         // Only show range if end time is different from start time
         if (endTime !== startTime) {
             return `${dateStr} • ${startTime} - ${endTime}`;
