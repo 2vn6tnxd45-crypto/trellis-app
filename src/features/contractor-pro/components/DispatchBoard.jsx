@@ -667,14 +667,24 @@ export const DispatchBoard = ({
         // Check for conflicts
         const tech = teamMembers.find(t => t.id === techId);
         if (tech) {
-            const { hasErrors, conflicts } = checkConflicts(tech, job, jobsForDate, selectedDate, timezone);
-            if (hasErrors) {
-                toast.error(conflicts.find(c => c.severity === 'error')?.message || 'Cannot assign');
+            const { hasErrors, hasWarnings, conflicts } = checkConflicts(tech, job, jobsForDate, selectedDate, timezone);
+
+            // For day_off errors, allow with a warning instead of blocking
+            // This lets contractors override if needed
+            const dayOffConflict = conflicts.find(c => c.type === 'day_off');
+            const otherErrors = conflicts.filter(c => c.severity === 'error' && c.type !== 'day_off');
+
+            if (otherErrors.length > 0) {
+                toast.error(otherErrors[0].message || 'Cannot assign');
                 return;
             }
-            if (conflicts.length > 0) {
-                // Show warning but allow
-                toast(conflicts[0].message, { icon: '⚠️' });
+
+            if (dayOffConflict) {
+                // Show warning but allow - contractor is overriding
+                toast(`${dayOffConflict.message} - assigning anyway`, { icon: '⚠️', duration: 3000 });
+            } else if (hasWarnings) {
+                // Other warnings
+                toast(conflicts.find(c => c.severity === 'warning')?.message, { icon: '⚠️' });
             }
         }
 
@@ -713,20 +723,36 @@ export const DispatchBoard = ({
                 return;
             }
 
-            // Bulk assign using new crew logic
+            // Bulk assign using new crew logic - supports multi-tech jobs
             const batchPromises = result.successful.map(async (assignment) => {
-                const tech = teamMembers.find(t => t.id === assignment.techId);
-                if (!tech) return; // Should not happen
-                const newMember = createCrewMember(tech, 'lead');
-                return assignCrewToJob(assignment.jobId, [newMember], 'ai');
+                // Use the techs array for multi-tech support
+                const techsToAssign = assignment.techs || [];
+
+                if (techsToAssign.length === 0) {
+                    // Fallback to single tech (backward compatibility)
+                    const tech = teamMembers.find(t => t.id === assignment.techId);
+                    if (!tech) return;
+                    const newMember = createCrewMember(tech, 'lead');
+                    return assignCrewToJob(assignment.jobId, [newMember], 'ai');
+                }
+
+                // Create crew members - first one is lead, others are members
+                const crewMembers = techsToAssign.map((tech, index) =>
+                    createCrewMember(tech, index === 0 ? 'lead' : 'member')
+                );
+
+                return assignCrewToJob(assignment.jobId, crewMembers, 'ai');
             });
 
             await Promise.all(batchPromises);
 
-            toast.success(
-                `Assigned ${result.summary.assigned} of ${result.summary.total} jobs`,
-                { duration: 3000 }
-            );
+            // Enhanced success message with staffing info
+            let successMsg = `Assigned ${result.summary.assigned} of ${result.summary.total} jobs`;
+            if (result.summary.understaffed > 0) {
+                successMsg += ` (${result.summary.understaffed} need more techs)`;
+            }
+
+            toast.success(successMsg, { duration: 4000 });
 
             if (result.failed.length > 0) {
                 toast(`${result.failed.length} jobs couldn't be assigned`, { icon: '⚠️' });
@@ -743,55 +769,118 @@ export const DispatchBoard = ({
 
     const isToday = isSameDayInTimezone(selectedDate, new Date(), timezone);
 
+    // Get week dates for the mini week navigator
+    const getWeekDates = () => {
+        const dates = [];
+        const start = new Date(selectedDate);
+        start.setDate(start.getDate() - start.getDay()); // Start of week (Sunday)
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            dates.push(d);
+        }
+        return dates;
+    };
+
+    const weekDates = getWeekDates();
+
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
-                <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3">
+                {/* Week Navigator - Quick day selection */}
+                <div className="flex items-center justify-between bg-slate-50 rounded-xl p-2">
                     <button
-                        onClick={() => goToDate(-1)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        onClick={() => goToDate(-7)}
+                        className="p-1.5 hover:bg-white rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+                        title="Previous week"
                     >
-                        <ChevronLeft size={20} />
+                        <ChevronLeft size={18} />
                     </button>
 
-                    <div className="text-center min-w-[200px]">
-                        <p className="text-xl font-bold text-slate-800">
-                            {formatDate(selectedDate)}
-                        </p>
-                        {!isToday && (
-                            <button
-                                onClick={goToToday}
-                                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                            >
-                                Go to Today
-                            </button>
-                        )}
+                    <div className="flex gap-1">
+                        {weekDates.map((date, i) => {
+                            const isSelected = isSameDayInTimezone(date, selectedDate, timezone);
+                            const isCurrentDay = isSameDayInTimezone(date, new Date(), timezone);
+                            const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+                            const dayNum = date.getDate();
+
+                            return (
+                                <button
+                                    key={i}
+                                    onClick={() => setSelectedDate(new Date(date))}
+                                    className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-all min-w-[48px] ${
+                                        isSelected
+                                            ? 'bg-emerald-600 text-white shadow-sm'
+                                            : isCurrentDay
+                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                                : 'hover:bg-white text-slate-600'
+                                    }`}
+                                >
+                                    <span className="text-[10px] font-medium uppercase">{dayName}</span>
+                                    <span className="text-sm font-bold">{dayNum}</span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     <button
-                        onClick={() => goToDate(1)}
-                        className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        onClick={() => goToDate(7)}
+                        className="p-1.5 hover:bg-white rounded-lg transition-colors text-slate-500 hover:text-slate-700"
+                        title="Next week"
                     >
-                        <ChevronRight size={20} />
+                        <ChevronRight size={18} />
                     </button>
                 </div>
 
-                <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <Users size={16} />
-                        <span>{teamMembers.length} techs</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <Calendar size={16} />
-                        <span>{jobsForDate.length} scheduled</span>
-                    </div>
-                    {unassignedJobs.length > 0 && (
-                        <div className="flex items-center gap-2 text-amber-600">
-                            <AlertTriangle size={16} />
-                            <span>{unassignedJobs.length} unassigned</span>
+                {/* Date Display and Stats Row */}
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => goToDate(-1)}
+                            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            <ChevronLeft size={20} />
+                        </button>
+
+                        <div className="text-center min-w-[200px]">
+                            <p className="text-xl font-bold text-slate-800">
+                                {formatDate(selectedDate)}
+                            </p>
+                            {!isToday && (
+                                <button
+                                    onClick={goToToday}
+                                    className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                                >
+                                    Go to Today
+                                </button>
+                            )}
                         </div>
-                    )}
+
+                        <button
+                            onClick={() => goToDate(1)}
+                            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-2 text-slate-600">
+                            <Users size={16} />
+                            <span>{teamMembers.length} techs</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-600">
+                            <Calendar size={16} />
+                            <span>{jobsForDate.length} scheduled</span>
+                        </div>
+                        {unassignedJobs.length > 0 && (
+                            <div className="flex items-center gap-2 text-amber-600">
+                                <AlertTriangle size={16} />
+                                <span>{unassignedJobs.length} unassigned</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

@@ -435,56 +435,100 @@ export const suggestAssignments = (job, techs, allJobsForDay, date) => {
 /**
  * Auto-assign all unassigned jobs optimally
  * Uses greedy algorithm with look-ahead
+ * Properly handles multi-tech jobs by assigning multiple techs when needed
  */
 export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) => {
     const assignments = [];
     const jobsToAssign = [...unassignedJobs];
     const currentAssignments = [...existingAssignments];
 
-    // Sort jobs by priority (could add urgency, customer tier, etc.)
+    // Sort jobs by priority - multi-tech jobs first (harder to staff), then by duration
     jobsToAssign.sort((a, b) => {
-        // Longer jobs first (harder to fit)
+        const aCrewFactors = getRouteCrewFactors(a);
+        const bCrewFactors = getRouteCrewFactors(b);
+        const aRequired = aCrewFactors.requiredCrewSize || 1;
+        const bRequired = bCrewFactors.requiredCrewSize || 1;
+
+        // Multi-tech jobs first
+        if (bRequired !== aRequired) return bRequired - aRequired;
+
+        // Then by duration (longer jobs first)
         const aDur = parseDurationToMinutes(a.estimatedDuration);
         const bDur = parseDurationToMinutes(b.estimatedDuration);
         return bDur - aDur;
     });
 
     for (const job of jobsToAssign) {
-        const { suggestions, topPick } = suggestAssignments(
-            job,
-            techs,
-            currentAssignments,
-            date
-        );
+        // Get crew requirements for this job
+        const crewFactors = getRouteCrewFactors(job);
+        const requiredCrewSize = crewFactors.requiredCrewSize || 1;
 
-        if (topPick && topPick.score > 0) {
+        // Score all available techs for this job
+        const techScores = techs.map(tech => {
+            const result = scoreTechForJob(tech, job, currentAssignments, date);
+            return {
+                techId: tech.id,
+                techName: tech.name,
+                tech,
+                score: result.score,
+                reasons: result.reasons,
+                warnings: result.warnings,
+                isBlocked: result.isBlocked
+            };
+        })
+        .filter(t => !t.isBlocked && t.score > -50) // Filter out blocked and very low scoring techs
+        .sort((a, b) => b.score - a.score);
+
+        if (techScores.length === 0) {
             assignments.push({
                 jobId: job.id,
                 job,
-                techId: topPick.techId,
-                techName: topPick.techName,
-                score: topPick.score,
-                reasons: topPick.reasons,
-                warnings: topPick.warnings
-            });
-
-            // Add to current assignments for next iteration
-            currentAssignments.push({
-                ...job,
-                assignedTechId: topPick.techId
-            });
-        } else {
-            assignments.push({
-                jobId: job.id,
-                job,
-                techId: null,
-                techName: null,
+                techIds: [],
+                techNames: [],
                 score: 0,
                 reasons: [],
                 warnings: ['No suitable tech available'],
-                failed: true
+                failed: true,
+                requiredCrewSize
             });
+            continue;
         }
+
+        // For multi-tech jobs, pick multiple techs
+        const assignedTechs = techScores.slice(0, Math.min(requiredCrewSize, techScores.length));
+        const assignedCount = assignedTechs.length;
+
+        // Build warnings
+        const warnings = [...(assignedTechs[0]?.warnings || [])];
+        if (assignedCount < requiredCrewSize) {
+            warnings.push(`Needs ${requiredCrewSize} techs, only ${assignedCount} available`);
+        }
+
+        assignments.push({
+            jobId: job.id,
+            job,
+            // For backward compatibility, keep techId/techName for first tech
+            techId: assignedTechs[0]?.techId,
+            techName: assignedTechs[0]?.techName,
+            // New: array of all assigned techs for multi-tech jobs
+            techIds: assignedTechs.map(t => t.techId),
+            techNames: assignedTechs.map(t => t.techName),
+            techs: assignedTechs.map(t => t.tech),
+            score: assignedTechs[0]?.score || 0,
+            reasons: assignedTechs[0]?.reasons || [],
+            warnings,
+            requiredCrewSize,
+            assignedCrewSize: assignedCount,
+            isFullyStaffed: assignedCount >= requiredCrewSize
+        });
+
+        // Add to current assignments for next iteration - mark job as assigned to all techs
+        assignedTechs.forEach(t => {
+            currentAssignments.push({
+                ...job,
+                assignedTechId: t.techId
+            });
+        });
     }
 
     return {
@@ -494,7 +538,9 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
         summary: {
             total: assignments.length,
             assigned: assignments.filter(a => !a.failed).length,
-            unassigned: assignments.filter(a => a.failed).length
+            unassigned: assignments.filter(a => a.failed).length,
+            fullyStaffed: assignments.filter(a => a.isFullyStaffed).length,
+            understaffed: assignments.filter(a => !a.failed && !a.isFullyStaffed).length
         }
     };
 };
