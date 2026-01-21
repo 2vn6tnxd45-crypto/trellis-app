@@ -10,7 +10,7 @@ import {
     Plus, Trash2, ChevronDown, ChevronUp, Package, Wrench,
     DollarSign, Info, Home
 } from 'lucide-react';
-import { createIntentFromLineItem, getDefaultMaintenanceTasks } from '../../../lib/inventoryIntent';
+import { createIntentFromLineItem, getDefaultMaintenanceTasks, FREQUENCY_OPTIONS } from '../../../lib/inventoryIntent';
 
 // ============================================
 // CONSTANTS
@@ -129,13 +129,50 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
 
     const addMaintenanceTask = (taskName) => {
         const currentTasks = item.inventoryIntent?.maintenanceTasks || [];
-        const newTask = { task: taskName, frequency: 'Annual', selected: true, timeframe: 12 };
+        const newTask = {
+            id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            task: taskName,
+            frequency: 'annual',
+            months: 12,
+            selected: true
+        };
 
         updateField('inventoryIntent', {
             ...item.inventoryIntent,
             maintenanceTasks: [...currentTasks, newTask],
             updatedAt: new Date().toISOString()
         });
+    };
+
+    const deleteMaintenanceTask = (idx) => {
+        const currentTasks = item.inventoryIntent?.maintenanceTasks || [];
+        const newTasks = currentTasks.filter((_, i) => i !== idx);
+
+        updateField('inventoryIntent', {
+            ...item.inventoryIntent,
+            maintenanceTasks: newTasks,
+            updatedAt: new Date().toISOString()
+        });
+    };
+
+    const updateTaskFrequency = (idx, frequency) => {
+        const currentTasks = item.inventoryIntent?.maintenanceTasks || [];
+        const newTasks = [...currentTasks];
+        const freqOption = FREQUENCY_OPTIONS.find(f => f.value === frequency);
+
+        if (newTasks[idx]) {
+            newTasks[idx] = {
+                ...newTasks[idx],
+                frequency: frequency,
+                months: freqOption?.months || 12
+            };
+
+            updateField('inventoryIntent', {
+                ...item.inventoryIntent,
+                maintenanceTasks: newTasks,
+                updatedAt: new Date().toISOString()
+            });
+        }
     };
 
     return (
@@ -335,31 +372,53 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                             {item.inventoryIntent?.maintenanceTasks?.length > 0 ? (
                                 <div className="divide-y divide-slate-100">
                                     {item.inventoryIntent.maintenanceTasks.map((task, idx) => (
-                                        <label key={idx} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors">
+                                        <div key={task.id || idx} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors group/task">
+                                            {/* Checkbox */}
                                             <input
                                                 type="checkbox"
                                                 checked={task.selected !== false}
                                                 onChange={() => toggleMaintenanceTask(idx)}
-                                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
                                             />
-                                            <div className="flex-1">
+                                            {/* Task name */}
+                                            <div className="flex-1 min-w-0">
                                                 <span className={`text-sm font-medium ${task.selected !== false ? 'text-slate-700' : 'text-slate-400 line-through'}`}>
                                                     {task.task}
                                                 </span>
                                             </div>
-                                            <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${
-                                                task.selected !== false
-                                                    ? 'bg-slate-100 text-slate-600'
-                                                    : 'bg-slate-50 text-slate-400'
-                                            }`}>
-                                                {task.frequency}
-                                            </span>
-                                        </label>
+                                            {/* Frequency dropdown */}
+                                            <select
+                                                value={task.frequency}
+                                                onChange={(e) => updateTaskFrequency(idx, e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className={`text-xs font-medium px-2 py-1.5 rounded-lg border cursor-pointer transition-all ${
+                                                    task.selected !== false
+                                                        ? 'border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300'
+                                                        : 'border-slate-100 bg-slate-50 text-slate-400'
+                                                } focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500`}
+                                            >
+                                                {FREQUENCY_OPTIONS.map(opt => (
+                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                ))}
+                                            </select>
+                                            {/* Delete button */}
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteMaintenanceTask(idx);
+                                                }}
+                                                className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover/task:opacity-100"
+                                                title="Delete task"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     ))}
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-400 px-4 py-3 italic">
-                                    No default maintenance tasks for this category.
+                                    No maintenance tasks. Add one below.
                                 </p>
                             )}
 
