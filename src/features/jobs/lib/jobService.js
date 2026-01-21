@@ -311,8 +311,11 @@ const createJobNotificationForHomeowner = async (userId, jobId, jobData, contrac
         }
 
         // Create notification in user's notifications subcollection
+        const notificationPath = `artifacts/${appId}/users/${userId}/notifications`;
+        console.log('[jobService] Creating notification at path:', notificationPath);
+
         const notificationsRef = collection(db, 'artifacts', appId, 'users', userId, 'notifications');
-        await addDoc(notificationsRef, {
+        const notifDoc = await addDoc(notificationsRef, {
             type: 'new_job',
             title: 'New Job Scheduled',
             message,
@@ -330,7 +333,7 @@ const createJobNotificationForHomeowner = async (userId, jobId, jobData, contrac
             createdAt: serverTimestamp()
         });
 
-        console.log('[jobService] Created notification for homeowner:', userId, 'propertyId:', propertyId);
+        console.log('[jobService] Created notification for homeowner:', userId, 'notificationId:', notifDoc.id);
     } catch (error) {
         // Don't fail the job creation if notification fails
         console.error('[jobService] Error creating notification for homeowner:', error);

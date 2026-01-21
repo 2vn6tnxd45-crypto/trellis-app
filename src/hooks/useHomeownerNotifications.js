@@ -42,20 +42,22 @@ export const useHomeownerNotifications = (userId) => {
         setLoading(true);
         setError(null);
 
+        // Subscribe to notifications collection (no orderBy to avoid index requirements)
         const notificationsRef = collection(db, 'artifacts', appId, 'users', userId, 'notifications');
-        const q = query(
-            notificationsRef,
-            orderBy('createdAt', 'desc')
-        );
+
+        console.log('[useHomeownerNotifications] Subscribing to:', `artifacts/${appId}/users/${userId}/notifications`);
 
         const unsubscribe = onSnapshot(
-            q,
+            notificationsRef,
             (snapshot) => {
+                console.log('[useHomeownerNotifications] Received snapshot, docs:', snapshot.docs.length);
                 const notifs = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data(),
                     createdAt: doc.data().createdAt?.toDate?.() || new Date()
                 }));
+                // Sort client-side instead of using orderBy (avoids index issues)
+                notifs.sort((a, b) => b.createdAt - a.createdAt);
                 setNotifications(notifs);
                 setLoading(false);
             },
