@@ -415,6 +415,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
             case 'in_progress': return 'bg-amber-100 text-amber-700';
             case 'completed': return 'bg-emerald-100 text-emerald-700';
             case 'cancelled': return 'bg-slate-100 text-slate-500';
+            case 'scheduling': return 'bg-blue-100 text-blue-700'; // Customer proposed time
             case 'pending_schedule':
             case 'slots_offered':
             case 'quoted':
@@ -430,6 +431,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
         switch (status) {
             case 'pending_schedule': return 'Needs Scheduling';
             case 'slots_offered': return 'Awaiting Response';
+            case 'scheduling': return 'Customer Proposed Time';
             case 'scheduled': return 'Scheduled';
             case 'in_progress': return 'In Progress';
             case 'completed': return 'Completed';
@@ -447,10 +449,15 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
         const showResubmitButton = job.status === 'completion_rejected';
         const isInactive = ['completed', 'cancelled'].includes(job.status);
 
+        // Get the latest homeowner proposal for display
+        const latestHomeownerProposal = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner').slice(-1)[0];
+        const proposedDate = latestHomeownerProposal?.date ? new Date(latestHomeownerProposal.date) : null;
+        const hasHomeownerProposal = job.status === 'scheduling' && proposedDate;
+
         return (
             <div
                 onClick={() => onJobClick(job)}
-                className={`bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
+                className={`bg-white rounded-xl border ${hasHomeownerProposal ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'} p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
             >
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -464,7 +471,23 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                         </div>
                         <p className="font-bold text-slate-800 truncate">{job.title || job.serviceType || 'Job'}</p>
                         <p className="text-sm text-slate-500">{job.customer?.name || job.customerName || 'Customer'}</p>
-                        {job.scheduledDate && (
+                        {/* Show homeowner proposed time */}
+                        {hasHomeownerProposal && (
+                            <div className="mt-2 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-200">
+                                <p className="text-xs text-blue-700 font-medium flex items-center gap-1">
+                                    <Clock size={12} />
+                                    Proposed: {proposedDate.toLocaleDateString('en-US', {
+                                        weekday: 'short',
+                                        month: 'short',
+                                        day: 'numeric'
+                                    })} at {proposedDate.toLocaleTimeString('en-US', {
+                                        hour: 'numeric',
+                                        minute: '2-digit'
+                                    })}
+                                </p>
+                            </div>
+                        )}
+                        {job.scheduledDate && !hasHomeownerProposal && (
                             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
                                 <Calendar size={12} />
                                 {formatDate(job.scheduledDate)}

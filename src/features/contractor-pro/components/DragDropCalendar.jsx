@@ -102,6 +102,19 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd }) => {
 
     const hasProposal = job.hasHomeownerProposal || job.proposedTimes?.length > 0;
 
+    // Get the latest homeowner proposal for display
+    const latestHomeownerProposal = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner').slice(-1)[0];
+    const proposedDate = latestHomeownerProposal?.date ? new Date(latestHomeownerProposal.date) : null;
+    const proposedDateStr = proposedDate ? proposedDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
+    }) : null;
+    const proposedTimeStr = proposedDate ? proposedDate.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+    }) : null;
+
     return (
         <div
             draggable
@@ -114,9 +127,16 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd }) => {
             } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
         >
             {hasProposal && (
-                <div className="mb-2 px-2 py-1 bg-blue-100 rounded-lg text-[10px] font-bold text-blue-700 flex items-center gap-1">
-                    <Clock size={10} />
-                    Customer proposed a time
+                <div className="mb-2 px-2 py-1.5 bg-blue-100 rounded-lg text-blue-700">
+                    <div className="text-[10px] font-bold flex items-center gap-1">
+                        <Clock size={10} />
+                        Customer proposed:
+                    </div>
+                    {proposedDateStr && (
+                        <div className="text-xs font-bold mt-0.5">
+                            {proposedDateStr} at {proposedTimeStr}
+                        </div>
+                    )}
                 </div>
             )}
             <div className="flex items-start gap-2">
