@@ -2594,6 +2594,9 @@ export const ContractorProApp = () => {
                 contractorId={contractorId}
                 teamMembers={profile?.scheduling?.teamMembers || []}
                 vehicles={profile?.scheduling?.vehicles || []}
+                contractorSettings={{
+                    defaultTaxRate: profile?.scheduling?.defaultTaxRate ?? 8.75
+                }}
                 onJobCreated={(job) => {
                     setShowCreateJobModal(false);
                     // Toast already shown in modal

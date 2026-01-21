@@ -464,11 +464,39 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
 // ============================================
 // MAIN COMPONENT
 // ============================================
-const JobLineItemsSection = ({ lineItems, onChange }) => {
+const JobLineItemsSection = ({
+    lineItems,
+    onChange,
+    // Tax and deposit props
+    taxRate = 0,
+    onTaxRateChange,
+    depositRequired = false,
+    onDepositRequiredChange,
+    depositType = 'percentage',
+    onDepositTypeChange,
+    depositValue = 50,
+    onDepositValueChange,
+    depositCollected = false,
+    onDepositCollectedChange
+}) => {
     // Calculate totals
     const subtotal = lineItems.reduce((sum, item) => {
         return sum + ((item.quantity || 0) * (item.unitPrice || 0));
     }, 0);
+
+    // Calculate tax and total
+    const taxAmount = subtotal * (taxRate / 100);
+    const total = subtotal + taxAmount;
+
+    // Calculate deposit amount
+    let depositAmount = 0;
+    if (depositRequired && !depositCollected) {
+        if (depositType === 'percentage') {
+            depositAmount = total * (depositValue / 100);
+        } else {
+            depositAmount = depositValue || 0;
+        }
+    }
 
     const addLineItem = (type = 'material') => {
         const newItem = createNewLineItem(type);
@@ -552,18 +580,107 @@ const JobLineItemsSection = ({ lineItems, onChange }) => {
                 </button>
             </div>
 
-            {/* Totals - More prominent */}
-            <div className="flex justify-end pt-4">
-                <div className="bg-slate-50 rounded-2xl p-4 w-full sm:w-72 border border-slate-200">
-                    <div className="flex justify-between text-sm mb-2">
-                        <span className="text-slate-600">Subtotal</span>
-                        <span className="font-semibold text-slate-700">${subtotal.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-3 border-t border-dashed border-slate-300">
-                        <span className="text-base font-bold text-slate-700">Total</span>
-                        <span className="text-xl font-extrabold text-emerald-600">${subtotal.toFixed(2)}</span>
-                    </div>
+            {/* Totals Section - Tax, Deposit, and Grand Total */}
+            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
+                {/* Subtotal */}
+                <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Subtotal</span>
+                    <span className="font-semibold text-slate-700">${subtotal.toFixed(2)}</span>
                 </div>
+
+                {/* Tax Rate */}
+                {onTaxRateChange && (
+                    <div className="flex items-center justify-between">
+                        <label className="text-sm text-slate-600">Tax Rate</label>
+                        <div className="flex items-center gap-1">
+                            <input
+                                type="number"
+                                value={taxRate}
+                                onChange={(e) => onTaxRateChange(parseFloat(e.target.value) || 0)}
+                                className="w-16 px-2 py-1 text-sm text-right border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                min="0"
+                                max="100"
+                                step="0.25"
+                            />
+                            <span className="text-sm text-slate-500">%</span>
+                            <span className="text-sm font-medium text-slate-600 ml-2">${taxAmount.toFixed(2)}</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Deposit Section */}
+                {onDepositRequiredChange && (
+                    <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={depositRequired}
+                                onChange={(e) => onDepositRequiredChange(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Require Deposit</span>
+                        </label>
+
+                        {depositRequired && (
+                            <div className="ml-7 space-y-3">
+                                {/* Deposit type and value */}
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={depositType}
+                                        onChange={(e) => onDepositTypeChange(e.target.value)}
+                                        className="text-sm px-3 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                    >
+                                        <option value="percentage">Percentage</option>
+                                        <option value="fixed">Fixed Amount</option>
+                                    </select>
+                                    <div className="flex items-center gap-1">
+                                        {depositType === 'fixed' && <span className="text-slate-500">$</span>}
+                                        <input
+                                            type="number"
+                                            value={depositValue}
+                                            onChange={(e) => onDepositValueChange(parseFloat(e.target.value) || 0)}
+                                            className="w-20 px-2 py-1.5 text-sm text-right border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                            min="0"
+                                            max={depositType === 'percentage' ? 100 : undefined}
+                                        />
+                                        {depositType === 'percentage' && <span className="text-slate-500">%</span>}
+                                    </div>
+                                </div>
+
+                                {/* Deposit amount display */}
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-600">Deposit Due</span>
+                                    <span className="font-semibold text-amber-600">${depositAmount.toFixed(2)}</span>
+                                </div>
+
+                                {/* Already collected checkbox */}
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={depositCollected}
+                                        onChange={(e) => onDepositCollectedChange(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span className="text-xs text-slate-500">Deposit already collected</span>
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Grand Total */}
+                <div className="flex justify-between items-center pt-3 border-t border-dashed border-slate-300">
+                    <span className="text-base font-bold text-slate-700">Total</span>
+                    <span className="text-xl font-extrabold text-emerald-600">${total.toFixed(2)}</span>
+                </div>
+
+                {/* Balance due if deposit required */}
+                {depositRequired && !depositCollected && depositAmount > 0 && (
+                    <div className="flex justify-between text-sm text-slate-500">
+                        <span>Balance Due at Completion</span>
+                        <span className="font-medium">${(total - depositAmount).toFixed(2)}</span>
+                    </div>
+                )}
             </div>
         </div>
     );

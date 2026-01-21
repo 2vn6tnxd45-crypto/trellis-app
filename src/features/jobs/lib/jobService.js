@@ -1,9 +1,9 @@
 // src/features/jobs/lib/jobService.js
 // JOB SERVICE - Direct job creation for contractors
 
-import { doc, collection, addDoc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, updateDoc, serverTimestamp, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH } from '../../../config/constants';
+import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH, appId } from '../../../config/constants';
 import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 import { isMultiDayJob, createMultiDaySchedule } from '../../contractor-pro/lib/multiDayUtils';
 
@@ -107,10 +107,11 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
 
     /**
      * Look up homeowner by email and link job to their property
+     * If user exists, immediately link and notify them
      * @param {string} contractorId - Contractor ID
      * @param {string} jobId - Job ID
      * @param {string} customerEmail - Customer email to look up
-     * @returns {Promise<{success: boolean, homeownerId?: string, propertyId?: string}>}
+     * @returns {Promise<{success: boolean, homeownerId?: string, propertyId?: string, userFound?: boolean}>}
      */
 export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => {
         if (!customerEmail) {
@@ -126,14 +127,56 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
             }
 
             const jobData = jobSnap.data();
+            const normalizedEmail = customerEmail.toLowerCase().trim();
 
-            // Look up user by email
-            // Note: This requires a users collection query or a lookup service
-            // For now, we'll store the email and let the system match later
+            // Check if user exists in the system
+            const usersRef = collection(db, 'artifacts', appId, 'users');
+            const userQuery = query(usersRef, where('email', '==', normalizedEmail));
+            const userSnapshot = await getDocs(userQuery);
+
+            if (!userSnapshot.empty) {
+                // User EXISTS - link immediately and notify them
+                const userDoc = userSnapshot.docs[0];
+                const userId = userDoc.id;
+                const userData = userDoc.data();
+
+                console.log('[jobService] Found existing user for email:', normalizedEmail, 'userId:', userId);
+
+                // Update job with direct link
+                const updates = {
+                    'customer.email': normalizedEmail,
+                    homeownerId: userId,
+                    homeownerLinked: true,
+                    homeownerLinkedAt: serverTimestamp(),
+                    homeownerLookupPending: false,
+                    homeownerLookupEmail: normalizedEmail,
+                    updatedAt: serverTimestamp()
+                };
+
+                // If we have a property address, store it for matching
+                if (jobData.propertyAddress || jobData.customer?.address) {
+                    updates.homeownerLookupAddress = jobData.propertyAddress || jobData.customer?.address;
+                }
+
+                await updateDoc(jobRef, updates);
+
+                // Create notification for the homeowner
+                await createJobNotificationForHomeowner(userId, jobId, jobData, contractorId);
+
+                return {
+                    success: true,
+                    userFound: true,
+                    homeownerId: userId,
+                    message: 'Job linked to existing user and notification sent.',
+                    lookupEmail: normalizedEmail
+                };
+            }
+
+            // User does NOT exist - store for future matching
             const updates = {
-                'customer.email': customerEmail.toLowerCase().trim(),
+                'customer.email': normalizedEmail,
                 homeownerLookupPending: true,
-                homeownerLookupEmail: customerEmail.toLowerCase().trim(),
+                homeownerLookupEmail: normalizedEmail,
                 updatedAt: serverTimestamp()
             };
 
@@ -146,14 +189,57 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
 
             return {
                 success: true,
-                message: 'Job marked for homeowner linking. Will be matched when homeowner logs in.',
-                lookupEmail: customerEmail
+                userFound: false,
+                message: 'Job marked for homeowner linking. Will be matched when homeowner signs up.',
+                lookupEmail: normalizedEmail
             };
         } catch (error) {
             console.error('[jobService] Error linking job to homeowner:', error);
             return { success: false, error: error.message };
         }
     };
+
+/**
+ * Create a notification for the homeowner about a new job
+ * Stores notification in their user document for in-app display
+ */
+const createJobNotificationForHomeowner = async (userId, jobId, jobData, contractorId) => {
+    try {
+        // Get contractor info for the notification
+        let contractorName = 'A contractor';
+        try {
+            const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId);
+            const contractorSnap = await getDoc(contractorRef);
+            if (contractorSnap.exists()) {
+                const contractorData = contractorSnap.data();
+                contractorName = contractorData.businessName || contractorData.displayName || 'A contractor';
+            }
+        } catch (e) {
+            console.warn('[jobService] Could not fetch contractor name:', e);
+        }
+
+        // Create notification in user's notifications subcollection
+        const notificationsRef = collection(db, 'artifacts', appId, 'users', userId, 'notifications');
+        await addDoc(notificationsRef, {
+            type: 'new_job',
+            title: 'New Job Scheduled',
+            message: `${contractorName} has created a job for your property: ${jobData.title || 'Service'}`,
+            jobId: jobId,
+            jobNumber: jobData.jobNumber,
+            contractorId: contractorId,
+            contractorName: contractorName,
+            propertyAddress: jobData.propertyAddress,
+            scheduledDate: jobData.scheduledDate || null,
+            read: false,
+            createdAt: serverTimestamp()
+        });
+
+        console.log('[jobService] Created notification for homeowner:', userId);
+    } catch (error) {
+        // Don't fail the job creation if notification fails
+        console.error('[jobService] Error creating notification for homeowner:', error);
+    }
+};
 
     /**
      * Directly link a job to a known homeowner and property

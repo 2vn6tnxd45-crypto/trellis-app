@@ -701,12 +701,16 @@ const CreateJobModal = ({
     teamMembers = [],
     vehicles = [],
     workingHours = {},
-    existingJobs = []
+    existingJobs = [],
+    contractorSettings = {}
 }) => {
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [showAiSuggestion, setShowAiSuggestion] = useState(false);
+
+    // Get defaults from contractor settings
+    const defaultTaxRate = contractorSettings?.defaultTaxRate ?? 8.75;
 
     const [formData, setFormData] = useState({
         title: '',
@@ -730,7 +734,13 @@ const CreateJobModal = ({
         accessInstructions: '',
         poNumber: '',
         // Line items (replaces pricing breakdown)
-        lineItems: [createNewLineItem('material')]
+        lineItems: [createNewLineItem('material')],
+        // Tax and deposit
+        taxRate: defaultTaxRate,
+        depositRequired: false,
+        depositType: 'percentage', // 'percentage' or 'fixed'
+        depositValue: 50, // 50% or $50 depending on type
+        depositCollected: false
     });
 
     // Google Maps autocomplete
@@ -872,6 +882,21 @@ const CreateJobModal = ({
                 return sum + ((item.quantity || 0) * (item.unitPrice || 0));
             }, 0);
 
+            // Calculate tax
+            const taxRate = formData.taxRate || 0;
+            const taxAmount = subtotal * (taxRate / 100);
+            const total = subtotal + taxAmount;
+
+            // Calculate deposit if required
+            let depositAmount = 0;
+            if (formData.depositRequired && !formData.depositCollected) {
+                if (formData.depositType === 'percentage') {
+                    depositAmount = total * (formData.depositValue / 100);
+                } else {
+                    depositAmount = formData.depositValue || 0;
+                }
+            }
+
             // Extract inventory intents from line items
             const inventoryIntents = lineItems
                 .filter(item => item.inventoryIntent)
@@ -883,7 +908,7 @@ const CreateJobModal = ({
 
             const jobData = {
                 ...formData,
-                price: subtotal,
+                price: total,
                 estimatedDuration: parseInt(formData.estimatedDuration) || 60,
                 crewSize: parseInt(formData.crewSize) || 1,
                 // Line items with full details
@@ -901,11 +926,19 @@ const CreateJobModal = ({
                 })),
                 // Inventory intents for homeowner records
                 inventoryIntents,
-                // Pricing summary
+                // Pricing summary (enhanced with tax and deposit)
                 pricing: {
                     subtotal,
-                    total: subtotal,
-                    itemCount: lineItems.length
+                    taxRate,
+                    taxAmount,
+                    total,
+                    itemCount: lineItems.length,
+                    // Deposit info
+                    depositRequired: formData.depositRequired,
+                    depositType: formData.depositType,
+                    depositValue: formData.depositValue,
+                    depositAmount,
+                    depositCollected: formData.depositCollected
                 },
                 // Crew assignment
                 assignedCrewIds: formData.assignedCrewIds || [],
@@ -919,17 +952,26 @@ const CreateJobModal = ({
 
             if (result.success) {
                 // Link to homeowner if customer email is provided
+                let linkResult = null;
                 if (formData.customerEmail) {
                     try {
-                        await linkJobToHomeowner(contractorId, result.jobId, formData.customerEmail);
-                        console.log('[CreateJobModal] Job linked to homeowner via email:', formData.customerEmail);
+                        linkResult = await linkJobToHomeowner(contractorId, result.jobId, formData.customerEmail);
+                        console.log('[CreateJobModal] Job linking result:', linkResult);
                     } catch (linkError) {
                         // Don't fail the job creation, just log the error
                         console.warn('[CreateJobModal] Failed to link job to homeowner:', linkError);
                     }
                 }
 
-                toast.success(`Job ${result.jobNumber} created successfully!`);
+                // Show success with notification info
+                if (linkResult?.userFound) {
+                    toast.success(`Job ${result.jobNumber} created! Customer has been notified.`, {
+                        duration: 4000,
+                        icon: '🔔'
+                    });
+                } else {
+                    toast.success(`Job ${result.jobNumber} created successfully!`);
+                }
                 onJobCreated?.(result.job);
                 onClose();
 
@@ -954,7 +996,13 @@ const CreateJobModal = ({
                     vehicleId: null,
                     accessInstructions: '',
                     poNumber: '',
-                    lineItems: [createNewLineItem('material')]
+                    lineItems: [createNewLineItem('material')],
+                    // Tax and deposit reset
+                    taxRate: defaultTaxRate,
+                    depositRequired: false,
+                    depositType: 'percentage',
+                    depositValue: 50,
+                    depositCollected: false
                 });
                 setTouched({});
             } else {
@@ -1308,6 +1356,18 @@ const CreateJobModal = ({
                     <JobLineItemsSection
                         lineItems={formData.lineItems}
                         onChange={(items) => setFormData(prev => ({ ...prev, lineItems: items }))}
+                        // Tax props
+                        taxRate={formData.taxRate}
+                        onTaxRateChange={(rate) => setFormData(prev => ({ ...prev, taxRate: rate }))}
+                        // Deposit props
+                        depositRequired={formData.depositRequired}
+                        onDepositRequiredChange={(required) => setFormData(prev => ({ ...prev, depositRequired: required }))}
+                        depositType={formData.depositType}
+                        onDepositTypeChange={(type) => setFormData(prev => ({ ...prev, depositType: type }))}
+                        depositValue={formData.depositValue}
+                        onDepositValueChange={(value) => setFormData(prev => ({ ...prev, depositValue: value }))}
+                        depositCollected={formData.depositCollected}
+                        onDepositCollectedChange={(collected) => setFormData(prev => ({ ...prev, depositCollected: collected }))}
                     />
 
                     {/* Additional Job Details */}
