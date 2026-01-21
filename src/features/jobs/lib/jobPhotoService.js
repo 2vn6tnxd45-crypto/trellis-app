@@ -397,7 +397,7 @@ export const syncPhotosToPropertyRecord = async (jobId, userId, propertyId) => {
                 sourceJobTitle: job.title || job.description || 'Service',
                 uploadedAt: photo.uploadedAt || new Date().toISOString(),
                 syncedAt: serverTimestamp(),
-                contractor: job.contractorName || job.contractor || '',
+                contractor: job.contractorName || (typeof job.contractor === 'string' ? job.contractor : job.contractor?.companyName || job.contractor?.name || ''),
                 contractorId: job.contractorId || null
             });
             count++;

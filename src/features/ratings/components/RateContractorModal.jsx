@@ -135,7 +135,19 @@ export const RateContractorModal = ({
         );
     }
     
-    const contractorName = job.contractorName || job.contractor || 'the contractor';
+    // Safely extract contractor name from string or object to prevent React Error #310
+    const getContractorName = () => {
+        if (job.contractorName) return job.contractorName;
+        if (job.contractorCompany) return job.contractorCompany;
+        if (job.contractor) {
+            if (typeof job.contractor === 'string') return job.contractor;
+            if (typeof job.contractor === 'object') {
+                return job.contractor.companyName || job.contractor.name || job.contractor.businessName || 'the contractor';
+            }
+        }
+        return 'the contractor';
+    };
+    const contractorName = getContractorName();
     
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

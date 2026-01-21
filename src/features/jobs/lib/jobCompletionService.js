@@ -638,7 +638,7 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
                 importedAt: serverTimestamp(),
                 
                 // Contractor linkage (critical for "Book Again" feature)
-                contractor: jobData.contractorName || jobData.contractor || '',
+                contractor: jobData.contractorName || (typeof jobData.contractor === 'string' ? jobData.contractor : jobData.contractor?.companyName || jobData.contractor?.name || ''),
                 contractorId: completion.contractorId || jobData.contractorId || null,
                 contractorPhone: jobData.contractorPhone || jobData.customer?.phone || '',
                 contractorEmail: jobData.contractorEmail || jobData.customer?.email || '',

@@ -250,8 +250,19 @@ export const CompletionDetailsModal = ({ job, onClose }) => {
     const notes = completion.notes;
     const recommendations = completion.recommendations;
 
-    // Contractor info
-    const contractorName = job.contractorName || job.contractor || 'Contractor';
+    // Contractor info - safely extract name from contractor object to prevent React Error #310
+    const getContractorDisplayName = () => {
+        if (job.contractorName) return job.contractorName;
+        if (job.contractorCompany) return job.contractorCompany;
+        if (job.contractor) {
+            if (typeof job.contractor === 'string') return job.contractor;
+            if (typeof job.contractor === 'object') {
+                return job.contractor.companyName || job.contractor.name || job.contractor.businessName || 'Contractor';
+            }
+        }
+        return 'Contractor';
+    };
+    const contractorName = getContractorDisplayName();
     const contractorPhone = job.contractorPhone;
     const contractorEmail = job.contractorEmail;
 
