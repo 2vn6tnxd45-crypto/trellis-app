@@ -1282,7 +1282,7 @@ export const ModernDashboard = ({
                 <HomeArchive
                     userId={userId}
                     userProfile={userProfile}
-                    propertyAddress={activeProperty?.address?.formatted || activeProperty?.address}
+                    propertyAddress={activeProperty?.address?.formatted || (typeof activeProperty?.address === 'string' ? activeProperty?.address : '')}
                     variant="section"
                 />
             </DashboardSection>

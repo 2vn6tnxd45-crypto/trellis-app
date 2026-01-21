@@ -44,6 +44,21 @@ const isToday = (date) => {
            d.getFullYear() === today.getFullYear();
 };
 
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        // Handle structured address objects
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        // Don't render objects directly
+        return '';
+    }
+    return String(addr);
+};
+
 // Helper to get contractor initials
 const getInitials = (name) => {
     if (!name) return '?';
@@ -83,7 +98,7 @@ export const TodayAppointmentCard = ({ jobs = [], onJobClick }) => {
         const countdown = getHoursUntil(scheduledTime);
         const contractorName = job.contractorName || 'Your Contractor';
         const contractorPhone = job.contractorPhone;
-        const serviceAddress = job.serviceAddress || job.customer?.address || job.address;
+        const serviceAddress = safeAddress(job.serviceAddress) || safeAddress(job.customer?.address) || safeAddress(job.address);
 
         return (
             <div className="relative bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 mb-6 shadow-lg text-white overflow-hidden">

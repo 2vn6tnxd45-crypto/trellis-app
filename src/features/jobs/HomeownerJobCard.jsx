@@ -80,6 +80,21 @@ const getCountdown = (scheduledTime) => {
     }
 };
 
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        // Handle structured address objects
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        // Don't render objects directly
+        return '';
+    }
+    return String(addr);
+};
+
 // Status configuration
 const STATUS_CONFIG = {
     pending_schedule: {
@@ -443,11 +458,11 @@ export const HomeownerJobCard = ({
                 </div>
 
                 {/* Service Address (if available) */}
-                {(job.serviceAddress?.formatted || job.customer?.address) && (
+                {(safeAddress(job.serviceAddress) || safeAddress(job.customer?.address)) && (
                     <div className="flex items-center gap-2 text-sm text-slate-500 mb-3">
                         <MapPin size={14} className="shrink-0" />
                         <span className="truncate">
-                            {job.serviceAddress?.formatted || job.customer?.address}
+                            {safeAddress(job.serviceAddress) || safeAddress(job.customer?.address)}
                         </span>
                     </div>
                 )}
