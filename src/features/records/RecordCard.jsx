@@ -9,6 +9,16 @@ import toast from 'react-hot-toast';
 import { MAINTENANCE_FREQUENCIES } from '../../config/constants';
 import { useRecalls } from '../../hooks/useRecalls';
 
+// Safely extract contractor name from string or object to prevent React Error #310
+const safeContractorName = (contractor) => {
+    if (!contractor) return null;
+    if (typeof contractor === 'string') return contractor;
+    if (typeof contractor === 'object') {
+        return contractor.companyName || contractor.name || contractor.businessName || 'Pro';
+    }
+    return String(contractor);
+};
+
 const CATEGORY_CONFIG = {
     "Paint & Finishes": { icon: Paintbrush, color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200", iconColor: "text-fuchsia-600" },
     "Appliances": { icon: Plug, color: "bg-cyan-100 text-cyan-700 border-cyan-200", iconColor: "text-cyan-600" },
@@ -146,7 +156,7 @@ export const RecordCard = ({ record, onDeleteClick, onEditClick }) => {
                             {record.contractor && (
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Source / Pro</p>
-                                    <p className="font-medium text-slate-700">{record.contractor}</p>
+                                    <p className="font-medium text-slate-700">{safeContractorName(record.contractor)}</p>
                                 </div>
                             )}
                             {record.maintenanceFrequency !== 'none' && (

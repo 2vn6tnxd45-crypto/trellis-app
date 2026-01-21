@@ -10,6 +10,16 @@ import {
 import { RebookProButton } from '../../components/common/RebookProButton';
 import { toProperCase } from '../../lib/utils';
 
+// Safely extract contractor name from string or object to prevent React Error #310
+const safeContractorName = (contractor) => {
+    if (!contractor) return null;
+    if (typeof contractor === 'string') return contractor;
+    if (typeof contractor === 'object') {
+        return contractor.companyName || contractor.name || contractor.businessName || 'Pro';
+    }
+    return String(contractor);
+};
+
 // --- NEW: Category configuration from RecordCard for colored icons ---
 const CATEGORY_CONFIG = {
     "Paint & Finishes": { icon: Paintbrush, color: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200", iconColor: "text-fuchsia-600" },
@@ -215,7 +225,7 @@ export const EnhancedRecordCard = ({
                             <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Support</p>
                             <div className="flex items-center gap-2 text-slate-700 font-medium text-sm">
                                 <Shield size={14} className="text-blue-500" />
-                                {record.contractor || 'No Pro Assigned'}
+                                {safeContractorName(record.contractor) || 'No Pro Assigned'}
                             </div>
                         </div>
                     </div>
@@ -291,13 +301,13 @@ export const EnhancedRecordCard = ({
         <div className="flex items-center justify-between">
             <div>
                 <p className="text-[10px] uppercase tracking-wider text-emerald-600 font-bold mb-1">Installed By</p>
-                <p className="text-sm font-bold text-slate-800">{record.contractor}</p>
+                <p className="text-sm font-bold text-slate-800">{safeContractorName(record.contractor)}</p>
                 {record.contractorPhone && (
                     <p className="text-xs text-slate-500 mt-0.5">{record.contractorPhone}</p>
                 )}
             </div>
             <RebookProButton
-                contractor={record.contractor}
+                contractor={safeContractorName(record.contractor)}
                 contractorId={record.contractorId}
                 contractorPhone={record.contractorPhone}
                 contractorEmail={record.contractorEmail}
