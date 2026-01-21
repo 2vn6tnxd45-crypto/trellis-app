@@ -137,6 +137,12 @@ const formatScheduledTimeRange = (job, timezone) => {
 // ADD: workingHours prop for multi-day reschedule calculation
 export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezone, workingHours = {}, onUpdate, onClose }) => {
     // userType: 'homeowner' | 'contractor'
+    console.log('[JobScheduler] Rendering with:', {
+        jobId: job?.id,
+        userType,
+        hasOfferedSlots: job?.scheduling?.offeredSlots?.some(s => s.status === 'offered'),
+        jobStatus: job?.status
+    });
     const [isProposing, setIsProposing] = useState(false);
     const [proposal, setProposal] = useState({ date: '', time: '09:00' });
     const [estimateAmount, setEstimateAmount] = useState('');
