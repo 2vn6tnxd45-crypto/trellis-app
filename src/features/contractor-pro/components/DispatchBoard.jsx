@@ -21,6 +21,7 @@ import {
     unassignJob,
     bulkAssignJobs,
     checkConflicts,
+    isTechWorkingOnDay,
     parseDurationToMinutes
 } from '../lib/schedulingAI';
 import { isSameDayInTimezone } from '../lib/timezoneUtils';
@@ -260,7 +261,9 @@ const TechColumn = ({
     onUnassign,
     onOpenCrewModal,
     isDropTarget,
-    allJobs
+    allJobs,
+    onMarkWorkingToday,
+    onEditSchedule
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
 
@@ -275,12 +278,27 @@ const TechColumn = ({
     const capacityPercent = Math.min(100, (jobCount / maxJobs) * 100);
     const hoursPercent = Math.min(100, (totalHours / maxHours) * 100);
 
-    // Check if tech works today
+    // Use smart availability checking
     const safeDate = new Date(date);
-    const dayName = isNaN(safeDate.getTime())
-        ? 'monday'
-        : safeDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const worksToday = tech.workingHours?.[dayName]?.enabled !== false;
+    const availability = isTechWorkingOnDay(tech, safeDate);
+    const hasOverride = tech._workingTodayOverride;
+    const worksToday = hasOverride || availability.working;
+    const isScheduledOff = !hasOverride && availability.reason === 'scheduled_off';
+    const hasNoSchedule = availability.reason === 'default';
+
+    // Get schedule summary (work days)
+    const getScheduleSummary = () => {
+        if (!tech.workingHours) return 'No schedule set';
+        const workDays = Object.entries(tech.workingHours)
+            .filter(([_, h]) => h?.enabled)
+            .map(([day]) => day.substring(0, 3));
+        if (workDays.length === 0) return 'No days enabled';
+        if (workDays.length === 7) return 'Every day';
+        if (workDays.length === 5 && !tech.workingHours.saturday?.enabled && !tech.workingHours.sunday?.enabled) {
+            return 'Mon-Fri';
+        }
+        return workDays.join(', ');
+    };
 
     const handleDragOver = (e) => {
         e.preventDefault();
@@ -305,7 +323,7 @@ const TechColumn = ({
             className={`
                 flex flex-col bg-white rounded-xl border-2 min-w-[280px] max-w-[320px] transition-all
                 ${isDragOver ? 'border-emerald-400 bg-emerald-50/50 shadow-lg' : 'border-slate-200'}
-                ${!worksToday ? 'opacity-60' : ''}
+                ${isScheduledOff ? 'opacity-70' : ''}
             `}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -322,17 +340,40 @@ const TechColumn = ({
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="font-bold text-slate-800 truncate">{tech.name}</p>
-                        <p className="text-xs text-slate-500">{tech.role || 'Technician'}</p>
+                        <p className="text-xs text-slate-500 flex items-center gap-1">
+                            <Calendar size={10} />
+                            {getScheduleSummary()}
+                        </p>
                     </div>
-                    {!worksToday && (
-                        <span className="px-2 py-1 bg-slate-100 text-slate-500 rounded text-xs font-medium">
-                            Off
-                        </span>
+                    {isScheduledOff && (
+                        <div className="flex flex-col gap-1">
+                            <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                                Off Today
+                            </span>
+                            {onMarkWorkingToday && (
+                                <button
+                                    onClick={() => onMarkWorkingToday(tech)}
+                                    className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[10px] font-medium hover:bg-emerald-200 transition-colors"
+                                >
+                                    Mark Working
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    {hasNoSchedule && (
+                        <button
+                            onClick={() => onEditSchedule?.(tech)}
+                            className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200 transition-colors flex items-center gap-1"
+                            title="Set up working schedule"
+                        >
+                            <Clock size={12} />
+                            Set Hours
+                        </button>
                     )}
                 </div>
 
                 {/* Capacity Bars */}
-                {worksToday && (
+                {(worksToday || jobs.length > 0) && (
                     <div className="mt-3 space-y-1.5">
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500 w-12">Jobs</span>
@@ -490,11 +531,14 @@ export const DispatchBoard = ({
     vehicles = [],
     initialDate = new Date(),
     onJobUpdate,
+    onTeamMemberUpdate,  // Callback to update a team member (for schedule overrides)
+    onEditTeamMember,    // Callback to open team member edit modal
     timezone
 }) => {
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
     const [crewModalJob, setCrewModalJob] = useState(null);
+    const [workingTodayOverrides, setWorkingTodayOverrides] = useState({}); // Track one-time overrides
 
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
@@ -769,6 +813,25 @@ export const DispatchBoard = ({
 
     const isToday = isSameDayInTimezone(selectedDate, new Date(), timezone);
 
+    // Handle marking a tech as working today (one-time override)
+    const handleMarkWorkingToday = useCallback((tech) => {
+        const dateKey = selectedDate.toISOString().split('T')[0];
+        setWorkingTodayOverrides(prev => ({
+            ...prev,
+            [`${tech.id}_${dateKey}`]: true
+        }));
+        toast.success(`${tech.name} marked as working today`);
+    }, [selectedDate]);
+
+    // Handle editing a tech's schedule (opens edit modal)
+    const handleEditSchedule = useCallback((tech) => {
+        if (onEditTeamMember) {
+            onEditTeamMember(tech);
+        } else {
+            toast('Go to Settings → Team to edit schedules', { icon: 'ℹ️' });
+        }
+    }, [onEditTeamMember]);
+
     // Get week dates for the mini week navigator
     const getWeekDates = () => {
         const dates = [];
@@ -898,18 +961,32 @@ export const DispatchBoard = ({
                 />
 
                 {/* Tech Columns */}
-                {teamMembers.map(tech => (
-                    <TechColumn
-                        key={tech.id}
-                        tech={tech}
-                        jobs={jobsByTech[tech.id] || []}
-                        date={selectedDate}
-                        allJobs={jobsForDate}
-                        onDrop={handleDrop}
-                        onUnassign={handleUnassign}
-                        onOpenCrewModal={setCrewModalJob}
-                    />
-                ))}
+                {teamMembers.map(tech => {
+                    // Check for one-time override
+                    const dateKey = selectedDate.toISOString().split('T')[0];
+                    const hasOverride = workingTodayOverrides[`${tech.id}_${dateKey}`];
+
+                    // Merge override into tech for this render
+                    const techWithOverride = hasOverride ? {
+                        ...tech,
+                        _workingTodayOverride: true
+                    } : tech;
+
+                    return (
+                        <TechColumn
+                            key={tech.id}
+                            tech={techWithOverride}
+                            jobs={jobsByTech[tech.id] || []}
+                            date={selectedDate}
+                            allJobs={jobsForDate}
+                            onDrop={handleDrop}
+                            onUnassign={handleUnassign}
+                            onOpenCrewModal={setCrewModalJob}
+                            onMarkWorkingToday={handleMarkWorkingToday}
+                            onEditSchedule={handleEditSchedule}
+                        />
+                    );
+                })}
 
                 {/* Empty state for no techs */}
                 {teamMembers.length === 0 && (

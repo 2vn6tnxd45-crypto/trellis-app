@@ -55,7 +55,14 @@ const COLORS = [
 // TECH EDITOR MODAL
 // ============================================
 
-const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }) => {
+const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [], companyHours }) => {
+    // For new techs, use company hours as default if available
+    const getDefaultHours = () => {
+        if (tech?.workingHours) return tech.workingHours;
+        if (companyHours) return { ...companyHours };
+        return { ...DEFAULT_HOURS };
+    };
+
     const [formData, setFormData] = useState({
         id: tech?.id || `tech_${Date.now()}`,
         name: tech?.name || '',
@@ -70,7 +77,7 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }
         maxJobsPerDay: tech?.maxJobsPerDay || 4,
         maxHoursPerDay: tech?.maxHoursPerDay || 8,
         defaultBufferMinutes: tech?.defaultBufferMinutes || 30,
-        workingHours: tech?.workingHours || { ...DEFAULT_HOURS },
+        workingHours: getDefaultHours(),
         // New enhanced profile fields
         hourlyRate: tech?.hourlyRate || '',
         primaryVehicleId: tech?.primaryVehicleId || '',
@@ -85,7 +92,9 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }
         certificationExpiry: tech?.certificationExpiry || {}
     });
 
-    const [activeTab, setActiveTab] = useState('basic');
+    // For new techs, prompt to set schedule after basic info
+    const [activeTab, setActiveTab] = useState(isNew ? 'basic' : 'basic');
+    const [showSchedulePrompt, setShowSchedulePrompt] = useState(false);
     const [newSkill, setNewSkill] = useState('');
     const [newCert, setNewCert] = useState('');
 
@@ -94,7 +103,27 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }
             toast.error('Name is required');
             return;
         }
+
+        // For new techs, prompt about schedule if they haven't visited the schedule tab
+        if (isNew && !showSchedulePrompt && activeTab === 'basic') {
+            setShowSchedulePrompt(true);
+            return;
+        }
+
         onSave(formData);
+    };
+
+    const handleSaveWithoutSchedule = () => {
+        if (!formData.name.trim()) {
+            toast.error('Name is required');
+            return;
+        }
+        onSave(formData);
+    };
+
+    const handleGoToSchedule = () => {
+        setShowSchedulePrompt(false);
+        setActiveTab('schedule');
     };
 
     const toggleSkill = (skill) => {
@@ -592,22 +621,53 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }
                     )}
                 </div>
 
+                {/* Schedule Prompt for New Techs */}
+                {showSchedulePrompt && (
+                    <div className="p-4 bg-blue-50 border-t border-blue-100">
+                        <div className="flex items-start gap-3">
+                            <Calendar className="text-blue-600 shrink-0 mt-0.5" size={20} />
+                            <div className="flex-1">
+                                <p className="font-bold text-blue-800">Set Working Schedule?</p>
+                                <p className="text-sm text-blue-600 mt-1">
+                                    Define which days {formData.name || 'this tech'} works. This helps with dispatch scheduling.
+                                </p>
+                                <div className="flex gap-2 mt-3">
+                                    <button
+                                        onClick={handleGoToSchedule}
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        Set Schedule
+                                    </button>
+                                    <button
+                                        onClick={handleSaveWithoutSchedule}
+                                        className="px-4 py-2 text-blue-700 text-sm font-medium hover:bg-blue-100 rounded-lg transition-colors"
+                                    >
+                                        Skip (Use Mon-Fri Default)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Footer */}
-                <div className="p-4 border-t border-slate-100 flex gap-3 shrink-0">
-                    <button
-                        onClick={onClose}
-                        className="flex-1 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
-                    >
-                        <Save size={16} />
-                        {isNew ? 'Add Member' : 'Save Changes'}
-                    </button>
-                </div>
+                {!showSchedulePrompt && (
+                    <div className="p-4 border-t border-slate-100 flex gap-3 shrink-0">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                            <Save size={16} />
+                            {isNew ? 'Add Member' : 'Save Changes'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -617,13 +677,40 @@ const TechEditorModal = ({ tech, onSave, onClose, isNew = false, vehicles = [] }
 // TECH CARD
 // ============================================
 
+// Visual week grid showing which days a tech works
+const WeekScheduleGrid = ({ workingHours }) => {
+    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    return (
+        <div className="flex gap-0.5">
+            {days.map((day, i) => {
+                const fullDay = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][i];
+                const isEnabled = workingHours?.[fullDay]?.enabled;
+                const noSchedule = !workingHours;
+
+                return (
+                    <div
+                        key={day}
+                        className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${
+                            noSchedule
+                                ? 'bg-slate-100 text-slate-400'
+                                : isEnabled
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-slate-100 text-slate-300'
+                        }`}
+                        title={`${fullDay}: ${noSchedule ? 'No schedule set' : isEnabled ? 'Working' : 'Off'}`}
+                    >
+                        {dayLabels[i]}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
 const TechCard = ({ tech, onEdit, onDelete }) => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-    const workDays = Object.entries(tech.workingHours || {})
-        .filter(([_, h]) => h.enabled)
-        .map(([day]) => day.substring(0, 3))
-        .join(', ');
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition-shadow">
@@ -659,28 +746,26 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
                         </div>
                     )}
 
-                    {/* Capacity */}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
-                        <span className="flex items-center gap-1">
-                            <Briefcase size={12} />
-                            {tech.maxJobsPerDay || 4} jobs/day
-                        </span>
-                        <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            {tech.maxHoursPerDay || 8}h max
-                        </span>
-                        {tech.hourlyRate && (
-                            <span className="flex items-center gap-1 text-emerald-600">
-                                <DollarSign size={12} />
-                                ${tech.hourlyRate}/hr
+                    {/* Capacity & Schedule */}
+                    <div className="flex items-center justify-between mt-2">
+                        <div className="flex items-center gap-3 text-xs text-slate-500">
+                            <span className="flex items-center gap-1">
+                                <Briefcase size={12} />
+                                {tech.maxJobsPerDay || 4}/day
                             </span>
-                        )}
-                        {workDays && (
-                            <span className="flex items-center gap-1 capitalize">
-                                <Calendar size={12} />
-                                {workDays}
+                            <span className="flex items-center gap-1">
+                                <Clock size={12} />
+                                {tech.maxHoursPerDay || 8}h
                             </span>
-                        )}
+                            {tech.hourlyRate && (
+                                <span className="flex items-center gap-1 text-emerald-600">
+                                    <DollarSign size={12} />
+                                    ${tech.hourlyRate}/hr
+                                </span>
+                            )}
+                        </div>
+                        {/* Visual Week Schedule */}
+                        <WeekScheduleGrid workingHours={tech.workingHours} />
                     </div>
                 </div>
 
@@ -732,7 +817,7 @@ const TechCard = ({ tech, onEdit, onDelete }) => {
 // MAIN COMPONENT
 // ============================================
 
-export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate, vehicles = [] }) => {
+export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate, vehicles = [], companyHours }) => {
     const [members, setMembers] = useState(teamMembers);
     const [editingTech, setEditingTech] = useState(null);
     const [isAddingNew, setIsAddingNew] = useState(false);
@@ -858,8 +943,173 @@ export const TeamManagement = ({ contractorId, teamMembers = [], onUpdate, vehic
                         setIsAddingNew(false);
                     }}
                     vehicles={vehicles}
+                    companyHours={companyHours}
                 />
             )}
+        </div>
+    );
+};
+
+// ============================================
+// TEAM SCHEDULE VIEW
+// ============================================
+// Shows all techs across the week in a unified grid
+
+export const TeamScheduleView = ({ teamMembers = [], onUpdateMember, contractorId }) => {
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const [isSaving, setIsSaving] = useState(false);
+
+    const toggleDay = async (tech, dayName) => {
+        if (isSaving) return;
+
+        setIsSaving(true);
+        try {
+            const currentHours = tech.workingHours || { ...DEFAULT_HOURS };
+            const currentDayEnabled = currentHours[dayName]?.enabled;
+
+            const updatedHours = {
+                ...currentHours,
+                [dayName]: {
+                    ...currentHours[dayName],
+                    enabled: !currentDayEnabled,
+                    start: currentHours[dayName]?.start || '08:00',
+                    end: currentHours[dayName]?.end || '17:00'
+                }
+            };
+
+            const updatedTech = { ...tech, workingHours: updatedHours };
+
+            // Update in Firestore
+            const updatedMembers = teamMembers.map(m =>
+                m.id === tech.id ? updatedTech : m
+            );
+
+            const contractorRef = doc(db, CONTRACTORS_COLLECTION_PATH, contractorId);
+            await updateDoc(contractorRef, {
+                'scheduling.teamMembers': updatedMembers,
+                updatedAt: serverTimestamp()
+            });
+
+            onUpdateMember?.(updatedMembers);
+            toast.success(`${tech.name}: ${dayName} ${!currentDayEnabled ? 'enabled' : 'disabled'}`);
+        } catch (error) {
+            console.error('Error updating schedule:', error);
+            toast.error('Failed to update schedule');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    if (teamMembers.length === 0) {
+        return (
+            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl p-8 text-center">
+                <Users className="mx-auto text-slate-300 mb-3" size={40} />
+                <p className="text-slate-600 font-medium">No team members</p>
+                <p className="text-sm text-slate-400 mt-1">
+                    Add technicians first to manage their schedules
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            {/* Header Row */}
+            <div className="grid grid-cols-8 bg-slate-50 border-b border-slate-200">
+                <div className="p-3 font-bold text-slate-700 text-sm">
+                    Technician
+                </div>
+                {dayLabels.map((label, i) => (
+                    <div
+                        key={days[i]}
+                        className="p-3 text-center font-bold text-slate-700 text-sm border-l border-slate-200"
+                    >
+                        {label}
+                    </div>
+                ))}
+            </div>
+
+            {/* Tech Rows */}
+            {teamMembers.map((tech) => (
+                <div
+                    key={tech.id}
+                    className="grid grid-cols-8 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50"
+                >
+                    {/* Tech Name */}
+                    <div className="p-3 flex items-center gap-2">
+                        <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                            style={{ backgroundColor: tech.color || '#10B981' }}
+                        >
+                            {tech.name?.charAt(0) || 'T'}
+                        </div>
+                        <span className="font-medium text-slate-800 text-sm truncate">
+                            {tech.name}
+                        </span>
+                    </div>
+
+                    {/* Day Toggles */}
+                    {days.map((day) => {
+                        const isEnabled = tech.workingHours?.[day]?.enabled;
+                        const noSchedule = !tech.workingHours;
+                        const hours = tech.workingHours?.[day];
+
+                        return (
+                            <div
+                                key={day}
+                                className="p-2 border-l border-slate-100 flex items-center justify-center"
+                            >
+                                <button
+                                    onClick={() => toggleDay(tech, day)}
+                                    disabled={isSaving}
+                                    className={`w-full h-10 rounded-lg transition-all flex flex-col items-center justify-center gap-0.5 ${
+                                        isSaving ? 'opacity-50 cursor-wait' :
+                                        noSchedule
+                                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-400'
+                                            : isEnabled
+                                                ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-400'
+                                    }`}
+                                    title={`Click to ${isEnabled ? 'disable' : 'enable'} ${day}`}
+                                >
+                                    {isEnabled ? (
+                                        <>
+                                            <CheckCircle size={14} />
+                                            {hours?.start && (
+                                                <span className="text-[9px]">
+                                                    {hours.start.replace(':00', '')}
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <X size={14} />
+                                    )}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            ))}
+
+            {/* Legend */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center gap-4 text-xs text-slate-500">
+                <span className="flex items-center gap-1">
+                    <div className="w-4 h-4 bg-emerald-100 rounded flex items-center justify-center">
+                        <CheckCircle size={10} className="text-emerald-700" />
+                    </div>
+                    Working
+                </span>
+                <span className="flex items-center gap-1">
+                    <div className="w-4 h-4 bg-slate-100 rounded flex items-center justify-center">
+                        <X size={10} className="text-slate-400" />
+                    </div>
+                    Off
+                </span>
+                <span className="text-slate-400 ml-auto">
+                    Click any cell to toggle
+                </span>
+            </div>
         </div>
     );
 };

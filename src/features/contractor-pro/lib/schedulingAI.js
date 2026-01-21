@@ -289,16 +289,26 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
         warnings.push('Missing required certification');
     }
 
-    // 3. AVAILABILITY CHECK
+    // 3. AVAILABILITY CHECK - uses smart defaults (available if not configured)
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const techHours = tech.workingHours?.[dayName];
 
-    if (techHours?.enabled) {
+    // Smart default: if no workingHours configured, assume available
+    const hasWorkingHoursConfig = tech.workingHours !== undefined;
+    const dayIsConfigured = techHours !== undefined;
+    const isExplicitlyOff = dayIsConfigured && techHours.enabled === false;
+    const isExplicitlyOn = dayIsConfigured && techHours.enabled === true;
+
+    if (isExplicitlyOn) {
         score += SCORING_WEIGHTS.AVAILABILITY;
         reasons.push(`Works ${dayName}s`);
+    } else if (isExplicitlyOff) {
+        score -= 50; // Reduced penalty - can still assign with override
+        warnings.push(`Normally off on ${dayName}s`);
     } else {
-        score -= 100; // Major penalty - tech doesn't work this day
-        warnings.push(`Not scheduled to work ${dayName}`);
+        // No config = assume available (user-friendly default)
+        score += SCORING_WEIGHTS.AVAILABILITY * 0.8; // Slightly less than explicit
+        reasons.push(`Available ${dayName}s`);
     }
 
     // 4. CAPACITY CHECK
@@ -623,20 +633,47 @@ export const bulkAssignJobs = async (assignments) => {
 // ============================================
 
 /**
+ * Check if a tech is available on a given day
+ * Defaults to AVAILABLE if no workingHours configured (user-friendly default)
+ */
+export const isTechWorkingOnDay = (tech, date) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech.workingHours?.[dayName];
+
+    // If no workingHours configured at all, default to available (user-friendly)
+    if (!tech.workingHours) {
+        return { working: true, reason: 'default', dayName };
+    }
+
+    // If this specific day isn't configured, default to available
+    if (techHours === undefined) {
+        return { working: true, reason: 'default', dayName };
+    }
+
+    // Explicitly check enabled status
+    return {
+        working: techHours.enabled !== false,
+        reason: techHours.enabled === false ? 'scheduled_off' : 'scheduled_on',
+        dayName,
+        hours: techHours
+    };
+};
+
+/**
  * Check for scheduling conflicts
  */
 export const checkConflicts = (tech, job, existingJobs, date, timezone) => {
     const conflicts = [];
 
-    // 1. Day availability
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const techHours = tech.workingHours?.[dayName];
+    // 1. Day availability - now uses smarter default logic
+    const availability = isTechWorkingOnDay(tech, date);
 
-    if (!techHours?.enabled) {
+    if (!availability.working) {
         conflicts.push({
             type: 'day_off',
-            severity: 'error',
-            message: `${tech.name} doesn't work on ${dayName}s`
+            severity: 'warning', // Changed from 'error' to 'warning' - allow override
+            message: `${tech.name} is normally off on ${availability.dayName}s`,
+            canOverride: true
         });
     }
 
@@ -1592,6 +1629,7 @@ export default {
     unassignJob,
     bulkAssignJobs,
     checkConflicts,
+    isTechWorkingOnDay,
     suggestTimeSlot,
     parseDurationToMinutes,
     // Time slot suggestion functions
