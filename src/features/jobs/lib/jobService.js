@@ -6,6 +6,7 @@ import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH, appId } from '../../../config/constants';
 import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 import { isMultiDayJob, createMultiDaySchedule } from '../../contractor-pro/lib/multiDayUtils';
+import { addressesMatch, formatAddress } from '../../../lib/addressUtils';
 
 export const JOB_STATUSES = {
     PENDING: 'pending',
@@ -108,10 +109,11 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
     /**
      * Look up homeowner by email and link job to their property
      * If user exists, immediately link and notify them
+     * Also matches the job address to one of their properties if they have multiple
      * @param {string} contractorId - Contractor ID
      * @param {string} jobId - Job ID
      * @param {string} customerEmail - Customer email to look up
-     * @returns {Promise<{success: boolean, homeownerId?: string, propertyId?: string, userFound?: boolean}>}
+     * @returns {Promise<{success: boolean, homeownerId?: string, propertyId?: string, userFound?: boolean, propertyMatched?: boolean}>}
      */
 export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => {
         if (!customerEmail) {
@@ -128,6 +130,7 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
 
             const jobData = jobSnap.data();
             const normalizedEmail = customerEmail.toLowerCase().trim();
+            const jobAddress = jobData.propertyAddress || jobData.customer?.address || '';
 
             // Check if user exists in the system
             const usersRef = collection(db, 'artifacts', appId, 'users');
@@ -142,7 +145,49 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
 
                 console.log('[jobService] Found existing user for email:', normalizedEmail, 'userId:', userId);
 
-                // Update job with direct link
+                // Try to find matching property from user's profile
+                let matchedPropertyId = null;
+                let matchedPropertyName = null;
+
+                // Get user's profile to access their properties
+                const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+                const profileSnap = await getDoc(profileRef);
+
+                if (profileSnap.exists() && jobAddress) {
+                    const profileData = profileSnap.data();
+                    const properties = profileData.properties || [];
+
+                    // Try to match job address to one of the user's properties
+                    for (const property of properties) {
+                        const propertyAddress = property.address;
+                        const propertyFormatted = typeof propertyAddress === 'string'
+                            ? propertyAddress
+                            : formatAddress(propertyAddress);
+
+                        if (addressesMatch(jobAddress, propertyFormatted)) {
+                            matchedPropertyId = property.id;
+                            matchedPropertyName = property.name || propertyFormatted;
+                            console.log('[jobService] Matched job to property:', matchedPropertyId, matchedPropertyName);
+                            break;
+                        }
+                    }
+
+                    // If no match found but user only has one property, use that
+                    if (!matchedPropertyId && properties.length === 1) {
+                        matchedPropertyId = properties[0].id;
+                        matchedPropertyName = properties[0].name;
+                        console.log('[jobService] Single property, using:', matchedPropertyId);
+                    }
+
+                    // If still no match, this might be a NEW property for them
+                    if (!matchedPropertyId && properties.length > 0) {
+                        console.log('[jobService] No property match found for address:', jobAddress);
+                        // We'll still link to user, but propertyId will be null
+                        // The notification will indicate this is for a new/unknown property
+                    }
+                }
+
+                // Update job with direct link (including property if matched)
                 const updates = {
                     'customer.email': normalizedEmail,
                     homeownerId: userId,
@@ -150,24 +195,30 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
                     homeownerLinkedAt: serverTimestamp(),
                     homeownerLookupPending: false,
                     homeownerLookupEmail: normalizedEmail,
+                    homeownerLookupAddress: jobAddress,
                     updatedAt: serverTimestamp()
                 };
 
-                // If we have a property address, store it for matching
-                if (jobData.propertyAddress || jobData.customer?.address) {
-                    updates.homeownerLookupAddress = jobData.propertyAddress || jobData.customer?.address;
+                // Add property link if we found a match
+                if (matchedPropertyId) {
+                    updates.propertyId = matchedPropertyId;
+                    updates.propertyName = matchedPropertyName;
                 }
 
                 await updateDoc(jobRef, updates);
 
-                // Create notification for the homeowner
-                await createJobNotificationForHomeowner(userId, jobId, jobData, contractorId);
+                // Create notification for the homeowner (include property info)
+                await createJobNotificationForHomeowner(userId, jobId, jobData, contractorId, matchedPropertyId, matchedPropertyName);
 
                 return {
                     success: true,
                     userFound: true,
                     homeownerId: userId,
-                    message: 'Job linked to existing user and notification sent.',
+                    propertyId: matchedPropertyId,
+                    propertyMatched: !!matchedPropertyId,
+                    message: matchedPropertyId
+                        ? `Job linked to user and property "${matchedPropertyName}". Notification sent.`
+                        : 'Job linked to user. Notification sent (property not matched).',
                     lookupEmail: normalizedEmail
                 };
             }
@@ -177,13 +228,9 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
                 'customer.email': normalizedEmail,
                 homeownerLookupPending: true,
                 homeownerLookupEmail: normalizedEmail,
+                homeownerLookupAddress: jobAddress,
                 updatedAt: serverTimestamp()
             };
-
-            // If we have a property address, store it for matching
-            if (jobData.propertyAddress || jobData.customer?.address) {
-                updates.homeownerLookupAddress = jobData.propertyAddress || jobData.customer?.address;
-            }
 
             await updateDoc(jobRef, updates);
 
@@ -202,8 +249,14 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
 /**
  * Create a notification for the homeowner about a new job
  * Stores notification in their user document for in-app display
+ * @param {string} userId - Homeowner user ID
+ * @param {string} jobId - Job ID
+ * @param {Object} jobData - Job data
+ * @param {string} contractorId - Contractor ID
+ * @param {string|null} propertyId - Matched property ID (if found)
+ * @param {string|null} propertyName - Matched property name (if found)
  */
-const createJobNotificationForHomeowner = async (userId, jobId, jobData, contractorId) => {
+const createJobNotificationForHomeowner = async (userId, jobId, jobData, contractorId, propertyId = null, propertyName = null) => {
     try {
         // Get contractor info for the notification
         let contractorName = 'A contractor';
@@ -218,23 +271,35 @@ const createJobNotificationForHomeowner = async (userId, jobId, jobData, contrac
             console.warn('[jobService] Could not fetch contractor name:', e);
         }
 
+        // Build message based on whether property was matched
+        let message;
+        if (propertyId && propertyName) {
+            message = `${contractorName} has created a job for ${propertyName}: ${jobData.title || 'Service'}`;
+        } else {
+            message = `${contractorName} has created a job at ${jobData.propertyAddress || 'your property'}: ${jobData.title || 'Service'}`;
+        }
+
         // Create notification in user's notifications subcollection
         const notificationsRef = collection(db, 'artifacts', appId, 'users', userId, 'notifications');
         await addDoc(notificationsRef, {
             type: 'new_job',
             title: 'New Job Scheduled',
-            message: `${contractorName} has created a job for your property: ${jobData.title || 'Service'}`,
+            message,
             jobId: jobId,
             jobNumber: jobData.jobNumber,
             contractorId: contractorId,
             contractorName: contractorName,
+            propertyId: propertyId,
+            propertyName: propertyName,
             propertyAddress: jobData.propertyAddress,
             scheduledDate: jobData.scheduledDate || null,
+            // If no property matched, flag it so homeowner can assign to a property
+            requiresPropertyAssignment: !propertyId && !!jobData.propertyAddress,
             read: false,
             createdAt: serverTimestamp()
         });
 
-        console.log('[jobService] Created notification for homeowner:', userId);
+        console.log('[jobService] Created notification for homeowner:', userId, 'propertyId:', propertyId);
     } catch (error) {
         // Don't fail the job creation if notification fails
         console.error('[jobService] Error creating notification for homeowner:', error);
