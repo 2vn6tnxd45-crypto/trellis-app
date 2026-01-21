@@ -312,13 +312,28 @@ export const createJobDirect = async (contractorId, jobData) => {
                 updatedAt: serverTimestamp(),
                 lastActivity: serverTimestamp(), // Important for ordering in subscription
 
+                // Line Items & Inventory Intents (for homeowner records)
+                lineItems: jobData.lineItems || [],
+                inventoryIntents: jobData.inventoryIntents || [],
+                pricing: jobData.pricing || { subtotal: 0, total: 0, itemCount: 0 },
+
+                // Additional fields
+                vehicleId: jobData.vehicleId || null,
+                accessInstructions: jobData.accessInstructions || '',
+                poNumber: jobData.poNumber || '',
+
                 // Metadata
                 createdBy: jobData.createdBy || 'contractor',
                 quoteId: null,
                 requestId: null,
                 evaluationId: null,
                 completedAt: null,
-                completion: null
+                completion: null,
+
+                // Homeowner linking flags
+                homeownerLinked: false,
+                homeownerLookupPending: !!jobData.customerEmail,
+                homeownerLookupEmail: jobData.customerEmail?.toLowerCase()?.trim() || null
             };
 
             // Write to the main requests collection (same as quote-based jobs)

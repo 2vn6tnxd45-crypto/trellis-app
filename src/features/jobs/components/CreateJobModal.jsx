@@ -6,13 +6,14 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-    X, Briefcase, User, MapPin, Phone, Mail, Clock, DollarSign,
+    X, Briefcase, User, MapPin, Phone, Mail, Clock,
     Calendar, Save, Loader2, Users, AlertCircle, CheckCircle,
     Sparkles, ChevronDown, ChevronUp, Truck, Info
 } from 'lucide-react';
 import { createJobDirect, JOB_PRIORITY, linkJobToHomeowner } from '../lib/jobService';
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 import toast from 'react-hot-toast';
+import JobLineItemsSection, { createNewLineItem } from './JobLineItemsSection';
 
 // ============================================
 // VALIDATION HELPERS
@@ -587,135 +588,6 @@ const MultiCrewSelector = ({
     );
 };
 
-// ============================================
-// PRICING BREAKDOWN COMPONENT
-// ============================================
-const PricingBreakdown = ({ formData, onChange, errors, touched, onBlur }) => {
-    const laborCost = parseFloat(formData.laborCost) || 0;
-    const materialsCost = parseFloat(formData.materialsCost) || 0;
-    const markupPercent = parseFloat(formData.markupPercent) || 0;
-
-    const subtotal = laborCost + materialsCost;
-    const markupAmount = subtotal * (markupPercent / 100);
-    const total = subtotal + markupAmount;
-
-    // Auto-calculate labor from duration and hourly rate
-    const estimatedLaborHours = (formData.estimatedDuration || 60) / 60;
-    const suggestedLaborCost = estimatedLaborHours * (formData.crewSize || 1) * 75; // $75/hr default
-
-    return (
-        <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                <DollarSign size={14} />
-                Pricing Breakdown
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3">
-                {/* Labor Cost */}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Labor Cost
-                    </label>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                        <input
-                            type="number"
-                            value={formData.laborCost}
-                            onChange={(e) => onChange('laborCost', e.target.value)}
-                            onBlur={() => onBlur('laborCost')}
-                            min="0"
-                            step="0.01"
-                            placeholder={suggestedLaborCost.toFixed(0)}
-                            className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                        />
-                    </div>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                        Suggested: ${suggestedLaborCost.toFixed(0)} ({estimatedLaborHours.toFixed(1)}h × {formData.crewSize || 1} crew)
-                    </p>
-                </div>
-
-                {/* Materials Cost */}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Materials/Parts
-                    </label>
-                    <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                        <input
-                            type="number"
-                            value={formData.materialsCost}
-                            onChange={(e) => onChange('materialsCost', e.target.value)}
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Markup */}
-            <div className="grid grid-cols-2 gap-3">
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Markup %
-                    </label>
-                    <div className="relative">
-                        <input
-                            type="number"
-                            value={formData.markupPercent}
-                            onChange={(e) => onChange('markupPercent', e.target.value)}
-                            min="0"
-                            max="100"
-                            placeholder="0"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">%</span>
-                    </div>
-                </div>
-
-                {/* Total Display */}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Total Price
-                    </label>
-                    <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg">
-                        <span className="text-lg font-bold text-emerald-700">
-                            ${total.toFixed(2)}
-                        </span>
-                        {markupAmount > 0 && (
-                            <span className="text-xs text-emerald-600 ml-2">
-                                (+${markupAmount.toFixed(0)} markup)
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Quick set total override */}
-            <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Or set flat price
-                </label>
-                <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
-                    <input
-                        type="number"
-                        value={formData.price}
-                        onChange={(e) => onChange('price', e.target.value)}
-                        onBlur={() => onBlur('price')}
-                        min="0"
-                        step="0.01"
-                        placeholder="Override total..."
-                        className={`w-full pl-7 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 ${touched?.price && errors?.price ? 'border-red-300 bg-red-50' : 'border-slate-200'
-                            }`}
-                    />
-                </div>
-                {touched?.price && errors?.price && <ValidationError message={errors.price} />}
-            </div>
-        </div>
-    );
-};
 
 // ============================================
 // VALIDATION ERROR DISPLAY
@@ -842,7 +714,6 @@ const CreateJobModal = ({
         customerEmail: '',
         propertyAddress: '',
         estimatedDuration: 60,
-        price: '',
         priority: 'normal',
         scheduledDate: '',
         scheduledTime: '',
@@ -852,12 +723,11 @@ const CreateJobModal = ({
         assignedTechName: null,
         // Enhanced fields
         assignedCrewIds: [],
-        laborCost: '',
-        materialsCost: '',
-        markupPercent: '',
         vehicleId: null,
         accessInstructions: '',
-        poNumber: ''
+        poNumber: '',
+        // Line items (replaces pricing breakdown)
+        lineItems: [createNewLineItem('material')]
     });
 
     // Google Maps autocomplete
@@ -993,32 +863,46 @@ const CreateJobModal = ({
 
         setLoading(true);
         try {
-            // Calculate total price from breakdown if not overridden
-            const laborCost = parseFloat(formData.laborCost) || 0;
-            const materialsCost = parseFloat(formData.materialsCost) || 0;
-            const markupPercent = parseFloat(formData.markupPercent) || 0;
-            const subtotal = laborCost + materialsCost;
-            const markupAmount = subtotal * (markupPercent / 100);
-            const calculatedTotal = subtotal + markupAmount;
+            // Calculate totals from line items
+            const lineItems = formData.lineItems || [];
+            const subtotal = lineItems.reduce((sum, item) => {
+                return sum + ((item.quantity || 0) * (item.unitPrice || 0));
+            }, 0);
 
-            // Use override price if set, otherwise use calculated total
-            const finalPrice = formData.price
-                ? parseFloat(formData.price)
-                : (calculatedTotal > 0 ? calculatedTotal : null);
+            // Extract inventory intents from line items
+            const inventoryIntents = lineItems
+                .filter(item => item.inventoryIntent)
+                .map(item => ({
+                    ...item.inventoryIntent,
+                    // Ensure the cost is synced
+                    cost: (item.quantity || 1) * (item.unitPrice || 0)
+                }));
 
             const jobData = {
                 ...formData,
-                price: finalPrice,
+                price: subtotal,
                 estimatedDuration: parseInt(formData.estimatedDuration) || 60,
                 crewSize: parseInt(formData.crewSize) || 1,
-                // Pricing breakdown
+                // Line items with full details
+                lineItems: lineItems.map(item => ({
+                    id: item.id,
+                    type: item.type,
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    brand: item.brand || '',
+                    model: item.model || '',
+                    warranty: item.warranty || '',
+                    category: item.category || 'Service & Repairs',
+                    amount: (item.quantity || 1) * (item.unitPrice || 0)
+                })),
+                // Inventory intents for homeowner records
+                inventoryIntents,
+                // Pricing summary
                 pricing: {
-                    laborCost,
-                    materialsCost,
-                    markupPercent,
-                    markupAmount,
                     subtotal,
-                    total: finalPrice
+                    total: subtotal,
+                    itemCount: lineItems.length
                 },
                 // Crew assignment
                 assignedCrewIds: formData.assignedCrewIds || [],
@@ -1056,7 +940,6 @@ const CreateJobModal = ({
                     customerEmail: '',
                     propertyAddress: '',
                     estimatedDuration: 60,
-                    price: '',
                     priority: 'normal',
                     scheduledDate: '',
                     scheduledTime: '',
@@ -1065,12 +948,10 @@ const CreateJobModal = ({
                     assignedTechId: null,
                     assignedTechName: null,
                     assignedCrewIds: [],
-                    laborCost: '',
-                    materialsCost: '',
-                    markupPercent: '',
                     vehicleId: null,
                     accessInstructions: '',
-                    poNumber: ''
+                    poNumber: '',
+                    lineItems: [createNewLineItem('material')]
                 });
                 setTouched({});
             } else {
@@ -1420,13 +1301,10 @@ const CreateJobModal = ({
                         </div>
                     )}
 
-                    {/* Pricing Breakdown Section */}
-                    <PricingBreakdown
-                        formData={formData}
-                        onChange={handleChange}
-                        errors={errors}
-                        touched={touched}
-                        onBlur={handleBlur}
+                    {/* Line Items Section */}
+                    <JobLineItemsSection
+                        lineItems={formData.lineItems}
+                        onChange={(items) => setFormData(prev => ({ ...prev, lineItems: items }))}
                     />
 
                     {/* Additional Job Details */}
