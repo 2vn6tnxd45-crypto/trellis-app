@@ -155,7 +155,7 @@ import {
     OAuthProvider
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
@@ -400,7 +400,7 @@ const formatDate = (date) => {
 // ============================================
 // JOBS VIEW
 // ============================================
-const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob }) => {
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob, onAcceptProposal }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
 
@@ -535,6 +535,20 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                         >
                             <AlertTriangle size={12} />
                             Resubmit
+                        </button>
+                    )}
+
+                    {/* Accept button for homeowner proposals */}
+                    {hasHomeownerProposal && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onAcceptProposal?.(job, latestHomeownerProposal);
+                            }}
+                            className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
+                        >
+                            <CheckCircle size={12} />
+                            Accept Time
                         </button>
                     )}
                 </div>
@@ -1979,6 +1993,35 @@ export const ContractorProApp = () => {
         }
     }, []);
 
+    // Accept a homeowner's proposed time
+    const handleAcceptProposal = useCallback(async (job, proposal) => {
+        if (!job?.id || !proposal?.date) {
+            toast.error('Invalid proposal data');
+            return;
+        }
+
+        try {
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+            await updateDoc(jobRef, {
+                scheduledTime: proposal.date,
+                scheduledDate: proposal.date,
+                status: 'scheduled',
+                lastActivity: serverTimestamp(),
+                scheduling: {
+                    ...job.scheduling,
+                    confirmedAt: new Date().toISOString(),
+                    confirmedBy: 'contractor'
+                }
+            });
+
+            toast.success('Appointment confirmed!');
+        } catch (error) {
+            console.error('Error accepting proposal:', error);
+            toast.error('Failed to accept proposal');
+            throw error;
+        }
+    }, []);
+
     const handleCompleteJob = useCallback((job) => {
         setCompletingJob(job);
     }, []);
@@ -2108,6 +2151,7 @@ export const ContractorProApp = () => {
                             onCompleteJob={handleCompleteJob}
                             onReviewCancellation={setReviewingCancellation}
                             onCreateJob={() => setShowCreateJobModal(true)}
+                            onAcceptProposal={handleAcceptProposal}
                         />
                     )}
 
@@ -2186,6 +2230,7 @@ export const ContractorProApp = () => {
                                     }}
                                     teamMembers={[]}
                                     onSetupTeam={() => setActiveView('settings')}
+                                    onAcceptProposal={handleAcceptProposal}
                                 />
                             )}
 
@@ -2204,6 +2249,7 @@ export const ContractorProApp = () => {
                                     }}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                     onSetupTeam={() => setActiveView('settings')}
+                                    onAcceptProposal={handleAcceptProposal}
                                 />
                             )}
 
