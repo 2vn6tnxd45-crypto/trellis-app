@@ -263,7 +263,7 @@ export const JobCompletionReview = ({ job, userId, propertyId, onClose, onSucces
                                     </div>
                                     <div>
                                         <p className="font-medium text-gray-900">
-                                            {job.contractorName || job.contractor || 'Contractor'}
+                                            {job.contractorName || job.contractor?.companyName || job.contractor?.name || 'Contractor'}
                                         </p>
                                         <p className="text-sm text-gray-500">
                                             Submitted {completion.submittedAt?.toDate?.()?.toLocaleDateString() || 'recently'}
