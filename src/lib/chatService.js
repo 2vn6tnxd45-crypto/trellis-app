@@ -116,12 +116,19 @@ export const sendMessage = async (
 
 /**
  * Subscribe to real-time message updates for a single channel
- * 
+ *
  * @param {string} channelId - The channel to subscribe to
  * @param {function} callback - Called with array of messages
  * @returns {function} Unsubscribe function
  */
 export const subscribeToChat = (channelId, callback) => {
+    // Guard against invalid channelId
+    if (!channelId || typeof channelId !== 'string') {
+        console.warn('subscribeToChat: Invalid channelId:', channelId);
+        callback([]);
+        return () => {}; // Return no-op unsubscribe
+    }
+
     const messagesRef = collection(db, 'channels', channelId, 'messages');
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
@@ -132,7 +139,14 @@ export const subscribeToChat = (channelId, callback) => {
         }));
         callback(messages);
     }, (error) => {
-        console.error('Chat subscription error:', error);
+        // Handle specific error codes gracefully
+        if (error.code === 'permission-denied') {
+            console.warn('Chat subscription: Permission denied for channel:', channelId);
+        } else if (error.code === 'unavailable' || error.message?.includes('network')) {
+            console.warn('Chat subscription: Network issue, will retry automatically');
+        } else {
+            console.error('Chat subscription error:', error);
+        }
         callback([]);
     });
 };

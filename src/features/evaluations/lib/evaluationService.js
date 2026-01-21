@@ -12,6 +12,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
+import { ensureChatChannelExists, sendMessage as sendChatMessage } from '../../../lib/chatService';
 
 // ============================================
 // CONSTANTS
@@ -264,6 +265,26 @@ export const createEvaluationRequest = async (contractorId, evaluationData) => {
                 console.warn('[createEvaluationRequest] Could not send email:', emailError);
                 // Non-critical, don't fail the evaluation creation
             }
+        }
+
+        // Create chat channel for bidirectional messaging (non-blocking)
+        // This enables the homeowner to message the contractor about the evaluation
+        try {
+            // We need to find or create a homeowner ID from the email
+            // For now, use the email as a temporary identifier until they log in
+            const homeownerId = evaluationData.customerEmail?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'unknown';
+            const contractorName = contractorProfile?.profile?.companyName || contractorProfile?.companyName || 'Contractor';
+
+            await ensureChatChannelExists(homeownerId, contractorId, {
+                contractorName,
+                homeownerName: evaluationData.customerName || 'Customer',
+                evaluationId: newEvalRef.id,
+                scopeOfWork: evaluationData.jobDescription || 'Evaluation Request'
+            });
+            console.log('[createEvaluationRequest] Chat channel created for evaluation');
+        } catch (chatError) {
+            console.warn('[createEvaluationRequest] Could not create chat channel:', chatError);
+            // Non-critical, don't fail the evaluation creation
         }
 
         return { evaluationId: newEvalRef.id, evaluation };
@@ -665,7 +686,7 @@ export const sendEvaluationMessage = async (contractorId, evaluationId, message,
 
         const evaluation = evalSnap.data();
 
-        // Create new message object
+        // Create new message object for embedded storage
         const newMessage = {
             id: Date.now().toString(),
             from: fromRole,
@@ -673,10 +694,39 @@ export const sendEvaluationMessage = async (contractorId, evaluationId, message,
             createdAt: new Date().toISOString()
         };
 
+        // Update the evaluation document with the embedded message
         await updateDoc(evalRef, {
             messages: [...(evaluation.messages || []), newMessage],
             updatedAt: serverTimestamp()
         });
+
+        // Also send to the chat channel for bidirectional communication
+        // This ensures the homeowner sees the message in their messaging UI
+        try {
+            const homeownerId = evaluation.customerEmail?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'unknown';
+            const channelId = `${homeownerId}_${contractorId}`;
+
+            const senderId = fromRole === 'contractor' ? contractorId : homeownerId;
+            const senderName = fromRole === 'contractor'
+                ? 'Contractor'  // Will be updated from channel data
+                : (evaluation.customerName || 'Customer');
+            const recipientId = fromRole === 'contractor' ? homeownerId : contractorId;
+
+            // Prefix message with context about the evaluation
+            const contextualMessage = `[Re: Evaluation - ${evaluation.jobDescription || 'Assessment'}]\n\n${message}`;
+
+            await sendChatMessage(
+                channelId,
+                contextualMessage,
+                senderId,
+                senderName,
+                recipientId
+            );
+            console.log('[sendEvaluationMessage] Also sent to chat channel:', channelId);
+        } catch (chatError) {
+            // Log but don't fail - the embedded message was saved successfully
+            console.warn('[sendEvaluationMessage] Could not send to chat channel:', chatError);
+        }
 
         return { success: true, message: newMessage };
 

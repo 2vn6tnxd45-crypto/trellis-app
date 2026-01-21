@@ -16,7 +16,7 @@ import {
 import { useFormDraft } from '../../../hooks/useFormDraft';
 import { useSingleEvaluation, useEvaluationCountdown } from '../hooks/useEvaluations';
 import { PROMPT_TYPES } from '../lib/evaluationTemplates';
-import { EVALUATION_STATUS, uploadEvaluationFile } from '../lib/evaluationService';
+import { EVALUATION_STATUS, uploadEvaluationFile, sendEvaluationMessage } from '../lib/evaluationService';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
@@ -707,22 +707,12 @@ export const EvaluationSubmission = ({
                     </div>
                 </div>
 
-                {evaluation.messages?.length > 0 && (
-                    <div className="mb-6">
-                        <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-2">
-                            <MessageSquare className="w-4 h-4" />
-                            Messages from Contractor
-                        </h3>
-                        <div className="space-y-3">
-                            {evaluation.messages.map((msg) => (
-                                <div key={msg.id} className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                                    <p className="text-sm text-amber-800">{msg.message}</p>
-                                    <p className="text-xs text-amber-600 mt-2">{new Date(msg.createdAt).toLocaleDateString()}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Messages Section - Now with reply capability */}
+                <EvaluationMessagesSection
+                    evaluation={evaluation}
+                    contractorId={contractorId}
+                    contractor={contractor}
+                />
 
                 <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Please Provide</h3>
@@ -930,6 +920,152 @@ const CountdownBadge = ({ expiresAt }) => {
             }`}>
             <Clock className="w-4 h-4" />
             {timeRemaining.display}
+        </div>
+    );
+};
+
+// ============================================
+// EVALUATION MESSAGES SECTION
+// ============================================
+// Displays messages and allows homeowner to reply
+// Note: sendEvaluationMessage is imported at the top of the file
+
+const EvaluationMessagesSection = ({ evaluation, contractorId, contractor }) => {
+    const [replyMessage, setReplyMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
+    const [showReplyForm, setShowReplyForm] = useState(false);
+
+    const messages = evaluation?.messages || [];
+    const hasMessages = messages.length > 0;
+
+    const handleSendReply = async () => {
+        if (!replyMessage.trim() || isSending) return;
+
+        setIsSending(true);
+        try {
+            await sendEvaluationMessage(contractorId, evaluation.id, replyMessage.trim(), 'customer');
+            setReplyMessage('');
+            setShowReplyForm(false);
+            toast.success('Message sent!');
+        } catch (error) {
+            console.error('Error sending reply:', error);
+            toast.error('Failed to send message');
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendReply();
+        }
+    };
+
+    // Always show the section if there are messages, or show a "Message Contractor" button
+    return (
+        <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4" />
+                    Messages
+                </h3>
+                {!showReplyForm && (
+                    <button
+                        onClick={() => setShowReplyForm(true)}
+                        className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                        <Send className="w-3 h-3" />
+                        {hasMessages ? 'Reply' : 'Message Contractor'}
+                    </button>
+                )}
+            </div>
+
+            {/* Message Thread */}
+            {hasMessages && (
+                <div className="space-y-3 mb-4">
+                    {messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`rounded-xl p-4 ${
+                                msg.from === 'contractor'
+                                    ? 'bg-amber-50 border border-amber-200'
+                                    : 'bg-indigo-50 border border-indigo-200 ml-4'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-xs font-semibold uppercase ${
+                                    msg.from === 'contractor' ? 'text-amber-700' : 'text-indigo-700'
+                                }`}>
+                                    {msg.from === 'contractor'
+                                        ? (contractor?.profile?.companyName || contractor?.companyName || 'Contractor')
+                                        : 'You'}
+                                </span>
+                                <span className="text-xs text-slate-400">
+                                    {new Date(msg.createdAt).toLocaleString()}
+                                </span>
+                            </div>
+                            <p className={`text-sm ${
+                                msg.from === 'contractor' ? 'text-amber-800' : 'text-indigo-800'
+                            }`}>
+                                {msg.message}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* No messages yet */}
+            {!hasMessages && !showReplyForm && (
+                <p className="text-sm text-slate-400 text-center py-4">
+                    No messages yet. Click "Message Contractor" to ask a question.
+                </p>
+            )}
+
+            {/* Reply Form */}
+            {showReplyForm && (
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <textarea
+                        value={replyMessage}
+                        onChange={(e) => setReplyMessage(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Type your message..."
+                        rows={3}
+                        className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none text-sm"
+                        disabled={isSending}
+                        autoFocus
+                    />
+                    <div className="flex items-center justify-between mt-3">
+                        <p className="text-xs text-slate-400">
+                            Press Enter to send, Shift+Enter for new line
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => {
+                                    setShowReplyForm(false);
+                                    setReplyMessage('');
+                                }}
+                                className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                                disabled={isSending}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSendReply}
+                                disabled={!replyMessage.trim() || isSending}
+                                className="px-4 py-1.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                            >
+                                {isSending ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Send className="w-4 h-4" />
+                                )}
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
