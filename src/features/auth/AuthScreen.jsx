@@ -58,6 +58,15 @@ export const AuthScreen = () => {
             }, { merge: true });
             console.log('[AuthScreen] Saved user name to profile:', userName);
 
+            // Also store email at root user document for efficient querying
+            // This allows contractors to look up users by email when creating jobs
+            const userRef = doc(db, 'artifacts', appId, 'users', userId);
+            await setDoc(userRef, {
+                email: userEmail.toLowerCase().trim(),
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+            console.log('[AuthScreen] Stored email at user root for querying');
+
             // Only for NEW users: send welcome email and link quotes
             if (isNewUser || !isExistingUser) {
                 console.log('[AuthScreen] New user detected, running onboarding tasks');

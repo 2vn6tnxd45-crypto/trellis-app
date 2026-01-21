@@ -133,16 +133,47 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
             const jobAddress = jobData.propertyAddress || jobData.customer?.address || '';
 
             // Check if user exists in the system
+            // First try: query by email at root user document (new users)
             const usersRef = collection(db, 'artifacts', appId, 'users');
             const userQuery = query(usersRef, where('email', '==', normalizedEmail));
-            const userSnapshot = await getDocs(userQuery);
+            let userSnapshot = await getDocs(userQuery);
+            let userId = null;
+            let foundViaProfile = false;
 
             if (!userSnapshot.empty) {
-                // User EXISTS - link immediately and notify them
-                const userDoc = userSnapshot.docs[0];
-                const userId = userDoc.id;
-                const userData = userDoc.data();
+                userId = userSnapshot.docs[0].id;
+                console.log('[jobService] Found user by root email:', normalizedEmail, 'userId:', userId);
+            } else {
+                // Fallback: For users who signed up before we stored email at root,
+                // we need to check profiles. This is less efficient but handles legacy users.
+                // We'll iterate through recent users and check their profile emails.
+                console.log('[jobService] No user found at root, checking profiles...');
 
+                // Get all users and check their profiles (limited approach)
+                const allUsersSnapshot = await getDocs(usersRef);
+                for (const userDoc of allUsersSnapshot.docs) {
+                    const profileRef = doc(db, 'artifacts', appId, 'users', userDoc.id, 'settings', 'profile');
+                    const profileSnap = await getDoc(profileRef);
+                    if (profileSnap.exists()) {
+                        const profileEmail = profileSnap.data()?.email?.toLowerCase()?.trim();
+                        if (profileEmail === normalizedEmail) {
+                            userId = userDoc.id;
+                            foundViaProfile = true;
+                            console.log('[jobService] Found user by profile email:', normalizedEmail, 'userId:', userId);
+
+                            // Update root document with email for future queries
+                            await updateDoc(doc(db, 'artifacts', appId, 'users', userId), {
+                                email: normalizedEmail
+                            });
+                            console.log('[jobService] Updated user root with email for future lookups');
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (userId) {
+                // User EXISTS - link immediately and notify them
                 console.log('[jobService] Found existing user for email:', normalizedEmail, 'userId:', userId);
 
                 // Try to find matching property from user's profile
