@@ -86,6 +86,10 @@ import { JobScheduler } from '../jobs/JobScheduler';
 import { CancellationApprovalModal } from '../jobs/CancellationApprovalModal';
 import CreateJobModal from '../jobs/components/CreateJobModal';
 
+// Quick Service Call Components
+import { QuickServiceCallModal } from './components/QuickServiceCallModal';
+import { QuickServiceCallButton } from './components/QuickServiceCallButton';
+
 // Job Completion Components
 import { JobCompletionForm } from '../jobs/components/completion';
 
@@ -1729,6 +1733,7 @@ export const ContractorProApp = () => {
     const [ratingHomeowner, setRatingHomeowner] = useState(null);
     const [reviewingCancellation, setReviewingCancellation] = useState(null);
     const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+    const [showQuickServiceCall, setShowQuickServiceCall] = useState(false);
 
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -2923,6 +2928,28 @@ export const ContractorProApp = () => {
                 }}
                 onJobCreated={(job) => {
                     setShowCreateJobModal(false);
+                    // Toast already shown in modal
+                }}
+            />
+
+            {/* Quick Service Call - Floating Button */}
+            <QuickServiceCallButton
+                onClick={() => setShowQuickServiceCall(true)}
+                position="bottom-right"
+                variant="default"
+            />
+
+            {/* Quick Service Call Modal */}
+            <QuickServiceCallModal
+                isOpen={showQuickServiceCall}
+                onClose={() => setShowQuickServiceCall(false)}
+                contractorId={contractorId}
+                contractorName={profile?.profile?.displayName || profile?.profile?.companyName || 'Contractor'}
+                companyName={profile?.profile?.companyName || 'Your Company'}
+                customers={customers}
+                teamMembers={profile?.scheduling?.teamMembers || []}
+                onJobCreated={(job) => {
+                    setShowQuickServiceCall(false);
                     // Toast already shown in modal
                 }}
             />
