@@ -84,9 +84,10 @@ const getJobsForDate = (jobs, date, timezone) => {
 // DRAGGABLE JOB CARD (Sidebar)
 // ============================================
 
-const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProposal }) => {
+const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProposal, onDeclineProposal }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
+    const [isDeclining, setIsDeclining] = useState(false);
 
     const handleDragStart = (e) => {
         setIsDragging(true);
@@ -129,15 +130,28 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
         }
     };
 
+    const handleDecline = async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!latestHomeownerProposal || isDeclining) return;
+
+        setIsDeclining(true);
+        try {
+            await onDeclineProposal?.(job, latestHomeownerProposal);
+        } finally {
+            setIsDeclining(false);
+        }
+    };
+
     return (
         <div
-            draggable={!hasProposal} // Don't allow drag if there's a proposal - use Accept instead
+            draggable // Always allow drag - contractor can also drag to propose a different time
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`p-3 rounded-xl border transition-all ${
+            className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
                 hasProposal
                     ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
-                    : 'bg-white border-slate-200 cursor-grab active:cursor-grabbing'
+                    : 'bg-white border-slate-200'
             } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
         >
             {hasProposal && (
@@ -154,7 +168,7 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
                 </div>
             )}
             <div className="flex items-start gap-2">
-                {!hasProposal && <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />}
+                <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                         <h4 className="font-bold text-slate-800 text-sm truncate">
@@ -187,25 +201,49 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
                     </div>
                 </div>
             </div>
-            {/* Accept button for homeowner proposals */}
+            {/* Accept/Decline buttons for homeowner proposals */}
             {hasProposal && latestHomeownerProposal && (
-                <button
-                    onClick={handleAccept}
-                    disabled={isAccepting}
-                    className="mt-2 w-full py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                    {isAccepting ? (
-                        <>
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            Accepting...
-                        </>
-                    ) : (
-                        <>
-                            <CheckCircle size={14} />
-                            Accept Time
-                        </>
-                    )}
-                </button>
+                <div className="mt-2 flex gap-2">
+                    <button
+                        onClick={handleAccept}
+                        disabled={isAccepting || isDeclining}
+                        className="flex-1 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                        {isAccepting ? (
+                            <>
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ...
+                            </>
+                        ) : (
+                            <>
+                                <Check size={12} />
+                                Accept
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={handleDecline}
+                        disabled={isAccepting || isDeclining}
+                        className="flex-1 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                        {isDeclining ? (
+                            <>
+                                <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+                                ...
+                            </>
+                        ) : (
+                            <>
+                                <X size={12} />
+                                Decline
+                            </>
+                        )}
+                    </button>
+                </div>
+            )}
+            {hasProposal && (
+                <p className="mt-1.5 text-[10px] text-slate-500 text-center">
+                    Or drag to propose a different time
+                </p>
             )}
         </div>
     );
@@ -980,7 +1018,8 @@ export const DragDropCalendar = ({
     onJobClick,
     onEvaluationClick,  // Handler for evaluation clicks
     onSetupTeam,  // Handler to navigate to team management
-    onAcceptProposal  // Handler for accepting homeowner proposals
+    onAcceptProposal,  // Handler for accepting homeowner proposals
+    onDeclineProposal  // Handler for declining homeowner proposals
 }) => {
     // Get timezone abbreviation for display
     const timezoneAbbr = timezone ? getTimezoneAbbreviation(timezone) : null;
@@ -1412,6 +1451,7 @@ export const DragDropCalendar = ({
                                 onDragStart={handleDragStart}
                                 onDragEnd={handleDragEnd}
                                 onAcceptProposal={onAcceptProposal}
+                                onDeclineProposal={onDeclineProposal}
                             />
                         ))
                     )}

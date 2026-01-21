@@ -156,7 +156,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
+import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
 // CONSTANTS
@@ -400,7 +400,7 @@ const formatDate = (date) => {
 // ============================================
 // JOBS VIEW
 // ============================================
-const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob, onAcceptProposal }) => {
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob, onAcceptProposal, onDeclineProposal }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
 
@@ -538,18 +538,30 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                         </button>
                     )}
 
-                    {/* Accept button for homeowner proposals */}
+                    {/* Accept/Decline buttons for homeowner proposals */}
                     {hasHomeownerProposal && (
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onAcceptProposal?.(job, latestHomeownerProposal);
-                            }}
-                            className="ml-auto px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
-                        >
-                            <CheckCircle size={12} />
-                            Accept Time
-                        </button>
+                        <div className="ml-auto flex gap-2">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAcceptProposal?.(job, latestHomeownerProposal);
+                                }}
+                                className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5 transition-colors"
+                            >
+                                <CheckCircle size={12} />
+                                Accept
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeclineProposal?.(job, latestHomeownerProposal);
+                                }}
+                                className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1.5 transition-colors"
+                            >
+                                <X size={12} />
+                                Decline
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -2022,6 +2034,39 @@ export const ContractorProApp = () => {
         }
     }, []);
 
+    // Decline a homeowner's proposed time (resets to pending_schedule)
+    const handleDeclineProposal = useCallback(async (job, proposal) => {
+        if (!job?.id) {
+            toast.error('Invalid job data');
+            return;
+        }
+
+        try {
+            const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+
+            // Mark the proposal as declined and reset status
+            const updatedProposedTimes = (job.proposedTimes || []).map(p => {
+                if (p.date === proposal?.date && p.proposedBy === 'homeowner') {
+                    return { ...p, status: 'declined', declinedAt: new Date().toISOString() };
+                }
+                return p;
+            });
+
+            await updateDoc(jobRef, {
+                status: 'pending_schedule',  // Reset back to pending so homeowner can propose again
+                proposedTimes: updatedProposedTimes,
+                hasHomeownerProposal: false,
+                lastActivity: serverTimestamp()
+            });
+
+            toast.success('Time declined - customer will be notified to propose a new time');
+        } catch (error) {
+            console.error('Error declining proposal:', error);
+            toast.error('Failed to decline proposal');
+            throw error;
+        }
+    }, []);
+
     const handleCompleteJob = useCallback((job) => {
         setCompletingJob(job);
     }, []);
@@ -2152,6 +2197,7 @@ export const ContractorProApp = () => {
                             onReviewCancellation={setReviewingCancellation}
                             onCreateJob={() => setShowCreateJobModal(true)}
                             onAcceptProposal={handleAcceptProposal}
+                            onDeclineProposal={handleDeclineProposal}
                         />
                     )}
 
@@ -2231,6 +2277,7 @@ export const ContractorProApp = () => {
                                     teamMembers={[]}
                                     onSetupTeam={() => setActiveView('settings')}
                                     onAcceptProposal={handleAcceptProposal}
+                                    onDeclineProposal={handleDeclineProposal}
                                 />
                             )}
 
@@ -2250,6 +2297,7 @@ export const ContractorProApp = () => {
                                     teamMembers={profile?.scheduling?.teamMembers || []}
                                     onSetupTeam={() => setActiveView('settings')}
                                     onAcceptProposal={handleAcceptProposal}
+                                    onDeclineProposal={handleDeclineProposal}
                                 />
                             )}
 
