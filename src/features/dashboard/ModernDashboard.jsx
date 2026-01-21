@@ -42,6 +42,17 @@ import { useCustomerRecurringServices, RecurringServiceCard } from '../recurring
 import { UnifiedCalendar } from './components/UnifiedCalendar';
 
 // --- CONFIG & HELPERS ---
+
+// Helper to safely extract contractor name (prevents React Error #310)
+const safeContractorName = (contractor) => {
+    if (!contractor) return null;
+    if (typeof contractor === 'string') return contractor;
+    if (typeof contractor === 'object') {
+        return contractor.companyName || contractor.name || contractor.businessName || null;
+    }
+    return null;
+};
+
 const formatCurrency = (amount) => {
     if (typeof amount !== 'number' || isNaN(amount)) return '$0';
     try {
@@ -915,7 +926,7 @@ export const ModernDashboard = ({
                                 nextDate: nextDate,
                                 daysUntil: daysUntil,
                                 frequency: t.frequency,
-                                contractor: record.contractor || null,
+                                contractor: safeContractorName(record.contractor),
                                 scheduledDate: t.scheduledDate || null,
                                 isGranular: true
                             });
@@ -935,7 +946,7 @@ export const ModernDashboard = ({
                         nextDate: nextDate,
                         daysUntil: daysUntil,
                         frequency: record.maintenanceFrequency,
-                        contractor: record.contractor || null,
+                        contractor: safeContractorName(record.contractor),
                         scheduledDate: null
                     });
                 }

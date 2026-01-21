@@ -20,6 +20,20 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { subscribeToCustomerRecurringServices } from '../../recurring/lib/recurringService';
 
 // ============================================
+// HELPERS
+// ============================================
+
+// Helper to safely extract contractor name (prevents React Error #310)
+const safeContractorName = (contractor) => {
+    if (!contractor) return null;
+    if (typeof contractor === 'string') return contractor;
+    if (typeof contractor === 'object') {
+        return contractor.companyName || contractor.name || contractor.businessName || null;
+    }
+    return null;
+};
+
+// ============================================
 // EVENT TYPES & COLORS
 // ============================================
 const EVENT_TYPES = {
@@ -185,10 +199,10 @@ const EventDetailModal = ({
                     )}
 
                     {/* Contractor/Pro */}
-                    {event.contractor && (
+                    {safeContractorName(event.contractor) && (
                         <div className="flex items-center gap-2 text-sm text-slate-600">
                             <User size={16} className="text-slate-400" />
-                            <span>{event.contractor}</span>
+                            <span>{safeContractorName(event.contractor)}</span>
                         </div>
                     )}
 

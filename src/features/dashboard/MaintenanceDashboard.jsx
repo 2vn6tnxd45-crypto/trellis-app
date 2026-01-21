@@ -14,6 +14,16 @@ import { TaskCompletionModal } from '../../components/common/TaskCompletionModal
 
 // --- HELPER FUNCTIONS ---
 
+// Helper to safely extract contractor name (prevents React Error #310)
+const safeContractorName = (contractor) => {
+    if (!contractor) return null;
+    if (typeof contractor === 'string') return contractor;
+    if (typeof contractor === 'object') {
+        return contractor.companyName || contractor.name || contractor.businessName || null;
+    }
+    return null;
+};
+
 // Format date for timeline display
 const formatTimelineDate = (date) => {
     const now = new Date();
@@ -679,7 +689,7 @@ const MaintenanceCard = ({
                 {isAssigned && (
                     <div className="flex items-center gap-2 text-xs text-slate-500 mb-3 bg-slate-50 px-2 py-1.5 rounded-lg">
                         <User size={12} />
-                        <span className="font-medium">{task.contractor}</span>
+                        <span className="font-medium">{safeContractorName(task.contractor)}</span>
                         {hasPhone && <span className="text-slate-300">•</span>}
                         {hasPhone && <span>{task.contractorPhone}</span>}
                     </div>
@@ -996,7 +1006,7 @@ export const MaintenanceDashboard = ({
                     daysUntil: daysUntil,
                     frequency: freq,
                     isGranular: isGranular,
-                    contractor: record.contractor || null,
+                    contractor: safeContractorName(record.contractor),
                     contractorPhone: record.contractorPhone || dirEntry?.phone || null,
                     contractorEmail: record.contractorEmail || dirEntry?.email || null,
                     // NEW: Include scheduled and snoozed data
