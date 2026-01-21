@@ -13,6 +13,9 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
     const [coordinates, setCoordinates] = useState(null);
     const [debugInfo, setDebugInfo] = useState(''); // For debugging
     const [pendingEvaluations, setPendingEvaluations] = useState([]);
+    const [addressInputValue, setAddressInputValue] = useState(''); // Track manual input
+    const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+    const [showAddressHint, setShowAddressHint] = useState(false);
     const autocompleteRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -70,7 +73,10 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                 autocompleteRef.current.addListener('place_changed', () => {
                     const place = autocompleteRef.current.getPlace();
                     if (!place.address_components) return;
-                    
+
+                    // Hide hint and show success
+                    setShowAddressHint(false);
+
                     // Capture Coordinates
                     if (place.geometry && place.geometry.location) {
                         setCoordinates({
@@ -80,13 +86,16 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     }
 
                     const get = (type) => place.address_components.find(c => c.types.includes(type))?.short_name || '';
-                    setAddress({
+                    const newAddress = {
                         street: `${get('street_number')} ${get('route')}`.trim(),
                         city: get('locality') || get('sublocality') || get('administrative_area_level_2'),
                         state: get('administrative_area_level_1'),
                         zip: get('postal_code'),
                         placeId: place.place_id || '',
-                    });
+                    };
+                    setAddress(newAddress);
+                    // Update input value to show selected address
+                    setAddressInputValue(place.formatted_address || `${newAddress.street}, ${newAddress.city}, ${newAddress.state}`);
                 });
             } catch (err) {
                 console.error('Autocomplete init error:', err);
@@ -208,35 +217,103 @@ export const SetupPropertyForm = ({ onSave, isSaving, onSignOut }) => {
                     </div>
 
                     <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Property Address *</label>
+                        <label htmlFor="property-address" className="block text-sm font-bold text-slate-700 mb-2">
+                            Property Address *
+                        </label>
                         <div className="relative">
-                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" aria-hidden="true" />
                             <input
                                 ref={inputRef}
+                                id="property-address"
                                 type="text"
                                 placeholder="Start typing your address..."
                                 required
-                                className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                data-testid="property-address-input"
+                                aria-describedby="address-hint"
+                                value={addressInputValue}
+                                onChange={(e) => {
+                                    setAddressInputValue(e.target.value);
+                                    // Clear address if user edits after selection
+                                    if (address.street) {
+                                        setAddress({ street: '', city: '', state: '', zip: '', placeId: '' });
+                                    }
+                                    // Show hint after typing a few characters
+                                    if (e.target.value.length > 3 && !address.street) {
+                                        setShowAddressHint(true);
+                                    }
+                                }}
+                                onFocus={() => {
+                                    if (addressInputValue.length > 3 && !address.street) {
+                                        setShowAddressHint(true);
+                                    }
+                                }}
+                                onBlur={() => {
+                                    // Delay hiding hint to allow clicking suggestions
+                                    setTimeout(() => setShowAddressHint(false), 200);
+                                }}
+                                className={`w-full pl-12 pr-4 py-3.5 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-colors ${
+                                    address.street
+                                        ? 'border-emerald-300 bg-emerald-50/50'
+                                        : 'border-slate-200'
+                                }`}
                             />
+                            {/* Loading indicator */}
+                            {isLoadingSuggestions && (
+                                <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />
+                            )}
+                            {/* Success checkmark when address is selected */}
+                            {address.street && (
+                                <div className="absolute right-4 top-1/2 -translate-y-1/2 h-5 w-5 bg-emerald-500 rounded-full flex items-center justify-center">
+                                    <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Hint to select from dropdown */}
+                        {showAddressHint && !address.street && (
+                            <p id="address-hint" className="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-100 flex items-center gap-2">
+                                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Please select an address from the dropdown suggestions
+                            </p>
+                        )}
+
+                        {/* Selected address confirmation */}
                         {address.street && (
-                            <div className="mt-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-sm">
-                                <p className="font-semibold text-emerald-900">{address.street}</p>
-                                <p className="text-emerald-700">{address.city}, {address.state} {address.zip}</p>
+                            <div className="mt-3 p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="flex items-start gap-3">
+                                    <div className="p-1.5 bg-emerald-100 rounded-lg shrink-0">
+                                        <MapPin className="h-4 w-4 text-emerald-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-emerald-900">{address.street}</p>
+                                        <p className="text-emerald-700">{address.city}, {address.state} {address.zip}</p>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
 
                     <button
                         type="submit"
-                        disabled={isSaving}
-                        className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 transition-all disabled:opacity-50 flex items-center justify-center"
+                        disabled={isSaving || !address.street}
+                        data-testid="setup-property-submit"
+                        className={`w-full py-4 font-bold rounded-xl shadow-lg transition-all flex items-center justify-center ${
+                            address.street
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                                : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                        } disabled:opacity-50`}
                     >
                         {isSaving ? (
                             <>
-                                <Loader2 className="animate-spin h-5 w-5 mr-2" /> 
+                                <Loader2 className="animate-spin h-5 w-5 mr-2" />
                                 Creating...
                             </>
+                        ) : !address.street ? (
+                            'Select an address to continue'
                         ) : (
                             'Kreate My Krib'
                         )}

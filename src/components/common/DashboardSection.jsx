@@ -4,23 +4,36 @@
 // ============================================
 // Collapsible section with smooth animations
 // FIXED: Now handles dynamic content that loads asynchronously
+// UPDATED: Added priority prop for smart default expansion
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 /**
  * DashboardSection - A collapsible card section with theme-aware styling
+ *
+ * @param {string} priority - 'high' (always open), 'medium' (open by default), 'low' (collapsed by default)
+ * @param {string} testId - data-testid attribute for testing
  */
-export const DashboardSection = ({ 
-    title, 
-    icon: Icon, 
-    children, 
-    defaultOpen = false, 
+export const DashboardSection = ({
+    title,
+    icon: Icon,
+    children,
+    defaultOpen = false,
+    priority = 'medium',  // 'high' | 'medium' | 'low'
     summary = null,
     className = '',
+    testId = null,
     onToggle = null
 }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
+    // Determine initial open state based on priority
+    const getInitialOpenState = () => {
+        if (priority === 'high') return true;      // Always start open
+        if (priority === 'low') return false;       // Always start collapsed
+        return defaultOpen;                          // Use defaultOpen for 'medium'
+    };
+
+    const [isOpen, setIsOpen] = useState(getInitialOpenState());
     const [isHovered, setIsHovered] = useState(false);
     const contentRef = useRef(null);
     const [contentHeight, setContentHeight] = useState('auto');
@@ -56,28 +69,35 @@ export const DashboardSection = ({
         }
     };
 
+    // Generate a stable ID for accessibility
+    const sectionId = `section-content-${title.replace(/\s+/g, '-').toLowerCase()}`;
+    const componentTestId = testId || `dashboard-section-${title.replace(/\s+/g, '-').toLowerCase()}`;
+
     return (
-        <div 
+        <div
+            data-testid={componentTestId}
             className={`
-                bg-white 
+                bg-white
                 dark:bg-[var(--color-bg-card,#242320)]
-                rounded-2xl 
-                border 
-                border-slate-200 
+                rounded-2xl
+                border
+                border-slate-200
                 dark:border-[var(--color-border-default,#3d3c38)]
-                overflow-hidden 
-                shadow-sm 
+                overflow-hidden
+                shadow-sm
                 transition-all
                 ${className}
             `.trim().replace(/\s+/g, ' ')}
         >
             {/* Clickable Header */}
-            <button 
+            <button
                 onClick={handleToggle}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
                 aria-expanded={isOpen}
-                aria-controls={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
+                aria-controls={sectionId}
+                aria-label={`${title} section, ${isOpen ? 'expanded' : 'collapsed'}. Click to ${isOpen ? 'collapse' : 'expand'}.`}
+                data-testid={`${componentTestId}-toggle`}
                 className={`
                     w-full 
                     p-4 
@@ -201,8 +221,10 @@ export const DashboardSection = ({
             </button>
             
             {/* FIXED: Smooth height-animated Collapsible Content */}
-            <div 
-                id={`section-content-${title.replace(/\s+/g, '-').toLowerCase()}`}
+            <div
+                id={sectionId}
+                role="region"
+                aria-labelledby={`${sectionId}-header`}
                 className="transition-all duration-300 ease-in-out overflow-hidden"
                 style={{
                     maxHeight: isOpen ? `${contentHeight}px` : '0px',

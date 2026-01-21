@@ -26,6 +26,7 @@ import { Logo } from './components/common/Logo';
 import { FeatureErrorBoundary } from './components/common/FeatureErrorBoundary';
 import { EmptyState } from './components/common/EmptyState';
 import { AppShellSkeleton } from './components/common/Skeletons';
+import { QuickActionsButton } from './components/common/QuickActionsButton';
 import { BottomNav, MoreMenu } from './components/navigation/BottomNav';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { SetupPropertyForm } from './features/onboarding/SetupPropertyForm';
@@ -612,6 +613,16 @@ const AppContent = () => {
                             </FeatureErrorBoundary>
                         )}
                     </main>
+
+                    {/* Quick Actions Floating Button - Always visible on homeowner dashboard */}
+                    {app.activeTab === 'Dashboard' && (
+                        <QuickActionsButton
+                            onScanReceipt={() => app.setShowScanner(true)}
+                            onAddItem={() => openAddModal()}
+                            onViewReport={() => app.setActiveTab('Report')}
+                            onServiceLink={() => app.setShowInviteCreator(true)}
+                        />
+                    )}
 
                     <BottomNav
                         activeTab={app.activeTab}

@@ -38,6 +38,7 @@ import { SMSSettings } from './components/SMSSettings';
 import { FinancingSettings } from './components/FinancingSettings';
 import { SMSLog } from './components/SMSLog';
 import { BookingWidgetSettings } from '../booking-widget';
+import { ContractorSettings } from './components/ContractorSettings';
 import { DragDropCalendar } from './components/DragDropCalendar';
 import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
@@ -2457,98 +2458,16 @@ export const ContractorProApp = () => {
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
 
                     {activeView === 'settings' && (
-                        <div className="space-y-8">
-                            <BusinessSettings
-                                contractorId={contractorId}
-                                profile={profile}
-                                onUpdate={(settings) => console.log('Settings updated:', settings)}
-                            />
-
-                            {/* Team Management - only show if team type is selected */}
-                            {profile?.scheduling?.teamType === 'team' && (
-                                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                    <TeamManagement
-                                        contractorId={contractorId}
-                                        teamMembers={profile?.scheduling?.teamMembers || []}
-                                        onUpdate={(members) => {
-                                            console.log('Team updated:', members);
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Vehicle Fleet Management - show if team or has multiple vehicles */}
-                            {(profile?.scheduling?.teamType === 'team' || profile?.scheduling?.vehicles > 1 || vehicles.length > 0) && (
-                                <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                    {vehiclesLoading ? (
-                                        <div className="flex items-center justify-center py-8">
-                                            <div className="animate-spin h-6 w-6 border-2 border-emerald-500 border-t-transparent rounded-full" />
-                                        </div>
-                                    ) : (
-                                        <VehicleManagement
-                                            contractorId={contractorId}
-                                            vehicles={vehicles}
-                                            teamMembers={profile?.scheduling?.teamMembers || []}
-                                            onUpdate={(updatedVehicles) => {
-                                                console.log('Vehicles updated:', updatedVehicles);
-                                            }}
-                                        />
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Review Request Settings */}
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                <ReviewSettings
-                                    contractorId={contractorId}
-                                    profile={profile}
-                                    onUpdate={(settings) => {
-                                        console.log('Review settings updated:', settings);
-                                    }}
-                                />
-                            </div>
-
-                            {/* SMS Notifications Settings */}
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                <SMSSettings
-                                    contractorId={contractorId}
-                                    companyName={profile?.businessName || profile?.companyName}
-                                />
-                            </div>
-
-                            {/* SMS Message Log */}
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                <SMSLog
-                                    contractorId={contractorId}
-                                />
-                            </div>
-
-                            {/* Consumer Financing Settings (Wisetack) */}
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                <FinancingSettings
-                                    contractorId={contractorId}
-                                    profile={profile}
-                                />
-                            </div>
-
-                            {/* Online Booking Widget */}
-                            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                                <BookingWidgetSettings
-                                    contractorId={contractorId}
-                                    profile={profile}
-                                    serviceTypes={profile?.serviceTypes || []}
-                                />
-                            </div>
-
-                            <div className="pt-8 border-t border-slate-200">
-                                <SettingsView
-                                    user={user}
-                                    profile={profile}
-                                    onUpdateSettings={updateContractorSettings}
-                                    onSignOut={signOut}
-                                />
-                            </div>
-                        </div>
+                        <ContractorSettings
+                            contractorId={contractorId}
+                            profile={profile}
+                            user={user}
+                            vehicles={vehicles}
+                            vehiclesLoading={vehiclesLoading}
+                            onUpdateProfile={(settings) => console.log('Settings updated:', settings)}
+                            onUpdateSettings={updateContractorSettings}
+                            onSignOut={signOut}
+                        />
                     )}
                 </main>
 

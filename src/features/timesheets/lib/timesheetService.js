@@ -570,6 +570,42 @@ export const editTimeEntry = async (contractorId, entryId, updates, editedBy) =>
 };
 
 /**
+ * Update the job ID linked to a time entry
+ * Used when a tech is already clocked in and starts a new job
+ */
+export const updateTimeEntryJob = async (contractorId, techId, entryId, jobId) => {
+  const entriesRef = collection(db, getContractorPath(contractorId), 'timeEntries');
+  const q = query(entriesRef, where('techId', '==', techId), where('id', '==', entryId));
+  const snapshot = await getDocs(q);
+
+  if (snapshot.empty) {
+    throw new Error('Time entry not found');
+  }
+
+  const entryDoc = snapshot.docs[0];
+  const entry = entryDoc.data();
+
+  // Track job changes for multi-job days
+  const jobHistory = entry.jobHistory || [];
+  if (entry.jobId && entry.jobId !== jobId) {
+    jobHistory.push({
+      jobId: entry.jobId,
+      linkedAt: entry.jobLinkedAt || entry.createdAt,
+      unlinkedAt: Timestamp.now()
+    });
+  }
+
+  await updateDoc(entryDoc.ref, {
+    jobId,
+    jobLinkedAt: Timestamp.now(),
+    jobHistory,
+    updatedAt: Timestamp.now()
+  });
+
+  return { ...entry, jobId, jobHistory };
+};
+
+/**
  * Add a manual time entry
  */
 export const addManualEntry = async (contractorId, techId, data, addedBy) => {

@@ -47,6 +47,7 @@ export { CountdownTimer } from './CountdownTimer';
 export { CookieConsent } from './CookieConsent';
 export { DashboardSection } from './DashboardSection';
 export { NotificationPermissionPrompt } from './NotificationPermissionPrompt';
+export { QuickActionsButton } from './QuickActionsButton';
 export { RebookProButton } from './RebookProButton';
 export { RoomSelector } from './RoomSelector';
 
