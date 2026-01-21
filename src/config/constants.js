@@ -6,6 +6,7 @@ export const REQUESTS_COLLECTION_PATH = `/artifacts/${appId}/public/data/request
 export const INVITATIONS_COLLECTION_PATH = `/artifacts/${appId}/public/data/invitations`;
 export const CONTRACTORS_COLLECTION_PATH = `/artifacts/${appId}/public/data/contractors`;
 export const RECURRING_SERVICES_PATH = `/artifacts/${appId}/public/data/recurringServices`;
+export const USER_EMAIL_INDEX_PATH = `/artifacts/${appId}/public/data/userEmailIndex`;
 
 // Recurring service frequency options
 export const RECURRING_FREQUENCIES = [
@@ -27,38 +28,38 @@ export const STANDARD_MAINTENANCE_ITEMS = [
     { category: "Interior", item: "Inspect Caulking", maintenanceFrequency: "annual", tasks: ["Check tubs/showers", "Check sink seals", "Re-caulk if peeling"] }
 ];
 export const CATEGORIES = [
-"Paint & Finishes", 
-"Appliances", 
-"Flooring", 
-"HVAC & Systems", 
-"Plumbing", 
-"Electrical", 
-"Roof & Exterior", 
-"Landscaping", 
-"Service & Repairs", 
-"Safety", 
-"Pest Control", 
-"Interior", 
-"Other"
+    "Paint & Finishes",
+    "Appliances",
+    "Flooring",
+    "HVAC & Systems",
+    "Plumbing",
+    "Electrical",
+    "Roof & Exterior",
+    "Landscaping",
+    "Service & Repairs",
+    "Safety",
+    "Pest Control",
+    "Interior",
+    "Other"
 ];
 export const ROOMS = [
-"Kitchen", 
-"Living Room", 
-"Dining Room", 
-"Master Bedroom", 
-"Bedroom", 
-"Master Bathroom", 
-"Bathroom", 
-"Office", 
-"Laundry Room", 
-"Garage", 
-"Basement", 
-"Attic", 
-"Exterior", 
-"Hallway", 
-"Entryway", 
-"Patio/Deck", 
-"Other (Custom)"
+    "Kitchen",
+    "Living Room",
+    "Dining Room",
+    "Master Bedroom",
+    "Bedroom",
+    "Master Bathroom",
+    "Bathroom",
+    "Office",
+    "Laundry Room",
+    "Garage",
+    "Basement",
+    "Attic",
+    "Exterior",
+    "Hallway",
+    "Entryway",
+    "Patio/Deck",
+    "Other (Custom)"
 ];
 export const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 export const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];

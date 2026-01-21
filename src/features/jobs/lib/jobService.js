@@ -133,67 +133,34 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
         const jobAddress = jobData.propertyAddress || jobData.customer?.address || '';
 
         // Check if user exists in the system
-        // Use collectionGroup query to search across all profile subcollections
-        // This works because profiles are stored at: /artifacts/{appId}/users/{uid}/settings/profile
-        // and contain the user's email
+        // Query the public email index which maps emails to userIds
+        // This collection is publicly readable and updated when users save their profile
+        const { USER_EMAIL_INDEX_PATH } = await import('../../../config/constants');
 
-        const { collectionGroup } = await import('firebase/firestore');
+        console.log('[jobService] Searching for email in public index:', normalizedEmail);
 
-        // Query all profile documents for matching email
-        const profilesQuery = query(
-            collectionGroup(db, 'profile'),
-            where('email', '==', normalizedEmail)
-        );
-        const profileSnapshot = await getDocs(profilesQuery);
+        // Try direct document lookup first (email as document ID)
+        const emailDocRef = doc(db, USER_EMAIL_INDEX_PATH, normalizedEmail);
+        const emailDocSnap = await getDoc(emailDocRef);
         let userId = null;
-        let foundViaProfile = false;
 
-        console.log('[jobService] Searching for email via profile collectionGroup:', normalizedEmail);
-        console.log('[jobService] Found matching profiles:', profileSnapshot.docs.length);
-
-        if (!profileSnapshot.empty) {
-            // Profile path is: /artifacts/{appId}/users/{userId}/settings/profile
-            // We need to extract the userId from the path
-            const profileDoc = profileSnapshot.docs[0];
-            const pathParts = profileDoc.ref.path.split('/');
-            // Path structure: artifacts / {appId} / users / {userId} / settings / profile
-            // Index:              0           1        2        3          4        5
-            const userIdIndex = pathParts.indexOf('users') + 1;
-            if (userIdIndex > 0 && userIdIndex < pathParts.length) {
-                userId = pathParts[userIdIndex];
-                foundViaProfile = true;
-                console.log('[jobService] Found user by profile email:', normalizedEmail, 'userId:', userId);
-            } else {
-                console.warn('[jobService] Could not extract userId from profile path:', profileDoc.ref.path);
-            }
+        if (emailDocSnap.exists()) {
+            const indexData = emailDocSnap.data();
+            userId = indexData.userId;
+            console.log('[jobService] Found user in email index:', normalizedEmail, 'userId:', userId);
         } else {
-            // Also try lowercase email match in case profile has mixed case
-            const profilesQueryLower = query(
-                collectionGroup(db, 'profile'),
-                where('email', '>=', normalizedEmail),
-                where('email', '<=', normalizedEmail + '\uf8ff')
-            );
-            const lowerSnapshot = await getDocs(profilesQueryLower);
+            // Fallback: query by email field (for backwards compatibility)
+            const emailIndexRef = collection(db, USER_EMAIL_INDEX_PATH);
+            const emailQuery = query(emailIndexRef, where('email', '==', normalizedEmail));
+            const emailSnapshot = await getDocs(emailQuery);
 
-            for (const profileDoc of lowerSnapshot.docs) {
-                const profileData = profileDoc.data();
-                const profileEmail = profileData?.email?.toLowerCase()?.trim();
-
-                if (profileEmail === normalizedEmail) {
-                    const pathParts = profileDoc.ref.path.split('/');
-                    const userIdIndex = pathParts.indexOf('users') + 1;
-                    if (userIdIndex > 0 && userIdIndex < pathParts.length) {
-                        userId = pathParts[userIdIndex];
-                        foundViaProfile = true;
-                        console.log('[jobService] Found user by profile email (case-insensitive):', normalizedEmail, 'userId:', userId);
-                        break;
-                    }
-                }
+            if (!emailSnapshot.empty) {
+                const indexData = emailSnapshot.docs[0].data();
+                userId = indexData.userId;
+                console.log('[jobService] Found user via email query:', normalizedEmail, 'userId:', userId);
+            } else {
+                console.log('[jobService] No user found with email:', normalizedEmail);
             }
-        }
-
-        if (!userId) {
-            console.log('[jobService] No user found with email:', normalizedEmail);
         }
 
         if (userId) {

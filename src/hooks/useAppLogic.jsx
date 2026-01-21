@@ -2,12 +2,12 @@
 import { debug } from '../lib/debug';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, collectionGroup, query, onSnapshot, doc, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore'; 
+import { collection, collectionGroup, query, onSnapshot, doc, getDoc, getDocs, setDoc, updateDoc, serverTimestamp, orderBy, where } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { auth, db, reportFirestoreHang, recoverFromStorageIssues } from '../config/firebase';
-import { 
-    appId, 
-    REQUESTS_COLLECTION_PATH, 
+import {
+    appId,
+    REQUESTS_COLLECTION_PATH,
     MAINTENANCE_FREQUENCIES,
     FIRESTORE_TIMEOUT_MS,
     TOKEN_PROPAGATION_DELAY_MS,
@@ -50,7 +50,7 @@ export const useAppLogic = (celebrations) => {
     const [profile, setProfile] = useState(null);
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('Dashboard'); 
+    const [activeTab, setActiveTab] = useState('Dashboard');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
@@ -68,22 +68,22 @@ export const useAppLogic = (celebrations) => {
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [selectedRecords, setSelectedRecords] = useState(new Set());
     const [quickServiceRecord, setQuickServiceRecord] = useState(null);
-    const [quickServiceDescription, setQuickServiceDescription] = useState(''); 
+    const [quickServiceDescription, setQuickServiceDescription] = useState('');
     const [showQuickService, setShowQuickService] = useState(false);
     const [showGuidedOnboarding, setShowGuidedOnboarding] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const [useEnhancedCards, setUseEnhancedCards] = useState(true);
-    const [inventoryView, setInventoryView] = useState('category'); 
+    const [inventoryView, setInventoryView] = useState('category');
 
     // =========================================================================
     // NEW STATE - For notification dismiss/clear functionality
     // =========================================================================
     const [dismissedNotifications, setDismissedNotifications] = useState(new Set());
     const [highlightedTaskId, setHighlightedTaskId] = useState(null);
-    
+
     // NEW: Unread Chat Message Count
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
-    
+
     // =========================================================================
     // REF - Track if we just completed property setup (for navigation fix)
     // =========================================================================
@@ -98,26 +98,26 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // DERIVED STATE - All existing derived state preserved exactly
     // =========================================================================
-   // MEMOIZED: Only recalculates when profile changes
+    // MEMOIZED: Only recalculates when profile changes
     const properties = useMemo(() => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) return profile.properties;
         // FIX: Use address for property name, fallback to "My Home" instead of user's personal name
         if (profile.name || profile.address) {
-            const propertyName = profile.address 
+            const propertyName = profile.address
                 ? (typeof profile.address === 'string' ? profile.address.split(',')[0] : profile.address.street || 'My Home')
                 : 'My Home';
-            return [{ 
-                id: 'legacy', 
-                name: propertyName, 
-                address: profile.address, 
-                coordinates: profile.coordinates 
+            return [{
+                id: 'legacy',
+                name: propertyName,
+                address: profile.address,
+                coordinates: profile.coordinates
             }];
         }
         return [];
     }, [profile]);
     const activeProperty = properties.find(p => p.id === activePropertyId) || properties[0] || null;
-    
+
     // MEMOIZED: This fixes the linting "missing dependency" error
     const activePropertyRecords = useMemo(() => {
         return records.filter(r => r.propertyId === activeProperty?.id || (!r.propertyId && activeProperty?.id === 'legacy'));
@@ -126,7 +126,7 @@ export const useAppLogic = (celebrations) => {
     // =========================================================================
     // EFFECTS - With retry logic for new user permission issues
     // =========================================================================
-    
+
     useEffect(() => {
         // --- FIX START: Contractor Mode Check ---
         // Prevents homeowner logic from running when a contractor is logged in
@@ -141,75 +141,75 @@ export const useAppLogic = (celebrations) => {
         // --- FIX END ---
 
         debug.log('[useAppLogic] 🚀 Effect starting, setting up auth listener...');
-        
+
         const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
-            debug.log('[useAppLogic] 🔥 onAuthStateChanged fired!', { 
-                hasUser: !!currentUser, 
-                email: currentUser?.email 
+            debug.log('[useAppLogic] 🔥 onAuthStateChanged fired!', {
+                hasUser: !!currentUser,
+                email: currentUser?.email
             });
-            
+
             try {
                 setUser(currentUser);
                 debug.log('[useAppLogic] ✅ setUser complete');
-                
+
                 if (currentUser) {
                     debug.log('[useAppLogic] 👤 User exists, starting token refresh...');
-                    
+
                     // Token refresh
                     try {
                         debug.log('[useAppLogic] ⏳ Calling getIdToken(true)...');
                         const startTime = Date.now();
                         await currentUser.getIdToken(true);
                         debug.log('[useAppLogic] ✅ getIdToken complete in', Date.now() - startTime, 'ms');
-                        
+
                         debug.log('[useAppLogic] ⏳ Waiting for token propagation...');
-await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
+                        await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                         debug.log('[useAppLogic] ✅ Token propagation wait complete');
                     } catch (tokenErr) {
                         debug.warn('[useAppLogic] ⚠️ Token refresh failed:', tokenErr);
                     }
-                    
+
                     if (!appId) {
                         debug.error('[useAppLogic] ❌ appId is missing!');
                         throw new Error("appId is missing");
                     }
                     debug.log('[useAppLogic] ✅ appId check passed:', appId);
-                    
+
                     // Profile read
                     const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'profile');
                     debug.log('[useAppLogic] 📖 Starting profile read...', profileRef.path);
-                    
+
                     let profileSnap = null;
                     for (let attempt = 1; attempt <= 3; attempt++) {
                         try {
                             debug.log(`[useAppLogic] ⏳ getDoc attempt ${attempt}...`);
                             const startTime = Date.now();
                             profileSnap = await withTimeout(
-    getDoc(profileRef),
-    FIRESTORE_TIMEOUT_MS,
-    `getDoc attempt ${attempt}`
-);
+                                getDoc(profileRef),
+                                FIRESTORE_TIMEOUT_MS,
+                                `getDoc attempt ${attempt}`
+                            );
                             debug.log(`[useAppLogic] ✅ getDoc complete in ${Date.now() - startTime}ms, exists:`, profileSnap.exists());
                             break;
                         } catch (readError) {
                             debug.error(`[useAppLogic] ❌ getDoc attempt ${attempt} failed:`, readError);
-                            
-                            const isPermissionError = readError.code === 'permission-denied' || 
-                                                      readError.message?.includes('permission');
+
+                            const isPermissionError = readError.code === 'permission-denied' ||
+                                readError.message?.includes('permission');
                             const isTimeout = readError.message?.includes('timed out');
-                            
+
                             if (isTimeout) {
                                 debug.warn(`[useAppLogic] ⚠️ Firestore timed out on attempt ${attempt}`);
-                                
+
                                 // Record failure and check if we need recovery
                                 const failureCount = reportFirestoreHang();
                                 debug.warn(`[useAppLogic] Recorded failure #${failureCount}`);
-                                
+
                                 if (attempt < 3) {
                                     await new Promise(r => setTimeout(r, 1000));
                                     continue;
                                 }
-                                
+
                                 // After 3 timeouts, check if auto-recovery is needed
                                 if (failureCount >= 2) {
                                     debug.error('[useAppLogic] 🔄 Triggering automatic recovery...');
@@ -217,22 +217,22 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                                     setTimeout(() => recoverFromStorageIssues(), 1500);
                                     return;
                                 }
-                                
+
                                 profileSnap = null;
                                 break;
                             }
-                            
+
                             if (isPermissionError && attempt < 3) {
                                 debug.log(`[useAppLogic] 🔄 Retrying after permission error...`);
                                 await currentUser.getIdToken(true);
                                 await new Promise(r => setTimeout(r, 500 * attempt));
                                 continue;
                             }
-                            
-                           if (!isPermissionError && !isTimeout) {
+
+                            if (!isPermissionError && !isTimeout) {
                                 // Check for IndexedDB errors
                                 const isIndexedDBError = readError.message?.includes('IndexedDB') ||
-                                                         readError.code === 'unavailable';
+                                    readError.code === 'unavailable';
                                 if (isIndexedDBError) {
                                     debug.error('[useAppLogic] 🚨 IndexedDB error detected!');
                                     reportFirestoreHang();
@@ -242,7 +242,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                                 }
                                 throw readError;
                             }
-                            
+
                             // If we're here on attempt 3 with permission error, continue without profile
                             if (attempt === 3) {
                                 debug.warn('[useAppLogic] ⚠️ All attempts failed, continuing without profile');
@@ -251,21 +251,35 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                             }
                         }
                     }
-                    
+
                     if (profileSnap?.exists()) {
                         const data = profileSnap.data();
-                        debug.log('[useAppLogic] ✅ Profile loaded:', { 
+                        debug.log('[useAppLogic] ✅ Profile loaded:', {
                             hasProperties: !!data.properties,
-                            propertyCount: data.properties?.length 
+                            propertyCount: data.properties?.length
                         });
                         setProfile(data);
                         if (data.hasSeenWelcome) setHasSeenWelcome(true);
                         setActivePropertyId(data.activePropertyId || (data.properties?.[0]?.id || 'legacy'));
+
+                        // Backfill email index for existing users (enables contractor job linking)
+                        if (currentUser.email) {
+                            const { USER_EMAIL_INDEX_PATH } = await import('../config/constants');
+                            const normalizedEmail = currentUser.email.toLowerCase().trim();
+                            const emailIndexRef = doc(db, USER_EMAIL_INDEX_PATH, normalizedEmail);
+                            setDoc(emailIndexRef, {
+                                userId: currentUser.uid,
+                                email: normalizedEmail,
+                                updatedAt: serverTimestamp()
+                            }, { merge: true }).catch(err =>
+                                debug.warn('[useAppLogic] Email index backfill failed:', err)
+                            );
+                        }
                     } else {
                         debug.log('[useAppLogic] ℹ️ No profile found (new user)');
                         setProfile(null);
                     }
-                    
+
                     // Set up listeners
                     debug.log('[useAppLogic] 📡 Setting up realtime listeners...');
                     if (unsubRecordsRef.current) unsubRecordsRef.current();
@@ -281,30 +295,30 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                         debug.log('[useAppLogic] 📋 Requests snapshot:', snap.docs.length, 'requests');
                         setNewSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(r => r.status === 'submitted'));
                     }, (e) => debug.error('[useAppLogic] ❌ Requests error:', e));
-                    
+
                     debug.log('[useAppLogic] ✅ All listeners set up');
                 } else {
                     debug.log('[useAppLogic] 👻 No user, clearing state');
-                    setProfile(null); 
-                    setRecords([]); 
+                    setProfile(null);
+                    setRecords([]);
                     setNewSubmissions([]);
                 }
-            } catch (error) { 
+            } catch (error) {
                 debug.error('[useAppLogic] ❌ Auth state change error:', error);
-                const isPermissionError = error.code === 'permission-denied' || 
-                                          error.message?.includes('permission') ||
-                                          error.message?.includes('Missing or insufficient');
+                const isPermissionError = error.code === 'permission-denied' ||
+                    error.message?.includes('permission') ||
+                    error.message?.includes('Missing or insufficient');
                 if (!isPermissionError) {
                     toast.error("Error: " + error.message);
                 }
-            } finally { 
+            } finally {
                 debug.log('[useAppLogic] 🏁 Setting loading = false');
-                setLoading(false); 
+                setLoading(false);
             }
         });
-        
+
         debug.log('[useAppLogic] ✅ Auth listener registered');
-        
+
         return () => {
             debug.log('[useAppLogic] 🧹 Cleanup running');
             unsubAuth();
@@ -320,7 +334,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             if (!r.nextServiceDate) return false;
             const diff = Math.ceil((new Date(r.nextServiceDate) - now) / (86400000));
             return diff <= 30;
-        }).map(r => ({ ...r, diffDays: Math.ceil((new Date(r.nextServiceDate) - now) / (86400000)) })).sort((a,b) => a.diffDays - b.diffDays);
+        }).map(r => ({ ...r, diffDays: Math.ceil((new Date(r.nextServiceDate) - now) / (86400000)) })).sort((a, b) => a.diffDays - b.diffDays);
         setDueTasks(upcoming);
     }, [records, activeProperty, activePropertyRecords]);
 
@@ -439,9 +453,9 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     // =========================================================================
     // EXISTING HANDLERS - All preserved exactly as they were
     // =========================================================================
-    
+
     const handleAuth = async (email, pass, isSignUp) => isSignUp ? createUserWithEmailAndPassword(auth, email, pass) : signInWithEmailAndPassword(auth, email, pass);
-    
+
     // =========================================================================
     // FIXED: handleSaveProperty - Now with retry logic for new users
     // =========================================================================
@@ -453,7 +467,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             toast.error('Authentication error. Please try signing in again.');
             return;
         }
-        
+
         // Validate appId
         if (!appId) {
             debug.error('handleSaveProperty: appId is missing');
@@ -462,7 +476,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
         }
 
         setIsSavingProperty(true);
-        
+
         // =====================================================
         // HELPER: Remove ALL undefined values from any object
         // Firebase rejects undefined values, so we must clean them
@@ -474,11 +488,11 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             if (!addr) return { street: '', city: '', state: '', zip: '' };
             return normalizeAddress(addr);
         };
-        
+
         // Retry logic for new user permission issues
         const maxRetries = MAX_RETRY_ATTEMPTS;
         let lastError;
-        
+
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 // Force token refresh before each attempt (especially important for new users)
@@ -492,11 +506,11 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 } catch (tokenErr) {
                     debug.warn('Token refresh failed:', tokenErr);
                 }
-                
+
                 const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'settings', 'profile');
                 const profileSnap = await getDoc(profileRef);
                 const existingProfile = profileSnap.exists() ? profileSnap.data() : {};
-                
+
                 const newPropertyId = Date.now().toString();
                 const newProperty = {
                     id: newPropertyId,
@@ -504,9 +518,9 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     address: sanitizeAddress(formData.address),
                     coordinates: formData.coordinates || null
                 };
-                
+
                 let existingProperties = existingProfile.properties || [];
-                
+
                 // If no existing properties and we have legacy data, convert it
                 if (existingProperties.length === 0 && existingProfile.name) {
                     existingProperties = [{
@@ -516,68 +530,87 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                         coordinates: existingProfile.coordinates || null
                     }];
                 }
-                
+
                 const updatedProperties = [...existingProperties, newProperty];
-                
+
                 // Build the new profile object (only include defined values from existing)
                 const newProfile = {
                     properties: updatedProperties,
                     activePropertyId: newPropertyId,
                     updatedAt: new Date()
                 };
-                
+
                 // Preserve specific existing fields if they exist (but not undefined ones)
                 if (existingProfile.name) newProfile.name = existingProfile.name;
                 if (existingProfile.email) newProfile.email = existingProfile.email;
                 if (existingProfile.hasSeenWelcome) newProfile.hasSeenWelcome = existingProfile.hasSeenWelcome;
                 if (existingProfile.createdAt) newProfile.createdAt = existingProfile.createdAt;
-                
+
                 // Final safety check: remove any remaining undefined values
                 const cleanedProfile = removeUndefined(newProfile);
-                
+
                 debug.log('[handleSaveProperty] Saving cleaned profile:', cleanedProfile);
-                
+
                 // Save to Firebase
                 await setDoc(profileRef, cleanedProfile, { merge: true });
-                
+
+                // Update email index for contractor job linking lookups
+                // This enables contractors to find homeowners by email when creating jobs
+                if (user.email) {
+                    try {
+                        const { USER_EMAIL_INDEX_PATH } = await import('../config/constants');
+                        const normalizedEmail = user.email.toLowerCase().trim();
+                        const emailIndexRef = doc(db, USER_EMAIL_INDEX_PATH, normalizedEmail);
+                        await setDoc(emailIndexRef, {
+                            userId: user.uid,
+                            email: normalizedEmail,
+                            updatedAt: serverTimestamp()
+                        }, { merge: true });
+                        debug.log('[handleSaveProperty] Updated email index for:', normalizedEmail);
+                    } catch (indexErr) {
+                        // Non-critical - log but don't fail the save
+                        debug.warn('[handleSaveProperty] Failed to update email index:', indexErr);
+                    }
+                }
+
                 // SUCCESS! Update local state
                 justCompletedSetup.current = true;
-                
+
                 setProfile({
                     ...cleanedProfile,
                     updatedAt: new Date().toISOString()
                 });
-                
+
                 setActivePropertyId(newPropertyId);
                 setActiveTab('Dashboard');
                 toast.success(existingProperties.length === 0 ? "Krib created!" : "Property added!");
-                
+
                 // Exit the retry loop on success
                 setIsSavingProperty(false);
                 setIsAddingProperty(false);
                 return;
-                
+
             } catch (error) {
                 lastError = error;
                 debug.error(`handleSaveProperty attempt ${attempt} failed:`, error);
-                
+
                 // Check if it's a permissions error - wait and retry
-                const isPermissionError = error.code === 'permission-denied' || 
-                                          error.message?.includes('permission') ||
-                                          error.message?.includes('Missing or insufficient');
-                
+                const isPermissionError = error.code === 'permission-denied' ||
+                    error.message?.includes('permission') ||
+                    error.message?.includes('Missing or insufficient');
+
                 if (isPermissionError && attempt < maxRetries) {
                     debug.log(`[handleSaveProperty] Permission denied, retrying in ${1000 * attempt}ms...`);
                     // Wait before retry (exponential backoff)
                     await new Promise(r => setTimeout(r, 1000 * attempt));
                     continue;
                 }
-                
+
                 // Non-permission error or max retries reached - break out
                 break;
             }
         }
-        
+
         // All retries failed
         debug.error('handleSaveProperty: All attempts failed:', lastError);
         toast.error("Failed to save: " + (lastError?.message || 'Unknown error'));
@@ -641,13 +674,13 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             const newHistory = [historyEntry, ...currentHistory];
 
             let updates = { maintenanceHistory: newHistory };
-            
+
             // Store previous state for undo
             const previousHistory = [...currentHistory];
             let previousTasks = null;
             let previousNextDate = null;
             let previousDateInstalled = null;
-            
+
             if (task.isGranular) {
                 previousTasks = record.maintenanceTasks ? [...record.maintenanceTasks] : null;
                 const updatedTasks = (record.maintenanceTasks || []).map(t => {
@@ -670,7 +703,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 updates.snoozedUntil = null;
                 updates.scheduledDate = null;
             }
-            
+
             await updateDoc(recordRef, updates);
 
             // Show toast with undo option
@@ -714,7 +747,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     const handleDeleteHistoryItem = useCallback(async (historyItem) => {
         try {
             debug.log('[App] Deleting history item:', historyItem);
-            
+
             if (!historyItem.recordId) {
                 debug.error('[App] Delete failed: History item missing recordId');
                 toast.error("Cannot delete: Item missing record ID");
@@ -722,7 +755,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const record = records.find(r => r.id === historyItem.recordId);
-            
+
             if (!record) {
                 debug.error(`[App] Delete failed: Record ${historyItem.recordId} not found`);
                 toast.error("Could not find the original record. Try refreshing.");
@@ -749,7 +782,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const record = records.find(r => r.id === historyItem.recordId);
-            
+
             if (!record) {
                 debug.error(`[App] Restore failed: Record ${historyItem.recordId} not found`);
                 toast.error("Could not find the original record.");
@@ -757,9 +790,9 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const newHistory = (record.maintenanceHistory || []).filter(h => h.id ? h.id !== historyItem.id : !(h.taskName === historyItem.taskName && h.completedDate === historyItem.completedDate));
-            
+
             let updates = { maintenanceHistory: newHistory };
-            
+
             // If this was a granular task, restore its next due date
             if (record.maintenanceTasks) {
                 const matchingTask = record.maintenanceTasks.find(t => t.task === historyItem.taskName);
@@ -779,12 +812,12 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                     updates.maintenanceTasks = updatedTasks;
                 }
             }
-            
+
             await updateDoc(getRecordDocRef(db, appId, user.uid, historyItem.recordId), updates);
             toast.success("Task restored to active", { icon: '↩️' });
-        } catch (e) { 
+        } catch (e) {
             debug.error('[App] Restore error:', e);
-            toast.error("Failed to restore: " + e.message); 
+            toast.error("Failed to restore: " + e.message);
         }
     }, [records, user]);
 
@@ -794,7 +827,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     const handleDeleteMaintenanceTask = useCallback(async (task) => {
         try {
             debug.log('[App] Deleting maintenance task:', task);
-            
+
             if (!task.recordId) {
                 debug.error('[App] Delete task failed: Missing recordId');
                 toast.error("Cannot delete: Missing record ID");
@@ -802,7 +835,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const record = records.find(r => r.id === task.recordId);
-            
+
             if (!record) {
                 debug.error(`[App] Delete task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
@@ -838,7 +871,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     const handleScheduleTask = useCallback(async (task, scheduledDate, notes = '') => {
         try {
             debug.log('[App] Scheduling task:', { task, scheduledDate, notes });
-            
+
             if (!task.recordId) {
                 debug.error('[App] Schedule task failed: Missing recordId');
                 toast.error("Cannot schedule: Missing record ID");
@@ -846,7 +879,7 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
             }
 
             const record = records.find(r => r.id === task.recordId);
-            
+
             if (!record) {
                 debug.error(`[App] Schedule task failed: Record ${task.recordId} not found`);
                 toast.error("Could not find the record. Try refreshing.");
@@ -884,11 +917,11 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
                 );
             }
 
-            const formattedDate = new Date(scheduledDate).toLocaleDateString(undefined, { 
-                month: 'short', 
-                day: 'numeric' 
+            const formattedDate = new Date(scheduledDate).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric'
             });
-            
+
             toast.success(`Scheduled for ${formattedDate}`, { icon: '📅' });
         } catch (e) {
             debug.error('[App] handleScheduleTask error:', e);
@@ -979,18 +1012,18 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
     // Clear all notifications (dismisses all visible notifications)
     const handleClearAllNotifications = useCallback(() => {
         const allIds = new Set();
-        
+
         // Add all task IDs
         dueTasks.forEach(task => {
             const taskId = task.id || `${task.recordId}-${task.taskName}`;
             allIds.add(taskId);
         });
-        
+
         // Add all submission IDs
         newSubmissions.forEach(sub => {
             if (sub.id) allIds.add(sub.id);
         });
-        
+
         setDismissedNotifications(allIds);
         toast.success('All notifications cleared', { icon: '✓', duration: 2000 });
     }, [dueTasks, newSubmissions]);
@@ -1017,17 +1050,17 @@ await new Promise(r => setTimeout(r, TOKEN_PROPAGATION_DELAY_MS));
         showQuickService, setShowQuickService, showGuidedOnboarding, setShowGuidedOnboarding,
         showScanner, setShowScanner, useEnhancedCards, setUseEnhancedCards, inventoryView, setInventoryView,
         properties, activeProperty, activePropertyRecords,
-        
+
         // All existing handlers
-        handleAuth, handleSaveProperty, handleMarkTaskDone, 
+        handleAuth, handleSaveProperty, handleMarkTaskDone,
         handleDeleteHistoryItem,
         handleRestoreHistoryItem,
-        
+
         // Existing task action handlers
         handleDeleteMaintenanceTask,
         handleScheduleTask,
         handleSnoozeTask,
-        
+
         // NEW: Notification management handlers
         dismissedNotifications,
         setDismissedNotifications,
