@@ -10,8 +10,10 @@ import {
     X, Camera, Upload, FileText, Plus, Trash2, CheckCircle,
     Loader2, Image, AlertCircle, DollarSign, Wrench, Calendar,
     ClipboardList, MessageSquare, ChevronDown, ChevronUp, ChevronRight, Sparkles, Edit3,
-    Home, Clock, CheckSquare, Square, Receipt
+    Home, Clock, CheckSquare, Square, Receipt, PenTool, QrCode, CreditCard, Send
 } from 'lucide-react';
+import { SignatureCapture } from '../../../../components/SignatureCapture';
+import { PaymentQRCode } from '../../../../components/PaymentQRCode';
 import { Select } from '../../../../components/ui/Select';
 import {
     submitJobCompletion,
@@ -177,6 +179,10 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     const [photos, setPhotos] = useState([]);
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const photoInputRef = useRef(null);
+
+    // Customer Signature
+    const [signatureData, setSignatureData] = useState(null);
+    const [requireSignature, setRequireSignature] = useState(true); // Can be configured in settings
     const [selectedPhotoType, setSelectedPhotoType] = useState('after');
 
     // Photo requirements
@@ -202,6 +208,11 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     // Notes
     const [notes, setNotes] = useState('');
     const [recommendations, setRecommendations] = useState('');
+
+    // Field Payment Collection
+    const [showPaymentQR, setShowPaymentQR] = useState(false);
+    const [paymentCollected, setPaymentCollected] = useState(false);
+    const [fieldPaymentMethod, setFieldPaymentMethod] = useState(null); // 'qr', 'later', 'card_on_file'
 
     // ============================================
     // LOAD PHOTO REQUIREMENTS AND EXISTING PHOTOS
@@ -492,6 +503,25 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                     depositPaid,
                     balanceDue,
                     notes: invoiceNotes
+                },
+                // Include signature data if captured
+                signature: signatureData ? {
+                    signatureImage: signatureData.signatureImage,
+                    signerName: signatureData.signerName,
+                    signerRelationship: signatureData.signerRelationship,
+                    signedAt: signatureData.signedAt,
+                    deviceInfo: signatureData.deviceInfo,
+                    gpsLocation: signatureData.gpsLocation,
+                    legalTextAgreed: signatureData.legalTextAgreed,
+                    captureMethod: signatureData.captureMethod || 'digital_signature_pad'
+                } : null,
+                signatureSkipped: !signatureData && !requireSignature,
+                // Include field payment data
+                fieldPayment: {
+                    collected: paymentCollected,
+                    method: fieldPaymentMethod,
+                    sendPaymentLink: !paymentCollected && fieldPaymentMethod !== 'cash_check',
+                    collectedAt: paymentCollected ? new Date().toISOString() : null
                 }
             }, contractorId);
 
@@ -595,6 +625,8 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         { id: 'photos', label: 'Photos', icon: Camera },
                         { id: 'items', label: 'Items', icon: Wrench },
                         { id: 'notes', label: 'Notes', icon: MessageSquare },
+                        { id: 'signature', label: 'Signature', icon: PenTool },
+                        { id: 'payment', label: 'Payment', icon: CreditCard },
                         { id: 'review', label: 'Review', icon: ClipboardList }
                     ].map((section, idx) => (
                         <button
@@ -1204,6 +1236,294 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         </div>
                     )}
 
+                    {/* SIGNATURE SECTION */}
+                    {activeSection === 'signature' && (
+                        <div className="space-y-5">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Customer Signature</h3>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Capture customer's signature to confirm work completion
+                                </p>
+                            </div>
+
+                            {signatureData ? (
+                                // Show captured signature
+                                <div className="space-y-4">
+                                    <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <CheckCircle className="w-5 h-5 text-emerald-600" />
+                                            <span className="font-medium text-emerald-800">Signature Captured</span>
+                                        </div>
+                                        <div className="bg-white rounded-lg p-3 border border-emerald-100">
+                                            <img
+                                                src={signatureData.signatureImage}
+                                                alt="Customer signature"
+                                                className="max-h-24 mx-auto"
+                                            />
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                                            <div>
+                                                <span className="text-emerald-600">Signed by:</span>
+                                                <span className="ml-2 font-medium text-emerald-800">{signatureData.signerName}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-emerald-600">Relationship:</span>
+                                                <span className="ml-2 font-medium text-emerald-800 capitalize">{signatureData.signerRelationship?.replace('_', ' ')}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-emerald-600">Date/Time:</span>
+                                                <span className="ml-2 font-medium text-emerald-800">
+                                                    {new Date(signatureData.signedAt).toLocaleString()}
+                                                </span>
+                                            </div>
+                                            {signatureData.gpsLocation && (
+                                                <div>
+                                                    <span className="text-emerald-600">Location:</span>
+                                                    <span className="ml-2 font-medium text-emerald-800">Verified</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <button
+                                        onClick={() => setSignatureData(null)}
+                                        className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                    >
+                                        Clear and recapture signature
+                                    </button>
+                                </div>
+                            ) : (
+                                // Capture new signature
+                                <SignatureCapture
+                                    title="Customer Signature Required"
+                                    description="Have the customer sign to confirm work completion"
+                                    signerName={job.customer?.name || job.customerName || ''}
+                                    legalText={`By signing below, I acknowledge that the work described for ${job.title || job.description || 'this job'} has been completed to my satisfaction. I agree to the charges shown on the invoice totaling ${formatCurrency(
+                                        invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0) * (1 + invoiceTaxRate / 100) - (job.depositAmount || 0)
+                                    )} (balance due).`}
+                                    documents={[
+                                        'Job Completion Acknowledgment',
+                                        `Invoice for ${job.title || 'Service'}`
+                                    ]}
+                                    onCapture={(data) => {
+                                        setSignatureData(data);
+                                        toast.success('Signature captured successfully!');
+                                    }}
+                                    captureLocation={true}
+                                />
+                            )}
+
+                            {/* Skip signature option */}
+                            {!signatureData && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                                    <div className="flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5" />
+                                        <div>
+                                            <p className="font-medium text-amber-800">Customer not present?</p>
+                                            <p className="text-sm text-amber-700 mt-1">
+                                                You can skip the signature for now. The customer will be asked to confirm
+                                                completion via email. Jobs without signatures may take longer to process payment.
+                                            </p>
+                                            <button
+                                                onClick={() => {
+                                                    setRequireSignature(false);
+                                                    setActiveSection('payment');
+                                                    toast('Signature skipped - customer will confirm via email', { icon: 'ℹ️' });
+                                                }}
+                                                className="mt-2 text-sm font-medium text-amber-700 hover:text-amber-800 underline"
+                                            >
+                                                Skip signature and continue
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* PAYMENT SECTION - Collect payment on-site */}
+                    {activeSection === 'payment' && (
+                        <div className="space-y-5">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Collect Payment</h3>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Collect balance due now or send payment link later
+                                </p>
+                            </div>
+
+                            {/* Balance Due Summary */}
+                            {(() => {
+                                const invoiceSubtotal = invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+                                const invoiceTax = invoiceSubtotal * (invoiceTaxRate / 100);
+                                const invoiceTotal = invoiceSubtotal + invoiceTax;
+                                const depositPaid = job.depositAmount || job.depositPaid || job.deposit?.amount || 0;
+                                const balanceDue = Math.max(0, invoiceTotal - depositPaid);
+
+                                return (
+                                    <>
+                                        <div className="bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-xl p-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm text-emerald-600">Balance Due</p>
+                                                    <p className="text-3xl font-bold text-emerald-700">{formatCurrency(balanceDue)}</p>
+                                                </div>
+                                                <div className="text-right text-sm text-gray-500">
+                                                    <p>Total: {formatCurrency(invoiceTotal)}</p>
+                                                    {depositPaid > 0 && <p className="text-emerald-600">Deposit: -{formatCurrency(depositPaid)}</p>}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {balanceDue > 0 ? (
+                                            <>
+                                                {/* Payment Options */}
+                                                {!showPaymentQR && !paymentCollected && (
+                                                    <div className="space-y-3">
+                                                        {/* Show QR Code Option */}
+                                                        <button
+                                                            onClick={() => setShowPaymentQR(true)}
+                                                            className="w-full p-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-4"
+                                                        >
+                                                            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                                                                <QrCode className="w-6 h-6" />
+                                                            </div>
+                                                            <div className="text-left flex-1">
+                                                                <p className="font-semibold">Collect Now with QR Code</p>
+                                                                <p className="text-emerald-100 text-sm">Customer scans with phone to pay instantly</p>
+                                                            </div>
+                                                            <ChevronRight className="w-5 h-5" />
+                                                        </button>
+
+                                                        {/* Send Link Later Option */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setFieldPaymentMethod('later');
+                                                                setActiveSection('review');
+                                                                toast('Payment link will be sent with completion notification', { icon: 'ℹ️' });
+                                                            }}
+                                                            className="w-full p-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors flex items-center gap-4"
+                                                        >
+                                                            <div className="w-12 h-12 bg-gray-200 rounded-xl flex items-center justify-center">
+                                                                <Send className="w-6 h-6 text-gray-500" />
+                                                            </div>
+                                                            <div className="text-left flex-1">
+                                                                <p className="font-semibold">Send Payment Link Later</p>
+                                                                <p className="text-gray-500 text-sm">Payment link included in completion email</p>
+                                                            </div>
+                                                            <ChevronRight className="w-5 h-5 text-gray-400" />
+                                                        </button>
+
+                                                        {/* Mark as Paid (Cash/Check) */}
+                                                        <button
+                                                            onClick={() => {
+                                                                setPaymentCollected(true);
+                                                                setFieldPaymentMethod('cash_check');
+                                                                toast.success('Payment marked as collected');
+                                                            }}
+                                                            className="w-full p-4 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:border-gray-300 transition-colors flex items-center gap-4"
+                                                        >
+                                                            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
+                                                                <DollarSign className="w-6 h-6 text-gray-500" />
+                                                            </div>
+                                                            <div className="text-left flex-1">
+                                                                <p className="font-semibold">Paid via Cash/Check</p>
+                                                                <p className="text-gray-500 text-sm">Mark payment as already collected</p>
+                                                            </div>
+                                                            <ChevronRight className="w-5 h-5 text-gray-400" />
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* QR Code Display */}
+                                                {showPaymentQR && (
+                                                    <div className="space-y-4">
+                                                        <PaymentQRCode
+                                                            amount={balanceDue}
+                                                            jobId={job.id}
+                                                            jobNumber={job.jobNumber}
+                                                            description={job.title || job.description}
+                                                            customerName={job.customer?.name || job.customerName}
+                                                            customerEmail={job.customer?.email || job.customerEmail}
+                                                            customerPhone={job.customer?.phone || job.customerPhone}
+                                                            contractorId={contractorId}
+                                                            contractorName={job.contractorName || ''}
+                                                            stripeAccountId={job.stripeAccountId}
+                                                            showDeliveryOptions={true}
+                                                            size="medium"
+                                                            onPaymentSuccess={() => {
+                                                                setPaymentCollected(true);
+                                                                setFieldPaymentMethod('qr');
+                                                                setShowPaymentQR(false);
+                                                                toast.success('Payment received!');
+                                                            }}
+                                                        />
+
+                                                        <button
+                                                            onClick={() => setShowPaymentQR(false)}
+                                                            className="w-full py-2 text-gray-500 hover:text-gray-700 text-sm"
+                                                        >
+                                                            Back to payment options
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Payment Collected Confirmation */}
+                                                {paymentCollected && (
+                                                    <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                                                                <CheckCircle className="w-6 h-6 text-emerald-600" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-emerald-800">Payment Collected</p>
+                                                                <p className="text-sm text-emerald-600">
+                                                                    {fieldPaymentMethod === 'cash_check' ? 'Marked as cash/check payment' :
+                                                                     fieldPaymentMethod === 'qr' ? 'Collected via QR code payment' :
+                                                                     'Payment received'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setPaymentCollected(false);
+                                                                setFieldPaymentMethod(null);
+                                                            }}
+                                                            className="mt-3 text-sm text-emerald-700 hover:text-emerald-800 underline"
+                                                        >
+                                                            Change payment method
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            /* No Balance Due */
+                                            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6 text-center">
+                                                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                                    <CheckCircle className="w-8 h-8 text-emerald-600" />
+                                                </div>
+                                                <p className="font-semibold text-emerald-800 text-lg">Fully Paid!</p>
+                                                <p className="text-sm text-emerald-600 mt-1">
+                                                    This job has no remaining balance
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
+
+                            {/* Continue Button */}
+                            <div className="pt-4">
+                                <button
+                                    onClick={() => setActiveSection('review')}
+                                    className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    Continue to Review
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* REVIEW SECTION */}
                     {activeSection === 'review' && (
                         <div className="space-y-6">
@@ -1273,6 +1593,86 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Signature Summary */}
+                                <div className={`p-4 rounded-xl border ${signatureData ? 'bg-purple-50 border-purple-200' : requireSignature ? 'bg-amber-50 border-amber-200' : 'bg-gray-50 border-gray-200'}`}>
+                                    <div className="flex items-center gap-3">
+                                        {signatureData ? (
+                                            <>
+                                                <CheckCircle className="w-5 h-5 text-purple-600" />
+                                                <div className="flex-1">
+                                                    <p className="font-medium text-purple-800">Customer Signature Captured</p>
+                                                    <p className="text-sm text-purple-700">
+                                                        Signed by {signatureData.signerName} at {new Date(signatureData.signedAt).toLocaleTimeString()}
+                                                    </p>
+                                                </div>
+                                                <img
+                                                    src={signatureData.signatureImage}
+                                                    alt="Signature"
+                                                    className="h-10 max-w-[80px] object-contain border border-purple-200 rounded bg-white p-1"
+                                                />
+                                            </>
+                                        ) : requireSignature ? (
+                                            <>
+                                                <AlertCircle className="w-5 h-5 text-amber-500" />
+                                                <div>
+                                                    <p className="font-medium text-amber-800">No Signature</p>
+                                                    <p className="text-sm text-amber-600">Customer will confirm via email</p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <PenTool className="w-5 h-5 text-gray-400" />
+                                                <p className="font-medium text-gray-600">Signature skipped</p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Payment Summary */}
+                                {(() => {
+                                    const invoiceSubtotal = invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+                                    const invoiceTax = invoiceSubtotal * (invoiceTaxRate / 100);
+                                    const invoiceTotal = invoiceSubtotal + invoiceTax;
+                                    const depositPaid = job.depositAmount || job.depositPaid || job.deposit?.amount || 0;
+                                    const balanceDue = Math.max(0, invoiceTotal - depositPaid);
+
+                                    return (
+                                        <div className={`p-4 rounded-xl border ${
+                                            paymentCollected ? 'bg-green-50 border-green-200' :
+                                            balanceDue > 0 ? 'bg-amber-50 border-amber-200' :
+                                            'bg-green-50 border-green-200'
+                                        }`}>
+                                            <div className="flex items-center gap-3">
+                                                {paymentCollected || balanceDue === 0 ? (
+                                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                                ) : (
+                                                    <CreditCard className="w-5 h-5 text-amber-500" />
+                                                )}
+                                                <div className="flex-1">
+                                                    <p className={`font-medium ${
+                                                        paymentCollected || balanceDue === 0 ? 'text-green-800' : 'text-amber-800'
+                                                    }`}>
+                                                        {balanceDue === 0 ? 'Fully Paid' :
+                                                         paymentCollected ? 'Payment Collected' :
+                                                         fieldPaymentMethod === 'later' ? 'Payment Link Will Be Sent' :
+                                                         `Balance Due: ${formatCurrency(balanceDue)}`}
+                                                    </p>
+                                                    {paymentCollected && fieldPaymentMethod && (
+                                                        <p className="text-sm text-green-600">
+                                                            {fieldPaymentMethod === 'cash_check' ? 'Collected via cash/check' :
+                                                             fieldPaymentMethod === 'qr' ? 'Collected via QR payment' :
+                                                             'Payment received'}
+                                                        </p>
+                                                    )}
+                                                    {!paymentCollected && fieldPaymentMethod === 'later' && (
+                                                        <p className="text-sm text-amber-600">Customer will receive payment link</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {/* What happens next */}
@@ -1281,6 +1681,9 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                                 <ul className="text-sm text-gray-600 space-y-1">
                                     <li>• The homeowner will be notified to review your completion</li>
                                     <li>• Items will be added to their home inventory when they approve</li>
+                                    {!paymentCollected && fieldPaymentMethod !== 'cash_check' && (
+                                        <li>• A payment link will be included in the notification</li>
+                                    )}
                                     <li>• If they don't respond within 7 days, the job will auto-complete</li>
                                 </ul>
                             </div>
@@ -1301,15 +1704,22 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                         {activeSection !== 'review' ? (
                             <button
                                 onClick={() => {
-                                    const sections = ['photos', 'items', 'notes', 'review'];
+                                    const sections = ['invoice', 'photos', 'items', 'notes', 'signature', 'payment', 'review'];
                                     const currentIdx = sections.indexOf(activeSection);
                                     if (currentIdx < sections.length - 1) {
+                                        // If on signature and signature captured, go to payment
+                                        // If on signature and no signature, stay (or skip if they clicked skip)
+                                        if (activeSection === 'signature' && !signatureData && requireSignature) {
+                                            toast('Please capture customer signature or click "Skip signature"', { icon: '✏️' });
+                                            return;
+                                        }
                                         setActiveSection(sections[currentIdx + 1]);
                                     }
                                 }}
                                 className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors"
                             >
-                                Continue
+                                {activeSection === 'payment' ? 'Review & Submit' :
+                                 activeSection === 'signature' && signatureData ? 'Continue to Payment' : 'Continue'}
                             </button>
                         ) : (
                             <button

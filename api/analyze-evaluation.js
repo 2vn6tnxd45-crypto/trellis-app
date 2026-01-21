@@ -289,6 +289,28 @@ export default async function handler(req, res) {
             recommendations: typeof analysis.recommendations === 'string' ? analysis.recommendations : '',
             readyToQuote: typeof analysis.readyToQuote === 'boolean' ? analysis.readyToQuote : false,
             confidence: typeof analysis.confidence === 'number' ? analysis.confidence : 0.7,
+            // New enhanced fields for equipment detection and quote suggestions
+            equipmentDetected: Array.isArray(analysis.equipmentDetected)
+                ? analysis.equipmentDetected.slice(0, 5)
+                : [],
+            repairVsReplace: typeof analysis.repairVsReplace === 'object' && analysis.repairVsReplace
+                ? {
+                    recommendation: analysis.repairVsReplace.recommendation || 'unknown',
+                    reasoning: Array.isArray(analysis.repairVsReplace.reasoning)
+                        ? analysis.repairVsReplace.reasoning.slice(0, 5)
+                        : [],
+                    estimatedAge: analysis.repairVsReplace.estimatedAge || null
+                }
+                : null,
+            suggestedQuoteItems: Array.isArray(analysis.suggestedQuoteItems)
+                ? analysis.suggestedQuoteItems.slice(0, 10).map(item => ({
+                    name: item.name || 'Service item',
+                    description: item.description || '',
+                    category: item.category || 'service',
+                    estimatedCost: item.estimatedCost || null,
+                    confidence: item.confidence || 0.5
+                }))
+                : [],
             analyzedAt: new Date().toISOString(),
             photoCount: photos.length,
             photosAnalyzed: validImages.length,
@@ -377,16 +399,43 @@ Based on ALL the information provided (especially the photos if available), gene
 {
     "summary": "A clear 2-3 sentence summary of the problem that a contractor can quickly read. If you analyzed photos, describe what you observed.",
     "issues": [
-        "Specific issue 1 identified from photos/description",
+        "Specific issue 1 identified from photos/description (reference photo number if visible, e.g. 'based on photo 2')",
         "Specific issue 2 if applicable",
         "Specific issue 3 if applicable"
     ],
+    "equipmentDetected": [
+        {
+            "type": "Equipment type (e.g., 'Air Conditioner', 'Water Heater', 'Furnace')",
+            "brand": "Brand name if visible (e.g., 'Carrier', 'Rheem')",
+            "model": "Model number if visible",
+            "estimatedAge": "Estimated age in years based on visible wear, model, or date codes",
+            "condition": "good|fair|poor|critical",
+            "notes": "Any additional observations about this equipment"
+        }
+    ],
+    "repairVsReplace": {
+        "recommendation": "repair|replace|needs_inspection",
+        "reasoning": [
+            "Reason 1 for the recommendation",
+            "Reason 2 if applicable"
+        ],
+        "estimatedAge": "Estimated equipment age if determinable"
+    },
     "severity": "low|medium|high|urgent",
     "suggestedQuestions": [
         "Question the contractor might want to ask before quoting",
         "Another clarifying question if needed"
     ],
     "recommendations": "Brief recommendation on next steps (e.g., 'Site visit recommended to assess hidden damage' or 'Photos show enough detail to provide estimate')",
+    "suggestedQuoteItems": [
+        {
+            "name": "Service/part name (e.g., '3-ton AC Unit', 'Compressor Replacement')",
+            "description": "Brief description of why this is needed",
+            "category": "material|labor|service",
+            "estimatedCost": "low|medium|high (rough indicator)",
+            "confidence": 0.0 to 1.0
+        }
+    ],
     "readyToQuote": true or false,
     "confidence": 0.0 to 1.0 (how confident you are in this assessment based on photo quality and information provided)
 }
@@ -396,6 +445,21 @@ SEVERITY GUIDE:
 - "medium": Functional problems that should be addressed but aren't emergencies
 - "high": Issues that could worsen significantly if not addressed soon
 - "urgent": Safety hazards, active leaks/damage, issues requiring immediate attention
+
+EQUIPMENT DETECTION:
+- Look for brand names, model numbers, date codes, or manufacturing labels in photos
+- Estimate age based on style, wear, discoloration, and known model years
+- Note refrigerant type for HVAC (R-22 is discontinued, important for replacement decisions)
+
+REPAIR VS REPLACE:
+- Consider: equipment age vs typical lifespan, cost of repair vs replacement, availability of parts
+- For HVAC: R-22 systems should typically be replaced due to refrigerant phase-out
+- Equipment over 15-20 years often warrants replacement consideration
+
+SUGGESTED QUOTE ITEMS:
+- Suggest specific parts, services, or materials the contractor might include
+- Be specific based on what you observe (e.g., "Condenser coil cleaning" not just "AC service")
+- Include both the immediate fix and any related items (e.g., if replacing AC, suggest new refrigerant lines)
 
 Be specific about what you see in the photos. If you notice specific damage, discoloration, wear patterns, or conditions, describe them.
 Focus on information that helps the contractor give an accurate quote.

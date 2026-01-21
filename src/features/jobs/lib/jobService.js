@@ -50,6 +50,32 @@ const normalizeDate = (date) => {
 // Build proper schedule fields from date + time inputs
 // Handles both single-day and multi-day jobs
 const buildScheduleFields = (jobData, workingHours = {}) => {
+    // New Logic: If explicit multi-day schedule blocks are provided
+    if (jobData.isMultiDay && jobData.scheduleBlocks && jobData.scheduleBlocks.length > 0) {
+        const datePart = jobData.scheduledDate;
+        const timePart = jobData.scheduledTime || '09:00';
+        const scheduledDateTime = new Date(datePart.includes('T') ? datePart : `${datePart}T${timePart}:00`);
+
+        // Calculate end time of the LAST block for the top-level scheduledEndTime
+        let maxEndTime = scheduledDateTime;
+        try {
+            const sortedBlocks = [...jobData.scheduleBlocks].sort((a, b) =>
+                new Date(`${a.date}T${a.endTime}`).getTime() - new Date(`${b.date}T${b.endTime}`).getTime()
+            );
+            const lastBlock = sortedBlocks[sortedBlocks.length - 1];
+            maxEndTime = new Date(`${lastBlock.date}T${lastBlock.endTime}:00`);
+        } catch (e) { console.warn('Error calculating maxEndTime', e); }
+
+        return {
+            scheduledDate: scheduledDateTime.toISOString(),
+            scheduledTime: scheduledDateTime.toISOString(),
+            scheduledEndTime: maxEndTime.toISOString(),
+            isMultiDay: true,
+            scheduleBlocks: jobData.scheduleBlocks,
+            multiDaySchedule: null
+        };
+    }
+
     if (!jobData.scheduledDate) {
         return {
             scheduledDate: null,

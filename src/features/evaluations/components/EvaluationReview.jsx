@@ -35,6 +35,7 @@ export const EvaluationReview = ({
     onSchedule,
     onComplete,
     onConvertToQuote,
+    onAddSuggestedItems, // Callback when AI suggests quote items to add
     onCancel,
     onBack,
     isLoading = false
@@ -239,7 +240,23 @@ export const EvaluationReview = ({
                 <div className="p-6 border-b border-slate-200">
                     <AIAnalysisSummary
                         analysis={evaluation.aiAnalysis}
+                        evaluation={evaluation}
                         variant="full"
+                        onAddToQuote={onAddSuggestedItems ? (items) => {
+                            // Transform AI suggested items to quote line items format
+                            const lineItems = items.map(item => ({
+                                name: item.name,
+                                description: item.description,
+                                type: item.category === 'material' ? 'material' :
+                                      item.category === 'labor' ? 'labor' : 'service',
+                                quantity: 1,
+                                unitPrice: 0, // Contractor will need to fill in actual prices
+                                unit: 'each',
+                                aiSuggested: true,
+                                confidence: item.confidence
+                            }));
+                            onAddSuggestedItems(lineItems);
+                        } : undefined}
                     />
                 </div>
             )}

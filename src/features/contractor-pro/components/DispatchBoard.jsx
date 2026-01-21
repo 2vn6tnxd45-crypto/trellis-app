@@ -39,6 +39,7 @@ import {
     checkVehicleCrewCapacity,
     findVehiclesForCrewSize
 } from '../lib/vehicleService';
+import { checkCrewConflict } from '../lib/schedulingConflicts';
 
 // ============================================
 // HELPERS
@@ -80,9 +81,13 @@ const JobCard = ({
     onOpenCrewModal,
     isAssigned,
     compact = false,
-    vehicles = []
+    isAssigned,
+    compact = false,
+    vehicles = [],
+    date = new Date() // Add date prop with default
 }) => {
-    const [expanded, setExpanded] = useState(false);
+    // Inject date into job object for the inner render logic we just added
+    job.currentRenderDate = date;
     const duration = parseDurationToMinutes(job.estimatedDuration);
 
     // Formatting Duration
@@ -170,13 +175,12 @@ const JobCard = ({
                                 </div>
                             )}
                             {/* Staffing status badge */}
-                            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                isFullyStaffed
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : isUnderstaffed
-                                        ? 'bg-red-100 text-red-700'
-                                        : 'bg-amber-100 text-amber-700'
-                            }`}>
+                            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${isFullyStaffed
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : isUnderstaffed
+                                    ? 'bg-red-100 text-red-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
                                 <Users size={10} />
                                 {assignedCrewCount}/{crewRequired}
                                 {!isFullyStaffed && assignedCrewCount === 0 && ' needed'}
@@ -238,7 +242,18 @@ const JobCard = ({
                 {job.scheduledTime && (
                     <span className="flex items-center gap-1 text-slate-600">
                         <Clock size={12} />
-                        {formatTime(job.scheduledTime)}
+                        {(() => {
+                            // Multi-Day Block Time
+                            if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
+                                // We need to know which day we are rendering. 
+                                // Since JobCard doesn't have 'date' prop, we can try to find the block closest to 'now' or rely on parent passing it.
+                                // EDIT: We need to pass 'date' to JobCard. For now, let's use the first block or job.scheduledTime as fallback.
+                                // Ideally, we update the call sites to pass 'date'.
+                                const block = job.scheduleBlocks.find(b => isSameDayInTimezone(new Date(b.date), new Date(job.currentRenderDate || new Date()), 'UTC'));
+                                return block ? `${formatTime(block.startTime)} - ${formatTime(block.endTime)}` : formatTime(job.scheduledTime);
+                            }
+                            return formatTime(job.scheduledTime);
+                        })()}
                     </span>
                 )}
                 <span className="flex items-center gap-1 text-slate-600">
@@ -493,6 +508,7 @@ const TechColumn = ({
                             onOpenCrewModal={onOpenCrewModal}
                             compact={true}
                             vehicles={vehicles}
+                            date={date}
                         />
                     ))
                 )}
@@ -622,6 +638,16 @@ export const DispatchBoard = ({
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
         return jobs.filter(job => {
+            // Handle Multi-Day Blocks
+            if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
+                return job.scheduleBlocks.some(block => {
+                    const blockDate = new Date(block.date); // "YYYY-MM-DD" is parseable
+                    // Use loose comparison or strict day comparison
+                    return isSameDayInTimezone(blockDate, selectedDate, timezone);
+                });
+            }
+
+            // Legacy / Single Day
             if (!job.scheduledDate) return false;
             const jobDate = job.scheduledDate.toDate ? job.scheduledDate.toDate() : new Date(job.scheduledDate);
             return isSameDayInTimezone(jobDate, selectedDate, timezone);
@@ -741,6 +767,15 @@ export const DispatchBoard = ({
         const tech = teamMembers.find(t => t.id === techId);
         if (!tech) return;
 
+        // CHECK FOR CONFLICTS
+        const conflict = checkCrewConflict(techId, job, jobs);
+        if (conflict.hasConflict) {
+            const proceed = window.confirm(
+                `⚠️ SCHEDULING CONFLICT DETECTED\n\n${conflict.reason}\n\nDo you want to double-book this technician anyway?`
+            );
+            if (!proceed) return;
+        }
+
         try {
             const assignedTechIds = getAssignedTechIds(job);
             const crewRequired = job.crewRequirements?.required || job.requiredCrewSize || 1;
@@ -752,6 +787,7 @@ export const DispatchBoard = ({
                     toast('Technician already assigned to this job', { icon: 'ℹ️' });
                     return;
                 }
+                // ... rest of function
 
                 // Check if crew is already at or over maximum
                 if (assignedTechIds.length >= crewMaximum) {
@@ -1105,13 +1141,12 @@ export const DispatchBoard = ({
                                 <button
                                     key={i}
                                     onClick={() => setSelectedDate(new Date(date))}
-                                    className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-all min-w-[48px] ${
-                                        isSelected
-                                            ? 'bg-emerald-600 text-white shadow-sm'
-                                            : isCurrentDay
-                                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                                : 'hover:bg-white text-slate-600'
-                                    }`}
+                                    className={`flex flex-col items-center px-3 py-1.5 rounded-lg transition-all min-w-[48px] ${isSelected
+                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                        : isCurrentDay
+                                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                            : 'hover:bg-white text-slate-600'
+                                        }`}
                                 >
                                     <span className="text-[10px] font-medium uppercase">{dayName}</span>
                                     <span className="text-sm font-bold">{dayNum}</span>

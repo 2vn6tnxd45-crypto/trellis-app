@@ -14,6 +14,7 @@ import { analyzeCancellationImpact } from '../contractor-pro/lib/scheduleImpactA
 import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTimezone } from '../contractor-pro/lib/timezoneUtils';
 import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
 import { RescheduleJobModal } from './RescheduleJobModal';
+import { JobExpensesSection } from './components/JobExpensesSection';
 
 // Helper to format time string like "08:00" to "8:00 AM"
 const formatTimeString = (timeStr) => {
@@ -596,6 +597,11 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                             {isSubmitting ? 'Approving...' : 'Approve Estimate'}
                         </button>
                     </div>
+                )}
+
+                {/* Expenses Section (Contractor Only) */}
+                {userType === 'contractor' && (
+                    <JobExpensesSection job={job} appId={contractorId} />
                 )}
             </div>
 

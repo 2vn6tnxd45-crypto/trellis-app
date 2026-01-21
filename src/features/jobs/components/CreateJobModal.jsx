@@ -733,6 +733,9 @@ const CreateJobModal = ({
         vehicleId: null,
         accessInstructions: '',
         poNumber: '',
+        // Scheduling
+        isMultiDay: false,
+        scheduleBlocks: [], // { id, date, startTime, endTime, techIds }
         // Line items (replaces pricing breakdown)
         lineItems: [createNewLineItem('material')],
         // Tax and deposit
@@ -906,11 +909,40 @@ const CreateJobModal = ({
                     cost: (item.quantity || 1) * (item.unitPrice || 0)
                 }));
 
+            // Process Scheduling
+            let finalScheduledDate = formData.scheduledDate;
+            let finalScheduledTime = formData.scheduledTime;
+            let finalDuration = parseInt(formData.estimatedDuration) || 60;
+
+            if (formData.isMultiDay && formData.scheduleBlocks.length > 0) {
+                // Sort blocks by date/time
+                const sortedBlocks = [...formData.scheduleBlocks].sort((a, b) =>
+                    new Date(`${a.date}T${a.startTime}`).getTime() - new Date(`${b.date}T${b.startTime}`).getTime()
+                );
+
+                const firstBlock = sortedBlocks[0];
+                finalScheduledDate = firstBlock.date;
+                finalScheduledTime = firstBlock.startTime;
+
+                // Calculate total duration in minutes
+                finalDuration = sortedBlocks.reduce((total, block) => {
+                    const start = new Date(`2000-01-01T${block.startTime}`);
+                    const end = new Date(`2000-01-01T${block.endTime}`);
+                    const diffMins = (end - start) / (1000 * 60);
+                    return total + (diffMins > 0 ? diffMins : 0);
+                }, 0);
+            }
+
             const jobData = {
                 ...formData,
+                scheduledDate: finalScheduledDate,
+                scheduledTime: finalScheduledTime,
                 price: total,
-                estimatedDuration: parseInt(formData.estimatedDuration) || 60,
+                estimatedDuration: finalDuration,
                 crewSize: parseInt(formData.crewSize) || 1,
+                // Explicitly send multi-day data
+                isMultiDay: formData.isMultiDay,
+                scheduleBlocks: formData.isMultiDay ? formData.scheduleBlocks : [],
                 // Line items with full details
                 lineItems: lineItems.map(item => ({
                     id: item.id,
@@ -992,10 +1024,14 @@ const CreateJobModal = ({
                     crewSize: 1,
                     assignedTechId: null,
                     assignedTechName: null,
+                    assignedTechName: null,
                     assignedCrewIds: [],
                     vehicleId: null,
                     accessInstructions: '',
                     poNumber: '',
+                    // Reset scheduling
+                    isMultiDay: false,
+                    scheduleBlocks: [],
                     lineItems: [createNewLineItem('material')],
                     // Tax and deposit reset
                     taxRate: defaultTaxRate,
@@ -1014,6 +1050,54 @@ const CreateJobModal = ({
         } finally {
             setLoading(false);
         }
+    };
+
+    // Schedule Block Handlers
+    const addScheduleBlock = () => {
+        const newBlock = {
+            id: Date.now(),
+            date: formData.scheduledDate || new Date().toISOString().split('T')[0],
+            startTime: formData.scheduledTime || '09:00',
+            endTime: '17:00'
+        };
+        setFormData(prev => ({
+            ...prev,
+            scheduleBlocks: [...prev.scheduleBlocks, newBlock]
+        }));
+    };
+
+    const updateScheduleBlock = (id, field, value) => {
+        setFormData(prev => ({
+            ...prev,
+            scheduleBlocks: prev.scheduleBlocks.map(block =>
+                block.id === id ? { ...block, [field]: value } : block
+            )
+        }));
+    };
+
+    const removeScheduleBlock = (id) => {
+        setFormData(prev => ({
+            ...prev,
+            scheduleBlocks: prev.scheduleBlocks.filter(block => block.id !== id)
+        }));
+    };
+
+    // Toggle Multi-Day Mode
+    const toggleMultiDay = () => {
+        setFormData(prev => {
+            const isMultiDay = !prev.isMultiDay;
+            // When switching to multi-day, init with current single day settings if empty
+            let scheduleBlocks = prev.scheduleBlocks;
+            if (isMultiDay && scheduleBlocks.length === 0) {
+                scheduleBlocks = [{
+                    id: Date.now(),
+                    date: prev.scheduledDate || new Date().toISOString().split('T')[0],
+                    startTime: prev.scheduledTime || '09:00',
+                    endTime: '17:00'
+                }];
+            }
+            return { ...prev, isMultiDay, scheduleBlocks };
+        });
     };
 
     // Check if form is valid for button state
@@ -1260,36 +1344,102 @@ const CreateJobModal = ({
 
                     {/* Scheduling Section */}
                     <div className="space-y-3">
-                        <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                            <Calendar size={14} />
-                            Scheduling
-                        </h3>
-
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={formData.scheduledDate}
-                                    onChange={(e) => handleChange('scheduledDate', e.target.value)}
-                                    min={new Date().toISOString().split('T')[0]}
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Time
-                                </label>
-                                <input
-                                    type="time"
-                                    value={formData.scheduledTime}
-                                    onChange={(e) => handleChange('scheduledTime', e.target.value)}
-                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                />
-                            </div>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                                <Calendar size={14} />
+                                Scheduling
+                            </h3>
+                            <button
+                                type="button"
+                                onClick={toggleMultiDay}
+                                className={`text-xs px-2 py-1 rounded-lg border transition-colors ${formData.isMultiDay
+                                    ? 'bg-purple-100 text-purple-700 border-purple-200 font-medium'
+                                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                    }`}
+                            >
+                                {formData.isMultiDay ? 'Multi-Day / Complex' : 'Single Session'}
+                            </button>
                         </div>
+
+                        {formData.isMultiDay ? (
+                            <div className="space-y-3">
+                                {formData.scheduleBlocks.map((block, index) => (
+                                    <div key={block.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200 relative group">
+                                        <div className="flex items-end gap-2">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={block.date}
+                                                    onChange={(e) => updateScheduleBlock(block.id, 'date', e.target.value)}
+                                                    className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-1 focus:ring-emerald-500"
+                                                />
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="block text-xs font-medium text-slate-500 mb-1">Start</label>
+                                                <input
+                                                    type="time"
+                                                    value={block.startTime}
+                                                    onChange={(e) => updateScheduleBlock(block.id, 'startTime', e.target.value)}
+                                                    className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-1 focus:ring-emerald-500"
+                                                />
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="block text-xs font-medium text-slate-500 mb-1">End</label>
+                                                <input
+                                                    type="time"
+                                                    value={block.endTime}
+                                                    onChange={(e) => updateScheduleBlock(block.id, 'endTime', e.target.value)}
+                                                    className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-1 focus:ring-emerald-500"
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeScheduleBlock(block.id)}
+                                                className={`p-2 rounded-md transition-colors ${formData.scheduleBlocks.length > 1 ? 'text-red-400 hover:bg-red-50 hover:text-red-500' : 'text-slate-300 cursor-not-allowed'}`}
+                                                disabled={formData.scheduleBlocks.length <= 1}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={addScheduleBlock}
+                                    className="w-full py-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 hover:border-emerald-300 hover:text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
+                                >
+                                    <Plus size={16} />
+                                    Add Session
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        Date
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={formData.scheduledDate}
+                                        onChange={(e) => handleChange('scheduledDate', e.target.value)}
+                                        min={new Date().toISOString().split('T')[0]}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        Time
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={formData.scheduledTime}
+                                        onChange={(e) => handleChange('scheduledTime', e.target.value)}
+                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                    />
+                                </div>
+                            </div>
+                        )}
 
                         {!formData.scheduledDate && (
                             <p className="text-xs text-amber-600 flex items-center gap-1 bg-amber-50 p-2 rounded">

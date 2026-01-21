@@ -6,9 +6,10 @@
 // Supports lead/helper roles and vehicle assignments
 
 import { db } from '../../../config/firebase';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { extractCrewRequirements, validateCrewAvailability } from './crewRequirementsService';
+import { onCrewAssignmentChanged } from './techNotificationService';
 
 // ============================================
 // CONSTANTS
@@ -90,9 +91,11 @@ export {
  * @param {string} assignedBy - 'manual' | 'ai'
  * @returns {Promise<{success: boolean}>}
  */
-export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual') => {
+export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', options = {}) => {
     if (!jobId) throw new Error('Job ID is required');
     if (!crew || crew.length === 0) throw new Error('Crew cannot be empty');
+
+    const { skipNotifications = false, contractorId = null, previousCrew = null } = options;
 
     // Ensure there's exactly one lead
     const leads = crew.filter(m => m.role === 'lead');
@@ -113,6 +116,21 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual') => {
     const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
     const lead = getCrewLead(crew);
 
+    // Get previous crew state for notification comparison (if not provided)
+    let oldCrew = previousCrew;
+    if (!oldCrew && !skipNotifications) {
+        try {
+            const jobSnap = await getDoc(jobRef);
+            if (jobSnap.exists()) {
+                const jobData = jobSnap.data();
+                oldCrew = jobData.assignedCrew || [];
+            }
+        } catch (e) {
+            console.warn('[crewService] Could not get previous crew:', e);
+            oldCrew = [];
+        }
+    }
+
     await updateDoc(jobRef, {
         // New crew format
         assignedCrew: crew,
@@ -129,6 +147,30 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual') => {
         assignedBy,
         lastActivity: serverTimestamp()
     });
+
+    // Send notifications to techs (non-blocking)
+    if (!skipNotifications && contractorId) {
+        const oldTechIds = new Set((oldCrew || []).map(c => c.techId));
+        const newTechIds = new Set(crew.map(c => c.techId));
+
+        const added = crew.filter(c => !oldTechIds.has(c.techId));
+        const removed = (oldCrew || []).filter(c => !newTechIds.has(c.techId));
+
+        if (added.length > 0 || removed.length > 0) {
+            // Get full job data for notification
+            const jobSnap = await getDoc(jobRef);
+            const job = jobSnap.exists() ? { id: jobSnap.id, ...jobSnap.data() } : { id: jobId };
+
+            // Fire and forget - don't block on notifications
+            onCrewAssignmentChanged(contractorId, jobId, {
+                added,
+                removed,
+                job: { ...job, assignedCrew: crew }
+            }).catch(err => {
+                console.warn('[crewService] Notification error:', err);
+            });
+        }
+    }
 
     return { success: true };
 };
