@@ -27,7 +27,26 @@ const CATEGORY_ICONS = {
 
 // Get emoji for category
 const getCategoryEmoji = (category) => {
-    return CATEGORY_ICONS[category] || CATEGORY_ICONS['default'];
+    // Ensure category is a string (defensive against object fields)
+    const categoryStr = typeof category === 'string' ? category : String(category || '');
+    return CATEGORY_ICONS[categoryStr] || CATEGORY_ICONS['default'];
+};
+
+// Safely convert any value to a displayable string
+const safeString = (value) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') {
+        // Handle Firestore Timestamps
+        if (value.toDate) return value.toDate().toLocaleDateString();
+        // Handle Date objects
+        if (value instanceof Date) return value.toLocaleDateString();
+        // For other objects, return empty string to prevent React error #310
+        console.warn('[CompletionSuccessModal] Attempted to render object:', value);
+        return '';
+    }
+    return String(value);
 };
 
 // Confetti animation component (CSS-based, subtle)
@@ -272,10 +291,10 @@ export const CompletionSuccessModal = ({
                                         <span className="text-xl">{getCategoryEmoji(item.category)}</span>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-medium text-slate-800 truncate group-hover:text-emerald-700">
-                                                {item.item || item.description || 'Item'}
+                                                {safeString(item.item) || safeString(item.description) || 'Item'}
                                             </p>
                                             <p className="text-xs text-slate-500 truncate">
-                                                {[item.brand, item.model].filter(Boolean).join(' • ') || item.category}
+                                                {[safeString(item.brand), safeString(item.model)].filter(Boolean).join(' • ') || safeString(item.category)}
                                             </p>
                                         </div>
                                         <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-600" />

@@ -25,7 +25,26 @@ const CATEGORY_ICONS = {
 
 // Get icon for category
 const getCategoryIcon = (category) => {
-    return CATEGORY_ICONS[category] || CATEGORY_ICONS['default'];
+    // Ensure category is a string (defensive against object fields)
+    const categoryStr = typeof category === 'string' ? category : String(category || '');
+    return CATEGORY_ICONS[categoryStr] || CATEGORY_ICONS['default'];
+};
+
+// Safely convert any value to a displayable string
+const safeString = (value) => {
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') {
+        // Handle Firestore Timestamps
+        if (value.toDate) return value.toDate().toLocaleDateString();
+        // Handle Date objects
+        if (value instanceof Date) return value.toLocaleDateString();
+        // For other objects, return empty string to prevent React error #310
+        console.warn('[InventoryPreviewSection] Attempted to render object:', value);
+        return '';
+    }
+    return String(value);
 };
 
 // Calculate warranty expiration
@@ -153,10 +172,10 @@ const InventoryItemCard = ({
                                 <h4 className={`font-bold truncate ${
                                     isIncluded ? 'text-slate-800' : 'text-slate-500 line-through'
                                 }`}>
-                                    {item.item || item.description || 'Item'}
+                                    {safeString(item.item) || safeString(item.description) || 'Item'}
                                 </h4>
                                 <p className="text-sm text-slate-500 truncate">
-                                    {[item.brand, item.model].filter(Boolean).join(' • ') || item.category || 'Equipment'}
+                                    {[safeString(item.brand), safeString(item.model)].filter(Boolean).join(' • ') || safeString(item.category) || 'Equipment'}
                                 </p>
                             </div>
 
@@ -230,7 +249,7 @@ const InventoryItemCard = ({
                         {item.serialNumber && (
                             <div>
                                 <span className="text-slate-500 text-xs block">Serial Number</span>
-                                <span className="text-slate-800 font-mono text-xs">{item.serialNumber}</span>
+                                <span className="text-slate-800 font-mono text-xs">{safeString(item.serialNumber)}</span>
                             </div>
                         )}
                         {item.dateInstalled && (
@@ -242,13 +261,13 @@ const InventoryItemCard = ({
                         {item.area && (
                             <div>
                                 <span className="text-slate-500 text-xs block">Location</span>
-                                <span className="text-slate-800">{item.area}</span>
+                                <span className="text-slate-800">{safeString(item.area)}</span>
                             </div>
                         )}
                         {item.warranty && (
                             <div>
                                 <span className="text-slate-500 text-xs block">Warranty</span>
-                                <span className="text-slate-800">{item.warranty}</span>
+                                <span className="text-slate-800">{safeString(item.warranty)}</span>
                             </div>
                         )}
                     </div>
@@ -266,8 +285,8 @@ const InventoryItemCard = ({
                                 {selectedTasks.slice(0, 3).map((task, idx) => (
                                     <li key={idx} className="flex items-center gap-2 text-xs text-amber-700">
                                         <Clock size={10} className="shrink-0" />
-                                        <span>{task.task}</span>
-                                        <span className="text-amber-500">• {task.frequency}</span>
+                                        <span>{safeString(task.task)}</span>
+                                        <span className="text-amber-500">• {safeString(task.frequency)}</span>
                                     </li>
                                 ))}
                                 {selectedTasks.length > 3 && (
