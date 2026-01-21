@@ -148,14 +148,20 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
                 // we need to check profiles. This is less efficient but handles legacy users.
                 // We'll iterate through recent users and check their profile emails.
                 console.log('[jobService] No user found at root, checking profiles...');
+                console.log('[jobService] Looking for email:', normalizedEmail);
 
                 // Get all users and check their profiles (limited approach)
                 const allUsersSnapshot = await getDocs(usersRef);
+                console.log('[jobService] Total users to check:', allUsersSnapshot.docs.length);
+
                 for (const userDoc of allUsersSnapshot.docs) {
                     const profileRef = doc(db, 'artifacts', appId, 'users', userDoc.id, 'settings', 'profile');
                     const profileSnap = await getDoc(profileRef);
                     if (profileSnap.exists()) {
-                        const profileEmail = profileSnap.data()?.email?.toLowerCase()?.trim();
+                        const profileData = profileSnap.data();
+                        const profileEmail = profileData?.email?.toLowerCase()?.trim();
+                        console.log('[jobService] Checking user:', userDoc.id, 'profile email:', profileEmail);
+
                         if (profileEmail === normalizedEmail) {
                             userId = userDoc.id;
                             foundViaProfile = true;
@@ -168,7 +174,13 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
                             console.log('[jobService] Updated user root with email for future lookups');
                             break;
                         }
+                    } else {
+                        console.log('[jobService] User', userDoc.id, 'has no profile');
                     }
+                }
+
+                if (!userId) {
+                    console.log('[jobService] No user found with email:', normalizedEmail);
                 }
             }
 
