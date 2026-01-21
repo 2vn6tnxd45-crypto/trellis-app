@@ -348,6 +348,20 @@ export const useTechJobs = (techId, contractorId, options = {}) => {
         return { success: true };
     }, [techId]);
 
+    const pauseJob = useCallback(async (jobId, location = null) => {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+        await updateDoc(jobRef, {
+            techCheckedIn: false,
+            status: 'paused',
+            lastActivity: serverTimestamp(),
+            // Optional: Track pause history in a subcollection later
+            lastPausedAt: serverTimestamp(),
+            lastPausedBy: techId,
+            lastPausedLocation: location
+        });
+        return { success: true };
+    }, [techId]);
+
     // ============================================
     // REFRESH
     // ============================================
@@ -371,6 +385,7 @@ export const useTechJobs = (techId, contractorId, options = {}) => {
         updateJobStatus,
         checkIn,
         checkOut,
+        pauseJob,
         refresh,
 
         // Counts

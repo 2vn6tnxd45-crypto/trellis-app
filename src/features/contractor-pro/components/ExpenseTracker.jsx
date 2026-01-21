@@ -245,6 +245,7 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
         date: expense?.date || new Date().toISOString().split('T')[0],
         vendor: expense?.vendor || '',
         jobId: expense?.jobId || '',
+        quoteItemId: expense?.quoteItemId || '',
         notes: expense?.notes || '',
     });
 
@@ -352,8 +353,8 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, category: cat.id })}
                                         className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${isSelected
-                                                ? 'border-emerald-500 bg-emerald-50'
-                                                : 'border-slate-200 hover:border-slate-300'
+                                            ? 'border-emerald-500 bg-emerald-50'
+                                            : 'border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         <Icon size={18} style={{ color: cat.color }} />
@@ -387,7 +388,7 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
                         </label>
                         <Select
                             value={formData.jobId}
-                            onChange={(val) => setFormData({ ...formData, jobId: val })}
+                            onChange={(val) => setFormData({ ...formData, jobId: val, quoteItemId: '' })}
                             options={[
                                 { value: '', label: '-- General Business Expense --' },
                                 ...(jobs || []).map(job => ({
@@ -400,6 +401,29 @@ const ExpenseModal = ({ expense, jobs, onSave, onClose, saving }) => {
                             Link to a job to track profit margins
                         </p>
                     </div>
+
+                    {/* Link to Quote Item (Condition: If Job Selected) */}
+                    {formData.jobId && (
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">
+                                Link to Quote Item (optional)
+                            </label>
+                            <Select
+                                value={formData.quoteItemId}
+                                onChange={(val) => setFormData({ ...formData, quoteItemId: val })}
+                                options={[
+                                    { value: '', label: '-- General Job Expense --' },
+                                    ...(jobs.find(j => j.id === formData.jobId)?.lineItems || []).map(item => ({
+                                        value: item.id,
+                                        label: `${item.description} (${formatCurrency(item.unitPrice * item.quantity)})`
+                                    }))
+                                ]}
+                            />
+                            <p className="text-xs text-slate-400 mt-1">
+                                Attribute this cost to a specific line item for precise tracking
+                            </p>
+                        </div>
+                    )}
 
                     {/* Notes */}
                     <div>
@@ -475,6 +499,14 @@ const ExpenseRow = ({ expense, jobs, onEdit, onDelete }) => {
                                     <span className="text-xs text-blue-600 flex items-center gap-1">
                                         <Briefcase size={10} />
                                         {linkedJob.title || 'Job'}
+                                        {expense.quoteItemId && (
+                                            <>
+                                                <span className="text-slate-300">|</span>
+                                                <span className="text-slate-500">
+                                                    {linkedJob.lineItems?.find(i => i.id === expense.quoteItemId)?.description || 'Linked Item'}
+                                                </span>
+                                            </>
+                                        )}
                                     </span>
                                 )}
                             </div>
@@ -709,8 +741,8 @@ export const ExpenseTracker = ({
                     <button
                         onClick={() => setViewMode('expenses')}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'expenses'
-                                ? 'bg-white text-slate-800 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         Expenses
@@ -718,8 +750,8 @@ export const ExpenseTracker = ({
                     <button
                         onClick={() => setViewMode('profits')}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${viewMode === 'profits'
-                                ? 'bg-white text-slate-800 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-slate-800 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         Job Profits

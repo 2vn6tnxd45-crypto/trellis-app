@@ -60,14 +60,14 @@ const JOB_STEPS = [
 // ============================================
 export const TechJobView = ({ job, onBack, onComplete }) => {
     const { session, contractor } = useTechSession();
-    const { checkIn, checkOut, updateJobStatus } = useTechJobs(
+    const { checkIn, checkOut, pauseJob, updateJobStatus } = useTechJobs(
         session?.techId,
         session?.contractorId
     );
 
     // State
     const [currentStep, setCurrentStep] = useState(
-        job.status === 'in_progress' ? 'work' : 'arrive'
+        (job.status === 'in_progress') ? 'work' : 'arrive'
     );
     const [isLoading, setIsLoading] = useState(false);
     const [beforePhotos, setBeforePhotos] = useState(job.beforePhotos || []);
@@ -255,6 +255,43 @@ export const TechJobView = ({ job, onBack, onComplete }) => {
     };
 
     // ============================================
+    // HANDLE PAUSE (END SHIFT)
+    // ============================================
+    const handlePause = async () => {
+        if (!window.confirm('End shift for today? You can resume this job later.')) return;
+
+        setIsLoading(true);
+        try {
+            // Get location
+            let location = null;
+            if (navigator.geolocation) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            timeout: 10000
+                        });
+                    });
+                    location = {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude
+                    };
+                } catch (geoErr) {
+                    console.warn('Geolocation error:', geoErr);
+                }
+            }
+
+            await pauseJob(job.id, location);
+            toast.success('Job paused. See you tomorrow!');
+            onBack(); // Return to dashboard
+        } catch (err) {
+            toast.error('Failed to pause job');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // ============================================
     // RENDER
     // ============================================
     return (
@@ -287,13 +324,12 @@ export const TechJobView = ({ job, onBack, onComplete }) => {
                             <button
                                 key={step.id}
                                 onClick={() => isPast && setCurrentStep(step.id)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                                    isActive
-                                        ? 'bg-emerald-600 text-white'
-                                        : isPast
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : 'bg-gray-100 text-gray-400'
-                                }`}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${isActive
+                                    ? 'bg-emerald-600 text-white'
+                                    : isPast
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : 'bg-gray-100 text-gray-400'
+                                    }`}
                             >
                                 <Icon className="w-4 h-4" />
                                 {step.label}
@@ -381,7 +417,7 @@ export const TechJobView = ({ job, onBack, onComplete }) => {
                             ) : (
                                 <>
                                     <CheckCircle className="w-5 h-5" />
-                                    I've Arrived
+                                    {job.status === 'paused' ? 'Resume Work' : "I've Arrived"}
                                 </>
                             )}
                         </button>
@@ -478,6 +514,14 @@ export const TechJobView = ({ job, onBack, onComplete }) => {
                                 <span className="text-sm font-medium text-gray-700">Progress Photo</span>
                             </button>
                         </div>
+
+                        <button
+                            onClick={handlePause}
+                            className="w-full py-4 bg-amber-100 text-amber-800 rounded-2xl font-bold hover:bg-amber-200 flex items-center justify-center gap-2"
+                        >
+                            <Clock className="w-5 h-5" />
+                            End Shift (Continue Later)
+                        </button>
 
                         <button
                             onClick={() => setCurrentStep('photos_after')}
