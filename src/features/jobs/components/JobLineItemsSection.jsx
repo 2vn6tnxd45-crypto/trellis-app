@@ -139,115 +139,125 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
     };
 
     return (
-        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm transition-all hover:shadow-md">
-            {/* Main Row - Grid Layout for Alignment */}
-            <div className="p-3 grid grid-cols-12 gap-3 items-start">
-                {/* Col 1: Expand & Type (Span 3) */}
-                <div className="col-span-12 sm:col-span-3 flex gap-2">
+        <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm transition-all hover:shadow-md group">
+            {/* Main Row - Clean horizontal layout */}
+            <div className="p-4">
+                <div className="flex items-start gap-4">
+                    {/* Expand/Collapse Toggle */}
                     <button
                         type="button"
                         onClick={() => updateField('isExpanded', !item.isExpanded)}
-                        className="mt-1.5 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                        className={`mt-1 p-1.5 rounded-lg transition-all ${item.isExpanded
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
                     >
                         {item.isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
-                    <div className="flex-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Type</label>
+
+                    {/* Type Selector */}
+                    <div className="w-36 shrink-0">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Type</label>
                         <select
                             value={item.type}
                             onChange={(e) => updateField('type', e.target.value)}
-                            className={`w-full text-xs font-medium px-2 py-2 rounded-lg border-0 cursor-pointer ${typeConfig.color} focus:ring-2 focus:ring-emerald-500`}
+                            className={`w-full text-xs font-semibold px-3 py-2.5 rounded-xl border-0 cursor-pointer transition-all ${
+                                item.type === 'material'
+                                    ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                            } focus:ring-2 focus:ring-emerald-500`}
                         >
                             {LINE_ITEM_TYPES.map(t => (
                                 <option key={t.value} value={t.value}>{t.label}</option>
                             ))}
                         </select>
                     </div>
-                </div>
 
-                {/* Col 2: Description (Span 4) */}
-                <div className="col-span-12 sm:col-span-5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Description</label>
-                    <div className="relative">
-                        <TypeIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => updateField('description', e.target.value)}
-                            placeholder={item.type === 'material' ? 'e.g., Carrier Furnace 80K BTU' : 'e.g., HVAC Installation Labor'}
-                            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                        />
+                    {/* Description - Takes remaining space */}
+                    <div className="flex-1 min-w-0">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Description</label>
+                        <div className="relative">
+                            <TypeIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => updateField('description', e.target.value)}
+                                placeholder={item.type === 'material' ? 'e.g., Carrier Furnace 80K BTU' : 'e.g., HVAC Installation Labor'}
+                                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 placeholder:text-slate-400"
+                            />
+                        </div>
                     </div>
-                </div>
 
-                {/* Col 3: Qty (Span 1) */}
-                <div className="col-span-4 sm:col-span-1">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Qty</label>
-                    <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateField('quantity', parseInt(e.target.value) || 1)}
-                        className="w-full px-2 py-2 border border-slate-200 rounded-lg text-center text-sm focus:ring-2 focus:ring-emerald-500"
-                    />
-                </div>
-
-                {/* Col 4: Price (Span 2) */}
-                <div className="col-span-5 sm:col-span-2">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Price</label>
-                    <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    {/* Qty */}
+                    <div className="w-20 shrink-0">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Qty</label>
                         <input
                             type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unitPrice}
-                            onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
-                            className="w-full pl-6 pr-2 py-2 border border-slate-200 rounded-lg text-right text-sm focus:ring-2 focus:ring-emerald-500"
+                            min="1"
+                            value={item.quantity}
+                            onChange={(e) => updateField('quantity', parseInt(e.target.value) || 1)}
+                            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-center text-sm font-medium focus:ring-2 focus:ring-emerald-500"
                         />
                     </div>
-                </div>
 
-                {/* Col 5: Total & Delete (Span 1) */}
-                <div className="col-span-3 sm:col-span-1 flex flex-col items-end justify-between h-full pt-6">
-                    <span className="font-bold text-slate-700 text-sm">${lineTotal.toFixed(2)}</span>
-                    <button
-                        type="button"
-                        onClick={() => !isOnly && onRemove(item.id)}
-                        disabled={isOnly}
-                        className={`p-1.5 rounded-lg transition-colors ${isOnly
-                                ? 'text-slate-200 cursor-not-allowed hidden'
-                                : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
-                            }`}
-                        title="Remove item"
-                    >
-                        <Trash2 size={14} />
-                    </button>
+                    {/* Price */}
+                    <div className="w-28 shrink-0">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Price</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
+                                className="w-full pl-7 pr-3 py-2.5 border border-slate-200 rounded-xl text-right text-sm font-medium focus:ring-2 focus:ring-emerald-500"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Total & Delete */}
+                    <div className="w-24 shrink-0 text-right">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Total</label>
+                        <div className="flex items-center justify-end gap-2">
+                            <span className="font-bold text-slate-800 text-base">${lineTotal.toFixed(2)}</span>
+                            {!isOnly && (
+                                <button
+                                    type="button"
+                                    onClick={() => onRemove(item.id)}
+                                    className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Remove item"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Expanded Details */}
+            {/* Expanded Details - Home Record Section */}
             {item.isExpanded && (
-                <div className="px-4 pb-4 pt-2 bg-slate-50 border-t border-slate-100">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Home size={14} className="text-emerald-600" />
-                        <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">
-                            Home Record Details
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                            (automatically added to customer's records)
-                        </span>
+                <div className="px-5 pb-5 pt-4 bg-gradient-to-b from-slate-50 to-slate-100/50 border-t border-slate-100">
+                    {/* Section Header */}
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                            <Home size={14} className="text-emerald-600" />
+                        </div>
+                        <div>
+                            <span className="text-xs font-bold text-slate-700">Home Record Details</span>
+                            <span className="text-[10px] text-slate-500 ml-2">(automatically added to customer's records)</span>
+                        </div>
                     </div>
 
-                    {/* Fields Grid */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                    {/* Fields Grid - Cleaner layout */}
+                    <div className="grid grid-cols-4 gap-4 mb-5">
                         {/* Category */}
                         <div>
-                            <label className="text-[10px] font-bold text-slate-500 uppercase">Category</label>
+                            <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Category</label>
                             <select
                                 value={item.category}
                                 onChange={(e) => updateField('category', e.target.value)}
-                                className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-emerald-500"
+                                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                             >
                                 {CATEGORIES.map(cat => (
                                     <option key={cat} value={cat}>{cat}</option>
@@ -258,99 +268,102 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                         {item.type === 'material' ? (
                             <>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Brand</label>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Brand</label>
                                     <input
                                         type="text"
                                         placeholder="e.g., Carrier"
                                         value={item.brand || ''}
                                         onChange={(e) => updateField('brand', e.target.value)}
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Model #</label>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Model #</label>
                                     <input
                                         type="text"
                                         placeholder="Model number"
                                         value={item.model || ''}
                                         onChange={(e) => updateField('model', e.target.value)}
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
                                     />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Warranty</label>
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Warranty</label>
                                     <input
                                         type="text"
                                         placeholder="e.g., 10 Year Parts"
                                         value={item.warranty || ''}
                                         onChange={(e) => updateField('warranty', e.target.value)}
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
                                     />
                                 </div>
                             </>
                         ) : (
                             <>
-                                <div className="col-span-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Labor Warranty</label>
+                                <div className="col-span-3">
+                                    <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Labor Warranty</label>
                                     <input
                                         type="text"
                                         placeholder="e.g., 1 Year Workmanship Guarantee"
                                         value={item.warranty || ''}
                                         onChange={(e) => updateField('warranty', e.target.value)}
-                                        className="w-full mt-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
                                     />
                                 </div>
-                                <div></div>
                             </>
                         )}
                     </div>
 
-                    {/* Auto-Scheduled Maintenance Section */}
-                    <div className="mt-4 pt-3 border-t border-slate-200">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] font-bold text-slate-500 uppercase">
+                    {/* Auto-Scheduled Maintenance Section - More visual */}
+                    <div className="pt-4 border-t border-slate-200/80">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
                                 Auto-scheduled Maintenance
                             </p>
-                            <span className="text-[10px] text-emerald-600 font-medium">
+                            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                                 {item.inventoryIntent?.maintenanceTasks?.filter(t => t.selected !== false).length || 0} tasks active
                             </span>
                         </div>
 
-                        <div className="space-y-2 bg-white rounded-lg border border-slate-200 p-2">
+                        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
                             {item.inventoryIntent?.maintenanceTasks?.length > 0 ? (
-                                <div className="space-y-2">
+                                <div className="divide-y divide-slate-100">
                                     {item.inventoryIntent.maintenanceTasks.map((task, idx) => (
-                                        <label key={idx} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 rounded cursor-pointer group">
+                                        <label key={idx} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors">
                                             <input
                                                 type="checkbox"
                                                 checked={task.selected !== false}
                                                 onChange={() => toggleMaintenanceTask(idx)}
-                                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                                             />
-                                            <div className="flex-1 text-xs">
-                                                <span className={`font-medium ${task.selected !== false ? 'text-slate-700' : 'text-slate-400 line-through'}`}>
+                                            <div className="flex-1">
+                                                <span className={`text-sm font-medium ${task.selected !== false ? 'text-slate-700' : 'text-slate-400 line-through'}`}>
                                                     {task.task}
                                                 </span>
-                                                <span className="text-slate-400 ml-2 text-[10px] uppercase">
-                                                    {task.frequency}
-                                                </span>
                                             </div>
+                                            <span className={`text-[10px] font-semibold uppercase px-2 py-1 rounded-full ${
+                                                task.selected !== false
+                                                    ? 'bg-slate-100 text-slate-600'
+                                                    : 'bg-slate-50 text-slate-400'
+                                            }`}>
+                                                {task.frequency}
+                                            </span>
                                         </label>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-xs text-slate-400 p-2 italic">
+                                <p className="text-sm text-slate-400 px-4 py-3 italic">
                                     No default maintenance tasks for this category.
                                 </p>
                             )}
 
                             {/* Add Custom Task */}
-                            <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                            <div className="flex gap-2 p-3 bg-slate-50 border-t border-slate-100">
                                 <input
                                     type="text"
                                     id={`new-task-${item.id}`}
                                     placeholder="Add custom maintenance task..."
-                                    className="flex-1 text-xs px-2 py-1.5 border border-slate-200 rounded bg-slate-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                                    className="flex-1 text-sm px-3 py-2 border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 outline-none placeholder:text-slate-400"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
@@ -370,7 +383,7 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                                             input.value = '';
                                         }
                                     }}
-                                    className="px-2 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded"
+                                    className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-xl transition-colors"
                                 >
                                     Add
                                 </button>
@@ -408,33 +421,37 @@ const JobLineItemsSection = ({ lineItems, onChange }) => {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center">
+                    <Package size={18} className="text-slate-600" />
+                </div>
                 <div>
-                    <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                        <Package size={14} />
+                    <h3 className="text-sm font-bold text-slate-700">
                         Line Items & Home Records
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500">
                         Items added here effectively build the home's history
                     </p>
                 </div>
             </div>
 
-            {/* Info Banner */}
-            <div className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <Home size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-                <div className="text-xs text-emerald-700">
-                    <p className="font-semibold">Smart Inventory Tracking</p>
-                    <p className="text-emerald-600 mt-0.5">
+            {/* Info Banner - More subtle and integrated */}
+            <div className="flex items-start gap-3 p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/60 rounded-2xl">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                    <Home size={16} className="text-emerald-600" />
+                </div>
+                <div>
+                    <p className="text-sm font-semibold text-emerald-800">Smart Inventory Tracking</p>
+                    <p className="text-xs text-emerald-700 mt-0.5">
                         We automatically set up maintenance schedules based on the category you select. Expand an item to customize.
                     </p>
                 </div>
             </div>
 
             {/* Line Items List */}
-            <div className="space-y-3">
+            <div className="space-y-4">
                 {lineItems.map(item => (
                     <LineItemRow
                         key={item.id}
@@ -446,37 +463,40 @@ const JobLineItemsSection = ({ lineItems, onChange }) => {
                 ))}
             </div>
 
-            {/* Add Buttons - Prominent & Full Width */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Add Buttons - More distinctive */}
+            <div className="grid grid-cols-2 gap-4">
                 <button
                     type="button"
                     onClick={() => addLineItem('material')}
-                    className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 rounded-xl transition-all shadow-sm hover:shadow"
+                    className="flex items-center justify-center gap-2.5 px-5 py-3.5 text-sm font-semibold bg-white text-blue-700 border-2 border-blue-200 hover:border-blue-400 hover:bg-blue-50 rounded-xl transition-all group"
                 >
-                    <Package size={16} />
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                        <Package size={16} className="text-blue-600" />
+                    </div>
                     Add Material / Equipment
                 </button>
                 <button
                     type="button"
                     onClick={() => addLineItem('labor')}
-                    className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 rounded-xl transition-all shadow-sm hover:shadow"
+                    className="flex items-center justify-center gap-2.5 px-5 py-3.5 text-sm font-semibold bg-white text-amber-700 border-2 border-amber-200 hover:border-amber-400 hover:bg-amber-50 rounded-xl transition-all group"
                 >
-                    <Wrench size={16} />
+                    <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                        <Wrench size={16} className="text-amber-600" />
+                    </div>
                     Add Labor / Service
                 </button>
             </div>
 
-            {/* Totals */}
-            <div className="flex justify-end border-t border-slate-100 pt-4 mt-4">
-                <div className="w-full sm:w-64 space-y-2">
-                    <div className="flex justify-between text-sm">
-                        <span className="text-slate-600 font-medium">Subtotal</span>
-                        <span className="font-bold text-slate-800">${subtotal.toFixed(2)}</span>
+            {/* Totals - More prominent */}
+            <div className="flex justify-end pt-4">
+                <div className="bg-slate-50 rounded-2xl p-4 w-full sm:w-72 border border-slate-200">
+                    <div className="flex justify-between text-sm mb-2">
+                        <span className="text-slate-600">Subtotal</span>
+                        <span className="font-semibold text-slate-700">${subtotal.toFixed(2)}</span>
                     </div>
-                    {/* Tax could go here */}
-                    <div className="flex justify-between text-lg font-extrabold text-emerald-600 pt-2 border-t border-slate-200 border-dashed">
-                        <span>Total</span>
-                        <span>${subtotal.toFixed(2)}</span>
+                    <div className="flex justify-between items-center pt-3 border-t border-dashed border-slate-300">
+                        <span className="text-base font-bold text-slate-700">Total</span>
+                        <span className="text-xl font-extrabold text-emerald-600">${subtotal.toFixed(2)}</span>
                     </div>
                 </div>
             </div>

@@ -435,12 +435,15 @@ const MultiCrewSelector = ({
     const meetsRequirement = selectedIds.length >= crewSizeRequired;
 
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
+            {/* Section Header */}
             <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-slate-700">
-                    <Users size={14} className="inline mr-1" />
-                    Assign Crew
-                </label>
+                <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                        <Users size={16} className="text-slate-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-700">Assign Crew</span>
+                </div>
                 <div className="flex items-center gap-2">
                     {isMultiDay && segments.length > 1 && (
                         <button
@@ -451,9 +454,9 @@ const MultiCrewSelector = ({
                             {showPerDayView ? 'Simple view' : `View ${segments.length} days`}
                         </button>
                     )}
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meetsRequirement
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-amber-100 text-amber-700'
+                    <span className={`text-xs font-bold px-3 py-1.5 rounded-full transition-all ${meetsRequirement
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-red-500 text-white'
                         }`}>
                         {selectedIds.length}/{crewSizeRequired} selected
                     </span>
@@ -462,12 +465,12 @@ const MultiCrewSelector = ({
 
             {/* Multi-day warning banner */}
             {isMultiDay && crewSummary?.hasShortage && selectedIds.length > 0 && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <div className="flex items-start gap-2">
-                        <AlertCircle size={14} className="text-amber-600 mt-0.5 shrink-0" />
-                        <div className="text-xs">
+                        <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
+                        <div className="text-sm">
                             <p className="font-medium text-amber-800">Crew shortage on some days</p>
-                            <div className="mt-1 text-amber-700">
+                            <div className="mt-1 text-amber-700 text-xs">
                                 {crewSummary.daysWithShortage.map(d => (
                                     <span key={d.date} className="inline-block mr-2">
                                         Day {d.dayNumber} ({d.dayName}): {d.availableCount}/{crewSizeRequired}
@@ -481,15 +484,15 @@ const MultiCrewSelector = ({
 
             {/* Per-day view for multi-day jobs */}
             {showPerDayView && isMultiDay && (
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                    <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
-                        <p className="text-xs font-medium text-slate-600">Crew availability by day</p>
+                <div className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+                        <p className="text-xs font-semibold text-slate-600">Crew availability by day</p>
                     </div>
                     <div className="max-h-40 overflow-y-auto">
                         {crewSummary?.dayBreakdown.map(day => (
                             <div
                                 key={day.date}
-                                className={`px-3 py-2 border-b border-slate-100 last:border-b-0 flex items-center justify-between ${day.meetsRequirement ? 'bg-white' : 'bg-amber-50'
+                                className={`px-4 py-2.5 border-b border-slate-100 last:border-b-0 flex items-center justify-between ${day.meetsRequirement ? 'bg-white' : 'bg-amber-50'
                                     }`}
                             >
                                 <div>
@@ -500,7 +503,7 @@ const MultiCrewSelector = ({
                                         ({day.dayName})
                                     </span>
                                 </div>
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${day.meetsRequirement
+                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${day.meetsRequirement
                                     ? 'bg-emerald-100 text-emerald-700'
                                     : 'bg-amber-100 text-amber-700'
                                     }`}>
@@ -512,56 +515,56 @@ const MultiCrewSelector = ({
                 </div>
             )}
 
-            {/* Crew member selection grid */}
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+            {/* Crew member selection - Horizontal cards */}
+            <div className="flex flex-wrap gap-3">
                 {teamMembers.map(tech => {
                     const isSelected = selectedIds.includes(tech.id);
                     const availability = memberAvailability.get(tech.id);
                     const isFullyAvailable = availability?.fullyAvailable !== false;
                     const isPartiallyAvailable = availability?.partiallyAvailable === true;
-                    const unavailableCount = (availability?.unavailableDays?.length || 0) +
-                        (availability?.conflicts?.length || 0);
 
                     return (
                         <button
                             key={tech.id}
                             type="button"
                             onClick={() => toggleMember(tech.id)}
-                            className={`p-2 rounded-lg border text-left transition-all flex items-center gap-2 ${isSelected
-                                ? isFullyAvailable
-                                    ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-400'
-                                    : 'border-amber-400 bg-amber-50 ring-1 ring-amber-400'
-                                : isFullyAvailable
-                                    ? 'border-slate-200 hover:border-slate-300'
-                                    : 'border-slate-200 bg-slate-50 hover:border-slate-300'
+                            className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all duration-200 ${isSelected
+                                ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                                 }`}
                         >
-                            <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 relative"
-                                style={{ backgroundColor: tech.color || '#64748B' }}
-                            >
-                                {isSelected ? '✓' : tech.name?.charAt(0)}
-                                {isPartiallyAvailable && isMultiDay && (
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-amber-500 rounded-full border border-white" />
+                            {/* Avatar with selection indicator */}
+                            <div className="relative">
+                                <div
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold transition-transform ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}
+                                    style={{ backgroundColor: tech.color || '#64748B' }}
+                                >
+                                    {tech.name?.charAt(0)}
+                                </div>
+                                {isSelected && (
+                                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 rounded-full flex items-center justify-center border-2 border-white">
+                                        <CheckCircle size={12} className="text-white" />
+                                    </div>
+                                )}
+                                {isPartiallyAvailable && isMultiDay && !isSelected && (
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white" />
                                 )}
                             </div>
-                            <div className="min-w-0 flex-1">
-                                <p className={`text-sm font-medium truncate ${isSelected
-                                    ? isFullyAvailable ? 'text-emerald-700' : 'text-amber-700'
-                                    : 'text-slate-700'
-                                    }`}>
+
+                            {/* Name and role */}
+                            <div className="text-left">
+                                <p className={`text-sm font-semibold ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>
                                     {tech.name}
                                 </p>
                                 {isMultiDay && segments.length > 1 ? (
-                                    <p className={`text-[10px] truncate ${isFullyAvailable ? 'text-emerald-600' : 'text-amber-600'
-                                        }`}>
+                                    <p className={`text-xs ${isFullyAvailable ? 'text-emerald-600' : 'text-amber-600'}`}>
                                         {isFullyAvailable
-                                            ? `Available all ${segments.length} days`
-                                            : `${availability?.availableDayCount || 0}/${segments.length} days available`
+                                            ? `All ${segments.length} days`
+                                            : `${availability?.availableDayCount || 0}/${segments.length} days`
                                         }
                                     </p>
                                 ) : (
-                                    <p className="text-[10px] text-slate-500 truncate">{tech.role}</p>
+                                    <p className="text-xs text-slate-500">{tech.role || 'technician'}</p>
                                 )}
                             </div>
                         </button>
@@ -571,16 +574,16 @@ const MultiCrewSelector = ({
 
             {/* Requirement warnings */}
             {!meetsRequirement && selectedIds.length > 0 && (
-                <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <AlertCircle size={10} />
+                <p className="text-xs text-amber-600 flex items-center gap-1.5 bg-amber-50 px-3 py-2 rounded-lg">
+                    <AlertCircle size={12} />
                     Select {crewSizeRequired - selectedIds.length} more to meet crew requirement
                 </p>
             )}
 
             {/* Multi-day all-clear indicator */}
             {isMultiDay && meetsRequirement && !crewSummary?.hasShortage && selectedIds.length > 0 && (
-                <p className="text-xs text-emerald-600 flex items-center gap-1">
-                    <CheckCircle size={10} />
+                <p className="text-xs text-emerald-600 flex items-center gap-1.5 bg-emerald-50 px-3 py-2 rounded-lg">
+                    <CheckCircle size={12} />
                     Full crew available for all {segments.length} days
                 </p>
             )}
@@ -1356,18 +1359,18 @@ const CreateJobModal = ({
                 </form>
 
                 {/* Footer */}
-                <div className="p-4 border-t border-slate-200 bg-slate-50 flex gap-3">
+                <div className="p-4 border-t border-slate-200 bg-gradient-to-r from-slate-50 to-slate-100 flex gap-4">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-600 font-medium rounded-xl hover:bg-white transition-colors"
+                        className="flex-1 px-5 py-3 border-2 border-slate-200 text-slate-600 font-semibold rounded-xl hover:bg-white hover:border-slate-300 transition-all"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSubmit}
                         disabled={loading || !isFormValid}
-                        className="flex-1 px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-[2] px-5 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all flex items-center justify-center gap-2.5 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-200 hover:shadow-emerald-300"
                     >
                         {loading ? (
                             <>
