@@ -9,7 +9,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus
+    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus, CheckCircle
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
