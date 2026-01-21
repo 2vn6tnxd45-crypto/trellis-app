@@ -33,6 +33,22 @@ const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
 const INVITATIONS_SUBCOLLECTION = 'invitations';
 const CUSTOMERS_SUBCOLLECTION = 'customers';
 
+// All subcollections that need to be deleted with the account
+const ALL_CONTRACTOR_SUBCOLLECTIONS = [
+    'invitations',
+    'customers',
+    'quotes',
+    'quoteTemplates',
+    'expenses',
+    'priceBook',
+    'vehicles',
+    'invoices',
+    'ratings',
+    'team',
+    'timesheets',
+    'memberships'
+];
+
 // ============================================
 // CONTRACTOR PROFILE
 // ============================================
@@ -648,42 +664,86 @@ export const subscribeToContractorJobs = (contractorId, callback) => {
 // ============================================
 
 /**
- * Delete contractor account and data
+ * Delete all documents in a subcollection
+ * Firestore batches have a limit of 500 operations, so we may need multiple batches
+ * @param {string} contractorId - The contractor ID
+ * @param {string} subcollectionName - Name of the subcollection to delete
+ * @returns {Promise<number>} Number of documents deleted
+ */
+const deleteSubcollection = async (contractorId, subcollectionName) => {
+    const subcollectionRef = collection(
+        db,
+        CONTRACTORS_COLLECTION,
+        contractorId,
+        subcollectionName
+    );
+
+    const snapshot = await getDocs(subcollectionRef);
+
+    if (snapshot.empty) {
+        return 0;
+    }
+
+    // Firestore batch limit is 500 operations
+    const BATCH_SIZE = 500;
+    const docs = snapshot.docs;
+    let deletedCount = 0;
+
+    // Process in chunks of 500
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = docs.slice(i, i + BATCH_SIZE);
+
+        chunk.forEach(docSnapshot => {
+            batch.delete(docSnapshot.ref);
+        });
+
+        await batch.commit();
+        deletedCount += chunk.length;
+    }
+
+    console.log(`[deleteSubcollection] Deleted ${deletedCount} docs from ${subcollectionName}`);
+    return deletedCount;
+};
+
+/**
+ * Delete contractor account and ALL associated data
  * Note: This deletes the profile data. The Firebase Auth user must be deleted separately.
+ *
+ * Deletes the following subcollections:
+ * - invitations, customers, quotes, quoteTemplates, expenses, priceBook,
+ *   vehicles, invoices, ratings, team, timesheets, memberships
+ *
+ * @param {string} contractorId - The contractor ID to delete
+ * @returns {Promise<{success: boolean, deletedCounts: Object}>}
  */
 export const deleteContractorAccount = async (contractorId) => {
     try {
-        const batch = writeBatch(db);
-        
-        // Delete all invitations
-        const invitationsRef = collection(
-            db, 
-            CONTRACTORS_COLLECTION, contractorId, 
-            INVITATIONS_SUBCOLLECTION
-        );
-        const invitationsSnap = await getDocs(invitationsRef);
-        invitationsSnap.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        
-        // Delete all customers
-        const customersRef = collection(
-            db, 
-            CONTRACTORS_COLLECTION, contractorId, 
-            CUSTOMERS_SUBCOLLECTION
-        );
-        const customersSnap = await getDocs(customersRef);
-        customersSnap.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        
-        // Delete the contractor document
+        console.log(`[deleteContractorAccount] Starting deletion for contractor: ${contractorId}`);
+
+        const deletedCounts = {};
+
+        // Delete all subcollections
+        for (const subcollection of ALL_CONTRACTOR_SUBCOLLECTIONS) {
+            try {
+                const count = await deleteSubcollection(contractorId, subcollection);
+                deletedCounts[subcollection] = count;
+            } catch (subError) {
+                console.warn(`[deleteContractorAccount] Error deleting ${subcollection}:`, subError);
+                deletedCounts[subcollection] = { error: subError.message };
+            }
+        }
+
+        // Delete the main contractor document
         const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
-        batch.delete(contractorRef);
-        
-        await batch.commit();
-        
-        return { success: true };
+        await deleteDoc(contractorRef);
+
+        console.log(`[deleteContractorAccount] Deletion complete. Deleted counts:`, deletedCounts);
+
+        return {
+            success: true,
+            deletedCounts
+        };
     } catch (error) {
         console.error('Error deleting contractor account:', error);
         throw error;
