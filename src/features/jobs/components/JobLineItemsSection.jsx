@@ -140,14 +140,15 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
 
     return (
         <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm transition-all hover:shadow-md group">
-            {/* Main Row - Clean horizontal layout */}
-            <div className="p-4">
-                <div className="flex items-start gap-4">
+            {/* Main Content - Two-row layout for better horizontal space */}
+            <div className="p-4 space-y-3">
+                {/* Row 1: Toggle + Type + Description */}
+                <div className="flex items-start gap-3">
                     {/* Expand/Collapse Toggle */}
                     <button
                         type="button"
                         onClick={() => updateField('isExpanded', !item.isExpanded)}
-                        className={`mt-1 p-1.5 rounded-lg transition-all ${item.isExpanded
+                        className={`mt-6 p-1.5 rounded-lg transition-all shrink-0 ${item.isExpanded
                             ? 'bg-slate-100 text-slate-600'
                             : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
                     >
@@ -155,7 +156,7 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                     </button>
 
                     {/* Type Selector */}
-                    <div className="w-36 shrink-0">
+                    <div className="w-40 shrink-0">
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Type</label>
                         <select
                             value={item.type}
@@ -172,8 +173,8 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                         </select>
                     </div>
 
-                    {/* Description - Takes remaining space */}
-                    <div className="flex-1 min-w-0">
+                    {/* Description - Now has room to breathe */}
+                    <div className="flex-1">
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Description</label>
                         <div className="relative">
                             <TypeIcon size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -187,21 +188,36 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                         </div>
                     </div>
 
+                    {/* Delete button - top right for easy access */}
+                    {!isOnly && (
+                        <button
+                            type="button"
+                            onClick={() => onRemove(item.id)}
+                            className="mt-6 p-2 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                            title="Remove item"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    )}
+                </div>
+
+                {/* Row 2: Qty + Price + Total */}
+                <div className="flex items-center gap-4 pl-10">
                     {/* Qty */}
-                    <div className="w-20 shrink-0">
+                    <div className="w-24">
                         <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Qty</label>
                         <input
                             type="number"
                             min="1"
                             value={item.quantity}
                             onChange={(e) => updateField('quantity', parseInt(e.target.value) || 1)}
-                            className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-center text-sm font-medium focus:ring-2 focus:ring-emerald-500"
+                            className="w-full px-3 py-2 border border-slate-200 rounded-xl text-center text-sm font-medium focus:ring-2 focus:ring-emerald-500"
                         />
                     </div>
 
-                    {/* Price */}
-                    <div className="w-28 shrink-0">
-                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Price</label>
+                    {/* Unit Price */}
+                    <div className="w-32">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Unit Price</label>
                         <div className="relative">
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-medium">$</span>
                             <input
@@ -210,26 +226,16 @@ const LineItemRow = ({ item, onUpdate, onRemove, isOnly }) => {
                                 step="0.01"
                                 value={item.unitPrice}
                                 onChange={(e) => updateField('unitPrice', parseFloat(e.target.value) || 0)}
-                                className="w-full pl-7 pr-3 py-2.5 border border-slate-200 rounded-xl text-right text-sm font-medium focus:ring-2 focus:ring-emerald-500"
+                                className="w-full pl-7 pr-3 py-2 border border-slate-200 rounded-xl text-right text-sm font-medium focus:ring-2 focus:ring-emerald-500"
                             />
                         </div>
                     </div>
 
-                    {/* Total & Delete */}
-                    <div className="w-24 shrink-0 text-right">
-                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Total</label>
-                        <div className="flex items-center justify-end gap-2">
+                    {/* Line Total */}
+                    <div className="flex-1">
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5 block">Line Total</label>
+                        <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
                             <span className="font-bold text-slate-800 text-base">${lineTotal.toFixed(2)}</span>
-                            {!isOnly && (
-                                <button
-                                    type="button"
-                                    onClick={() => onRemove(item.id)}
-                                    className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                                    title="Remove item"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            )}
                         </div>
                     </div>
                 </div>
