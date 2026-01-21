@@ -4,9 +4,10 @@
 // Fixes the issue where future tasks appeared before urgent ones
 
 import React, { useState, useMemo } from 'react';
-import { 
-  X, Bell, Clock, ChevronRight, 
-  Check, AlarmClock, CheckCheck, Phone, Mail, MessageSquare
+import {
+  X, Bell, Clock, ChevronRight,
+  Check, AlarmClock, CheckCheck, Phone, Mail, MessageSquare,
+  Briefcase, Trash2
 } from 'lucide-react';
 import {
   sortTasksByPriority,
@@ -183,12 +184,16 @@ const SectionHeader = ({ title, emoji, count, colorClass }) => (
 // ============================================
 // MAIN NOTIFICATION PANEL
 // ============================================
-export const NotificationPanel = ({ 
-  isOpen, 
-  onClose, 
-  dueTasks = [], 
+export const NotificationPanel = ({
+  isOpen,
+  onClose,
+  dueTasks = [],
   newSubmissions = [],
   unreadMessageCount = 0,
+  // Job notifications from contractors
+  jobNotifications = [],
+  onJobNotificationClick,
+  onJobNotificationDismiss,
   onMessagesClick,
   onTaskClick,
   onSubmissionClick,
@@ -279,7 +284,7 @@ export const NotificationPanel = ({
         
         {/* Scrollable Content */}
         <div className="overflow-y-auto flex-1 overscroll-contain">
-          {totalActionable === 0 && groupedTasks.upcoming.length === 0 && unreadMessageCount === 0 ? (
+          {totalActionable === 0 && groupedTasks.upcoming.length === 0 && unreadMessageCount === 0 && jobNotifications.length === 0 ? (
             // Empty State
             <div className="p-8 text-center">
               <div className="bg-emerald-100 w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -290,6 +295,54 @@ export const NotificationPanel = ({
             </div>
           ) : (
             <div className="p-3 space-y-2">
+              {/* JOB NOTIFICATIONS Section - New jobs from contractors */}
+              {jobNotifications.length > 0 && (
+                <div>
+                  <SectionHeader
+                    title="New Jobs"
+                    emoji="🔔"
+                    count={jobNotifications.length}
+                    colorClass="text-blue-600"
+                  />
+                  <div className="space-y-2">
+                    {jobNotifications.map((notif) => (
+                      <div
+                        key={notif.id}
+                        className="p-3 rounded-xl transition-all flex items-start gap-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 cursor-pointer group"
+                        onClick={() => onJobNotificationClick?.(notif)}
+                      >
+                        <div className="flex-shrink-0 p-2 bg-blue-100 rounded-lg">
+                          <Briefcase size={16} className="text-blue-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-blue-700">
+                            {notif.title}
+                          </p>
+                          <p className="text-xs text-blue-600 mt-0.5 line-clamp-2">
+                            {notif.message}
+                          </p>
+                          {notif.scheduledDate && (
+                            <p className="text-xs text-blue-400 mt-1 flex items-center gap-1">
+                              <Clock size={10} />
+                              Scheduled: {new Date(notif.scheduledDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onJobNotificationDismiss?.(notif.id);
+                          }}
+                          className="p-1.5 rounded-lg text-blue-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* MESSAGES Section - New unread messages */}
               {unreadMessageCount > 0 && (
                 <div>

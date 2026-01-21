@@ -46,6 +46,8 @@ import { useNotificationPermission } from './hooks/useNotificationPermission';
 // NEW: Import NotificationPanel and UserMenu components
 import { NotificationPanel } from './components/navigation/NotificationPanel';
 import { UserMenu } from './components/navigation/UserMenu';
+// Job notifications for homeowners
+import { useHomeownerNotifications } from './hooks/useHomeownerNotifications';
 // Add this with your other feature imports
 import { SettingsPage } from './features/settings/SettingsPage';
 import { useThemeInit } from './hooks/useThemeInit';
@@ -98,6 +100,9 @@ const AppContent = () => {
             });
         }
     });
+
+    // Job notifications for homeowners (from contractors)
+    const jobNotifications = useHomeownerNotifications(app.user?.uid);
 
     // Centralized URL routing hook
     const route = useAppRoute();
@@ -361,7 +366,7 @@ const AppContent = () => {
     if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
 
     const isNewUser = app.activePropertyRecords.length === 0 && !app.hasSeenWelcome;
-    const totalNotifications = app.dueTasks.length + app.newSubmissions.length;
+    const totalNotifications = app.dueTasks.length + app.newSubmissions.length + jobNotifications.unreadCount;
 
     // -- Filter Logic --
     const groupKey = app.inventoryView === 'room' ? 'area' : 'category';
@@ -633,17 +638,25 @@ const AppContent = () => {
                     <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
 
                     {/* Notification Panel */}
-                    {/* Notification Panel */}
                     <NotificationPanel
                         isOpen={app.showNotifications}
                         onClose={() => app.setShowNotifications(false)}
                         dueTasks={app.dueTasks}
                         newSubmissions={app.newSubmissions}
                         unreadMessageCount={app.unreadMessageCount || 0}
+                        // Job notifications from contractors
+                        jobNotifications={jobNotifications.unreadNotifications}
+                        onJobNotificationClick={(notif) => {
+                            jobNotifications.markAsRead(notif.id);
+                            app.setShowNotifications(false);
+                            app.setActiveTab('Contractors');
+                        }}
+                        onJobNotificationDismiss={(notifId) => {
+                            jobNotifications.deleteNotification(notifId);
+                        }}
                         onMessagesClick={() => {
                             app.setShowNotifications(false);
                             app.setActiveTab('Contractors');
-                            // Note: You could add a state to auto-open messages tab
                         }}
                         onTaskClick={(task) => {
                             app.setActiveTab('Maintenance');
