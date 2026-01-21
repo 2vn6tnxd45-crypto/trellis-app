@@ -221,7 +221,9 @@ export const useRouteOptimization = (options = {}) => {
     const optimizeMultiVehicle = useCallback(async (jobs, vehicles, opts = {}) => {
         const {
             startLocation = defaultStartLocation,
-            departureTime = defaultDepartureTime
+            departureTime = defaultDepartureTime,
+            maxJobsPerVehicle = 8,
+            balanceWorkload = true
         } = opts;
 
         if (!jobs || jobs.length === 0 || !vehicles || vehicles.length === 0) {
@@ -232,12 +234,46 @@ export const useRouteOptimization = (options = {}) => {
         setError(null);
 
         try {
-            const result = multiVehicleOptimize(jobs, vehicles, {
-                startLocation,
-                departureTime
-            });
+            // Parse departure time to minutes from midnight
+            const startTimeMinutes = departureTime
+                ? parseInt(departureTime.split(':')[0]) * 60 + parseInt(departureTime.split(':')[1] || 0)
+                : 480; // Default 8 AM
 
-            return result;
+            // Call multiVehicleOptimize with correct signature
+            const result = await multiVehicleOptimize(
+                jobs,
+                vehicles,
+                startLocation,    // startPoint
+                startTimeMinutes, // startTime in minutes
+                null,            // distanceMatrix (will be calculated)
+                {
+                    maxJobsPerVehicle,
+                    balanceWorkload
+                }
+            );
+
+            // Transform result for UI consumption
+            const transformedAssignments = result.assignments
+                ? Object.entries(result.assignments)
+                    .filter(([_, a]) => a.jobs && a.jobs.length > 0)
+                    .map(([vehicleId, assignment]) => ({
+                        vehicleId,
+                        vehicleName: assignment.vehicle?.name || `Vehicle ${vehicleId}`,
+                        route: assignment.jobs,
+                        totalTime: assignment.totalTime || 0,
+                        arrivals: assignment.arrivals || [],
+                        crewWarnings: assignment.crewWarnings || [],
+                        requiredCrewSize: assignment.requiredCrewSize || 1,
+                        currentCrewSize: assignment.currentCrewSize || 1
+                    }))
+                : [];
+
+            return {
+                assignments: transformedAssignments,
+                unassigned: result.unassigned || [],
+                stats: result.stats || {},
+                crewWarnings: result.crewWarnings || []
+            };
         } catch (err) {
             console.error('Multi-vehicle optimization failed:', err);
             setError(err.message);

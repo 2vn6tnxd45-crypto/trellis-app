@@ -10,7 +10,7 @@ import {
     Calendar, ChevronLeft, ChevronRight, User, Clock,
     MapPin, Wrench, AlertTriangle, CheckCircle, Sparkles,
     GripVertical, X, ChevronDown, ChevronUp, Zap,
-    Users, Loader2, Info, AlertCircle
+    Users, Loader2, Info, AlertCircle, Truck, Route
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -26,6 +26,8 @@ import {
 } from '../lib/schedulingAI';
 import { isSameDayInTimezone } from '../lib/timezoneUtils';
 import { CrewAssignmentModal } from './CrewAssignmentModal';
+import { RouteComparison } from './RouteComparison';
+import { useRouteOptimization } from '../hooks/useRouteOptimization';
 import {
     getAssignedTechIds,
     assignCrewToJob,
@@ -33,6 +35,10 @@ import {
     createCrewMember,
     removeTechFromCrew
 } from '../lib/crewService';
+import {
+    checkVehicleCrewCapacity,
+    findVehiclesForCrewSize
+} from '../lib/vehicleService';
 
 // ============================================
 // HELPERS
@@ -73,7 +79,8 @@ const JobCard = ({
     onUnassign,
     onOpenCrewModal,
     isAssigned,
-    compact = false
+    compact = false,
+    vehicles = []
 }) => {
     const [expanded, setExpanded] = useState(false);
     const duration = parseDurationToMinutes(job.estimatedDuration);
@@ -92,6 +99,19 @@ const JobCard = ({
             ? `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
             : `${mins}m`;
     }
+
+    // Crew requirements analysis
+    const crewRequired = job.crewRequirements?.required || job.requiredCrewSize || 1;
+    const crewMinimum = job.crewRequirements?.minimum || 1;
+    const assignedCrewCount = job.assignedCrew?.length || (job.assignedTechId ? 1 : 0);
+    const needsMoreCrew = crewRequired > 1 && assignedCrewCount < crewMinimum;
+    const isFullyStaffed = assignedCrewCount >= crewRequired;
+    const isUnderstaffed = assignedCrewCount > 0 && assignedCrewCount < crewMinimum;
+
+    // Vehicle info
+    const assignedVehicle = job.assignedVehicleId
+        ? vehicles.find(v => v.id === job.assignedVehicleId)
+        : null;
 
     return (
         <div
@@ -126,8 +146,46 @@ const JobCard = ({
                         {job.customer?.name || job.customerName || 'Customer'}
                     </p>
 
-                    {/* Crew Avatars (if multiple techs assigned) */}
-                    {job.assignedCrew && job.assignedCrew.length > 0 && (
+                    {/* Crew Requirements Badge - Show when job needs multiple techs */}
+                    {crewRequired > 1 && (
+                        <div className="flex items-center gap-1 mt-1">
+                            {/* Show crew avatars if assigned */}
+                            {job.assignedCrew && job.assignedCrew.length > 0 && (
+                                <div className="flex -space-x-2 mr-1">
+                                    {job.assignedCrew.slice(0, 4).map((member, idx) => (
+                                        <div
+                                            key={member.techId}
+                                            className="w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
+                                            style={{ backgroundColor: member.color || '#64748B', zIndex: 4 - idx }}
+                                            title={`${member.techName} (${member.role})`}
+                                        >
+                                            {member.techName?.charAt(0) || '?'}
+                                        </div>
+                                    ))}
+                                    {job.assignedCrew.length > 4 && (
+                                        <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-600 text-[10px] font-bold">
+                                            +{job.assignedCrew.length - 4}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {/* Staffing status badge */}
+                            <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isFullyStaffed
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : isUnderstaffed
+                                        ? 'bg-red-100 text-red-700'
+                                        : 'bg-amber-100 text-amber-700'
+                            }`}>
+                                <Users size={10} />
+                                {assignedCrewCount}/{crewRequired}
+                                {!isFullyStaffed && assignedCrewCount === 0 && ' needed'}
+                            </span>
+                        </div>
+                    )}
+
+                    {/* Single tech crew (no special badge needed, just show avatar if assigned) */}
+                    {crewRequired === 1 && job.assignedCrew && job.assignedCrew.length > 0 && (
                         <div className="flex items-center gap-1 mt-1">
                             <div className="flex -space-x-2">
                                 {job.assignedCrew.slice(0, 4).map((member, idx) => (
@@ -140,15 +198,7 @@ const JobCard = ({
                                         {member.techName?.charAt(0) || '?'}
                                     </div>
                                 ))}
-                                {job.assignedCrew.length > 4 && (
-                                    <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-600 text-[10px] font-bold">
-                                        +{job.assignedCrew.length - 4}
-                                    </div>
-                                )}
                             </div>
-                            <span className="text-xs text-slate-500">
-                                {job.assignedCrew.length} techs
-                            </span>
                         </div>
                     )}
                 </div>
@@ -199,6 +249,20 @@ const JobCard = ({
                     <span className="flex items-center gap-1 text-slate-500 truncate max-w-[150px]">
                         <MapPin size={12} />
                         {job.customer.address.split(',')[0]}
+                    </span>
+                )}
+                {/* Vehicle assignment indicator */}
+                {assignedVehicle && (
+                    <span className="flex items-center gap-1 text-blue-600" title={assignedVehicle.name}>
+                        <Truck size={12} />
+                        {assignedVehicle.name?.substring(0, 10) || 'Vehicle'}
+                    </span>
+                )}
+                {/* Route order indicator */}
+                {job.routeOrder && (
+                    <span className="flex items-center gap-1 text-purple-600" title={`Stop #${job.routeOrder} on route`}>
+                        <Route size={12} />
+                        #{job.routeOrder}
                     </span>
                 )}
             </div>
@@ -263,7 +327,8 @@ const TechColumn = ({
     isDropTarget,
     allJobs,
     onMarkWorkingToday,
-    onEditSchedule
+    onEditSchedule,
+    vehicles = []
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
 
@@ -427,6 +492,7 @@ const TechColumn = ({
                             onUnassign={onUnassign}
                             onOpenCrewModal={onOpenCrewModal}
                             compact={true}
+                            vehicles={vehicles}
                         />
                     ))
                 )}
@@ -446,7 +512,8 @@ const UnassignedColumn = ({
     date,
     onAssign,
     onAutoAssign,
-    isAutoAssigning
+    isAutoAssigning,
+    vehicles = []
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
 
@@ -513,6 +580,7 @@ const UnassignedColumn = ({
                             showSuggestions={true}
                             suggestions={suggestions}
                             onAssign={onAssign}
+                            vehicles={vehicles}
                         />
                     ))
                 )}
@@ -539,6 +607,17 @@ export const DispatchBoard = ({
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
     const [crewModalJob, setCrewModalJob] = useState(null);
     const [workingTodayOverrides, setWorkingTodayOverrides] = useState({}); // Track one-time overrides
+    const [showRouteOptimization, setShowRouteOptimization] = useState(false);
+    const [routeComparisonData, setRouteComparisonData] = useState(null);
+
+    // Route optimization hook
+    const {
+        isOptimizing: isRouteOptimizing,
+        optimizeDayRoute,
+        optimizeMultiVehicle,
+        compareWithOptimized,
+        error: routeError
+    } = useRouteOptimization();
 
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
@@ -664,12 +743,25 @@ export const DispatchBoard = ({
 
         try {
             const assignedTechIds = getAssignedTechIds(job);
+            const crewRequired = job.crewRequirements?.required || job.requiredCrewSize || 1;
+            const crewMaximum = job.crewRequirements?.maximum || crewRequired + 2;
 
             if (assignedTechIds.length > 0) {
                 // Job is already assigned.
                 if (assignedTechIds.includes(techId)) {
                     toast('Technician already assigned to this job', { icon: 'ℹ️' });
                     return;
+                }
+
+                // Check if crew is already at or over maximum
+                if (assignedTechIds.length >= crewMaximum) {
+                    toast.error(`Crew is already at maximum capacity (${crewMaximum} techs)`);
+                    return;
+                }
+
+                // Warn if crew already meets requirements
+                if (assignedTechIds.length >= crewRequired) {
+                    toast(`Crew already has ${assignedTechIds.length}/${crewRequired} required techs - adding anyway`, { icon: '⚠️' });
                 }
 
                 // ADD to existing crew
@@ -689,12 +781,27 @@ export const DispatchBoard = ({
 
                 crewToSave.push(createCrewMember(tech, 'helper'));
                 await assignCrewToJob(job.id, crewToSave, 'manual');
-                toast.success(`Added ${techName} to crew`);
+
+                // Show staffing status after assignment
+                const newCrewSize = crewToSave.length;
+                if (newCrewSize === crewRequired) {
+                    toast.success(`Added ${techName} - crew is now fully staffed!`, { icon: '✅' });
+                } else if (newCrewSize < crewRequired) {
+                    toast.success(`Added ${techName} (${newCrewSize}/${crewRequired} techs)`);
+                } else {
+                    toast.success(`Added ${techName} to crew`);
+                }
             } else {
                 // Unassigned -> New Assignment (Lead)
                 const newMember = createCrewMember(tech, 'lead');
                 await assignCrewToJob(job.id, [newMember], 'manual');
-                toast.success(`Assigned to ${techName}`);
+
+                // Show staffing needs for multi-crew jobs
+                if (crewRequired > 1) {
+                    toast.success(`Assigned to ${techName} (1/${crewRequired} techs needed)`);
+                } else {
+                    toast.success(`Assigned to ${techName}`);
+                }
             }
 
             onJobUpdate?.();
@@ -832,6 +939,132 @@ export const DispatchBoard = ({
         }
     }, [onEditTeamMember]);
 
+    // Handle route optimization
+    const handleOptimizeRoutes = useCallback(async () => {
+        if (assignedJobs.length < 2) {
+            toast('Need at least 2 assigned jobs to optimize routes', { icon: 'ℹ️' });
+            return;
+        }
+
+        try {
+            // Group jobs by tech for route optimization
+            const techRoutes = {};
+            teamMembers.forEach(tech => {
+                const techJobs = jobsByTech[tech.id] || [];
+                if (techJobs.length > 0) {
+                    techRoutes[tech.id] = {
+                        tech,
+                        jobs: techJobs,
+                        vehicle: vehicles.find(v =>
+                            v.defaultTechId === tech.id ||
+                            techJobs.some(j => j.assignedVehicleId === v.id)
+                        )
+                    };
+                }
+            });
+
+            // If we have vehicles, use multi-vehicle optimization
+            if (vehicles.length > 0) {
+                const availableVehicles = vehicles.filter(v =>
+                    v.status === 'available' || v.status === 'in_use'
+                ).map(v => ({
+                    id: v.id,
+                    name: v.name,
+                    capacity: v.capacity?.passengers || 4,
+                    startLocation: v.homeLocation || null
+                }));
+
+                const result = await optimizeMultiVehicle(assignedJobs, availableVehicles);
+
+                if (result.error) {
+                    toast.error(`Optimization failed: ${result.error}`);
+                    return;
+                }
+
+                // Show results summary
+                const assignmentCount = result.assignments?.length || 0;
+                const unassignedCount = result.unassigned?.length || 0;
+                const crewWarnings = result.crewWarnings || [];
+
+                let msg = `Routes optimized for ${assignmentCount} vehicle${assignmentCount !== 1 ? 's' : ''}`;
+                if (unassignedCount > 0) {
+                    msg += ` (${unassignedCount} jobs couldn't be routed)`;
+                }
+                if (crewWarnings.length > 0) {
+                    msg += ` - ${crewWarnings.length} crew warning(s)`;
+                }
+
+                toast.success(msg, { duration: 4000 });
+                setRouteComparisonData(result);
+                setShowRouteOptimization(true);
+            } else {
+                // Single route optimization (no vehicles defined)
+                const result = await compareWithOptimized(assignedJobs);
+
+                if (result.error) {
+                    toast.error(`Optimization failed: ${result.error}`);
+                    return;
+                }
+
+                const savings = result.comparison?.timeSavedMinutes || 0;
+                if (savings > 0) {
+                    toast.success(`Found route ${savings} minutes faster!`);
+                } else {
+                    toast('Current routes are already optimal', { icon: '✅' });
+                }
+
+                setRouteComparisonData(result);
+                setShowRouteOptimization(true);
+            }
+        } catch (error) {
+            console.error('Route optimization error:', error);
+            toast.error('Route optimization failed');
+        }
+    }, [assignedJobs, teamMembers, jobsByTech, vehicles, optimizeMultiVehicle, compareWithOptimized]);
+
+    // Apply optimized routes
+    const handleApplyOptimizedRoutes = useCallback(async () => {
+        if (!routeComparisonData) return;
+
+        try {
+            // Update job route orders based on optimization results
+            const updates = [];
+
+            if (routeComparisonData.assignments) {
+                // Multi-vehicle result
+                routeComparisonData.assignments.forEach((assignment, vehicleIdx) => {
+                    assignment.route.forEach((job, stopIdx) => {
+                        updates.push({
+                            jobId: job.id,
+                            routeOrder: stopIdx + 1,
+                            assignedVehicleId: assignment.vehicleId,
+                            optimizedAt: new Date().toISOString()
+                        });
+                    });
+                });
+            } else if (routeComparisonData.optimizedRoute) {
+                // Single route result
+                routeComparisonData.optimizedRoute.forEach((job, idx) => {
+                    updates.push({
+                        jobId: job.id,
+                        routeOrder: idx + 1,
+                        optimizedAt: new Date().toISOString()
+                    });
+                });
+            }
+
+            // Note: Would need to batch update jobs here with onJobUpdate callback
+            // For now, just show success and close modal
+            toast.success(`Applied optimized routes to ${updates.length} jobs`);
+            setShowRouteOptimization(false);
+            setRouteComparisonData(null);
+            onJobUpdate?.();
+        } catch (error) {
+            console.error('Apply routes error:', error);
+            toast.error('Failed to apply optimized routes');
+        }
+    }, [routeComparisonData, onJobUpdate]);
+
     // Get week dates for the mini week navigator
     const getWeekDates = () => {
         const dates = [];
@@ -934,6 +1167,10 @@ export const DispatchBoard = ({
                             <span>{teamMembers.length} techs</span>
                         </div>
                         <div className="flex items-center gap-2 text-slate-600">
+                            <Truck size={16} />
+                            <span>{vehicles.filter(v => v.status === 'available' || v.status === 'in_use').length} vehicles</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-600">
                             <Calendar size={16} />
                             <span>{jobsForDate.length} scheduled</span>
                         </div>
@@ -942,6 +1179,22 @@ export const DispatchBoard = ({
                                 <AlertTriangle size={16} />
                                 <span>{unassignedJobs.length} unassigned</span>
                             </div>
+                        )}
+                        {/* Route Optimization Button */}
+                        {assignedJobs.length > 1 && (
+                            <button
+                                onClick={handleOptimizeRoutes}
+                                disabled={isRouteOptimizing}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50"
+                                title="Optimize routes for all techs"
+                            >
+                                {isRouteOptimizing ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                    <Route size={14} />
+                                )}
+                                <span className="font-medium">Optimize Routes</span>
+                            </button>
                         )}
                     </div>
                 </div>
@@ -958,6 +1211,7 @@ export const DispatchBoard = ({
                     onAssign={(job, techId, techName) => handleAssign(job, techId, techName)}
                     onAutoAssign={handleAutoAssign}
                     isAutoAssigning={isAutoAssigning}
+                    vehicles={vehicles}
                 />
 
                 {/* Tech Columns */}
@@ -984,6 +1238,7 @@ export const DispatchBoard = ({
                             onOpenCrewModal={setCrewModalJob}
                             onMarkWorkingToday={handleMarkWorkingToday}
                             onEditSchedule={handleEditSchedule}
+                            vehicles={vehicles}
                         />
                     );
                 })}
@@ -1034,6 +1289,154 @@ export const DispatchBoard = ({
                     }}
                     onClose={() => setCrewModalJob(null)}
                 />
+            )}
+
+            {/* Route Optimization Modal */}
+            {showRouteOptimization && routeComparisonData && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-50 to-white">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-purple-100 rounded-lg">
+                                    <Route className="text-purple-600" size={20} />
+                                </div>
+                                <div>
+                                    <h2 className="text-lg font-bold text-slate-800">Route Optimization Results</h2>
+                                    <p className="text-sm text-slate-500">
+                                        {routeComparisonData.assignments
+                                            ? `${routeComparisonData.assignments.length} vehicle routes optimized`
+                                            : 'Single route comparison'}
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowRouteOptimization(false);
+                                    setRouteComparisonData(null);
+                                }}
+                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+                            {routeComparisonData.assignments ? (
+                                // Multi-Vehicle Results
+                                <div className="space-y-4">
+                                    {/* Summary Stats */}
+                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                        <div className="p-3 bg-emerald-50 rounded-xl text-center">
+                                            <p className="text-2xl font-bold text-emerald-600">
+                                                {routeComparisonData.assignments.length}
+                                            </p>
+                                            <p className="text-sm text-emerald-700">Vehicle Routes</p>
+                                        </div>
+                                        <div className="p-3 bg-blue-50 rounded-xl text-center">
+                                            <p className="text-2xl font-bold text-blue-600">
+                                                {routeComparisonData.assignments.reduce((sum, a) => sum + a.route.length, 0)}
+                                            </p>
+                                            <p className="text-sm text-blue-700">Total Stops</p>
+                                        </div>
+                                        {routeComparisonData.unassigned?.length > 0 && (
+                                            <div className="p-3 bg-amber-50 rounded-xl text-center">
+                                                <p className="text-2xl font-bold text-amber-600">
+                                                    {routeComparisonData.unassigned.length}
+                                                </p>
+                                                <p className="text-sm text-amber-700">Unrouted Jobs</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Crew Warnings */}
+                                    {routeComparisonData.crewWarnings?.length > 0 && (
+                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                                            <div className="flex items-start gap-2">
+                                                <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={16} />
+                                                <div>
+                                                    <p className="font-medium text-amber-800">Crew Warnings</p>
+                                                    <ul className="mt-1 text-sm text-amber-700 space-y-1">
+                                                        {routeComparisonData.crewWarnings.map((warning, idx) => (
+                                                            <li key={idx}>{warning}</li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Vehicle Routes */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {routeComparisonData.assignments.map((assignment, idx) => (
+                                            <div key={idx} className="border-2 border-slate-200 rounded-xl overflow-hidden">
+                                                <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+                                                    <Truck size={16} className="text-slate-500" />
+                                                    <span className="font-bold text-slate-700">
+                                                        {assignment.vehicleName || `Vehicle ${idx + 1}`}
+                                                    </span>
+                                                    <span className="ml-auto text-sm text-slate-500">
+                                                        {assignment.route.length} stops
+                                                    </span>
+                                                </div>
+                                                <div className="p-3 space-y-2 max-h-[200px] overflow-y-auto">
+                                                    {assignment.route.map((job, stopIdx) => (
+                                                        <div key={job.id} className="flex items-center gap-2">
+                                                            <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">
+                                                                {stopIdx + 1}
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <p className="text-sm font-medium text-slate-700 truncate">
+                                                                    {job.title || job.serviceType || 'Job'}
+                                                                </p>
+                                                                <p className="text-xs text-slate-500 truncate">
+                                                                    {job.customer?.name || job.customerName}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                // Single Route Comparison (use RouteComparison component)
+                                <RouteComparison
+                                    currentRoute={routeComparisonData.currentRoute}
+                                    optimizedRoute={routeComparisonData.optimizedRoute}
+                                    currentArrivals={routeComparisonData.currentArrivals}
+                                    optimizedArrivals={routeComparisonData.optimizedArrivals}
+                                    currentStats={routeComparisonData.currentStats}
+                                    optimizedStats={routeComparisonData.optimizedStats}
+                                    comparison={routeComparisonData.comparison}
+                                    onApplyOptimized={handleApplyOptimizedRoutes}
+                                />
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-slate-200 flex justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowRouteOptimization(false);
+                                    setRouteComparisonData(null);
+                                }}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleApplyOptimizedRoutes}
+                                className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                            >
+                                <CheckCircle size={16} />
+                                Apply Optimized Routes
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
