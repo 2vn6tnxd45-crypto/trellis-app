@@ -17,6 +17,36 @@ import {
 } from '../lib/jobPhotoService';
 import toast from 'react-hot-toast';
 
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        return '';
+    }
+    return String(addr);
+};
+
+// Helper to safely format timestamp/date
+const safeFormatTime = (timestamp) => {
+    if (!timestamp) return '';
+    try {
+        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        return date.toLocaleString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    } catch {
+        return '';
+    }
+};
+
 export const StartJobWithPhotosModal = ({
     job,
     contractorId,
@@ -146,12 +176,12 @@ export const StartJobWithPhotosModal = ({
                     <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                             <MapPin className="w-4 h-4" />
-                            <span>{job.customer?.address || job.serviceAddress?.formatted || 'No address'}</span>
+                            <span>{safeAddress(job.customer?.address) || safeAddress(job.serviceAddress) || 'No address'}</span>
                         </div>
                         {job.scheduledTime && (
                             <div className="flex items-center gap-2 text-sm text-gray-600">
                                 <Clock className="w-4 h-4" />
-                                <span>Scheduled for {job.scheduledTime}</span>
+                                <span>Scheduled for {safeFormatTime(job.scheduledTime)}</span>
                             </div>
                         )}
                     </div>

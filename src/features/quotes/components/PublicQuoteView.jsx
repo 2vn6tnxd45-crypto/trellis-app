@@ -61,6 +61,20 @@ const formatCurrency = (amount) => {
     }).format(amount || 0);
 };
 
+// Helper to safely extract string value (prevents React Error #310)
+const safeString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+        // Handle address objects
+        if (val.formatted) return val.formatted;
+        if (val.full) return val.full;
+        if (val.street) return val.street;
+        return '';
+    }
+    return String(val);
+};
+
 // parseAddressString and addressesMatch are now imported from lib/addressUtils
 
 // ============================================
@@ -829,16 +843,16 @@ const QuoteContent = ({
                             Service For
                         </h3>
                         <div className="space-y-2">
-                            {quote.customer?.name && (
+                            {safeString(quote.customer?.name) && (
                                 <div className="flex items-center gap-2 text-slate-700">
                                     <User size={16} className="text-slate-400" />
-                                    <span>{quote.customer.name}</span>
+                                    <span>{safeString(quote.customer.name)}</span>
                                 </div>
                             )}
-                            {quote.customer?.address && (
+                            {safeString(quote.customer?.address) && (
                                 <div className="flex items-center gap-2 text-slate-700">
                                     <MapPin size={16} className="text-slate-400" />
-                                    <span>{quote.customer.address}</span>
+                                    <span>{safeString(quote.customer.address)}</span>
                                 </div>
                             )}
                         </div>

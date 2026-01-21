@@ -50,6 +50,19 @@ import { JobCompletionReview } from '../jobs/components/completion';
 // ============================================
 const formatNumber = (num) => num ? num.toLocaleString() : '--';
 const formatCurrency = (num) => num ? `$${num.toLocaleString()}` : '--';
+
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        return '';
+    }
+    return String(addr);
+};
 const formatYear = (dateString) => {
     if (!dateString) return null;
     try {
@@ -369,10 +382,10 @@ const MyQuotesSection = ({ userId }) => {
                             </div>
 
                             {/* Address if available */}
-                            {quote.customer?.address && (
+                            {safeAddress(quote.customer?.address) && (
                                 <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-3">
                                     <MapPin size={12} />
-                                    <span className="truncate">{quote.customer.address}</span>
+                                    <span className="truncate">{safeAddress(quote.customer.address)}</span>
                                 </div>
                             )}
 

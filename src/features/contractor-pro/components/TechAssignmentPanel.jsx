@@ -17,6 +17,23 @@ import toast from 'react-hot-toast';
 import { getAssignedTechIds, assignCrewToJob, removeTechFromCrew, createCrewMember } from '../lib/crewService';
 
 // ============================================
+// HELPERS
+// ============================================
+
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        return '';
+    }
+    return String(addr);
+};
+
+// ============================================
 // WORKLOAD CHART
 // ============================================
 
@@ -262,10 +279,10 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                                                     : 'TBD'
                                                 }
                                             </span>
-                                            {job.customer?.address && (
+                                            {safeAddress(job.customer?.address) && (
                                                 <>
                                                     <MapPin size={10} />
-                                                    <span className="truncate">{job.customer.address.split(',')[0]}</span>
+                                                    <span className="truncate">{safeAddress(job.customer.address).split(',')[0]}</span>
                                                 </>
                                             )}
                                         </div>

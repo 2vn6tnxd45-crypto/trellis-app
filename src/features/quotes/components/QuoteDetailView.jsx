@@ -15,6 +15,24 @@ import toast from 'react-hot-toast';
 import { QuoteStatusBadge } from './QuotesListView';
 
 // ============================================
+// HELPERS
+// ============================================
+
+// Helper to safely extract string value (prevents React Error #310)
+const safeString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object') {
+        // Handle address objects
+        if (val.formatted) return val.formatted;
+        if (val.full) return val.full;
+        if (val.street) return val.street;
+        return '';
+    }
+    return String(val);
+};
+
+// ============================================
 // TIMELINE STEP
 // ============================================
 const TimelineStep = ({ icon: Icon, label, date, isActive, isComplete }) => (
@@ -433,18 +451,18 @@ export const QuoteDetailView = ({
                                     <User size={18} className="text-slate-400" />
                                 </div>
                                 <div>
-                                    <p className="font-medium text-slate-800">{quote.customer?.name}</p>
-                                    <p className="text-sm text-slate-500">{quote.customer?.email}</p>
+                                    <p className="font-medium text-slate-800">{safeString(quote.customer?.name)}</p>
+                                    <p className="text-sm text-slate-500">{safeString(quote.customer?.email)}</p>
                                 </div>
                             </div>
-                            {quote.customer?.phone && (
-                                <p className="text-sm text-slate-500">{quote.customer.phone}</p>
+                            {safeString(quote.customer?.phone) && (
+                                <p className="text-sm text-slate-500">{safeString(quote.customer.phone)}</p>
                             )}
-                            {quote.customer?.address && (
+                            {safeString(quote.customer?.address) && (
                                 <div className="pt-3 border-t border-slate-100">
                                     <p className="text-xs text-slate-500 flex items-center gap-2">
                                         <MapPin size={14} />
-                                        {quote.customer.address}
+                                        {safeString(quote.customer.address)}
                                     </p>
                                 </div>
                             )}

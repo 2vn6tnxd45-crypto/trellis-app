@@ -19,6 +19,23 @@ import { createDateInTimezone, detectTimezone, formatInTimezone } from '../contr
 import { isMultiDayJob, createMultiDaySchedule } from '../contractor-pro/lib/multiDayUtils';
 
 // ============================================
+// HELPERS
+// ============================================
+
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        return '';
+    }
+    return String(addr);
+};
+
+// ============================================
 // RESCHEDULE REASONS
 // ============================================
 
@@ -240,10 +257,10 @@ export const RescheduleJobModal = ({
                         {job.title || job.description || 'Service'}
                     </h4>
                     <p className="text-sm text-slate-500">{job.customer?.name || job.customerName}</p>
-                    {job.customer?.address && (
+                    {safeAddress(job.customer?.address) && (
                         <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
                             <MapPin size={12} />
-                            {job.customer.address}
+                            {safeAddress(job.customer.address)}
                         </p>
                     )}
                 </div>

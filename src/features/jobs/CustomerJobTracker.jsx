@@ -30,6 +30,23 @@ import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 
 // ============================================
+// HELPERS
+// ============================================
+
+// Helper to safely extract address string (prevents React Error #310)
+const safeAddress = (addr) => {
+    if (!addr) return '';
+    if (typeof addr === 'string') return addr;
+    if (typeof addr === 'object') {
+        if (addr.formatted) return addr.formatted;
+        if (addr.full) return addr.full;
+        if (addr.street) return addr.street;
+        return '';
+    }
+    return String(addr);
+};
+
+// ============================================
 // STATUS CONFIGURATION
 // ============================================
 
@@ -369,15 +386,15 @@ export const CustomerJobTracker = ({
                         )}
 
                         {/* Address */}
-                        {(job.customer?.address || job.address) && (
+                        {(safeAddress(job.customer?.address) || safeAddress(job.address)) && (
                             <div className="flex items-start gap-3">
                                 <MapPin size={18} className="text-slate-400 mt-0.5" />
                                 <div>
                                     <p className="text-slate-800">
-                                        {job.customer?.address || job.address}
+                                        {safeAddress(job.customer?.address) || safeAddress(job.address)}
                                     </p>
                                     <a
-                                        href={`https://maps.google.com/?q=${encodeURIComponent(job.customer?.address || job.address)}`}
+                                        href={`https://maps.google.com/?q=${encodeURIComponent(safeAddress(job.customer?.address) || safeAddress(job.address))}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-sm text-indigo-600 hover:underline flex items-center gap-1"
