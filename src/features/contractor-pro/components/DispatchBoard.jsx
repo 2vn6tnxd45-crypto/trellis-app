@@ -81,8 +81,6 @@ const JobCard = ({
     onOpenCrewModal,
     isAssigned,
     compact = false,
-    isAssigned,
-    compact = false,
     vehicles = [],
     date = new Date() // Add date prop with default
 }) => {
