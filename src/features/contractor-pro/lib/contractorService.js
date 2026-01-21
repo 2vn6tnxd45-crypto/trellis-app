@@ -22,11 +22,15 @@ import {
     increment
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { 
-    CONTRACTORS_COLLECTION_PATH, 
+import {
+    CONTRACTORS_COLLECTION_PATH,
     INVITATIONS_COLLECTION_PATH,
-    REQUESTS_COLLECTION_PATH 
+    REQUESTS_COLLECTION_PATH,
+    appId
 } from '../../../config/constants';
+
+// Public contractor profiles collection (for marketplace/homeowner view)
+const CONTRACTOR_PROFILES_COLLECTION = `artifacts/${appId}/public/data/contractorProfiles`;
 
 // Collection paths
 const CONTRACTORS_COLLECTION = CONTRACTORS_COLLECTION_PATH || 'contractors';
@@ -723,7 +727,7 @@ export const deleteContractorAccount = async (contractorId) => {
 
         const deletedCounts = {};
 
-        // Delete all subcollections
+        // Delete all subcollections from main contractor document
         for (const subcollection of ALL_CONTRACTOR_SUBCOLLECTIONS) {
             try {
                 const count = await deleteSubcollection(contractorId, subcollection);
@@ -737,6 +741,31 @@ export const deleteContractorAccount = async (contractorId) => {
         // Delete the main contractor document
         const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
         await deleteDoc(contractorRef);
+        console.log(`[deleteContractorAccount] Deleted main contractor document`);
+
+        // Delete the PUBLIC contractor profile (used in marketplace/homeowner views)
+        try {
+            // Delete reviews subcollection first
+            const reviewsRef = collection(db, CONTRACTOR_PROFILES_COLLECTION, contractorId, 'reviews');
+            const reviewsSnap = await getDocs(reviewsRef);
+            if (!reviewsSnap.empty) {
+                const batch = writeBatch(db);
+                reviewsSnap.docs.forEach(docSnap => batch.delete(docSnap.ref));
+                await batch.commit();
+                deletedCounts['publicProfile.reviews'] = reviewsSnap.size;
+                console.log(`[deleteContractorAccount] Deleted ${reviewsSnap.size} public profile reviews`);
+            }
+
+            // Delete the public profile document
+            const publicProfileRef = doc(db, CONTRACTOR_PROFILES_COLLECTION, contractorId);
+            await deleteDoc(publicProfileRef);
+            deletedCounts['publicProfile'] = 1;
+            console.log(`[deleteContractorAccount] Deleted public contractor profile`);
+        } catch (publicError) {
+            // Public profile may not exist - that's OK
+            console.warn(`[deleteContractorAccount] Could not delete public profile (may not exist):`, publicError.message);
+            deletedCounts['publicProfile'] = { skipped: true, reason: publicError.message };
+        }
 
         console.log(`[deleteContractorAccount] Deletion complete. Deleted counts:`, deletedCounts);
 

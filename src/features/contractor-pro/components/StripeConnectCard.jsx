@@ -191,7 +191,7 @@ export const StripeConnectCard = ({ contractorId, profile }) => {
                         <div className="flex items-start gap-2 bg-blue-50 p-3 rounded-xl">
                             <Shield size={14} className="text-blue-500 shrink-0 mt-0.5" />
                             <p className="text-xs text-blue-700">
-                                <strong>Free to connect.</strong> You only pay standard Stripe fees (2.9% + 30¢) when you receive a payment. Krib takes nothing.
+                                <strong>Secure payments.</strong> Powered by Stripe with bank-level encryption and fraud protection.
                             </p>
                         </div>
                         
