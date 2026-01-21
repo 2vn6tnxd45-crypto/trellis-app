@@ -189,6 +189,43 @@ export const HomeownerJobCard = ({
 }) => {
     const [showActions, setShowActions] = useState(false);
 
+    // Safe usage of useMemo before conditional return
+    const multiDayInfo = useMemo(() => {
+        if (!job) return { isMultiDay: false, totalDays: 1 };
+
+        // Method 1: Check if job already has multi-day schedule
+        if (jobIsMultiDay(job)) {
+            return {
+                isMultiDay: true,
+                totalDays: job.multiDaySchedule?.totalDays || 2,
+                endDate: job.multiDaySchedule?.endDate
+            };
+        }
+
+        // Method 2: Check explicit scheduling flags (set when contractor offers slots)
+        if (job.scheduling?.isMultiDay) {
+            return {
+                isMultiDay: true,
+                totalDays: job.scheduling.totalDays || 2
+            };
+        }
+
+        // Method 3: Check estimated duration from multiple sources
+        const duration = job.estimatedDuration
+            || job.scheduling?.estimatedDuration
+            || job.quote?.estimatedDuration
+            || 0;
+
+        if (checkIsMultiDay(duration)) {
+            return {
+                isMultiDay: true,
+                totalDays: calculateDaysNeeded(duration)
+            };
+        }
+
+        return { isMultiDay: false, totalDays: 1 };
+    }, [job]);
+
     // Fallback to detected timezone if none provided
     const displayTimezone = timezone || detectTimezone();
 
@@ -251,40 +288,7 @@ export const HomeownerJobCard = ({
     const offeredSlots = getOfferedSlots();
     const hasNewTimeRequest = job.scheduling?.requestedNewTimes;
 
-    // Detect multi-day job - check multiple sources
-    const multiDayInfo = useMemo(() => {
-        // Method 1: Check if job already has multi-day schedule
-        if (jobIsMultiDay(job)) {
-            return {
-                isMultiDay: true,
-                totalDays: job.multiDaySchedule?.totalDays || 2,
-                endDate: job.multiDaySchedule?.endDate
-            };
-        }
 
-        // Method 2: Check explicit scheduling flags (set when contractor offers slots)
-        if (job.scheduling?.isMultiDay) {
-            return {
-                isMultiDay: true,
-                totalDays: job.scheduling.totalDays || 2
-            };
-        }
-
-        // Method 3: Check estimated duration from multiple sources
-        const duration = job.estimatedDuration
-            || job.scheduling?.estimatedDuration
-            || job.quote?.estimatedDuration
-            || 0;
-
-        if (checkIsMultiDay(duration)) {
-            return {
-                isMultiDay: true,
-                totalDays: calculateDaysNeeded(duration)
-            };
-        }
-
-        return { isMultiDay: false, totalDays: 1 };
-    }, [job]);
 
     // Format date for display (Timezone Aware!)
     const formatDate = (dateStr) => {
@@ -318,11 +322,10 @@ export const HomeownerJobCard = ({
 
     return (
         <div
-            className={`rounded-2xl border overflow-hidden transition-all hover:shadow-md relative ${
-                isSlotsOffered
-                    ? 'bg-amber-50/50 border-amber-300 hover:border-amber-400 ring-2 ring-amber-100'
-                    : 'bg-white border-slate-200 hover:border-slate-300'
-            } ${compact ? '' : ''}`}
+            className={`rounded-2xl border overflow-hidden transition-all hover:shadow-md relative ${isSlotsOffered
+                ? 'bg-amber-50/50 border-amber-300 hover:border-amber-400 ring-2 ring-amber-100'
+                : 'bg-white border-slate-200 hover:border-slate-300'
+                } ${compact ? '' : ''}`}
         >
             {/* Pulsing action indicator for slots offered */}
             {isSlotsOffered && (
@@ -605,9 +608,8 @@ export const HomeownerJobCard = ({
                             <div className="space-y-2">
                                 {/* Countdown badge */}
                                 {daysRemaining !== null && (
-                                    <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${
-                                        isUrgent ? 'bg-red-100' : 'bg-amber-100'
-                                    }`}>
+                                    <div className={`flex items-center justify-center gap-2 py-2 rounded-lg ${isUrgent ? 'bg-red-100' : 'bg-amber-100'
+                                        }`}>
                                         <AlertTriangle size={14} className={isUrgent ? 'text-red-600' : 'text-amber-600'} />
                                         <span className={`text-sm font-bold ${isUrgent ? 'text-red-700' : 'text-amber-700'}`}>
                                             {daysRemaining <= 0
@@ -621,17 +623,15 @@ export const HomeownerJobCard = ({
                                 )}
 
                                 {/* Status info */}
-                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
-                                    isUrgent ? 'bg-red-50 text-red-600' : 'bg-purple-50 text-purple-600'
-                                }`}>
+                                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${isUrgent ? 'bg-red-50 text-red-600' : 'bg-purple-50 text-purple-600'
+                                    }`}>
                                     <ClipboardCheck size={14} />
                                     <span className="text-sm font-medium flex-1">
                                         Review required
                                     </span>
                                     {itemCount > 0 && (
-                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                            isUrgent ? 'bg-red-100' : 'bg-purple-100'
-                                        }`}>
+                                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isUrgent ? 'bg-red-100' : 'bg-purple-100'
+                                            }`}>
                                             {itemCount} item{itemCount !== 1 ? 's' : ''}
                                         </span>
                                     )}
@@ -663,11 +663,10 @@ export const HomeownerJobCard = ({
 
             {/* Quick Action Bar (for jobs needing action) */}
             {effectiveStatus === 'slots_offered' && offeredSlots.length > 0 && (
-                <div className={`px-4 py-3 border-t ${
-                    multiDayInfo.isMultiDay
-                        ? 'bg-indigo-50 border-indigo-200'
-                        : 'bg-amber-50 border-amber-100'
-                }`}>
+                <div className={`px-4 py-3 border-t ${multiDayInfo.isMultiDay
+                    ? 'bg-indigo-50 border-indigo-200'
+                    : 'bg-amber-50 border-amber-100'
+                    }`}>
                     {/* Multi-day prominent notice */}
                     {multiDayInfo.isMultiDay && (
                         <div className="flex items-center gap-2 mb-3 p-2 bg-indigo-100 rounded-lg">
@@ -682,11 +681,10 @@ export const HomeownerJobCard = ({
                     )}
                     <button
                         onClick={() => onSelect?.(job)}
-                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
-                            multiDayInfo.isMultiDay
-                                ? 'bg-indigo-600 hover:bg-indigo-700'
-                                : 'bg-amber-500 hover:bg-amber-600'
-                        }`}
+                        className={`w-full py-2.5 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${multiDayInfo.isMultiDay
+                            ? 'bg-indigo-600 hover:bg-indigo-700'
+                            : 'bg-amber-500 hover:bg-amber-600'
+                            }`}
                     >
                         <Calendar size={16} />
                         {multiDayInfo.isMultiDay

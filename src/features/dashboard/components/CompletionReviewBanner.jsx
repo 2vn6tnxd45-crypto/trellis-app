@@ -161,6 +161,14 @@ const JobReviewCard = ({ job, onReviewClick, onRequestRevision }) => {
 export const CompletionReviewBanner = ({ jobs = [], onReviewClick, onRequestRevision }) => {
     const [dismissed, setDismissed] = useState(false);
 
+    // Check session storage on mount
+    React.useEffect(() => {
+        const wasDismissed = sessionStorage.getItem('completionReviewBannerDismissed');
+        if (wasDismissed === 'true') {
+            setDismissed(true);
+        }
+    }, []);
+
     // Filter to only pending_completion jobs
     const pendingJobs = useMemo(() => {
         return jobs.filter(job => job.status === 'pending_completion');
@@ -197,13 +205,7 @@ export const CompletionReviewBanner = ({ jobs = [], onReviewClick, onRequestRevi
         sessionStorage.setItem('completionReviewBannerDismissed', 'true');
     };
 
-    // Check session storage on mount
-    React.useEffect(() => {
-        const wasDismissed = sessionStorage.getItem('completionReviewBannerDismissed');
-        if (wasDismissed === 'true') {
-            setDismissed(true);
-        }
-    }, []);
+
 
     // Single job view
     if (sortedJobs.length === 1) {
@@ -231,9 +233,8 @@ export const CompletionReviewBanner = ({ jobs = [], onReviewClick, onRequestRevi
 
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-4">
-                    <div className={`p-2.5 rounded-xl ${
-                        hasUrgent ? 'bg-amber-100' : 'bg-emerald-100'
-                    }`}>
+                    <div className={`p-2.5 rounded-xl ${hasUrgent ? 'bg-amber-100' : 'bg-emerald-100'
+                        }`}>
                         <ClipboardCheck size={24} className={
                             hasUrgent ? 'text-amber-600' : 'text-emerald-600'
                         } />
@@ -259,11 +260,10 @@ export const CompletionReviewBanner = ({ jobs = [], onReviewClick, onRequestRevi
 
     // Multiple jobs view
     return (
-        <div className={`relative rounded-2xl border-2 p-5 mb-6 ${
-            hasUrgent
-                ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
-                : 'bg-emerald-50 border-emerald-200'
-        }`}>
+        <div className={`relative rounded-2xl border-2 p-5 mb-6 ${hasUrgent
+            ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
+            : 'bg-emerald-50 border-emerald-200'
+            }`}>
             {/* Dismiss button */}
             <button
                 onClick={handleDismiss}
@@ -275,9 +275,8 @@ export const CompletionReviewBanner = ({ jobs = [], onReviewClick, onRequestRevi
 
             {/* Header */}
             <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2.5 rounded-xl ${
-                    hasUrgent ? 'bg-amber-100' : 'bg-emerald-100'
-                }`}>
+                <div className={`p-2.5 rounded-xl ${hasUrgent ? 'bg-amber-100' : 'bg-emerald-100'
+                    }`}>
                     <ClipboardCheck size={24} className={
                         hasUrgent ? 'text-amber-600' : 'text-emerald-600'
                     } />
