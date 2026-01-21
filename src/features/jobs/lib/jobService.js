@@ -9,7 +9,9 @@ import { isMultiDayJob, createMultiDaySchedule } from '../../contractor-pro/lib/
 import { addressesMatch, formatAddress } from '../../../lib/addressUtils';
 
 export const JOB_STATUSES = {
-    PENDING: 'pending',
+    // Use 'pending_schedule' to match homeowner dashboard filter
+    // The dashboard expects: pending_schedule, slots_offered, scheduling, scheduled, in_progress, etc.
+    PENDING: 'pending_schedule',
     SCHEDULED: 'scheduled',
     IN_PROGRESS: 'in_progress',
     COMPLETED: 'completed',

@@ -1,0 +1,14 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "https://mykrib.app",
+      "localStorage": [
+        {
+          "name": "krib-theme",
+          "value": "light"
+        }
+      ]
+    }
+  ]
+}
