@@ -212,6 +212,7 @@ export const linkJobToHomeowner = async (contractorId, jobId, customerEmail) => 
             // Update job with direct link (including property if matched)
             const updates = {
                 'customer.email': normalizedEmail,
+                customerId: userId, // Required for ActiveProjectsSection query
                 homeownerId: userId,
                 homeownerLinked: true,
                 homeownerLinkedAt: serverTimestamp(),

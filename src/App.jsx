@@ -649,7 +649,8 @@ const AppContent = () => {
                         onJobNotificationClick={(notif) => {
                             jobNotifications.markAsRead(notif.id);
                             app.setShowNotifications(false);
-                            app.setActiveTab('Contractors');
+                            // Navigate to Dashboard where jobs appear in Active Projects section
+                            app.setActiveTab('Dashboard');
                         }}
                         onJobNotificationDismiss={(notifId) => {
                             jobNotifications.deleteNotification(notifId);
