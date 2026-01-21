@@ -243,8 +243,16 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                 updateData.contractorId = contractorId;
             }
 
+            console.log('[JobScheduler] Proposing time:', {
+                jobId: job.id,
+                userType,
+                proposal: newProposal,
+                updateData: { ...updateData, lastActivity: 'serverTimestamp()' }
+            });
+
             await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), updateData);
 
+            console.log('[JobScheduler] Time proposal saved successfully');
             toast.success("Time proposed!");
             setIsProposing(false);
             setProposal({ date: '', time: '09:00' }); // Reset form

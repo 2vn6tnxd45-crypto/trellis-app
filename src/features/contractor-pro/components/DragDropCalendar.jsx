@@ -965,6 +965,18 @@ export const DragDropCalendar = ({
                 // Check for contractor offered slots
                 const offeredSlots = job.scheduling?.offeredSlots?.filter(s => s.status === 'offered') || [];
 
+                // Debug logging for homeowner proposals
+                if (homeownerProposals.length > 0) {
+                    console.log('[DragDropCalendar] Job with homeowner proposals:', {
+                        jobId: job.id,
+                        status: job.status,
+                        proposedTimes: job.proposedTimes,
+                        homeownerProposals,
+                        latestHomeownerProposal,
+                        willShow: latestHomeownerProposal?.date && job.status === 'scheduling'
+                    });
+                }
+
                 // Priority: Homeowner proposals need action, then offered slots, then unscheduled
                 if (latestHomeownerProposal?.date && job.status === 'scheduling') {
                     // Homeowner proposed a time - show in pending on calendar AND sidebar
