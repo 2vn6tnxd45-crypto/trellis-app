@@ -185,11 +185,19 @@ export async function saveAnalysisToEvaluation(contractorId, evaluationId, analy
  * @param {Object} evaluationContext - Context from the evaluation request
  */
 export async function analyzeAndSaveEvaluation(
-    contractorId, 
-    evaluationId, 
+    contractorId,
+    evaluationId,
     submissionData,
     evaluationContext = {}
 ) {
+    console.log('[evaluationAI] analyzeAndSaveEvaluation called:', {
+        contractorId,
+        evaluationId,
+        photoCount: submissionData.photos?.length || 0,
+        videoCount: submissionData.videos?.length || 0,
+        hasAnswers: Object.keys(submissionData.answers || {}).length > 0
+    });
+
     // Run analysis
     const { success, analysis, warning } = await analyzeEvaluation({
         photos: submissionData.photos || [],
@@ -201,9 +209,21 @@ export async function analyzeAndSaveEvaluation(
         propertyType: evaluationContext.propertyType || ''
     });
 
-    if (success) {
-        // Save to Firestore
-        await saveAnalysisToEvaluation(contractorId, evaluationId, analysis);
+    console.log('[evaluationAI] Analysis result:', {
+        success,
+        hasAnalysis: !!analysis,
+        warning: warning || 'none'
+    });
+
+    // Always try to save the analysis (even fallback on error)
+    // This ensures the contractor at least sees something was submitted
+    if (analysis) {
+        try {
+            const saveResult = await saveAnalysisToEvaluation(contractorId, evaluationId, analysis);
+            console.log('[evaluationAI] Save result:', saveResult);
+        } catch (saveError) {
+            console.error('[evaluationAI] Failed to save analysis:', saveError);
+        }
     }
 
     return { success, analysis, warning };

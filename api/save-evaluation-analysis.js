@@ -70,7 +70,7 @@ export default async function handler(req, res) {
 
         // Build the document path
         // Path: artifacts/{appId}/public/data/contractors/{contractorId}/evaluations/{evaluationId}
-        const appId = process.env.VITE_APP_ID || process.env.APP_ID || 'default';
+        const appId = process.env.VITE_APP_ID || process.env.APP_ID || 'krib-app';
         const evalRef = db.doc(
             `artifacts/${appId}/public/data/contractors/${contractorId}/evaluations/${evaluationId}`
         );
