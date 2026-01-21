@@ -51,41 +51,70 @@ export const RATING_CATEGORIES = {
 // ============================================
 
 /**
- * Generate a draft invoice from job data
+ * Generate a draft invoice from job data OR from user-edited invoice data
  * Called automatically when contractor submits job completion
  * @param {object} jobData - The job document data
  * @param {string} jobId - The job document ID
  * @param {string} contractorId - The contractor's ID
+ * @param {object} editedInvoiceData - Optional: User-edited invoice data from completion form
  * @returns {object} - { invoiceId, invoiceNumber } or null if no line items
  */
-const generateDraftInvoiceFromJob = async (jobData, jobId, contractorId) => {
+const generateDraftInvoiceFromJob = async (jobData, jobId, contractorId, editedInvoiceData = null) => {
     try {
-        // Only generate if job has line items with pricing
-        const lineItems = jobData.lineItems || jobData.quoteItems || [];
-        if (lineItems.length === 0) {
-            console.log('No line items found, skipping invoice generation');
-            return null;
+        // If we have user-edited invoice data, use that
+        let invoiceItems, total, taxRate, taxAmount, depositPaid, balanceDue, notes;
+
+        if (editedInvoiceData && editedInvoiceData.lineItems?.length > 0) {
+            // Use the edited invoice data from the completion form
+            invoiceItems = editedInvoiceData.lineItems.map((item, idx) => ({
+                id: idx + 1,
+                description: item.description || 'Service',
+                quantity: item.quantity || 1,
+                unitPrice: item.unitPrice || 0,
+                cost: (item.amount || 0).toString(),
+                notes: item.notes || ''
+            }));
+            total = editedInvoiceData.total || 0;
+            taxRate = editedInvoiceData.taxRate || 0;
+            taxAmount = editedInvoiceData.taxAmount || 0;
+            depositPaid = editedInvoiceData.depositPaid || 0;
+            balanceDue = editedInvoiceData.balanceDue || total;
+            notes = editedInvoiceData.notes || 'Thank you for your business!';
+        } else {
+            // Fall back to job/quote line items
+            const lineItems = jobData.lineItems || jobData.quoteItems || [];
+            if (lineItems.length === 0) {
+                console.log('No line items found, skipping invoice generation');
+                return null;
+            }
+
+            // Map line items to invoice format
+            invoiceItems = lineItems.map((item, idx) => {
+                const quantity = item.quantity || 1;
+                const unitPrice = item.unitPrice || item.price || 0;
+                const totalCost = item.amount || item.cost || (unitPrice * quantity);
+
+                return {
+                    id: idx + 1,
+                    description: item.description || item.item || item.name || 'Service',
+                    quantity,
+                    unitPrice,
+                    cost: totalCost.toString(),
+                    notes: item.notes || ''
+                };
+            });
+
+            // Calculate total
+            total = invoiceItems.reduce((sum, item) => sum + (parseFloat(item.cost) || 0), 0);
+            taxRate = jobData.taxRate || 0;
+            taxAmount = total * (taxRate / 100);
+            depositPaid = jobData.depositAmount || jobData.depositPaid || jobData.deposit?.amount || 0;
+            balanceDue = Math.max(0, total + taxAmount - depositPaid);
+            notes = 'Thank you for your business!';
         }
 
         // Generate invoice number
         const invoiceNumber = `INV-${Date.now().toString().slice(-6)}`;
-
-        // Map line items to invoice format
-        const invoiceItems = lineItems.map((item, idx) => {
-            const quantity = item.quantity || 1;
-            const unitPrice = item.unitPrice || item.price || 0;
-            const totalCost = item.amount || item.cost || (unitPrice * quantity);
-
-            return {
-                id: idx + 1,
-                description: item.description || item.item || item.name || 'Service',
-                cost: totalCost.toString(),
-                notes: item.notes || ''
-            };
-        });
-
-        // Calculate total
-        const total = invoiceItems.reduce((sum, item) => sum + (parseFloat(item.cost) || 0), 0);
 
         // Get customer info from job
         const customerName = jobData.customerName || jobData.customer?.name || 'Customer';
@@ -108,10 +137,14 @@ const generateDraftInvoiceFromJob = async (jobData, jobId, contractorId) => {
             date: new Date().toISOString().split('T')[0],
             dueDate: dueDate.toISOString().split('T')[0],
             items: invoiceItems,
-            taxRate: 0,
-            notes: 'Thank you for your business!',
-            status: 'draft',
+            subtotal: invoiceItems.reduce((sum, item) => sum + (parseFloat(item.cost) || 0), 0),
+            taxRate,
+            taxAmount,
             total,
+            depositPaid,
+            balanceDue,
+            notes,
+            status: balanceDue > 0 ? 'pending' : 'paid', // If balance is 0, mark as paid
             contractorId,
             contractorName: jobData.contractorName || jobData.contractor || '',
             // Link back to job
@@ -130,7 +163,8 @@ const generateDraftInvoiceFromJob = async (jobData, jobId, contractorId) => {
         return {
             invoiceId: invoiceDocRef.id,
             invoiceNumber,
-            total
+            total,
+            balanceDue
         };
 
     } catch (error) {
@@ -215,8 +249,13 @@ export const submitJobCompletion = async (jobId, completionData, contractorId) =
             };
         }
 
-        // Generate draft invoice from job line items (if available)
-        const invoiceResult = await generateDraftInvoiceFromJob(jobData, jobId, contractorId);
+        // Generate draft invoice - use edited invoice data if provided, otherwise fall back to job data
+        const invoiceResult = await generateDraftInvoiceFromJob(
+            jobData,
+            jobId,
+            contractorId,
+            completionData.invoiceData || null
+        );
 
         // Update the job document
         const updateData = {
@@ -233,6 +272,11 @@ export const submitJobCompletion = async (jobId, completionData, contractorId) =
 
         await updateDoc(jobRef, updateData);
 
+        // Send notification to homeowner (non-blocking)
+        notifyHomeownerOfCompletion(jobData, invoiceResult, completionData).catch(err => {
+            console.warn('[submitJobCompletion] Failed to send homeowner notification:', err);
+        });
+
         return {
             success: true,
             jobId,
@@ -240,10 +284,128 @@ export const submitJobCompletion = async (jobId, completionData, contractorId) =
             invoiceId: invoiceResult?.invoiceId || null,
             invoiceNumber: invoiceResult?.invoiceNumber || null
         };
-        
+
     } catch (error) {
         console.error('Error submitting job completion:', error);
         throw error;
+    }
+};
+
+/**
+ * Notify contractor that homeowner accepted completion
+ * Non-blocking - errors are logged but don't fail the acceptance
+ */
+const notifyContractorOfAcceptance = async (jobData, importedRecordIds) => {
+    const contractorEmail = jobData.contractorEmail;
+    if (!contractorEmail) {
+        console.log('[notifyContractorOfAcceptance] No contractor email found, skipping notification');
+        return;
+    }
+
+    try {
+        // Get items that were imported
+        const itemsImported = (jobData.completion?.itemsToImport || [])
+            .filter(item => !item.skip)
+            .map(item => item.item || item.description)
+            .slice(0, 5);
+
+        const payload = {
+            contractorEmail,
+            contractorName: jobData.contractorName || 'there',
+            customerName: jobData.customerName || jobData.customer?.name || 'Customer',
+            jobTitle: jobData.title || jobData.description || 'Service',
+            jobNumber: jobData.jobNumber || null,
+            acceptedDate: new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            }),
+            balanceDue: jobData.completion?.invoiceData?.balanceDue || 0,
+            total: jobData.total || jobData.completion?.invoiceData?.total || 0,
+            itemsImported,
+            customerRating: null, // Will be updated later if rated
+            customerFeedback: null,
+            dashboardLink: 'https://mykrib.app/app/?pro'
+        };
+
+        const response = await fetch('/api/send-completion-accepted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log('[notifyContractorOfAcceptance] Notification sent successfully');
+        } else {
+            console.warn('[notifyContractorOfAcceptance] Failed to send notification:', await response.text());
+        }
+    } catch (error) {
+        console.warn('[notifyContractorOfAcceptance] Error sending notification:', error);
+    }
+};
+
+/**
+ * Send completion notification to homeowner
+ * Non-blocking - errors are logged but don't fail the completion
+ */
+const notifyHomeownerOfCompletion = async (jobData, invoiceResult, completionData) => {
+    const homeownerEmail = jobData.customerEmail || jobData.customer?.email;
+    if (!homeownerEmail) {
+        console.log('[notifyHomeownerOfCompletion] No homeowner email found, skipping notification');
+        return;
+    }
+
+    try {
+        // Calculate auto-approve date (7 days from now)
+        const autoApproveDate = new Date();
+        autoApproveDate.setDate(autoApproveDate.getDate() + AUTO_CLOSE_DAYS);
+
+        // Get items list for the email
+        const itemsInstalled = (completionData.items || [])
+            .filter(item => item.item)
+            .map(item => item.item)
+            .slice(0, 5); // Limit to 5 items
+
+        const payload = {
+            homeownerEmail,
+            homeownerName: jobData.customerName || jobData.customer?.name || 'there',
+            contractorName: jobData.contractorName || jobData.contractor || 'Your contractor',
+            jobTitle: jobData.title || jobData.description || 'Service',
+            jobNumber: jobData.jobNumber || null,
+            completionDate: new Date().toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            }),
+            balanceDue: invoiceResult?.balanceDue || 0,
+            depositPaid: jobData.depositAmount || jobData.depositPaid || jobData.deposit?.amount || 0,
+            total: invoiceResult?.total || jobData.total || 0,
+            itemsInstalled,
+            notes: completionData.notes || null,
+            photoCount: (completionData.photos || []).length,
+            reviewLink: 'https://mykrib.app/app',
+            autoApproveDate: autoApproveDate.toLocaleDateString('en-US', {
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric'
+            })
+        };
+
+        const response = await fetch('/api/send-job-completion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            console.log('[notifyHomeownerOfCompletion] Notification sent successfully');
+        } else {
+            console.warn('[notifyHomeownerOfCompletion] Failed to send notification:', await response.text());
+        }
+    } catch (error) {
+        console.warn('[notifyHomeownerOfCompletion] Error sending notification:', error);
     }
 };
 
@@ -555,6 +717,11 @@ export const acceptJobCompletion = async (jobId, userId, propertyId, itemSelecti
             console.warn('Failed to sync photos to property:', photoSyncError);
             // Don't fail the completion for photo sync errors
         }
+
+        // Notify contractor that completion was accepted (non-blocking)
+        notifyContractorOfAcceptance(jobData, importedRecordIds).catch(err => {
+            console.warn('[acceptJobCompletion] Failed to notify contractor:', err);
+        });
 
         return {
             success: true,

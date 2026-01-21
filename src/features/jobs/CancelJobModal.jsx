@@ -12,6 +12,8 @@ import { db } from '../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 import toast from 'react-hot-toast';
 import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
+import { archiveChatChannel } from '../../lib/chatService';
+import { cleanupCancelledJobSchedule } from '../contractor-pro/lib/schedulingAI';
 
 const CANCEL_REASONS = [
     { id: 'found_another', label: 'Found another contractor' },
@@ -126,6 +128,18 @@ export const CancelJobModal = ({ job, onClose, onSuccess }) => {
                 if (job.sourceQuoteId && job.contractorId) {
                     markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'homeowner', reason)
                         .catch(err => console.warn('Failed to update quote status:', err));
+                }
+
+                // Cleanup calendar/scheduling (non-blocking)
+                if (job.contractorId && job.scheduledDate) {
+                    cleanupCancelledJobSchedule(job.contractorId, job.id, job)
+                        .catch(err => console.warn('Failed to cleanup schedule:', err));
+                }
+
+                // Archive chat channel (non-blocking)
+                if (job.chatChannelId) {
+                    archiveChatChannel(job.chatChannelId, job.id, 'cancelled')
+                        .catch(err => console.warn('Failed to archive chat channel:', err));
                 }
 
                 // Notify contractor (non-blocking)

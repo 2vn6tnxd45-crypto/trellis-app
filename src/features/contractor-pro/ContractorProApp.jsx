@@ -16,7 +16,7 @@ import {
     Receipt,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera, Package, Star, Crown
+    ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -100,33 +100,240 @@ import { MembershipsView, PlanBuilder as MembershipPlansView } from '../membersh
 // Timesheet Components
 import { TimesheetsView, TimeClockWidget } from '../timesheets/components';
 
-// Placeholder until component exists
-const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-slate-800 mb-4">Rate Homeowner (Optional)</h2>
-            <p className="text-slate-600 mb-4">How was your experience working with this customer?</p>
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
-                <p className="text-slate-500 text-sm">Rating component placeholder</p>
-            </div>
-            <div className="flex gap-2">
+// ============================================
+// RATE HOMEOWNER MODAL - Full Implementation
+// ============================================
+const HOMEOWNER_RATING_CATEGORIES = [
+    { key: 'propertyAccess', label: 'Property Access', description: 'Was the property accessible and ready for work?' },
+    { key: 'communication', label: 'Communication', description: 'How well did they communicate?' },
+    { key: 'payment', label: 'Payment', description: 'Was payment handled smoothly?' }
+];
+
+const StarRating = ({ value, onChange, disabled = false }) => {
+    const [hoverValue, setHoverValue] = useState(0);
+
+    return (
+        <div className="flex gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
                 <button
-                    onClick={onClose}
-                    className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-slate-50"
+                    key={star}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(star)}
+                    onMouseEnter={() => !disabled && setHoverValue(star)}
+                    onMouseLeave={() => setHoverValue(0)}
+                    className={`p-1 transition-transform ${disabled ? 'cursor-not-allowed' : 'cursor-pointer hover:scale-110'}`}
                 >
-                    Skip
+                    <Star
+                        size={24}
+                        className={`transition-colors ${
+                            (hoverValue || value) >= star
+                                ? 'fill-amber-400 text-amber-400'
+                                : 'text-slate-300'
+                        }`}
+                    />
                 </button>
-                <button
-                    onClick={() => { onSuccess?.(); }}
-                    className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700"
-                >
-                    Submit Rating
-                </button>
+            ))}
+        </div>
+    );
+};
+
+const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => {
+    const [ratings, setRatings] = useState({
+        propertyAccess: 0,
+        communication: 0,
+        payment: 0
+    });
+    const [overallRating, setOverallRating] = useState(0);
+    const [feedback, setFeedback] = useState('');
+    const [wouldWorkAgain, setWouldWorkAgain] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Calculate average from category ratings
+    const calculatedAverage = () => {
+        const values = Object.values(ratings).filter(v => v > 0);
+        if (values.length === 0) return 0;
+        return Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+    };
+
+    // Auto-update overall when categories change
+    useEffect(() => {
+        const avg = calculatedAverage();
+        if (avg > 0 && overallRating === 0) {
+            setOverallRating(Math.round(avg));
+        }
+    }, [ratings]);
+
+    const handleSubmit = async () => {
+        // Validate at least overall rating
+        if (overallRating === 0) {
+            toast.error('Please provide at least an overall rating');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const ratingData = {
+                ratings,
+                overallRating,
+                averageRating: calculatedAverage() || overallRating,
+                feedback: feedback.trim() || null,
+                wouldWorkAgain,
+                ratedAt: serverTimestamp(),
+                ratedBy: 'contractor',
+                contractorId
+            };
+
+            // Update the job document with contractor's rating of homeowner
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+                'contractorRating': ratingData,
+                'contractorRating.submittedAt': serverTimestamp()
+            });
+
+            toast.success('Rating submitted! Thank you for your feedback.');
+            onSuccess?.();
+            onClose();
+        } catch (error) {
+            console.error('Error submitting rating:', error);
+            toast.error('Failed to submit rating');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const customerName = job.customer?.name || job.customerName || 'this customer';
+
+    return (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+                {/* Header */}
+                <div className="p-5 border-b border-slate-100 bg-gradient-to-r from-amber-50 to-orange-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-amber-100">
+                            <Star className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-slate-800">Rate Your Experience</h3>
+                            <p className="text-xs text-slate-500">How was working with {customerName}?</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-5 space-y-5 max-h-[60vh] overflow-y-auto">
+                    {/* Overall Rating - Most Important */}
+                    <div className="bg-slate-50 rounded-xl p-4 text-center">
+                        <p className="text-sm font-medium text-slate-600 mb-2">Overall Experience</p>
+                        <StarRating
+                            value={overallRating}
+                            onChange={setOverallRating}
+                        />
+                        <p className="text-xs text-slate-400 mt-2">
+                            {overallRating === 0 && 'Tap to rate'}
+                            {overallRating === 1 && 'Poor'}
+                            {overallRating === 2 && 'Fair'}
+                            {overallRating === 3 && 'Good'}
+                            {overallRating === 4 && 'Great'}
+                            {overallRating === 5 && 'Excellent'}
+                        </p>
+                    </div>
+
+                    {/* Category Ratings */}
+                    <div className="space-y-4">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            Detailed Ratings (Optional)
+                        </p>
+                        {HOMEOWNER_RATING_CATEGORIES.map((category) => (
+                            <div key={category.key} className="flex items-center justify-between">
+                                <div className="flex-1">
+                                    <p className="text-sm font-medium text-slate-700">{category.label}</p>
+                                    <p className="text-xs text-slate-400">{category.description}</p>
+                                </div>
+                                <StarRating
+                                    value={ratings[category.key]}
+                                    onChange={(val) => setRatings(prev => ({ ...prev, [category.key]: val }))}
+                                />
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Would Work Again */}
+                    <div className="border-t border-slate-100 pt-4">
+                        <p className="text-sm font-medium text-slate-700 mb-3">
+                            Would you work with this customer again?
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setWouldWorkAgain(true)}
+                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                                    wouldWorkAgain === true
+                                        ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-500'
+                                        : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
+                                }`}
+                            >
+                                <ThumbsUp size={16} /> Yes
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setWouldWorkAgain(false)}
+                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                                    wouldWorkAgain === false
+                                        ? 'bg-red-100 text-red-700 border-2 border-red-500'
+                                        : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
+                                }`}
+                            >
+                                <ThumbsDown size={16} /> No
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Feedback */}
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Private Notes (Optional)
+                        </label>
+                        <textarea
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            placeholder="Any notes about this customer for your records..."
+                            rows={2}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none text-sm"
+                        />
+                        <p className="text-xs text-slate-400 mt-1">
+                            This is private and won't be shared with the customer
+                        </p>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="p-5 border-t border-slate-100 bg-slate-50">
+                    <div className="flex gap-2">
+                        <button
+                            onClick={onClose}
+                            className="flex-1 py-3 border border-slate-200 rounded-xl font-medium hover:bg-white transition-colors"
+                        >
+                            Skip
+                        </button>
+                        <button
+                            onClick={handleSubmit}
+                            disabled={isSubmitting || overallRating === 0}
+                            className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                        >
+                            {isSubmitting ? (
+                                <Loader2 size={18} className="animate-spin" />
+                            ) : (
+                                <CheckCircle size={18} />
+                            )}
+                            Submit Rating
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';

@@ -456,3 +456,43 @@ export const ensureChatChannelExists = async (
         return { success: false, reason: error.message };
     }
 };
+
+// ============================================
+// ARCHIVE CHAT CHANNEL
+// ============================================
+
+/**
+ * Archive a chat channel when a job is cancelled or completed
+ * Marks the channel with a status but preserves message history
+ *
+ * @param {string} channelId - The channel ID to archive (or null to build from jobId)
+ * @param {string} jobId - The job ID (used to add context)
+ * @param {string} reason - 'cancelled' | 'completed' | 'expired'
+ * @returns {Promise<{success: boolean}>}
+ */
+export const archiveChatChannel = async (channelId, jobId, reason = 'cancelled') => {
+    // If no channelId provided, we can't archive
+    if (!channelId) {
+        console.warn('[archiveChatChannel] No channelId provided');
+        return { success: false, reason: 'no-channel-id' };
+    }
+
+    try {
+        const channelRef = doc(db, 'channels', channelId);
+
+        await updateDoc(channelRef, {
+            status: reason, // 'cancelled', 'completed', 'expired'
+            archivedAt: serverTimestamp(),
+            archivedReason: reason,
+            [`linkedJobId_${reason}`]: jobId,
+            updatedAt: serverTimestamp()
+        });
+
+        console.log(`[archiveChatChannel] Channel ${channelId} marked as ${reason}`);
+        return { success: true };
+
+    } catch (error) {
+        console.warn('[archiveChatChannel] Error:', error);
+        return { success: false, reason: error.message };
+    }
+};

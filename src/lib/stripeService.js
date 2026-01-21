@@ -190,10 +190,84 @@ export const calculateBalanceAmount = (quote, depositPaid = false) => {
  * Check if contractor can accept payments
  */
 export const canAcceptPayments = (contractor) => {
-    return contractor?.stripe?.isComplete && 
+    return contractor?.stripe?.isComplete &&
            contractor?.stripe?.chargesEnabled;
 };
 
+// ============================================
+// REFUNDS
+// ============================================
+
+/**
+ * Process a refund for a cancelled job
+ *
+ * @param {object} params
+ * @param {string} params.paymentIntentId - The Stripe payment intent ID
+ * @param {string} [params.chargeId] - Alternative: The Stripe charge ID
+ * @param {number} [params.amount] - Amount in DOLLARS to refund (omit for full refund)
+ * @param {string} params.stripeAccountId - Contractor's connected account ID
+ * @param {string} [params.jobId] - Job ID for metadata
+ * @param {string} [params.contractorId] - Contractor ID for metadata
+ * @param {string} [params.reason] - 'duplicate' | 'fraudulent' | 'requested_by_customer'
+ * @returns {Promise<{success: boolean, refundId: string, status: string, amount: number}>}
+ */
+export const processRefund = async ({
+    paymentIntentId,
+    chargeId,
+    amount,
+    stripeAccountId,
+    jobId,
+    contractorId,
+    reason = 'requested_by_customer'
+}) => {
+    if (!paymentIntentId && !chargeId) {
+        throw new Error('Either paymentIntentId or chargeId is required');
+    }
+
+    if (!stripeAccountId) {
+        throw new Error('stripeAccountId is required for connected account refunds');
+    }
+
+    try {
+        const response = await fetch('/api/stripe/refund', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paymentIntentId,
+                chargeId,
+                amount: amount ? Math.round(amount * 100) : undefined, // Convert dollars to cents
+                stripeAccountId,
+                jobId,
+                contractorId,
+                reason
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to process refund');
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Refund processing error:', error);
+        throw error;
+    }
+};
+
+/**
+ * Format refund status for display
+ */
+export const formatRefundStatus = (status) => {
+    const statusMap = {
+        'succeeded': 'Refund Completed',
+        'pending': 'Refund Pending',
+        'failed': 'Refund Failed',
+        'canceled': 'Refund Cancelled'
+    };
+    return statusMap[status] || status;
+};
 
 export default {
     startStripeOnboarding,
@@ -202,7 +276,9 @@ export default {
     redirectToCheckout,
     calculateDepositAmount,
     calculateBalanceAmount,
-    canAcceptPayments
+    canAcceptPayments,
+    processRefund,
+    formatRefundStatus
 };
 
 export { formatCurrency };

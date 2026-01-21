@@ -9,14 +9,17 @@ import React, { useState } from 'react';
 import {
     X, AlertTriangle, CheckCircle, XCircle,
     DollarSign, Clock, MessageSquare, User,
-    Calendar, FileText, Loader2
+    Calendar, FileText, Loader2, CreditCard
 } from 'lucide-react';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
+import { REQUESTS_COLLECTION_PATH, CONTRACTORS_COLLECTION_PATH } from '../../config/constants';
 import { formatCurrency } from '../../lib/utils';
+import { processRefund } from '../../lib/stripeService';
 import toast from 'react-hot-toast';
 import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
+import { archiveChatChannel } from '../../lib/chatService';
+import { cleanupCancelledJobSchedule } from '../contractor-pro/lib/schedulingAI';
 
 // ============================================
 // UTILITY FUNCTIONS
@@ -86,13 +89,74 @@ export const CancellationApprovalModal = ({ job, onClose, onSuccess }) => {
         }
     };
 
+    // Process refund through Stripe if applicable
+    const processStripeRefund = async () => {
+        if (refundAmount <= 0) {
+            console.log('[CancellationApproval] No refund amount, skipping Stripe refund');
+            return { skipped: true };
+        }
+
+        // Check if job has payment info
+        const paymentIntentId = job.paymentIntentId || job.depositPaymentIntentId || job.stripePaymentIntentId;
+        if (!paymentIntentId) {
+            console.log('[CancellationApproval] No payment intent found, skipping Stripe refund');
+            return { skipped: true };
+        }
+
+        // Get contractor's Stripe account ID
+        try {
+            const contractorDoc = await getDoc(doc(db, CONTRACTORS_COLLECTION_PATH, job.contractorId));
+            const stripeAccountId = contractorDoc.data()?.stripe?.accountId;
+
+            if (!stripeAccountId) {
+                console.warn('[CancellationApproval] No Stripe account found for contractor');
+                return { skipped: true };
+            }
+
+            console.log('[CancellationApproval] Processing refund:', {
+                paymentIntentId,
+                amount: refundAmount,
+                stripeAccountId
+            });
+
+            const refundResult = await processRefund({
+                paymentIntentId,
+                amount: refundAmount,
+                stripeAccountId,
+                jobId: job.id,
+                contractorId: job.contractorId,
+                reason: 'requested_by_customer'
+            });
+
+            return refundResult;
+        } catch (error) {
+            console.error('[CancellationApproval] Refund processing error:', error);
+            return { error: error.message };
+        }
+    };
+
     // Handle approval
     const handleApprove = async () => {
         setIsSubmitting(true);
         setAction('approve');
 
         try {
-            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), {
+            // Process Stripe refund first (if applicable)
+            let refundResult = null;
+            if (refundAmount > 0) {
+                const loadingToast = toast.loading('Processing refund...');
+                refundResult = await processStripeRefund();
+                toast.dismiss(loadingToast);
+
+                if (refundResult?.error) {
+                    toast.error(`Refund failed: ${refundResult.error}. Cancellation will proceed without automatic refund.`);
+                } else if (refundResult?.refundId) {
+                    toast.success(`Refund of ${formatCurrency(refundAmount)} processed!`);
+                }
+            }
+
+            // Update the job document
+            const updateData = {
                 status: 'cancelled',
                 cancellation: {
                     cancelledAt: serverTimestamp(),
@@ -101,18 +165,35 @@ export const CancellationApprovalModal = ({ job, onClose, onSuccess }) => {
                     reason: cancellationRequest.reason || 'Customer requested',
                     refundAmount: refundAmount,
                     contractorMessage: contractorMessage || null,
-                    approvedAt: serverTimestamp()
+                    approvedAt: serverTimestamp(),
+                    // Record refund details
+                    refundStatus: refundResult?.status || (refundResult?.skipped ? 'skipped' : 'failed'),
+                    refundId: refundResult?.refundId || null
                 },
                 'cancellationRequest.status': 'approved',
                 'cancellationRequest.resolvedAt': serverTimestamp(),
                 'cancellationRequest.refundAmount': refundAmount,
                 lastActivity: serverTimestamp()
-            });
+            };
+
+            await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, job.id), updateData);
 
             // Update the source quote status if this job came from a quote
             if (job.sourceQuoteId && job.contractorId) {
                 markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'homeowner', cancellationRequest.reason)
                     .catch(err => console.warn('Failed to update quote status:', err));
+            }
+
+            // Cleanup calendar/scheduling (non-blocking)
+            if (job.contractorId && (job.scheduledDate || job.assignedTechId)) {
+                cleanupCancelledJobSchedule(job.contractorId, job.id, job)
+                    .catch(err => console.warn('Failed to cleanup schedule:', err));
+            }
+
+            // Archive chat channel (non-blocking)
+            if (job.chatChannelId || job.customerEmail) {
+                archiveChatChannel(job.chatChannelId, job.id, 'cancelled')
+                    .catch(err => console.warn('Failed to archive chat channel:', err));
             }
 
             // Notify homeowner (non-blocking)

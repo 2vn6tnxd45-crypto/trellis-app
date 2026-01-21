@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     X, Camera, Upload, FileText, Plus, Trash2, CheckCircle,
     Loader2, Image, AlertCircle, DollarSign, Wrench, Calendar,
-    ClipboardList, MessageSquare, ChevronDown, ChevronUp, Sparkles, Edit3,
+    ClipboardList, MessageSquare, ChevronDown, ChevronUp, ChevronRight, Sparkles, Edit3,
     Home, Clock, CheckSquare, Square, Receipt
 } from 'lucide-react';
 import { Select } from '../../../../components/ui/Select';
@@ -171,7 +171,7 @@ const mapQuoteItemsToCompletionItems = (quoteItems) => {
 export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => {
     // Form state
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [activeSection, setActiveSection] = useState('photos');
+    const [activeSection, setActiveSection] = useState('invoice');
 
     // Photos
     const [photos, setPhotos] = useState([]);
@@ -183,10 +183,16 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
     const [photoRequirements, setPhotoRequirements] = useState(DEFAULT_PHOTO_REQUIREMENTS);
     const [beforePhotos, setBeforePhotos] = useState([]); // Photos already taken at job start
 
-    // Invoice
-    const [invoice, setInvoice] = useState(null);
+    // Invoice - now editable with line items
+    const [invoice, setInvoice] = useState(null); // Uploaded invoice file (optional)
     const [uploadingInvoice, setUploadingInvoice] = useState(false);
     const invoiceInputRef = useRef(null);
+
+    // Editable invoice preview state
+    const [invoiceLineItems, setInvoiceLineItems] = useState([]);
+    const [invoiceTaxRate, setInvoiceTaxRate] = useState(0);
+    const [invoiceNotes, setInvoiceNotes] = useState('Thank you for your business!');
+    const [hasLoadedInvoiceData, setHasLoadedInvoiceData] = useState(false);
 
     // Items installed - NOW PRE-POPULATED FROM QUOTE
     const [items, setItems] = useState([]);
@@ -219,6 +225,41 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
         };
         loadPhotoData();
     }, [contractorId, job]);
+
+    // ============================================
+    // PRE-POPULATE INVOICE LINE ITEMS FROM JOB DATA
+    // ============================================
+    useEffect(() => {
+        if (hasLoadedInvoiceData) return;
+
+        // Get line items from job/quote
+        const lineItems = job?.lineItems || job?.quoteItems || job?.estimate?.lineItems || [];
+
+        if (lineItems.length > 0) {
+            const mappedItems = lineItems.map((item, idx) => {
+                const quantity = item.quantity || 1;
+                const unitPrice = item.unitPrice || item.price || 0;
+                const totalCost = item.amount || item.cost || (unitPrice * quantity);
+
+                return {
+                    id: item.id || `line_${Date.now()}_${idx}`,
+                    description: item.description || item.item || item.name || 'Service',
+                    quantity,
+                    unitPrice,
+                    amount: totalCost,
+                    notes: item.notes || ''
+                };
+            });
+            setInvoiceLineItems(mappedItems);
+        }
+
+        // Get tax rate if available
+        if (job?.taxRate) {
+            setInvoiceTaxRate(job.taxRate);
+        }
+
+        setHasLoadedInvoiceData(true);
+    }, [job, hasLoadedInvoiceData]);
 
     // ============================================
     // PRE-POPULATE ITEMS FROM INVENTORY INTENTS (OR LEGACY QUOTE ITEMS)
@@ -428,12 +469,30 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
         const loadingToast = toast.loading('Submitting completion...');
 
         try {
+            // Calculate invoice totals
+            const invoiceSubtotal = invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const invoiceTax = invoiceSubtotal * (invoiceTaxRate / 100);
+            const invoiceTotal = invoiceSubtotal + invoiceTax;
+            const depositPaid = job.depositAmount || job.depositPaid || job.deposit?.amount || 0;
+            const balanceDue = Math.max(0, invoiceTotal - depositPaid);
+
             const result = await submitJobCompletion(job.id, {
                 photos,
                 invoice,
                 items,
                 notes,
-                recommendations
+                recommendations,
+                // Include editable invoice data
+                invoiceData: {
+                    lineItems: invoiceLineItems,
+                    subtotal: invoiceSubtotal,
+                    taxRate: invoiceTaxRate,
+                    taxAmount: invoiceTax,
+                    total: invoiceTotal,
+                    depositPaid,
+                    balanceDue,
+                    notes: invoiceNotes
+                }
             }, contractorId);
 
             toast.dismiss(loadingToast);
@@ -532,6 +591,7 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
                 {/* Progress Indicator */}
                 <div className="px-6 py-3 bg-gray-50 border-b flex gap-2 flex-wrap">
                     {[
+                        { id: 'invoice', label: 'Invoice', icon: Receipt },
                         { id: 'photos', label: 'Photos', icon: Camera },
                         { id: 'items', label: 'Items', icon: Wrench },
                         { id: 'notes', label: 'Notes', icon: MessageSquare },
@@ -558,6 +618,267 @@ export const JobCompletionForm = ({ job, contractorId, onClose, onSuccess }) => 
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
+                    {/* INVOICE SECTION - Editable Invoice Preview */}
+                    {activeSection === 'invoice' && (
+                        <div className="space-y-5">
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Invoice Preview</h3>
+                                <p className="text-sm text-gray-500 mt-1">
+                                    Review and edit the invoice before submitting completion
+                                </p>
+                            </div>
+
+                            {/* Customer Info */}
+                            <div className="bg-slate-50 rounded-xl p-4">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Bill To</p>
+                                        <p className="font-semibold text-slate-800 mt-1">
+                                            {job.customer?.name || job.customerName || 'Customer'}
+                                        </p>
+                                        {(job.customer?.email || job.customerEmail) && (
+                                            <p className="text-sm text-slate-600">{job.customer?.email || job.customerEmail}</p>
+                                        )}
+                                        {job.serviceAddress && (
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                {typeof job.serviceAddress === 'string'
+                                                    ? job.serviceAddress
+                                                    : `${job.serviceAddress.street || ''}, ${job.serviceAddress.city || ''}`}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Job #</p>
+                                        <p className="font-mono text-slate-700">{job.jobNumber || job.id?.slice(-6) || '---'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Line Items - Editable */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm font-medium text-slate-700">Line Items</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => setInvoiceLineItems(prev => [...prev, {
+                                            id: `new_${Date.now()}`,
+                                            description: '',
+                                            quantity: 1,
+                                            unitPrice: 0,
+                                            amount: 0
+                                        }])}
+                                        className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 flex items-center gap-1"
+                                    >
+                                        <Plus className="w-3 h-3" /> Add Item
+                                    </button>
+                                </div>
+
+                                {invoiceLineItems.length === 0 ? (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                                        <p className="text-amber-700 text-sm">No line items found from quote.</p>
+                                        <p className="text-amber-600 text-xs mt-1">Add items to generate an invoice.</p>
+                                    </div>
+                                ) : (
+                                    <div className="border border-slate-200 rounded-xl overflow-hidden">
+                                        {/* Header */}
+                                        <div className="bg-slate-100 px-4 py-2 grid grid-cols-12 gap-2 text-xs font-medium text-slate-600">
+                                            <div className="col-span-5">Description</div>
+                                            <div className="col-span-2 text-center">Qty</div>
+                                            <div className="col-span-2 text-right">Price</div>
+                                            <div className="col-span-2 text-right">Total</div>
+                                            <div className="col-span-1"></div>
+                                        </div>
+                                        {/* Items */}
+                                        {invoiceLineItems.map((item, idx) => (
+                                            <div key={item.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-center border-t border-slate-100 hover:bg-slate-50">
+                                                <div className="col-span-5">
+                                                    <input
+                                                        type="text"
+                                                        value={item.description}
+                                                        onChange={(e) => {
+                                                            const newItems = [...invoiceLineItems];
+                                                            newItems[idx].description = e.target.value;
+                                                            setInvoiceLineItems(newItems);
+                                                        }}
+                                                        placeholder="Description"
+                                                        className="w-full px-2 py-1 text-sm border border-slate-200 rounded focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                                                    />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={item.quantity}
+                                                        onChange={(e) => {
+                                                            const newItems = [...invoiceLineItems];
+                                                            const qty = parseInt(e.target.value) || 1;
+                                                            newItems[idx].quantity = qty;
+                                                            newItems[idx].amount = qty * newItems[idx].unitPrice;
+                                                            setInvoiceLineItems(newItems);
+                                                        }}
+                                                        className="w-full px-2 py-1 text-sm border border-slate-200 rounded text-center focus:ring-1 focus:ring-emerald-500"
+                                                    />
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <div className="relative">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            value={item.unitPrice}
+                                                            onChange={(e) => {
+                                                                const newItems = [...invoiceLineItems];
+                                                                const price = parseFloat(e.target.value) || 0;
+                                                                newItems[idx].unitPrice = price;
+                                                                newItems[idx].amount = newItems[idx].quantity * price;
+                                                                setInvoiceLineItems(newItems);
+                                                            }}
+                                                            className="w-full pl-5 pr-2 py-1 text-sm border border-slate-200 rounded text-right focus:ring-1 focus:ring-emerald-500"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-2 text-right font-medium text-slate-800 text-sm">
+                                                    {formatCurrency(item.amount || 0)}
+                                                </div>
+                                                <div className="col-span-1 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setInvoiceLineItems(prev => prev.filter((_, i) => i !== idx))}
+                                                        className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Totals Section */}
+                            <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+                                {/* Subtotal */}
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-slate-600">Subtotal</span>
+                                    <span className="font-medium text-slate-800">
+                                        {formatCurrency(invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0))}
+                                    </span>
+                                </div>
+
+                                {/* Tax */}
+                                <div className="flex justify-between items-center text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-slate-600">Tax</span>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            min="0"
+                                            max="100"
+                                            value={invoiceTaxRate}
+                                            onChange={(e) => setInvoiceTaxRate(parseFloat(e.target.value) || 0)}
+                                            className="w-16 px-2 py-0.5 text-xs border border-slate-200 rounded text-center"
+                                        />
+                                        <span className="text-slate-400 text-xs">%</span>
+                                    </div>
+                                    <span className="font-medium text-slate-800">
+                                        {formatCurrency(invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0) * (invoiceTaxRate / 100))}
+                                    </span>
+                                </div>
+
+                                {/* Deposit Paid */}
+                                {(job.depositAmount || job.depositPaid || job.deposit?.amount) > 0 && (
+                                    <div className="flex justify-between text-sm border-t border-slate-200 pt-3">
+                                        <span className="text-emerald-600 flex items-center gap-1">
+                                            <CheckCircle className="w-4 h-4" />
+                                            Deposit Paid
+                                        </span>
+                                        <span className="font-medium text-emerald-600">
+                                            -{formatCurrency(job.depositAmount || job.depositPaid || job.deposit?.amount || 0)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Total / Balance Due */}
+                                <div className="flex justify-between text-lg font-bold border-t border-slate-300 pt-3">
+                                    <span className="text-slate-800">
+                                        {(job.depositAmount || job.depositPaid || job.deposit?.amount) > 0 ? 'Balance Due' : 'Total'}
+                                    </span>
+                                    <span className="text-emerald-600">
+                                        {formatCurrency(
+                                            Math.max(0,
+                                                invoiceLineItems.reduce((sum, item) => sum + (item.amount || 0), 0) * (1 + invoiceTaxRate / 100)
+                                                - (job.depositAmount || job.depositPaid || job.deposit?.amount || 0)
+                                            )
+                                        )}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Invoice Notes */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Invoice Notes</label>
+                                <textarea
+                                    value={invoiceNotes}
+                                    onChange={(e) => setInvoiceNotes(e.target.value)}
+                                    placeholder="Any notes to include on the invoice..."
+                                    rows={2}
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm resize-none"
+                                />
+                            </div>
+
+                            {/* Or Upload External Invoice */}
+                            <div className="border-t border-slate-200 pt-4">
+                                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">
+                                    Or upload your own invoice
+                                </p>
+                                {invoice ? (
+                                    <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                                        <div className="flex items-center gap-3">
+                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                            <span className="text-sm font-medium text-green-800">{invoice.fileName}</span>
+                                        </div>
+                                        <button onClick={() => setInvoice(null)} className="text-red-500 hover:text-red-700">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div
+                                        onClick={() => !uploadingInvoice && invoiceInputRef.current?.click()}
+                                        className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all"
+                                    >
+                                        {uploadingInvoice ? (
+                                            <Loader2 className="w-5 h-5 text-gray-400 mx-auto animate-spin" />
+                                        ) : (
+                                            <div className="flex items-center justify-center gap-2 text-gray-500">
+                                                <Upload className="w-4 h-4" />
+                                                <span className="text-sm">Upload invoice (PDF or image)</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <input
+                                    ref={invoiceInputRef}
+                                    type="file"
+                                    accept=".pdf,image/*"
+                                    onChange={handleInvoiceSelect}
+                                    className="hidden"
+                                />
+                            </div>
+
+                            {/* Next Button */}
+                            <div className="pt-4">
+                                <button
+                                    onClick={() => setActiveSection('photos')}
+                                    className="w-full py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    Continue to Photos
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* PHOTOS SECTION */}
                     {activeSection === 'photos' && (
                         <div className="space-y-4">

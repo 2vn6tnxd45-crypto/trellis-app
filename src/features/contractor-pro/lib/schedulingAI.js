@@ -1620,6 +1620,62 @@ export const getStaffingSummaryForDate = (jobs, teamMembers, date, timeOffEntrie
     };
 };
 
+// ============================================
+// CANCELLATION CLEANUP
+// ============================================
+
+/**
+ * Cleanup scheduling data when a job is cancelled
+ * - Unassigns techs
+ * - Clears schedule info
+ * - Does NOT delete the job, just removes scheduling artifacts
+ *
+ * @param {string} contractorId - The contractor's ID
+ * @param {string} jobId - The job ID being cancelled
+ * @param {Object} job - The job object (for context)
+ * @returns {Promise<{success: boolean, cleaned: string[]}>}
+ */
+export const cleanupCancelledJobSchedule = async (contractorId, jobId, job = {}) => {
+    const cleaned = [];
+
+    try {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+
+        // Build cleanup update object
+        const cleanupData = {
+            // Clear tech assignment
+            assignedTechId: null,
+            assignedTechName: null,
+            assignedTechIds: null,
+            assignedTechNames: null,
+            assignedAt: null,
+            assignedBy: null,
+            // Clear scheduling info (but preserve the record that it was scheduled)
+            routeOrder: null,
+            // Mark scheduling as cancelled
+            scheduleCleanedAt: serverTimestamp(),
+            scheduleCleanedReason: 'job_cancelled'
+        };
+
+        // If multi-day job, clear multi-day schedule
+        if (job.multiDaySchedule) {
+            cleanupData.multiDaySchedule = null;
+            cleaned.push('multi-day-schedule');
+        }
+
+        await updateDoc(jobRef, cleanupData);
+        cleaned.push('tech-assignment', 'route-order');
+
+        console.log(`[cleanupCancelledJobSchedule] Cleaned up scheduling for job ${jobId}:`, cleaned);
+
+        return { success: true, cleaned };
+
+    } catch (error) {
+        console.error('[cleanupCancelledJobSchedule] Error:', error);
+        return { success: false, cleaned, error: error.message };
+    }
+};
+
 export default {
     // Tech assignment functions
     scoreTechForJob,
@@ -1649,5 +1705,7 @@ export default {
     batchRescheduleJobs,
     // Crew validation
     validateSchedulingAssignment,
-    getStaffingSummaryForDate
+    getStaffingSummaryForDate,
+    // Cleanup
+    cleanupCancelledJobSchedule
 };

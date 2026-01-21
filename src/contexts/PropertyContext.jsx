@@ -7,6 +7,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { generateRoomOptions, getDefaultRoomOptions } from '../utils/roomUtils';
+import { db, auth } from '../config/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 // Create context
 const PropertyContext = createContext(null);
@@ -118,6 +120,21 @@ export function PropertyProvider({ children, propertyProfile }) {
                     if (!cancelled) {
                         setPropertyData(result.property);
                         setFloodData(result.flood);
+
+                        // LOGGING: Track RentCast usage for cost monitoring
+                        // Use a non-blocking floating promise so we don't delay the UI
+                        if (result.property?.source === 'rentcast') {
+                            addDoc(collection(db, 'api_logs'), {
+                                type: 'rentcast_lookup',
+                                address: addressString,
+                                source: 'rentcast',
+                                timestamp: serverTimestamp(),
+                                userId: auth.currentUser?.uid || 'anonymous',
+                                userEmail: auth.currentUser?.email || 'anonymous',
+                                lat: coordinates?.lat || null,
+                                lon: coordinates?.lon || null
+                            }).catch(err => console.warn('Failed to log RentCast usage:', err));
+                        }
 
                         // Cache it
                         try {
