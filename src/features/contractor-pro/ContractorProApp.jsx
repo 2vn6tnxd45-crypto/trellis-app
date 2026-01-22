@@ -605,6 +605,32 @@ const formatDate = (date) => {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// Format time - handles ISO strings, Date objects, Firestore timestamps, and "HH:MM" strings
+const formatTime = (time) => {
+    if (!time) return '';
+
+    // If it's already a simple time string like "09:00" or "14:30", format it
+    if (typeof time === 'string' && /^\d{1,2}:\d{2}$/.test(time)) {
+        const [hours, minutes] = time.split(':').map(Number);
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = hours % 12 || 12;
+        return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+    }
+
+    // Handle ISO strings, Date objects, or Firestore timestamps
+    try {
+        const d = time.toDate ? time.toDate() : new Date(time);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch {
+        return '';
+    }
+};
+
 // ============================================
 // JOBS VIEW
 // ============================================
@@ -702,7 +728,7 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
                                 <Calendar size={12} />
                                 {formatDate(job.scheduledDate)}
-                                {job.scheduledTime && ` at ${job.scheduledTime}`}
+                                {job.scheduledTime && ` at ${formatTime(job.scheduledTime)}`}
                             </p>
                         )}
                         {job.completedAt && (
