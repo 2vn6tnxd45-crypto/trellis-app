@@ -5,11 +5,11 @@
 // Visual calendar where contractors can drag unscheduled jobs onto time slots
 // UPDATED: Displays pending/offered slots
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus, CheckCircle
+    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus, CheckCircle, AlertTriangle
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
@@ -547,8 +547,11 @@ const TimeSlot = React.memo(({
                 const customerName = job.customer?.name || job.customerName || '';
 
                 // Determine background color based on status/priority
+                const isSuggested = job._isSuggested;
                 let bgClass = 'bg-emerald-500 hover:bg-emerald-600';
-                if (job._multiDayInfo) {
+                if (isSuggested) {
+                    bgClass = 'bg-slate-100 hover:bg-slate-200 border-2 border-dashed border-slate-400';
+                } else if (job._multiDayInfo) {
                     bgClass = 'bg-indigo-500 hover:bg-indigo-600';
                 } else if (job.priority === 'urgent' || job.priority === 'high') {
                     bgClass = 'bg-red-500 hover:bg-red-600';
@@ -565,10 +568,15 @@ const TimeSlot = React.memo(({
                             top: topPosition,
                             zIndex: 10 + jobIndex
                         }}
-                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${bgClass}`}
+                        className={`absolute left-1 right-1 p-2 rounded-lg text-xs text-left transition-colors overflow-hidden ${isSuggested ? bgClass + ' opacity-75' : bgClass + ' text-white shadow-md'}`}
                     >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
+                            <p className={`font-bold truncate flex-1 ${isSuggested ? 'text-slate-700' : ''}`}>{job.title || job.description || 'Job'}</p>
+                            {isSuggested && (
+                                <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">
+                                    Suggested
+                                </span>
+                            )}
                             {isRecurringJob(job) && (
                                 <span className="text-[9px] bg-white/30 px-1 py-0.5 rounded font-bold shrink-0 flex items-center gap-0.5">
                                     <RotateCcw size={8} />
@@ -587,10 +595,10 @@ const TimeSlot = React.memo(({
                         </div>
                         {/* Customer name */}
                         {customerName && (
-                            <p className="truncate opacity-90">{customerName}</p>
+                            <p className={`truncate ${isSuggested ? 'text-slate-600' : 'opacity-90'}`}>{customerName}</p>
                         )}
                         {/* Time and duration info */}
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px] opacity-80">
+                        <div className={`flex items-center gap-2 mt-0.5 text-[10px] ${isSuggested ? 'text-slate-500' : 'opacity-80'}`}>
                             {startTimeStr && (
                                 <span className="flex items-center gap-0.5">
                                     <Clock size={8} />
@@ -675,11 +683,19 @@ const TimeSlot = React.memo(({
 // DROP CONFIRMATION MODAL
 // ============================================
 
-const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone, onSetupTeam, existingJobs = [] }) => {
+const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone, onSetupTeam, existingJobs = [], preferences, vehicles = [] }) => {
     const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
     const [selectedCrew, setSelectedCrew] = useState([]); // Multi-select crew
+    const [selectedVehicle, setSelectedVehicle] = useState('');
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
     const [customerConfirmed, setCustomerConfirmed] = useState(false);
+
+    // Detect if this is a closed business day with crew available
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const isClosedBusinessDay = isDayClosedForBusiness(date, preferences?.workingHours);
+    const availableCrewOnClosedDay = isClosedBusinessDay
+        ? (teamMembers || []).filter(m => m.workingHours?.[dayName]?.enabled)
+        : [];
 
     // Sync selectedTime when hour prop changes (prevents stale state from previous drag)
     useEffect(() => {
@@ -792,6 +808,7 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
             };
         });
 
+        const selectedVehicleObj = vehicles.find(v => v.id === selectedVehicle);
         onConfirm({
             scheduledTime: scheduledDateTime.toISOString(),
             endTime: endDateTime.toISOString(),
@@ -800,7 +817,9 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
             estimatedDuration: duration,
             isDirectSchedule: customerConfirmed,
             isMultiDay,
-            estimatedDays
+            estimatedDays,
+            vehicleId: selectedVehicle || null,
+            vehicleName: selectedVehicleObj?.name || null
         });
     };
 
@@ -824,6 +843,23 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         </p>
                     )}
                 </div>
+
+                {/* Closed Business Day Info Banner */}
+                {isClosedBusinessDay && availableCrewOnClosedDay.length > 0 && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                        <div className="flex items-start gap-2">
+                            <AlertCircle size={16} className="text-blue-600 mt-0.5 shrink-0" />
+                            <div>
+                                <p className="text-sm font-medium text-blue-800">
+                                    Business normally closed on {date.toLocaleDateString('en-US', { weekday: 'long' })}s
+                                </p>
+                                <p className="text-xs text-blue-600 mt-0.5">
+                                    {availableCrewOnClosedDay.length} crew member{availableCrewOnClosedDay.length !== 1 ? 's' : ''} available to work
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Crew Requirements Banner */}
                 {requiresMultipleTechs && (
@@ -923,22 +959,69 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                     />
                 </div>
 
-                {/* Multi-day info */}
-                {isMultiDay && (
-                    <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                        <div className="flex items-start gap-2">
-                            <Calendar size={16} className="text-indigo-600 mt-0.5 shrink-0" />
-                            <div>
-                                <p className="font-medium text-indigo-800">Multi-Day Job</p>
-                                <p className="text-xs text-indigo-600">
-                                    This job spans ~{estimatedDays} work days starting from{' '}
-                                    {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}.
-                                    It will automatically be blocked on your calendar across all days.
-                                </p>
+                {/* Multi-day info with segment preview */}
+                {isMultiDay && (() => {
+                    // Generate day-by-day preview segments
+                    const segments = [];
+                    const startDate = new Date(date);
+                    const dailyMinutes = 480; // 8-hour workday
+                    let remainingMinutes = duration;
+                    let dayNum = 0;
+
+                    while (remainingMinutes > 0 && dayNum < 10) {
+                        const segDate = new Date(startDate);
+                        segDate.setDate(startDate.getDate() + dayNum);
+                        const segDayName = segDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                        const dayPrefs = preferences?.workingHours?.[segDayName];
+
+                        // Skip closed days
+                        if (dayPrefs?.enabled === false) {
+                            dayNum++;
+                            continue;
+                        }
+
+                        const startHour = dayPrefs?.start || '08:00';
+                        const endHour = dayPrefs?.end || '17:00';
+                        const dayMinutes = Math.min(remainingMinutes, dailyMinutes);
+                        segments.push({
+                            date: segDate,
+                            dayNumber: segments.length + 1,
+                            startTime: startHour,
+                            endTime: endHour,
+                            minutes: dayMinutes
+                        });
+                        remainingMinutes -= dayMinutes;
+                        dayNum++;
+                    }
+
+                    return (
+                        <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                            <div className="flex items-start gap-2">
+                                <Calendar size={16} className="text-indigo-600 mt-0.5 shrink-0" />
+                                <div className="flex-1">
+                                    <p className="font-medium text-indigo-800">
+                                        Multi-Day Job: {segments.length} work days
+                                    </p>
+                                    <div className="mt-2 space-y-1">
+                                        {segments.map(seg => (
+                                            <div key={seg.dayNumber} className="flex items-center justify-between text-xs text-indigo-700">
+                                                <span className="font-medium">
+                                                    Day {seg.dayNumber}: {seg.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                                </span>
+                                                <span className="text-indigo-500">
+                                                    {seg.startTime} - {seg.endTime} ({Math.round(seg.minutes / 60)}h)
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-indigo-500 mt-2">
+                                        Calendar will be blocked across all days automatically.
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {/* Schedule Conflict Warning */}
                 {hasConflicts && (
@@ -1039,6 +1122,34 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                             <User size={16} className="text-slate-500" />
                             <p className="text-sm text-slate-600">Job will be assigned to you</p>
                         </div>
+                    </div>
+                )}
+
+                {/* Vehicle Assignment */}
+                {vehicles.length > 0 && (
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Vehicle</label>
+                        <select
+                            value={selectedVehicle}
+                            onChange={(e) => setSelectedVehicle(e.target.value)}
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                        >
+                            <option value="">No vehicle assigned</option>
+                            {vehicles.map(v => {
+                                // Check if vehicle is busy at this time
+                                const vehicleBusy = existingJobs.some(ej => {
+                                    if (ej.assignedVehicleId !== v.id) return false;
+                                    if (!ej.scheduledTime) return false;
+                                    const ejDate = new Date(ej.scheduledTime);
+                                    return isSameDayInTimezone(ejDate, date, timezone);
+                                });
+                                return (
+                                    <option key={v.id} value={v.id} disabled={vehicleBusy}>
+                                        {v.name}{v.type ? ` (${v.type})` : ''}{vehicleBusy ? ' - Busy' : ''}
+                                    </option>
+                                );
+                            })}
+                        </select>
                     </div>
                 )}
 
@@ -1406,7 +1517,8 @@ export const DragDropCalendar = ({
     onEvaluationClick,  // Handler for evaluation clicks
     onSetupTeam,  // Handler to navigate to team management
     onAcceptProposal,  // Handler for accepting homeowner proposals
-    onDeclineProposal  // Handler for declining homeowner proposals
+    onDeclineProposal,  // Handler for declining homeowner proposals
+    vehicles = []  // Available vehicles for assignment
 }) => {
     // Get timezone abbreviation for display
     const timezoneAbbr = timezone ? getTimezoneAbbreviation(timezone) : null;
@@ -1435,10 +1547,18 @@ export const DragDropCalendar = ({
             // Job is SCHEDULED if it has a scheduledTime or scheduledDate AND status is 'scheduled'
             const hasSchedule = job.scheduledTime || job.scheduledDate;
             const isScheduledStatus = job.status === 'scheduled' || job.status === 'in_progress';
+            const isSuggestedSchedule = hasSchedule && (
+                job.status === 'pending_schedule' ||
+                (job.status === 'pending' && job.scheduling?.suggestedTime)
+            );
 
             if (hasSchedule && isScheduledStatus) {
                 // Fully scheduled - show on calendar, NOT in sidebar
                 scheduled.push(job);
+            } else if (isSuggestedSchedule) {
+                // Has a date but not confirmed - show on calendar with "Suggested" indicator AND in sidebar
+                scheduled.push({ ...job, _isSuggested: true });
+                unscheduled.push({ ...job, _isSuggested: true });
             } else {
                 // Check for homeowner proposals first - they need contractor action
                 const homeownerProposals = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner') || [];
@@ -1460,7 +1580,7 @@ export const DragDropCalendar = ({
                 }
 
                 // Priority: Homeowner proposals need action, then offered slots, then unscheduled
-                if (latestHomeownerProposal?.date && job.status === 'scheduling') {
+                if (latestHomeownerProposal?.date && (job.status === 'scheduling' || job.status === 'slots_offered')) {
                     // Homeowner proposed a time - show in pending on calendar AND sidebar
                     pending.push({
                         ...job,
@@ -1602,16 +1722,21 @@ export const DragDropCalendar = ({
             console.error('Failed to parse job data from drag:', err);
         }
 
-        // Validate that the target day is not a closed business day
+        // Check if the target day is a closed business day
         if (isDayClosedForBusiness(date, preferences?.workingHours)) {
-            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
-            toast.error(`Cannot schedule on ${dayName} - business is closed`, {
-                icon: '🚫',
-                duration: 4000
-            });
-            setDropTarget(null);
-            setDraggedJob(null);
-            return;
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            const crewAvailable = preferences?.teamMembers?.some(m => m.workingHours?.[dayName]?.enabled);
+
+            if (!crewAvailable) {
+                toast.error(`Cannot schedule on ${date.toLocaleDateString('en-US', { weekday: 'long' })} - business is closed and no crew available`, {
+                    icon: '🚫',
+                    duration: 4000
+                });
+                setDropTarget(null);
+                setDraggedJob(null);
+                return;
+            }
+            // Crew is available on this closed day - allow scheduling with warning shown in modal
         }
 
         if (jobId && jobData) {
@@ -1643,6 +1768,13 @@ export const DragDropCalendar = ({
                 // Add crew array if multiple techs assigned
                 if (scheduleData.crew && scheduleData.crew.length > 0) {
                     updateData.crew = scheduleData.crew;
+                    updateData.assignedCrew = scheduleData.crew;
+                }
+
+                // Add vehicle if selected
+                if (scheduleData.vehicleId) {
+                    updateData.assignedVehicleId = scheduleData.vehicleId;
+                    updateData.assignedVehicleName = scheduleData.vehicleName;
                 }
 
                 // Handle multi-day jobs
@@ -1967,6 +2099,8 @@ export const DragDropCalendar = ({
                     teamMembers={preferences?.teamMembers}
                     timezone={timezone}
                     existingJobs={scheduledJobs}
+                    preferences={preferences}
+                    vehicles={vehicles}
                     onConfirm={handleConfirmSchedule}
                     onCancel={() => setConfirmDrop(null)}
                     onSetupTeam={onSetupTeam ? () => {

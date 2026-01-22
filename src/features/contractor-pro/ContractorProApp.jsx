@@ -3106,6 +3106,7 @@ export const ContractorProApp = () => {
                                         setActiveView('evaluations');
                                     }}
                                     teamMembers={[]}
+                                    vehicles={vehicles || []}
                                     onSetupTeam={() => setActiveView('settings')}
                                     onAcceptProposal={handleAcceptProposal}
                                     onDeclineProposal={handleDeclineProposal}
@@ -3126,6 +3127,7 @@ export const ContractorProApp = () => {
                                         setActiveView('evaluations');
                                     }}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
+                                    vehicles={vehicles || []}
                                     onSetupTeam={() => setActiveView('settings')}
                                     onAcceptProposal={handleAcceptProposal}
                                     onDeclineProposal={handleDeclineProposal}
@@ -3150,6 +3152,7 @@ export const ContractorProApp = () => {
                                 <TechAssignmentPanel
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
+                                    vehicles={vehicles || []}
                                     onJobUpdate={() => { }}
                                 />
                             )}

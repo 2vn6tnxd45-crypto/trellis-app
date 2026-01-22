@@ -1024,7 +1024,6 @@ const CreateJobModal = ({
                     crewSize: 1,
                     assignedTechId: null,
                     assignedTechName: null,
-                    assignedTechName: null,
                     assignedCrewIds: [],
                     vehicleId: null,
                     accessInstructions: '',

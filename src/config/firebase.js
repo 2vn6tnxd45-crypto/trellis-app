@@ -399,4 +399,7 @@ export const forceRecovery = () => {
     recoverFromStorageIssues();
 };
 
+// Helper to get the artifact base path for Firestore collections
+export const getArtifactPath = () => '/artifacts/krib-app';
+
 export { app, auth, db, storage, geminiModel };

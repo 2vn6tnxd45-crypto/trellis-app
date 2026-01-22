@@ -4,17 +4,18 @@
 // ============================================
 // Assign jobs to team members and view workload distribution
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     Users, User, Calendar, Clock, MapPin,
     ChevronDown, ChevronUp, Check, AlertCircle,
-    Briefcase, TrendingUp, Filter
+    Briefcase, TrendingUp, Filter, Sparkles, Loader2, Truck
 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
-import { getAssignedTechIds, assignCrewToJob, removeTechFromCrew, createCrewMember } from '../lib/crewService';
+import { getAssignedTechIds, assignCrewToJob, removeTechFromCrew, createCrewMember, CREW_ROLES } from '../lib/crewService';
+import { autoAssignAll } from '../lib/schedulingAI';
 
 // ============================================
 // HELPERS
@@ -138,8 +139,65 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
 // UNASSIGNED JOBS LIST
 // ============================================
 
-const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
+const UnassignedJobsList = ({ jobs, teamMembers, onAssign, vehicles = [], recentlyAssigned = new Set() }) => {
     const [expandedJob, setExpandedJob] = useState(null);
+    const [selectedMembers, setSelectedMembers] = useState({}); // { jobId: [{ techId, role }] }
+    const [selectedVehicles, setSelectedVehicles] = useState({}); // { jobId: vehicleId }
+    const [assigning, setAssigning] = useState(null); // jobId currently being assigned
+
+    const toggleMember = (jobId, techId) => {
+        setSelectedMembers(prev => {
+            const current = prev[jobId] || [];
+            const exists = current.find(m => m.techId === techId);
+            if (exists) {
+                return { ...prev, [jobId]: current.filter(m => m.techId !== techId) };
+            } else {
+                const role = current.length === 0 ? 'lead' : 'helper';
+                return { ...prev, [jobId]: [...current, { techId, role }] };
+            }
+        });
+    };
+
+    const updateRole = (jobId, techId, role) => {
+        setSelectedMembers(prev => {
+            const current = prev[jobId] || [];
+            return { ...prev, [jobId]: current.map(m => m.techId === techId ? { ...m, role } : m) };
+        });
+    };
+
+    const handleMultiAssign = async (jobId) => {
+        const members = selectedMembers[jobId] || [];
+        if (members.length === 0) return;
+
+        setAssigning(jobId);
+        try {
+            const crew = members.map(m => {
+                const tech = teamMembers.find(t => t.id === m.techId);
+                return createCrewMember(tech, m.role);
+            });
+
+            // Include vehicle if selected
+            const vehicleId = selectedVehicles[jobId];
+            if (vehicleId && crew.length > 0) {
+                const vehicle = vehicles.find(v => v.id === vehicleId);
+                if (vehicle) {
+                    crew[0].vehicleId = vehicle.id;
+                    crew[0].vehicleName = vehicle.name;
+                }
+            }
+
+            await assignCrewToJob(jobId, crew, 'manual');
+            toast.success(`Crew of ${crew.length} assigned!`);
+            setSelectedMembers(prev => { const next = { ...prev }; delete next[jobId]; return next; });
+            setSelectedVehicles(prev => { const next = { ...prev }; delete next[jobId]; return next; });
+            onAssign(jobId, members[0].techId, true); // signal success for animation
+        } catch (error) {
+            console.error('Error assigning crew:', error);
+            toast.error('Failed to assign crew');
+        } finally {
+            setAssigning(null);
+        }
+    };
 
     if (jobs.length === 0) {
         return (
@@ -152,59 +210,184 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign }) => {
 
     return (
         <div className="space-y-2">
-            {jobs.map(job => (
-                <div key={job.id} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                    <button
-                        onClick={() => setExpandedJob(expandedJob === job.id ? null : job.id)}
-                        className="w-full p-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                    >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center">
-                                <AlertCircle size={16} className="text-amber-600" />
-                            </div>
-                            <div className="text-left min-w-0">
-                                <p className="font-medium text-slate-800 truncate">
-                                    {job.title || job.description || 'Service'}
-                                </p>
-                                <p className="text-xs text-slate-500">
-                                    {job.scheduledTime
-                                        ? new Date(job.scheduledTime).toLocaleDateString('en-US', {
-                                            weekday: 'short',
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: 'numeric',
-                                            minute: '2-digit'
-                                        })
-                                        : 'Not scheduled'
-                                    }
-                                </p>
-                            </div>
-                        </div>
-                        {expandedJob === job.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </button>
+            {jobs.map(job => {
+                const isRecentlyAssigned = recentlyAssigned.has(job.id);
+                const isAssigning = assigning === job.id;
+                const jobMembers = selectedMembers[job.id] || [];
 
-                    {expandedJob === job.id && (
-                        <div className="p-3 pt-0 border-t border-slate-100">
-                            <p className="text-xs font-medium text-slate-500 mb-2">Assign to:</p>
-                            <div className="flex flex-wrap gap-2">
-                                {teamMembers.map(member => (
-                                    <button
-                                        key={member.id}
-                                        onClick={() => onAssign(job.id, member.id)}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
-                                    >
-                                        <div
-                                            className="w-4 h-4 rounded-full"
-                                            style={{ backgroundColor: member.color || '#64748B' }}
-                                        />
-                                        <span className="text-sm text-slate-700">{member.name}</span>
-                                    </button>
-                                ))}
+                // Calculate availability for each team member based on job's scheduled date
+                const jobDate = job.scheduledTime || job.scheduledDate
+                    ? new Date(job.scheduledTime || job.scheduledDate)
+                    : null;
+                const jobDayName = jobDate
+                    ? jobDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+                    : null;
+
+                const membersWithAvailability = teamMembers.map(member => {
+                    if (!jobDayName) return { ...member, isAvailable: true, hours: 'Date TBD' };
+                    const dayConfig = member.workingHours?.[jobDayName];
+                    const isAvailable = dayConfig?.enabled !== false;
+                    const hours = isAvailable
+                        ? `${dayConfig?.start || '8:00'} - ${dayConfig?.end || '17:00'}`
+                        : 'Off';
+                    return { ...member, isAvailable, hours };
+                }).sort((a, b) => (b.isAvailable ? 1 : 0) - (a.isAvailable ? 1 : 0));
+
+                return (
+                    <div
+                        key={job.id}
+                        className={`bg-white border rounded-xl overflow-hidden transition-all duration-500 ${
+                            isRecentlyAssigned
+                                ? 'border-emerald-300 bg-emerald-50 scale-[0.98] opacity-60'
+                                : 'border-slate-200'
+                        }`}
+                    >
+                        <button
+                            onClick={() => setExpandedJob(expandedJob === job.id ? null : job.id)}
+                            className="w-full p-3 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                        >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                    isRecentlyAssigned ? 'bg-emerald-100' : 'bg-amber-100'
+                                }`}>
+                                    {isRecentlyAssigned
+                                        ? <Check size={16} className="text-emerald-600" />
+                                        : <AlertCircle size={16} className="text-amber-600" />
+                                    }
+                                </div>
+                                <div className="text-left min-w-0">
+                                    <p className="font-medium text-slate-800 truncate">
+                                        {job.title || job.description || 'Service'}
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                        {job.scheduledTime
+                                            ? new Date(job.scheduledTime).toLocaleDateString('en-US', {
+                                                weekday: 'short',
+                                                month: 'short',
+                                                day: 'numeric',
+                                                hour: 'numeric',
+                                                minute: '2-digit'
+                                            })
+                                            : 'Not scheduled'
+                                        }
+                                        {job.crewRequirements?.required > 1 && (
+                                            <span className="ml-2 text-amber-600 font-medium">
+                                                • {job.crewRequirements.required} crew needed
+                                            </span>
+                                        )}
+                                    </p>
+                                </div>
                             </div>
-                        </div>
-                    )}
-                </div>
-            ))}
+                            {expandedJob === job.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+
+                        {expandedJob === job.id && !isRecentlyAssigned && (
+                            <div className="p-3 pt-0 border-t border-slate-100">
+                                <p className="text-xs font-medium text-slate-500 mb-2">
+                                    Select crew {job.crewRequirements?.required > 1 && (
+                                        <span className="text-amber-600">({jobMembers.length}/{job.crewRequirements.required} selected)</span>
+                                    )}
+                                </p>
+                                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                                    {membersWithAvailability.map(member => {
+                                        const isSelected = jobMembers.some(m => m.techId === member.id);
+                                        const memberRole = jobMembers.find(m => m.techId === member.id)?.role || 'helper';
+
+                                        return (
+                                            <div
+                                                key={member.id}
+                                                className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                                                    isSelected
+                                                        ? 'bg-emerald-50 border border-emerald-200'
+                                                        : member.isAvailable
+                                                            ? 'bg-slate-50 hover:bg-slate-100 border border-transparent'
+                                                            : 'bg-slate-50 opacity-50 border border-transparent'
+                                                }`}
+                                            >
+                                                <button
+                                                    onClick={() => member.isAvailable && toggleMember(job.id, member.id)}
+                                                    disabled={!member.isAvailable}
+                                                    className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                                                        isSelected
+                                                            ? 'border-emerald-500 bg-emerald-500'
+                                                            : member.isAvailable
+                                                                ? 'border-slate-300 hover:border-emerald-400'
+                                                                : 'border-slate-200 cursor-not-allowed'
+                                                    }`}
+                                                >
+                                                    {isSelected && <Check size={12} className="text-white" />}
+                                                </button>
+                                                <div
+                                                    className="w-4 h-4 rounded-full shrink-0"
+                                                    style={{ backgroundColor: member.color || '#64748B' }}
+                                                />
+                                                <span className={`text-sm flex-1 ${isSelected ? 'text-emerald-800 font-medium' : 'text-slate-700'}`}>
+                                                    {member.name}
+                                                </span>
+                                                <span className={`text-[10px] ${member.isAvailable ? 'text-slate-400' : 'text-red-400 font-medium'}`}>
+                                                    {member.hours}
+                                                </span>
+                                                {isSelected && (
+                                                    <select
+                                                        value={memberRole}
+                                                        onChange={(e) => updateRole(job.id, member.id, e.target.value)}
+                                                        className="text-[10px] border border-slate-200 rounded px-1 py-0.5 bg-white"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        {CREW_ROLES.map(r => (
+                                                            <option key={r.id} value={r.id}>{r.label}</option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Vehicle selector */}
+                                {vehicles.length > 0 && (
+                                    <div className="mt-3">
+                                        <label className="text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
+                                            <Truck size={10} /> Vehicle
+                                        </label>
+                                        <select
+                                            value={selectedVehicles[job.id] || ''}
+                                            onChange={(e) => setSelectedVehicles(prev => ({ ...prev, [job.id]: e.target.value }))}
+                                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white"
+                                        >
+                                            <option value="">None</option>
+                                            {vehicles.map(v => (
+                                                <option key={v.id} value={v.id}>
+                                                    {v.name}{v.type ? ` (${v.type})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Assign Button */}
+                                <button
+                                    onClick={() => handleMultiAssign(job.id)}
+                                    disabled={jobMembers.length === 0 || isAssigning}
+                                    className="mt-3 w-full py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    {isAssigning ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            Assigning...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check size={14} />
+                                            Assign {jobMembers.length} Member{jobMembers.length !== 1 ? 's' : ''}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -316,9 +499,13 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
 export const TechAssignmentPanel = ({
     jobs = [],
     teamMembers = [],
+    vehicles = [],
     onJobUpdate
 }) => {
     const [view, setView] = useState('overview'); // 'overview' | 'unassigned' | 'team'
+    const [recentlyAssigned, setRecentlyAssigned] = useState(new Set());
+    const [autoAssignResults, setAutoAssignResults] = useState(null);
+    const [isAutoAssigning, setIsAutoAssigning] = useState(false);
 
     // Separate jobs by assignment status
     const { assignedJobs, unassignedJobs, jobsByMember } = useMemo(() => {
@@ -351,23 +538,68 @@ export const TechAssignmentPanel = ({
         return { assignedJobs: assigned, unassignedJobs: unassigned, jobsByMember: byMember };
     }, [jobs, teamMembers]);
 
-    // Handle assignment
-    const handleAssign = async (jobId, memberId) => {
-        const member = teamMembers.find(m => m.id === memberId);
-        if (!member) return;
-
-        try {
-            // Create a new crew with this member as lead
-            const newMember = createCrewMember(member, 'lead');
-            await assignCrewToJob(jobId, [newMember], 'manual');
-
-            toast.success('Job assigned!');
+    // Handle assignment with success animation
+    const handleAssign = useCallback((jobId, memberId, isMultiAssign = false) => {
+        // Add to recently assigned for animation
+        setRecentlyAssigned(prev => new Set([...prev, jobId]));
+        setTimeout(() => {
+            setRecentlyAssigned(prev => {
+                const next = new Set(prev);
+                next.delete(jobId);
+                return next;
+            });
             if (onJobUpdate) onJobUpdate();
-        } catch (error) {
-            console.error('Error assigning job:', error);
-            toast.error('Failed to assign job');
+        }, 1500);
+    }, [onJobUpdate]);
+
+    // Auto-assign all unassigned scheduled jobs
+    const handleAutoAssign = useCallback(async () => {
+        const scheduledUnassigned = unassignedJobs.filter(j => j.scheduledTime || j.scheduledDate);
+        if (scheduledUnassigned.length === 0) {
+            toast.error('No scheduled unassigned jobs to assign');
+            return;
         }
-    };
+
+        setIsAutoAssigning(true);
+        try {
+            const results = autoAssignAll(scheduledUnassigned, teamMembers, assignedJobs, new Date());
+            setAutoAssignResults(results);
+        } catch (error) {
+            console.error('Auto-assign error:', error);
+            toast.error('Failed to generate assignments');
+        } finally {
+            setIsAutoAssigning(false);
+        }
+    }, [unassignedJobs, teamMembers, assignedJobs]);
+
+    // Apply auto-assign results
+    const applyAutoAssignments = useCallback(async (assignments) => {
+        let successCount = 0;
+        for (const assignment of assignments) {
+            if (assignment.failed) continue;
+            try {
+                const crew = (assignment.techIds || [assignment.techId]).map((techId, i) => {
+                    const tech = teamMembers.find(t => t.id === techId);
+                    if (!tech) return null;
+                    return createCrewMember(tech, i === 0 ? 'lead' : 'helper');
+                }).filter(Boolean);
+
+                if (crew.length > 0) {
+                    await assignCrewToJob(assignment.jobId, crew, 'ai');
+                    successCount++;
+                    setRecentlyAssigned(prev => new Set([...prev, assignment.jobId]));
+                }
+            } catch (error) {
+                console.error(`Failed to assign job ${assignment.jobId}:`, error);
+            }
+        }
+        toast.success(`${successCount} job${successCount !== 1 ? 's' : ''} assigned!`);
+        setAutoAssignResults(null);
+        setTimeout(() => {
+            setRecentlyAssigned(new Set());
+            if (onJobUpdate) onJobUpdate();
+        }, 1500);
+    }, [teamMembers, onJobUpdate]);
 
     // Handle unassignment
     const handleUnassign = async (jobId, memberId) => {
@@ -407,6 +639,16 @@ export const TechAssignmentPanel = ({
                         {unassignedJobs.length} unassigned • {assignedJobs.length} assigned
                     </p>
                 </div>
+                {unassignedJobs.length > 0 && (
+                    <button
+                        onClick={handleAutoAssign}
+                        disabled={isAutoAssigning || unassignedJobs.filter(j => j.scheduledTime || j.scheduledDate).length === 0}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors"
+                    >
+                        {isAutoAssigning ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                        Auto-Assign
+                    </button>
+                )}
             </div>
 
             {/* View Tabs */}
@@ -463,6 +705,8 @@ export const TechAssignmentPanel = ({
                 <UnassignedJobsList
                     jobs={unassignedJobs}
                     teamMembers={teamMembers}
+                    vehicles={vehicles}
+                    recentlyAssigned={recentlyAssigned}
                     onAssign={handleAssign}
                 />
             )}
@@ -477,6 +721,89 @@ export const TechAssignmentPanel = ({
                             onUnassign={handleUnassign}
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Auto-Assign Results Modal */}
+            {autoAssignResults && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setAutoAssignResults(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                                    <Sparkles size={18} className="text-purple-600" />
+                                    AI Assignment Suggestions
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    {autoAssignResults.summary?.assigned || 0} of {autoAssignResults.summary?.total || 0} jobs can be assigned
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3 mb-6">
+                            {(autoAssignResults.assignments || []).map((assignment, idx) => {
+                                const tech = teamMembers.find(t => t.id === (assignment.techId || assignment.techIds?.[0]));
+                                const job = unassignedJobs.find(j => j.id === assignment.jobId);
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`p-3 rounded-xl border ${
+                                            assignment.failed
+                                                ? 'border-red-200 bg-red-50'
+                                                : 'border-emerald-200 bg-emerald-50'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-medium text-slate-800 text-sm truncate flex-1">
+                                                {job?.title || job?.description || 'Job'}
+                                            </p>
+                                            {!assignment.failed && (
+                                                <span className="text-xs font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                                    Score: {assignment.score || 0}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {assignment.failed ? (
+                                            <p className="text-xs text-red-600 mt-1">
+                                                {assignment.reason || 'No suitable tech available'}
+                                            </p>
+                                        ) : (
+                                            <div className="mt-1">
+                                                <p className="text-xs text-emerald-700 flex items-center gap-1">
+                                                    <User size={10} />
+                                                    {assignment.techName || tech?.name || 'Unknown'}
+                                                    {assignment.techIds?.length > 1 && ` + ${assignment.techIds.length - 1} more`}
+                                                </p>
+                                                {assignment.reasons?.length > 0 && (
+                                                    <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                                                        {assignment.reasons[0]}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setAutoAssignResults(null)}
+                                className="flex-1 px-4 py-2.5 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => applyAutoAssignments(autoAssignResults.assignments || [])}
+                                disabled={(autoAssignResults.assignments || []).filter(a => !a.failed).length === 0}
+                                className="flex-1 px-4 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                <Check size={16} />
+                                Apply {(autoAssignResults.assignments || []).filter(a => !a.failed).length} Assignments
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

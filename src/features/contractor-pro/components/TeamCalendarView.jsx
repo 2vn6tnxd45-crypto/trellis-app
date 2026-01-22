@@ -22,6 +22,7 @@ import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
 import { analyzeRescheduleImpact } from '../lib/scheduleImpactAnalysis';
 import { useCascadeWarning } from './CascadeWarningModal';
 import { isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
+import { isTechAssigned, getAssignedTechIds } from '../lib/crewUtils';
 
 // ============================================
 // HELPERS
@@ -337,7 +338,7 @@ const TimeSlotCell = ({
 
 const UnassignedJobsSidebar = ({ jobs, evaluations, onEventClick, draggedEvent, onDragStart, onDragEnd }) => {
     const unassignedJobs = jobs.filter(job =>
-        !job.assignedTo && !job.assignedTechId &&
+        getAssignedTechIds(job).length === 0 &&
         !['completed', 'cancelled'].includes(job.status)
     );
 
@@ -442,10 +443,8 @@ export const TeamCalendarView = ({
         // Get jobs for this date (including multi-day segments)
         const dateJobs = getJobsForDateWithMultiDay(jobs, date, businessTimezone);
 
-        // Filter to just this tech's jobs
-        const techJobs = dateJobs.filter(job => {
-            return job.assignedTo === techId || job.assignedTechId === techId;
-        });
+        // Filter to just this tech's jobs (handles both legacy assignedTo and new assignedCrew[] format)
+        const techJobs = dateJobs.filter(job => isTechAssigned(job, techId));
 
         const techEvaluations = evaluations.filter(evaluation => {
             const isAssigned = evaluation.assignedTo === techId;
@@ -460,6 +459,15 @@ export const TeamCalendarView = ({
 
         return [...techJobs, ...techEvaluations];
     }, [jobs, evaluations, businessTimezone]);
+
+    // Get scheduled-but-unassigned jobs for a specific date
+    const getUnassignedEventsForDate = useCallback((date) => {
+        const dateJobs = getJobsForDateWithMultiDay(jobs, date, businessTimezone);
+        return dateJobs.filter(job =>
+            getAssignedTechIds(job).length === 0 &&
+            !['completed', 'cancelled'].includes(job.status)
+        );
+    }, [jobs, businessTimezone]);
 
     // Working hours
     const workingHours = useMemo(() => {
@@ -554,20 +562,30 @@ export const TeamCalendarView = ({
     const performAssignment = async (event, techId, scheduledDate) => {
         setAssigning(true);
         try {
-            // Create scheduled time (ensure it's preserved)
+            const tech = teamMembers.find(t => t.id === techId);
+            const techName = tech?.name || 'Technician';
 
             const jobRef = doc(db, REQUESTS_COLLECTION_PATH, event.id);
             await updateDoc(jobRef, {
                 assignedTo: techId,
                 assignedTechId: techId,
-                assignedTechName: teamMembers.find(t => t.id === techId)?.name || 'Technician',
+                assignedTechName: techName,
+                assignedCrew: [{
+                    techId,
+                    techName,
+                    role: 'lead',
+                    vehicleId: null,
+                    vehicleName: null,
+                    color: tech?.color || '#64748B',
+                    assignedAt: new Date().toISOString()
+                }],
                 scheduledTime: scheduledDate.toISOString(),
                 scheduledDate: scheduledDate.toISOString(),
                 status: 'scheduled',
                 updatedAt: serverTimestamp()
             });
 
-            toast.success(`Job assigned to ${teamMembers.find(t => t.id === techId)?.name}`);
+            toast.success(`Job assigned to ${techName}`);
             onJobUpdate?.();
         } catch (error) {
             console.error('Failed to assign job:', error);
@@ -706,6 +724,18 @@ export const TeamCalendarView = ({
                                         />
                                     </div>
                                 ))}
+                                {/* Unassigned Column Header */}
+                                {getUnassignedEventsForDate(currentDate).length > 0 && (
+                                    <div className="w-48 shrink-0 border-r border-amber-200 bg-amber-50">
+                                        <div className="p-3 flex items-center gap-2">
+                                            <AlertCircle size={14} className="text-amber-600" />
+                                            <span className="font-bold text-amber-800 text-sm">Unassigned</span>
+                                            <span className="ml-auto text-xs font-bold text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                                                {getUnassignedEventsForDate(currentDate).length}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Time Rows */}
@@ -742,6 +772,31 @@ export const TeamCalendarView = ({
                                             </div>
                                         );
                                     })}
+                                    {/* Unassigned Column Cell */}
+                                    {getUnassignedEventsForDate(currentDate).length > 0 && (
+                                        <div className="w-48 shrink-0 border-r border-b border-amber-100 bg-amber-50/30 min-h-[60px] relative">
+                                            {getUnassignedEventsForDate(currentDate)
+                                                .filter(event => {
+                                                    const eventHour = getHourFromDate(event.scheduledTime || event.scheduledDate, businessTimezone);
+                                                    return eventHour === hour;
+                                                })
+                                                .map(event => (
+                                                    <div
+                                                        key={event.id}
+                                                        onClick={() => handleEventClick(event)}
+                                                        className="mx-1 my-0.5 p-1.5 bg-amber-100 border border-amber-300 border-dashed rounded-lg cursor-pointer hover:bg-amber-200 transition-colors"
+                                                    >
+                                                        <p className="text-xs font-medium text-amber-800 truncate">
+                                                            {event.title || event.description || 'Service'}
+                                                        </p>
+                                                        <p className="text-[10px] text-amber-600">
+                                                            {formatTime(event.scheduledTime, businessTimezone)}
+                                                        </p>
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
