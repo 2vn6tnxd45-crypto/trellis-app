@@ -45,6 +45,107 @@ const formatTime = (hour) => {
     return `${h} ${ampm}`;
 };
 
+// Extract hour from date in a specific timezone (timezone-aware)
+const getHourFromDate = (dateStr, timeZone) => {
+    if (!dateStr) return 8;
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (timeZone) {
+        try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                hour: 'numeric',
+                hour12: false,
+                timeZone
+            }).formatToParts(date);
+            const hourPart = parts.find(p => p.type === 'hour');
+            return parseInt(hourPart.value) % 24;
+        } catch (e) {
+            console.warn('Failed to get hour in timezone:', e);
+        }
+    }
+    return date.getHours();
+};
+
+// Extract minutes from date in a specific timezone
+const getMinutesFromDate = (dateStr, timeZone) => {
+    if (!dateStr) return 0;
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    if (timeZone) {
+        try {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                minute: 'numeric',
+                timeZone
+            }).formatToParts(date);
+            const minutePart = parts.find(p => p.type === 'minute');
+            return parseInt(minutePart.value);
+        } catch (e) {
+            console.warn('Failed to get minutes in timezone:', e);
+        }
+    }
+    return date.getMinutes();
+};
+
+// Format time from ISO date string to readable format (e.g., "9:00 AM")
+const formatTimeFromDate = (dateStr, timeZone) => {
+    if (!dateStr) return '';
+    const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
+    try {
+        return new Intl.DateTimeFormat('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: timeZone || undefined
+        }).format(date);
+    } catch (e) {
+        return '';
+    }
+};
+
+// Calculate duration in minutes between start and end times
+const getDurationMinutes = (startTime, endTime) => {
+    if (!startTime || !endTime) return 60;
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    return Math.max(30, Math.round((end - start) / (1000 * 60)));
+};
+
+// Check for scheduling conflicts with existing jobs
+const checkScheduleConflicts = (newStart, newEnd, existingJobs, assignedTechIds, excludeJobId = null) => {
+    const newStartTime = new Date(newStart).getTime();
+    const newEndTime = new Date(newEnd).getTime();
+    const conflicts = [];
+
+    for (const job of existingJobs) {
+        // Skip the job being rescheduled
+        if (job.id === excludeJobId) continue;
+
+        // Check if this job has overlapping tech assignment
+        const jobTechIds = job.crew?.map(c => c.techId) || (job.assignedTo ? [job.assignedTo] : []);
+        const hasOverlappingTech = assignedTechIds.some(id => jobTechIds.includes(id));
+
+        if (!hasOverlappingTech) continue;
+
+        // Get job time window
+        const jobStart = job.scheduledTime || job.scheduledDate;
+        const jobEnd = job.scheduledEndTime || (jobStart ? new Date(new Date(jobStart).getTime() + (job.estimatedDuration || 60) * 60000).toISOString() : null);
+
+        if (!jobStart) continue;
+
+        const jobStartTime = new Date(jobStart).getTime();
+        const jobEndTime = new Date(jobEnd).getTime();
+
+        // Check for overlap: new job starts before existing ends AND new job ends after existing starts
+        if (newStartTime < jobEndTime && newEndTime > jobStartTime) {
+            conflicts.push({
+                job,
+                conflictType: 'time_overlap',
+                message: `Conflicts with "${job.title || job.customer?.name || 'Job'}" (${formatTimeFromDate(jobStart)} - ${formatTimeFromDate(jobEnd)})`
+            });
+        }
+    }
+
+    return conflicts;
+};
+
 const getJobsForDate = (jobs, date, timezone) => {
     return jobs.filter(job => {
         // Check regular scheduled date
@@ -273,6 +374,8 @@ const TimeSlot = React.memo(({
     onEvaluationClick,  // NEW: Handler for evaluation clicks
     preferences
 }) => {
+    const timezone = preferences?.businessTimezone;
+
     // Filter jobs that START in this hour (not just any job for the day)
     const slotJobs = jobs.filter(job => {
         // For multi-day jobs, check if this is a segment day and use segment's start hour
@@ -288,42 +391,42 @@ const TimeSlot = React.memo(({
                 return parseInt(startTimeParts[0]) === hour;
             }
         }
-        // For regular jobs, use the scheduled time
-        const jobDate = new Date(job.scheduledTime || job.scheduledDate);
-        return jobDate.getHours() === hour;
+        // For regular jobs, use the scheduled time with timezone awareness
+        const jobTime = job.scheduledTime || job.scheduledDate;
+        const jobHour = getHourFromDate(jobTime, timezone);
+        return jobHour === hour;
     }).map(job => {
         // Calculate how many hour slots this job spans
-        // For multi-day segments, use the segment's duration
+        // Use actual end time if available, otherwise fall back to estimatedDuration
         let durationMinutes = job.estimatedDuration || 60;
-        if (job._multiDayInfo?.segment?.durationMinutes) {
+
+        // If we have both scheduledTime and scheduledEndTime, calculate actual duration
+        if (job.scheduledTime && job.scheduledEndTime) {
+            durationMinutes = getDurationMinutes(job.scheduledTime, job.scheduledEndTime);
+        } else if (job._multiDayInfo?.segment?.durationMinutes) {
             durationMinutes = job._multiDayInfo.segment.durationMinutes;
         }
+
         const durationHours = Math.max(1, Math.ceil(durationMinutes / 60));
         return { ...job, _durationHours: durationHours, _durationMinutes: durationMinutes };
     });
 
-    // NEW: Filter pending slots for this hour
+    // Filter pending slots for this hour (timezone-aware)
     const slotPending = pendingSlots.filter(slot => {
-        const slotDate = new Date(slot.slotStart);
-        // Use timezone aware check if timezone is provided
-        // Note: slotDate is typically ISO UTC, date is current view date (local). 
-        // We rely on getHourFromDate logic usually, but here we just check day/hour match
-        // For robustness, we should use isSameDayInTimezone if timezone is available
-        const isSameDay = preferences?.businessTimezone
-            ? isSameDayInTimezone(slotDate, date, preferences.businessTimezone)
-            : isSameDayInTimezone(slotDate, date, 'UTC'); // fallback
-
-        return isSameDay && slotDate.getHours() === hour;
+        const isSameDay = timezone
+            ? isSameDayInTimezone(slot.slotStart, date, timezone)
+            : isSameDayInTimezone(slot.slotStart, date, 'UTC');
+        const slotHour = getHourFromDate(slot.slotStart, timezone);
+        return isSameDay && slotHour === hour;
     });
 
-    // NEW: Filter evaluations for this hour
+    // Filter evaluations for this hour (timezone-aware)
     const slotEvaluations = evaluations.filter(evaluation => {
-        const evalDate = new Date(evaluation.scheduledTime);
-        const isSameDay = preferences?.businessTimezone
-            ? isSameDayInTimezone(evalDate, date, preferences.businessTimezone)
-            : isSameDayInTimezone(evalDate, date, 'UTC');
-
-        return isSameDay && evalDate.getHours() === hour;
+        const isSameDay = timezone
+            ? isSameDayInTimezone(evaluation.scheduledTime, date, timezone)
+            : isSameDayInTimezone(evaluation.scheduledTime, date, 'UTC');
+        const evalHour = getHourFromDate(evaluation.scheduledTime, timezone);
+        return isSameDay && evalHour === hour;
     });
 
     // Check if this hour is within working hours
@@ -357,12 +460,29 @@ const TimeSlot = React.memo(({
                 // Offset for multiple jobs starting at same hour
                 const topOffset = 4 + (jobIndex * 4);
 
-                // Calculate starts minutes for proper vertical positioning
+                // Calculate start minutes for proper vertical positioning (timezone-aware)
                 // This ensures a job at 1:30 is lower than a job at 1:00
-                const jobDate = new Date(job.scheduledTime || job.scheduledDate);
-                const startMinutes = jobDate.getMinutes();
+                const startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledDate, timezone);
                 // Formula: startMinutes/60 * 100% + existing stacking offset
                 const topPosition = `calc(${(startMinutes / 60) * 100}% + ${topOffset}px)`;
+
+                // Format display time
+                const startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledDate, timezone);
+                const endTimeStr = job.scheduledEndTime ? formatTimeFromDate(job.scheduledEndTime, timezone) : null;
+                const timeDisplay = endTimeStr ? `${startTimeStr} - ${endTimeStr}` : startTimeStr;
+
+                // Get customer name
+                const customerName = job.customer?.name || job.customerName || '';
+
+                // Determine background color based on status/priority
+                let bgClass = 'bg-emerald-500 hover:bg-emerald-600';
+                if (job._multiDayInfo) {
+                    bgClass = 'bg-indigo-500 hover:bg-indigo-600';
+                } else if (job.priority === 'urgent' || job.priority === 'high') {
+                    bgClass = 'bg-red-500 hover:bg-red-600';
+                } else if (job.status === 'in_progress') {
+                    bgClass = 'bg-blue-500 hover:bg-blue-600';
+                }
 
                 return (
                     <button
@@ -373,8 +493,7 @@ const TimeSlot = React.memo(({
                             top: topPosition,
                             zIndex: 10 + jobIndex
                         }}
-                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
-                            }`}
+                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${bgClass}`}
                     >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
                             <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
@@ -394,14 +513,32 @@ const TimeSlot = React.memo(({
                                 </span>
                             )}
                         </div>
-                        <p className="truncate opacity-80">{job.customer?.name}</p>
-                        {showDuration && (
-                            <p className="text-[10px] opacity-70 mt-0.5 flex items-center gap-1">
-                                <Clock size={9} />
-                                {job._durationMinutes >= 60
-                                    ? `${Math.floor(job._durationMinutes / 60)}h${job._durationMinutes % 60 > 0 ? ` ${job._durationMinutes % 60}m` : ''}`
-                                    : `${job._durationMinutes}m`
-                                }
+                        {/* Customer name */}
+                        {customerName && (
+                            <p className="truncate opacity-90">{customerName}</p>
+                        )}
+                        {/* Time and duration info */}
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] opacity-80">
+                            {startTimeStr && (
+                                <span className="flex items-center gap-0.5">
+                                    <Clock size={8} />
+                                    {timeDisplay}
+                                </span>
+                            )}
+                            {showDuration && !endTimeStr && (
+                                <span>
+                                    ({job._durationMinutes >= 60
+                                        ? `${Math.floor(job._durationMinutes / 60)}h${job._durationMinutes % 60 > 0 ? `${job._durationMinutes % 60}m` : ''}`
+                                        : `${job._durationMinutes}m`
+                                    })
+                                </span>
+                            )}
+                        </div>
+                        {/* Tech assignment if available */}
+                        {job.assignedTo && heightPx > 70 && (
+                            <p className="text-[9px] opacity-70 mt-0.5 truncate flex items-center gap-0.5">
+                                <User size={8} />
+                                {job.assignedToName || job.assignedTo}
                             </p>
                         )}
                     </button>
@@ -466,11 +603,16 @@ const TimeSlot = React.memo(({
 // DROP CONFIRMATION MODAL
 // ============================================
 
-const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone, onSetupTeam }) => {
+const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, timezone, onSetupTeam, existingJobs = [] }) => {
     const [selectedTime, setSelectedTime] = useState(`${hour.toString().padStart(2, '0')}:00`);
     const [selectedCrew, setSelectedCrew] = useState([]); // Multi-select crew
     const [duration, setDuration] = useState(job.estimatedDuration || 120);
     const [customerConfirmed, setCustomerConfirmed] = useState(false);
+
+    // Sync selectedTime when hour prop changes (prevents stale state from previous drag)
+    useEffect(() => {
+        setSelectedTime(`${hour.toString().padStart(2, '0')}:00`);
+    }, [hour]);
 
     // Multi-day detection
     const isMultiDay = isMultiDayJob(duration);
@@ -490,6 +632,40 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         const proposedCrew = selectedCrew.map(id => ({ techId: id }));
         return validateProposedCrew(proposedCrew, job);
     }, [selectedCrew, job, requiresMultipleTechs]);
+
+    // Check for schedule conflicts
+    const conflicts = useMemo(() => {
+        if (selectedCrew.length === 0) return [];
+
+        const [hours, minutes] = selectedTime.split(':').map(Number);
+        let scheduledDateTime;
+        if (timezone) {
+            scheduledDateTime = createDateInTimezone(
+                date.getFullYear(),
+                date.getMonth(),
+                date.getDate(),
+                hours,
+                minutes,
+                timezone
+            );
+        } else {
+            scheduledDateTime = new Date(date);
+            scheduledDateTime.setHours(hours, minutes, 0, 0);
+        }
+
+        const endDateTime = new Date(scheduledDateTime);
+        endDateTime.setMinutes(endDateTime.getMinutes() + duration);
+
+        return checkScheduleConflicts(
+            scheduledDateTime.toISOString(),
+            endDateTime.toISOString(),
+            existingJobs,
+            selectedCrew,
+            job.id
+        );
+    }, [selectedTime, duration, date, timezone, selectedCrew, existingJobs, job.id]);
+
+    const hasConflicts = conflicts.length > 0;
 
     const hasTeamMembers = teamMembers && teamMembers.length > 0;
     const needsTeamButNoMembers = requiresMultipleTechs && !hasTeamMembers;
@@ -634,9 +810,13 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         {date.toLocaleDateString('en-US', {
                             weekday: 'long',
                             month: 'long',
-                            day: 'numeric'
+                            day: 'numeric',
+                            timeZone: timezone || undefined
                         })}
                     </div>
+                    {timezone && (
+                        <p className="text-xs text-slate-400 mt-1">Timezone: {timezone}</p>
+                    )}
                 </div>
 
                 {/* Time Selection */}
@@ -683,6 +863,31 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                                     {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}.
                                     It will automatically be blocked on your calendar across all days.
                                 </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Schedule Conflict Warning */}
+                {hasConflicts && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle size={16} className="text-red-600 mt-0.5 shrink-0" />
+                            <div>
+                                <p className="font-medium text-red-800">Schedule Conflict</p>
+                                <p className="text-xs text-red-600 mt-1">
+                                    The selected crew has overlapping appointments:
+                                </p>
+                                <ul className="text-xs text-red-600 mt-1 list-disc list-inside">
+                                    {conflicts.slice(0, 3).map((conflict, i) => (
+                                        <li key={i}>{conflict.message}</li>
+                                    ))}
+                                </ul>
+                                {conflicts.length > 3 && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                        +{conflicts.length - 3} more conflicts
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1559,6 +1764,7 @@ export const DragDropCalendar = ({
                     hour={confirmDrop.hour}
                     teamMembers={preferences?.teamMembers}
                     timezone={timezone}
+                    existingJobs={scheduledJobs}
                     onConfirm={handleConfirmSchedule}
                     onCancel={() => setConfirmDrop(null)}
                     onSetupTeam={onSetupTeam ? () => {
