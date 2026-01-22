@@ -21,11 +21,42 @@ import { parseDurationToMinutes } from '../lib/schedulingAI';
 import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
 import { analyzeRescheduleImpact } from '../lib/scheduleImpactAnalysis';
 import { useCascadeWarning } from './CascadeWarningModal';
-import { isSameDayInTimezone } from '../lib/timezoneUtils';
+import { isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
 // ============================================
+
+/**
+ * Normalize a date value to ensure proper timezone handling
+ * Handles date-only strings (YYYY-MM-DD) which JavaScript parses as UTC midnight
+ * by treating them as local dates instead
+ */
+const normalizeDateForTimezone = (dateValue, timezone) => {
+    if (!dateValue) return null;
+
+    // If it's already a Date object, return it
+    if (dateValue instanceof Date) return dateValue;
+
+    // Handle Firestore Timestamp
+    if (dateValue?.toDate) return dateValue.toDate();
+
+    // Handle string dates
+    if (typeof dateValue === 'string') {
+        // Check if it's a date-only string (YYYY-MM-DD) without time component
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateOnlyRegex.test(dateValue)) {
+            // Parse as local date components to avoid UTC midnight issue
+            const [year, month, day] = dateValue.split('-').map(Number);
+            // Create date at noon in target timezone to ensure correct day
+            return createDateInTimezone(year, month - 1, day, 12, 0, timezone || 'UTC');
+        }
+        // Otherwise it has time info, parse normally
+        return new Date(dateValue);
+    }
+
+    return null;
+};
 
 
 
@@ -96,10 +127,13 @@ const getEventStatus = (event) => {
 // Get jobs for a date including multi-day segment info
 const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
     return jobs.filter(job => {
-        // Regular scheduled date check
-        const jobDate = job.scheduledTime || job.scheduledDate;
-        if (jobDate && isSameDayInTimezone(jobDate, date, timeZone)) {
-            return true;
+        // Regular scheduled date check - normalize to handle date-only strings
+        const rawJobDate = job.scheduledTime || job.scheduledDate;
+        if (rawJobDate) {
+            const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timeZone);
+            if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timeZone)) {
+                return true;
+            }
         }
 
         // Multi-day segment check

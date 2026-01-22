@@ -15,11 +15,12 @@ export const QuickServiceCallButton = ({
 }) => {
     const [isHovered, setIsHovered] = useState(false);
 
-    // Position classes
+    // Position classes - accounting for mobile bottom nav (~60px + padding)
+    // On mobile (lg:hidden shows nav), position above it; on desktop, use normal position
     const positionClasses = {
-        'bottom-right': 'bottom-6 right-6',
-        'bottom-left': 'bottom-6 left-6',
-        'bottom-center': 'bottom-6 left-1/2 -translate-x-1/2'
+        'bottom-right': 'bottom-20 lg:bottom-6 right-6',  // 80px on mobile to clear nav
+        'bottom-left': 'bottom-20 lg:bottom-6 left-6',
+        'bottom-center': 'bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2'
     };
 
     // Minimal variant - just an icon

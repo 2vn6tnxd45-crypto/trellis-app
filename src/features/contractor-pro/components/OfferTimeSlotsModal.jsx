@@ -28,6 +28,8 @@ import { checkForConflicts } from '../lib/schedulingAI';
 import { isMultiDayJob as checkIsMultiDay, calculateDaysNeeded } from '../lib/multiDayUtils';
 // Import quote service for updating quote status on cancellation
 import { markQuoteJobCancelled } from '../../quotes/lib/quoteService';
+// Import duration formatting utility
+import { formatMinutesToHuman } from '../lib/timeClockService';
 
 // Quick time presets
 const TIME_PRESETS = [
@@ -610,7 +612,7 @@ export const OfferTimeSlotsModal = ({
                             {job?.estimatedDuration && (
                                 <span className="flex items-center gap-1">
                                     <Clock size={12} />
-                                    {job.estimatedDuration}
+                                    ~{formatMinutesToHuman(job.estimatedDuration)}
                                 </span>
                             )}
                         </div>
@@ -755,14 +757,20 @@ export const OfferTimeSlotsModal = ({
                                                 </button>
                                             </div>
 
-                                            {/* Show resource conflict warning */}
+                                            {/* Show resource conflict warning - made more prominent */}
                                             {slotConflicts[slot.id] && (
-                                                <div className={`mt-1 p-2 rounded-lg text-xs flex items-center gap-2 ${slotConflicts[slot.id].canProceed
-                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                                        : 'bg-red-50 text-red-700 border border-red-200'
+                                                <div className={`mt-2 p-3 rounded-xl text-sm flex items-start gap-2 animate-pulse ${slotConflicts[slot.id].canProceed
+                                                        ? 'bg-amber-100 text-amber-800 border-2 border-amber-300 shadow-sm'
+                                                        : 'bg-red-100 text-red-800 border-2 border-red-300 shadow-sm'
                                                     }`}>
-                                                    <AlertCircle size={14} />
-                                                    <span>{slotConflicts[slot.id].message}</span>
+                                                    <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="font-bold">{slotConflicts[slot.id].canProceed ? 'Warning' : 'Conflict'}</p>
+                                                        <p className="text-xs mt-0.5 opacity-90">{slotConflicts[slot.id].message}</p>
+                                                        {slotConflicts[slot.id].canProceed && (
+                                                            <p className="text-xs mt-1 opacity-75">You can still proceed, but consider another time.</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -956,6 +964,11 @@ export const OfferTimeSlotsModal = ({
                                 <>
                                     <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
                                     Sending...
+                                </>
+                            ) : filledSlotsCount === 0 ? (
+                                <>
+                                    <Calendar size={16} />
+                                    Select Time Slots
                                 </>
                             ) : (
                                 <>

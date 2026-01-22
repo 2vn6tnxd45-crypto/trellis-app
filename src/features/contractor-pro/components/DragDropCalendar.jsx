@@ -25,6 +25,53 @@ import { validateProposedCrew } from '../lib/crewRequirementsService';
 // HELPERS
 // ============================================
 
+/**
+ * Normalize a date value to ensure proper timezone handling
+ * Handles date-only strings (YYYY-MM-DD) which JavaScript parses as UTC midnight
+ * by treating them as local dates instead
+ */
+const normalizeDateForTimezone = (dateValue, timezone) => {
+    if (!dateValue) return null;
+
+    // If it's already a Date object, return it
+    if (dateValue instanceof Date) return dateValue;
+
+    // Handle Firestore Timestamp
+    if (dateValue?.toDate) return dateValue.toDate();
+
+    // Handle string dates
+    if (typeof dateValue === 'string') {
+        // Check if it's a date-only string (YYYY-MM-DD) without time component
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateOnlyRegex.test(dateValue)) {
+            // Parse as local date components to avoid UTC midnight issue
+            const [year, month, day] = dateValue.split('-').map(Number);
+            // Create date at noon in target timezone to ensure correct day
+            return createDateInTimezone(year, month - 1, day, 12, 0, timezone || 'UTC');
+        }
+        // Otherwise it has time info, parse normally
+        return new Date(dateValue);
+    }
+
+    return null;
+};
+
+/**
+ * Check if a specific day is a closed business day
+ * @param {Date} date - The date to check
+ * @param {Object} workingHours - Working hours configuration
+ * @returns {boolean} True if the day is closed (business is not operating)
+ */
+const isDayClosedForBusiness = (date, workingHours) => {
+    if (!workingHours) return false; // If no config, assume open (permissive default)
+
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayConfig = workingHours[dayName];
+
+    // Day is closed if it's explicitly disabled or not configured
+    return !dayConfig?.enabled;
+};
+
 const getWeekDates = (date) => {
     const start = new Date(date);
     start.setDate(start.getDate() - start.getDay());
@@ -148,10 +195,13 @@ const checkScheduleConflicts = (newStart, newEnd, existingJobs, assignedTechIds,
 
 const getJobsForDate = (jobs, date, timezone) => {
     return jobs.filter(job => {
-        // Check regular scheduled date
-        const jobDate = job.scheduledTime || job.scheduledDate;
-        if (jobDate && isSameDayInTimezone(jobDate, date, timezone)) {
-            return true;
+        // Check regular scheduled date - use normalized date to handle date-only strings
+        const rawJobDate = job.scheduledTime || job.scheduledDate;
+        if (rawJobDate) {
+            const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timezone);
+            if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timezone)) {
+                return true;
+            }
         }
 
         // Check multi-day job segments
@@ -433,13 +483,17 @@ const TimeSlot = React.memo(({
     // Check if this hour is within working hours
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const dayPrefs = preferences?.workingHours?.[dayName];
-    const isWorkingHour = dayPrefs?.enabled !== false;
+
+    // Day is closed if workingHours is configured AND this day is explicitly disabled
+    // If no workingHours config at all, default to open (permissive)
+    const isDayClosed = preferences?.workingHours && dayPrefs?.enabled === false;
+    const isWorkingDay = !isDayClosed;
 
     let startHour = 8, endHour = 17;
     if (dayPrefs?.start) startHour = parseInt(dayPrefs.start.split(':')[0]);
     if (dayPrefs?.end) endHour = parseInt(dayPrefs.end.split(':')[0]);
 
-    const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingHour;
+    const isWithinWorkingHours = isWorkingDay && hour >= startHour && hour < endHour;
 
     // Handle click on empty slot
     const handleSlotClick = (e) => {
@@ -449,18 +503,26 @@ const TimeSlot = React.memo(({
         }
     };
 
+    // Don't allow dropping on closed days
+    const handleDrop = isDayClosed ? (e) => { e.preventDefault(); } : (e) => onDrop(e, date, hour);
+    const handleDragOver = isDayClosed ? (e) => { e.preventDefault(); } : onDragOver;
+
     return (
         <div
-            onDrop={(e) => onDrop(e, date, hour)}
-            onDragOver={onDragOver}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
             onDragLeave={onDragLeave}
             onClick={handleSlotClick}
-            className={`h-[60px] border-b border-r border-slate-100 p-1 transition-colors relative ${isDropTarget
-                ? 'bg-emerald-100 border-emerald-300'
-                : isWithinWorkingHours
-                    ? 'bg-white hover:bg-slate-50 cursor-pointer'
-                    : 'bg-slate-50'
+            className={`h-[60px] border-b border-r border-slate-100 p-1 transition-colors relative ${
+                isDayClosed
+                    ? 'bg-slate-100/80 cursor-not-allowed'
+                    : isDropTarget
+                        ? 'bg-emerald-100 border-emerald-300'
+                        : isWithinWorkingHours
+                            ? 'bg-white hover:bg-slate-50 cursor-pointer'
+                            : 'bg-slate-50'
                 }`}
+            title={isDayClosed ? 'Business closed - scheduling not allowed' : undefined}
         >
             {/* Confirmed Jobs - Height scaled by duration, positioned absolutely to overlap cells */}
             {slotJobs.map((job, jobIndex) => {
@@ -1540,13 +1602,25 @@ export const DragDropCalendar = ({
             console.error('Failed to parse job data from drag:', err);
         }
 
+        // Validate that the target day is not a closed business day
+        if (isDayClosedForBusiness(date, preferences?.workingHours)) {
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+            toast.error(`Cannot schedule on ${dayName} - business is closed`, {
+                icon: '🚫',
+                duration: 4000
+            });
+            setDropTarget(null);
+            setDraggedJob(null);
+            return;
+        }
+
         if (jobId && jobData) {
             setConfirmDrop({ job: jobData, date, hour });
         }
 
         setDropTarget(null);
         setDraggedJob(null);
-    }, []);
+    }, [preferences?.workingHours]);
 
     // Confirm scheduling
     // Confirm scheduling (propose or direct)
@@ -1822,17 +1896,21 @@ export const DragDropCalendar = ({
                     <div className="w-16 shrink-0 bg-slate-50" /> {/* Time column header */}
                     {weekDates.map((date, idx) => {
                         const isToday = isSameDayInTimezone(date, today, timezone);
+                        const isClosed = isDayClosedForBusiness(date, preferences?.workingHours);
                         return (
                             <div
                                 key={idx}
-                                className={`p-2 text-center border-l border-slate-100 ${isToday ? 'bg-emerald-50' : ''}`}
+                                className={`p-2 text-center border-l border-slate-100 ${isToday ? 'bg-emerald-50' : ''} ${isClosed ? 'bg-slate-100' : ''}`}
                             >
-                                <p className={`text-xs font-medium ${isToday ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                <p className={`text-xs font-medium ${isToday ? 'text-emerald-600' : isClosed ? 'text-slate-400' : 'text-slate-500'}`}>
                                     {date.toLocaleDateString('en-US', { weekday: 'short' })}
                                 </p>
-                                <p className={`text-lg font-bold ${isToday ? 'text-emerald-600' : 'text-slate-800'}`}>
+                                <p className={`text-lg font-bold ${isToday ? 'text-emerald-600' : isClosed ? 'text-slate-400' : 'text-slate-800'}`}>
                                     {date.getDate()}
                                 </p>
+                                {isClosed && (
+                                    <span className="text-[10px] text-slate-400 font-medium">Closed</span>
+                                )}
                             </div>
                         );
                     })}

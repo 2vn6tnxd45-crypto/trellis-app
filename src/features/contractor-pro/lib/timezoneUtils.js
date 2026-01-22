@@ -344,6 +344,40 @@ export const isValidTimezone = (timezone) => {
     }
 };
 
+/**
+ * Normalize a date value to ensure proper timezone handling
+ * Handles date-only strings (YYYY-MM-DD) which JavaScript parses as UTC midnight
+ * by treating them as local dates instead
+ * @param {Date|string|Object} dateValue - Date, ISO string, date-only string, or Firestore Timestamp
+ * @param {string} timezone - IANA timezone identifier
+ * @returns {Date|null} Normalized Date object or null
+ */
+export const normalizeDateValue = (dateValue, timezone) => {
+    if (!dateValue) return null;
+
+    // If it's already a Date object, return it
+    if (dateValue instanceof Date) return dateValue;
+
+    // Handle Firestore Timestamp
+    if (dateValue?.toDate) return dateValue.toDate();
+
+    // Handle string dates
+    if (typeof dateValue === 'string') {
+        // Check if it's a date-only string (YYYY-MM-DD) without time component
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateOnlyRegex.test(dateValue)) {
+            // Parse as local date components to avoid UTC midnight issue
+            const [year, month, day] = dateValue.split('-').map(Number);
+            // Create date at noon in target timezone to ensure correct day
+            return createDateInTimezone(year, month - 1, day, 12, 0, timezone || 'UTC');
+        }
+        // Otherwise it has time info, parse normally
+        return new Date(dateValue);
+    }
+
+    return null;
+};
+
 export default {
     detectTimezone,
     US_TIMEZONES,
@@ -360,5 +394,6 @@ export default {
     getStartOfDayInTimezone,
     getEndOfDayInTimezone,
     getContractorTimezone,
-    isValidTimezone
+    isValidTimezone,
+    normalizeDateValue
 };

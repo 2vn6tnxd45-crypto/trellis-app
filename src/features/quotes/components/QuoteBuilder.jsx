@@ -736,8 +736,13 @@ const LineItemsSection = ({
                                 </span>
                                 <input
                                     type="number"
+                                    min="0"
                                     value={depositValue}
-                                    onChange={(e) => onDepositChange('depositValue', parseFloat(e.target.value) || 0)}
+                                    onChange={(e) => {
+                                        let val = parseFloat(e.target.value);
+                                        if (val < 0) val = 0;
+                                        onDepositChange('depositValue', val || 0);
+                                    }}
                                     className="w-32 px-3 py-1.5 border border-slate-200 rounded-lg"
                                 />
                                 {depositType === 'percentage' && <span className="text-slate-500">%</span>}

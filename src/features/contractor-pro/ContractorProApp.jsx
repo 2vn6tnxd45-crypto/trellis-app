@@ -516,6 +516,7 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
         { id: 'memberships', icon: Crown, label: 'Memberships' },
         { id: 'team', icon: Users, label: 'Team' },
         { id: 'reports', icon: TrendingUp, label: 'Reports' },
+        { id: 'profile', icon: User, label: 'Profile' },
         { id: 'settings', icon: SettingsIcon, label: 'Settings' },
     ];
 
@@ -824,14 +825,16 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
     const activeJobs = statusFilter === 'all'
         ? allActiveJobs
         : statusFilter === 'needs_scheduling'
-            ? allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status))
-            : statusFilter === 'scheduled'
-                ? allActiveJobs.filter(j => j.status === 'scheduled')
-                : statusFilter === 'in_progress'
-                    ? allActiveJobs.filter(j => j.status === 'in_progress')
-                    : statusFilter === 'pending_approval'
-                        ? allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status))
-                        : allActiveJobs;
+            ? allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status))
+            : statusFilter === 'awaiting_response'
+                ? allActiveJobs.filter(j => j.status === 'slots_offered')
+                : statusFilter === 'scheduled'
+                    ? allActiveJobs.filter(j => j.status === 'scheduled')
+                    : statusFilter === 'in_progress'
+                        ? allActiveJobs.filter(j => j.status === 'in_progress')
+                        : statusFilter === 'pending_approval'
+                            ? allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status))
+                            : allActiveJobs;
 
     const completedJobs = jobs.filter(j => j.status === 'completed');
     const cancelledJobs = jobs.filter(j => j.status === 'cancelled');
@@ -840,7 +843,8 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
     const estimatedRevenue = allActiveJobs.reduce((sum, job) => sum + (job.total || job.price || 0), 0);
 
     // Get jobs that need scheduling (for batch mode)
-    const schedulableJobs = allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status));
+    // Note: 'slots_offered' excluded as those are awaiting customer response
+    const schedulableJobs = allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status));
 
     // Toggle job selection for batch mode
     const toggleJobSelection = (jobId) => {
@@ -1244,7 +1248,8 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     {[
                         { key: 'all', label: 'All', count: allActiveJobs.length },
-                        { key: 'needs_scheduling', label: 'Needs Scheduling', count: allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status)).length },
+                        { key: 'needs_scheduling', label: 'Needs Scheduling', count: allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status)).length },
+                        { key: 'awaiting_response', label: 'Awaiting Response', count: allActiveJobs.filter(j => j.status === 'slots_offered').length },
                         { key: 'scheduled', label: 'Scheduled', count: allActiveJobs.filter(j => j.status === 'scheduled').length },
                         { key: 'in_progress', label: 'In Progress', count: allActiveJobs.filter(j => j.status === 'in_progress').length },
                         { key: 'pending_approval', label: 'Pending Approval', count: allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status)).length },
@@ -2471,10 +2476,18 @@ export const ContractorProApp = () => {
         ).length || 0;
     }, [jobs]);
 
+    // Jobs that NEED contractor action to schedule
+    // Note: 'slots_offered' means waiting for customer response, not needing scheduling
+    // 'scheduling' means customer proposed a time - needs contractor review
     const unscheduledJobsCount = useMemo(() => {
         return jobs?.filter(job =>
-            ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(job.status)
+            ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(job.status)
         ).length || 0;
+    }, [jobs]);
+
+    // Jobs awaiting customer response (contractor has acted, waiting for customer)
+    const awaitingResponseCount = useMemo(() => {
+        return jobs?.filter(job => job.status === 'slots_offered').length || 0;
     }, [jobs]);
 
     const scheduledJobs = useMemo(() => {

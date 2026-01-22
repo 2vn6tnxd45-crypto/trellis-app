@@ -6,7 +6,7 @@
 // Can be used in Settings or as a standalone view
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
     Building2, MapPin, Phone, Shield, CheckCircle, Save, Loader2,
     Briefcase, BadgeCheck, Award, CreditCard, Plus, X, Mail, User
 } from 'lucide-react';
@@ -16,7 +16,7 @@ import { LogoUpload } from './LogoUpload';
 
 const PAYMENT_METHOD_OPTIONS = [
     'Credit Card',
-    'Debit Card', 
+    'Debit Card',
     'Check',
     'Cash',
     'Bank Transfer',
@@ -38,7 +38,7 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
         licenseNumber: profile?.profile?.licenseNumber || '',
         specialty: profile?.profile?.specialty || '',
         logoUrl: profile?.profile?.logoUrl || null,
-        
+
         // Credentials
         yearsInBusiness: profile?.profile?.yearsInBusiness || '',
         insured: profile?.profile?.insured || false,
@@ -73,7 +73,7 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
         const formatted = formatPhoneNumber(e.target.value);
         setFormData(prev => ({ ...prev, phone: formatted }));
     };
-    
+
     const formatPhoneNumber = (value) => {
         if (!value) return value;
         const phoneNumber = value.replace(/[^\d]/g, '');
@@ -157,6 +157,16 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
 
     // --- Save ---
     const handleSave = async () => {
+        // Validation
+        if (!formData.companyName?.trim()) return toast.error('Company Name is required');
+        if (!formData.displayName?.trim()) return toast.error('Your Name is required');
+        if (!formData.email?.trim()) return toast.error('Email is required');
+        if (!formData.phone?.trim()) return toast.error('Phone number is required');
+
+        // Basic Phone Validation (10 digits)
+        const digits = formData.phone.replace(/\D/g, '');
+        if (digits.length < 10) return toast.error('Please enter a valid 10-digit phone number');
+
         setSaving(true);
         try {
             await onUpdateProfile({
@@ -177,7 +187,7 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
             {/* Logo */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-4">Company Logo</h3>
-                <LogoUpload 
+                <LogoUpload
                     currentLogo={formData.logoUrl}
                     onUpload={(url) => setFormData(prev => ({ ...prev, logoUrl: url }))}
                     contractorId={contractorId}
@@ -200,7 +210,7 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
                             />
                         </div>
                     </div>
-                    
+
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-1.5">Your Name</label>
                         <div className="relative">
@@ -302,14 +312,13 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-4">Insurance & Bonding</h3>
                 <p className="text-sm text-slate-500 mb-4">These badges will appear on your quotes to build customer trust.</p>
-                
+
                 <div className="flex flex-wrap gap-3">
-                    <label 
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            formData.insured 
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                    <label
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.insured
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                 : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                            }`}
                     >
                         <input
                             type="checkbox"
@@ -321,13 +330,12 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
                         <span className="font-medium">Fully Insured</span>
                         {formData.insured && <CheckCircle size={16} className="text-emerald-600" />}
                     </label>
-                    
-                    <label 
-                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${
-                            formData.bonded 
-                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+
+                    <label
+                        className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer transition-all ${formData.bonded
+                                ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                 : 'border-slate-200 hover:border-slate-300'
-                        }`}
+                            }`}
                     >
                         <input
                             type="checkbox"
@@ -346,7 +354,7 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-4">Certifications</h3>
                 <p className="text-sm text-slate-500 mb-4">Add any professional certifications or licenses.</p>
-                
+
                 <div className="flex gap-2 mb-3">
                     <div className="relative flex-1">
                         <Award className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -367,11 +375,11 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
                         <Plus size={18} />
                     </button>
                 </div>
-                
+
                 {formData.certifications.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                         {formData.certifications.map((cert, idx) => (
-                            <span 
+                            <span
                                 key={idx}
                                 className="inline-flex items-center gap-1 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm"
                             >
@@ -396,16 +404,15 @@ export const ContractorProfileEditor = ({ profile, onUpdateProfile }) => {
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <h3 className="font-bold text-slate-800 mb-4">Accepted Payment Methods</h3>
                 <p className="text-sm text-slate-500 mb-4">Let customers know how they can pay you.</p>
-                
+
                 <div className="flex flex-wrap gap-2">
                     {PAYMENT_METHOD_OPTIONS.map(method => (
-                        <label 
+                        <label
                             key={method}
-                            className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${
-                                formData.paymentMethods.includes(method)
+                            className={`px-4 py-2.5 rounded-xl border-2 cursor-pointer text-sm font-medium transition-all ${formData.paymentMethods.includes(method)
                                     ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                                     : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                            }`}
+                                }`}
                         >
                             <input
                                 type="checkbox"

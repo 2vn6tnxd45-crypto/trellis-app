@@ -3,7 +3,7 @@
 // CALENDAR EVENTS TRANSFORMER
 // ============================================
 // Transforms jobs and evaluations into unified calendar events
-import { isSameDayInTimezone } from './timezoneUtils';
+import { isSameDayInTimezone, normalizeDateValue } from './timezoneUtils';
 
 /**
  * Transform a job document into a calendar event
@@ -115,26 +115,34 @@ export const getEventsForDate = (events, date, timezone) => {
         // Handle jobs with confirmed time
         if (event.type === 'job') {
             if (event.start) {
-                return isSameDayInTimezone(event.start, date, timezone);
+                // Normalize to handle date-only strings properly
+                const normalizedStart = normalizeDateValue(event.start, timezone);
+                if (normalizedStart && isSameDayInTimezone(normalizedStart, date, timezone)) {
+                    return true;
+                }
             }
             // Check for pending offered slots
             if (event.scheduling?.offeredSlots?.length > 0) {
-                return event.scheduling.offeredSlots.some(slot =>
-                    slot.status === 'offered' && isSameDayInTimezone(slot.start, date, timezone)
-                );
+                return event.scheduling.offeredSlots.some(slot => {
+                    const normalizedSlotStart = normalizeDateValue(slot.start, timezone);
+                    return slot.status === 'offered' && normalizedSlotStart &&
+                           isSameDayInTimezone(normalizedSlotStart, date, timezone);
+                });
             }
             // Check for multi-day schedule
             if (event.isMultiDay && event.multiDaySchedule?.segments) {
-                return event.multiDaySchedule.segments.some(segment =>
-                    isSameDayInTimezone(segment.date, date, timezone)
-                );
+                return event.multiDaySchedule.segments.some(segment => {
+                    const normalizedSegmentDate = normalizeDateValue(segment.date, timezone);
+                    return normalizedSegmentDate && isSameDayInTimezone(normalizedSegmentDate, date, timezone);
+                });
             }
             return false;
         }
 
         // Handle evaluations
         if (event.type === 'evaluation') {
-            return event.start && isSameDayInTimezone(event.start, date, timezone);
+            const normalizedStart = normalizeDateValue(event.start, timezone);
+            return normalizedStart && isSameDayInTimezone(normalizedStart, date, timezone);
         }
 
         return false;
@@ -160,17 +168,20 @@ export const getEventDisplayTime = (event, date, timezone) => {
 
     // For pending jobs, find the slot for this specific date
     if (event.type === 'job' && event.scheduling?.offeredSlots?.length > 0) {
-        const slot = event.scheduling.offeredSlots.find(s =>
-            s.status === 'offered' && isSameDayInTimezone(s.start, date, timezone)
-        );
+        const slot = event.scheduling.offeredSlots.find(s => {
+            const normalizedSlotStart = normalizeDateValue(s.start, timezone);
+            return s.status === 'offered' && normalizedSlotStart &&
+                   isSameDayInTimezone(normalizedSlotStart, date, timezone);
+        });
         return slot?.start;
     }
 
     // For multi-day jobs, find the segment for this date
     if (event.isMultiDay && event.multiDaySchedule?.segments) {
-        const segment = event.multiDaySchedule.segments.find(s =>
-            isSameDayInTimezone(s.date, date, timezone)
-        );
+        const segment = event.multiDaySchedule.segments.find(s => {
+            const normalizedSegmentDate = normalizeDateValue(s.date, timezone);
+            return normalizedSegmentDate && isSameDayInTimezone(normalizedSegmentDate, date, timezone);
+        });
         if (segment) {
             // Construct datetime from date and start time
             return `${segment.date}T${segment.start}:00`;

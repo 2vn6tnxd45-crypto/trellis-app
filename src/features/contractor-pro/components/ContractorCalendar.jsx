@@ -17,6 +17,37 @@ import { isSameDayInTimezone, createDateInTimezone, formatDateInTimezone } from 
 // HELPER FUNCTIONS
 // ============================================
 
+/**
+ * Normalize a date value to ensure proper timezone handling
+ * Handles date-only strings (YYYY-MM-DD) which JavaScript parses as UTC midnight
+ * by treating them as local dates instead
+ */
+const normalizeDateForTimezone = (dateValue, timezone) => {
+    if (!dateValue) return null;
+
+    // If it's already a Date object, return it
+    if (dateValue instanceof Date) return dateValue;
+
+    // Handle Firestore Timestamp
+    if (dateValue?.toDate) return dateValue.toDate();
+
+    // Handle string dates
+    if (typeof dateValue === 'string') {
+        // Check if it's a date-only string (YYYY-MM-DD) without time component
+        const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
+        if (dateOnlyRegex.test(dateValue)) {
+            // Parse as local date components to avoid UTC midnight issue
+            const [year, month, day] = dateValue.split('-').map(Number);
+            // Create date at noon in target timezone to ensure correct day
+            return createDateInTimezone(year, month - 1, day, 12, 0, timezone || 'UTC');
+        }
+        // Otherwise it has time info, parse normally
+        return new Date(dateValue);
+    }
+
+    return null;
+};
+
 const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 
 const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
@@ -577,10 +608,13 @@ export const ContractorCalendar = ({
     // PERFORMANCE: Create O(1) lookup map for events
     const eventMap = useMemo(() => {
         const map = new Map();
-        const addToMap = (dateStr, event) => {
-            if (!dateStr) return;
+        const addToMap = (dateValue, event) => {
+            if (!dateValue) return;
+            // Normalize date to handle date-only strings properly
+            const normalizedDate = normalizeDateForTimezone(dateValue, timezone);
+            if (!normalizedDate) return;
             // Key must be in target timezone
-            const key = formatDateInTimezone(dateStr, timezone, 'medium');
+            const key = formatDateInTimezone(normalizedDate, timezone, 'medium');
             if (!map.has(key)) map.set(key, []);
 
             // Deduplicate: Check if event already in list for this key

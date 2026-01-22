@@ -52,12 +52,24 @@ const JOB_SKILL_MAP = {
 // ============================================
 
 /**
+ * Maximum reasonable job duration in minutes (5 work days = 40 hours)
+ * Jobs longer than this are likely data entry errors
+ */
+const MAX_REASONABLE_DURATION_MINUTES = 2400; // 40 hours = 5 work days
+
+/**
  * Parse duration string to minutes
  * "2 hours" → 120, "1.5 hrs" → 90, "45 minutes" → 45
  */
 export const parseDurationToMinutes = (duration) => {
     if (!duration) return 60; // Default 1 hour
-    if (typeof duration === 'number') return duration;
+    if (typeof duration === 'number') {
+        // Validate reasonable range for numeric durations
+        if (duration > MAX_REASONABLE_DURATION_MINUTES) {
+            console.warn(`[schedulingAI] Unusually high duration: ${duration} min (${Math.round(duration / 60)}h). Max is ${MAX_REASONABLE_DURATION_MINUTES} min.`);
+        }
+        return duration;
+    }
 
     const str = duration.toLowerCase();
 
@@ -81,6 +93,23 @@ export const parseDurationToMinutes = (duration) => {
 
     // Default
     return 60;
+};
+
+/**
+ * Sanitize job duration - returns a reasonable value and flags if original was unrealistic
+ * @param {number} durationMinutes - Duration in minutes
+ * @returns {Object} { sanitized: number, wasUnrealistic: boolean, originalMinutes: number }
+ */
+export const sanitizeJobDuration = (durationMinutes) => {
+    const original = typeof durationMinutes === 'number' ? durationMinutes : 60;
+    const wasUnrealistic = original > MAX_REASONABLE_DURATION_MINUTES;
+
+    return {
+        sanitized: wasUnrealistic ? MAX_REASONABLE_DURATION_MINUTES : original,
+        wasUnrealistic,
+        originalMinutes: original,
+        maxAllowed: MAX_REASONABLE_DURATION_MINUTES
+    };
 };
 
 /**
@@ -1688,6 +1717,7 @@ export default {
     isTechWorkingOnDay,
     suggestTimeSlot,
     parseDurationToMinutes,
+    sanitizeJobDuration,
     // Time slot suggestion functions
     generateSchedulingSuggestions,
     getQuickSuggestions,
