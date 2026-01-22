@@ -1169,10 +1169,14 @@ const FindingsModal = ({ evaluation, onSubmit, onClose, isSubmitting }) => {
 // ============================================
 
 const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) => {
-    // Default to tomorrow at 10am
+    // Default to tomorrow at 10am (using local timezone)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const defaultDate = tomorrow.toISOString().split('T')[0];
+    // Use local date format instead of ISO to avoid timezone issues
+    const year = tomorrow.getFullYear();
+    const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+    const day = String(tomorrow.getDate()).padStart(2, '0');
+    const defaultDate = `${year}-${month}-${day}`;
 
     const [scheduledDate, setScheduledDate] = useState(defaultDate);
     const [scheduledTime, setScheduledTime] = useState('10:00');

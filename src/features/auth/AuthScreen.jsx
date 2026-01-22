@@ -197,12 +197,23 @@ export const AuthScreen = () => {
                 setError('Password is too weak. Please use a stronger password');
             } else if (errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
                 setError('Invalid email or password');
+            } else if (errorCode === 'auth/invalid-credential') {
+                setError('Invalid email or password. Please check your credentials and try again.');
             } else if (errorCode === 'auth/too-many-requests') {
                 setError('Too many failed attempts. Please try again later');
             } else if (errorCode === 'auth/network-request-failed') {
                 setError('Network error. Please check your connection');
+            } else if (errorCode === 'auth/user-disabled') {
+                setError('This account has been disabled. Please contact support.');
+            } else if (errorCode === 'auth/operation-not-allowed') {
+                setError('This sign-in method is not enabled. Please try another method.');
             } else {
-                setError(err.message.replace('Firebase: ', ''));
+                // Generic fallback - sanitize Firebase prefix and code format
+                const cleanMessage = err.message
+                    .replace('Firebase: ', '')
+                    .replace(/\(auth\/[^)]+\)\.?/g, '')
+                    .trim();
+                setError(cleanMessage || 'An error occurred. Please try again.');
             }
         } finally {
             setLoading(false);
@@ -224,11 +235,19 @@ export const AuthScreen = () => {
             await sendPasswordResetEmail(auth, email);
             setResetSent(true);
         } catch (err) {
-            const errorMessage = err.message.replace('Firebase: ', '');
             if (err.code === 'auth/user-not-found') {
                 setError('No account found with this email address');
+            } else if (err.code === 'auth/invalid-email') {
+                setError('Please enter a valid email address');
+            } else if (err.code === 'auth/too-many-requests') {
+                setError('Too many requests. Please wait a few minutes and try again.');
             } else {
-                setError(errorMessage);
+                // Generic fallback - sanitize Firebase prefix and code format
+                const cleanMessage = err.message
+                    .replace('Firebase: ', '')
+                    .replace(/\(auth\/[^)]+\)\.?/g, '')
+                    .trim();
+                setError(cleanMessage || 'Unable to send reset email. Please try again.');
             }
         } finally {
             setLoading(false);
@@ -252,7 +271,21 @@ export const AuthScreen = () => {
                 );
             }
         } catch (err) {
-            setError(err.message.replace('Firebase: ', ''));
+            // Handle Google sign-in specific errors
+            if (err.code === 'auth/popup-closed-by-user') {
+                setError('Sign-in was cancelled. Please try again.');
+            } else if (err.code === 'auth/popup-blocked') {
+                setError('Pop-up was blocked. Please allow pop-ups for this site.');
+            } else if (err.code === 'auth/cancelled-popup-request') {
+                // User clicked multiple times - ignore silently
+                return;
+            } else {
+                const cleanMessage = err.message
+                    .replace('Firebase: ', '')
+                    .replace(/\(auth\/[^)]+\)\.?/g, '')
+                    .trim();
+                setError(cleanMessage || 'Unable to sign in with Google. Please try again.');
+            }
         } finally {
             setLoading(false);
         }

@@ -55,11 +55,19 @@ export const ROOMS = [
     "Garage",
     "Basement",
     "Attic",
-    "Exterior",
+    "Utility Room",
+    "Crawl Space",
+    "Exterior - Front",
+    "Exterior - Back",
+    "Roof",
+    "Driveway",
+    "Yard / Landscaping",
     "Hallway",
-    "Entryway",
-    "Patio/Deck",
-    "Other (Custom)"
+    "Entryway / Foyer",
+    "Deck / Patio",
+    "Closet",
+    "Whole House",
+    "Other"
 ];
 export const PAINT_SHEENS = ["Flat/Matte", "Eggshell", "Satin", "Semi-Gloss", "High-Gloss", "Exterior"];
 export const ROOF_MATERIALS = ["Asphalt Shingles", "Metal", "Clay/Concrete Tile", "Slate", "Wood Shake", "Composite", "Other"];

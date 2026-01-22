@@ -13,7 +13,7 @@ import {
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
     Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
     Scroll as ScrollIcon,
-    Receipt,
+    Receipt, Navigation,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
     ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown
@@ -632,19 +632,248 @@ const formatTime = (time) => {
 };
 
 // ============================================
+// BATCH SCHEDULING MODAL
+// ============================================
+
+const BatchSchedulingModal = ({ jobs, onClose, onSchedule }) => {
+    const [scheduleData, setScheduleData] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Initialize schedule data for each job
+    useState(() => {
+        const initialData = {};
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        jobs.forEach((job, idx) => {
+            // Stagger jobs by 2 hours each
+            const startHour = 8 + (idx * 2);
+            const startTime = startHour > 17 ? 8 : startHour;
+
+            initialData[job.id] = {
+                date: tomorrow.toISOString().split('T')[0],
+                startTime: `${startTime.toString().padStart(2, '0')}:00`,
+                duration: job.estimatedDuration || 120
+            };
+        });
+        setScheduleData(initialData);
+    });
+
+    const handleDateChange = (jobId, date) => {
+        setScheduleData(prev => ({
+            ...prev,
+            [jobId]: { ...prev[jobId], date }
+        }));
+    };
+
+    const handleTimeChange = (jobId, startTime) => {
+        setScheduleData(prev => ({
+            ...prev,
+            [jobId]: { ...prev[jobId], startTime }
+        }));
+    };
+
+    const handleSubmit = async () => {
+        setIsSubmitting(true);
+        try {
+            const jobsToSchedule = jobs.map(job => ({
+                job,
+                ...scheduleData[job.id]
+            }));
+            await onSchedule(jobsToSchedule);
+            onClose();
+        } catch (error) {
+            console.error('Batch scheduling error:', error);
+            toast.error('Failed to schedule some jobs');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const timeOptions = [];
+    for (let h = 6; h <= 20; h++) {
+        for (let m = 0; m < 60; m += 30) {
+            const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            const label = `${h > 12 ? h - 12 : h}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+            timeOptions.push({ value: time, label });
+        }
+    }
+
+    const minDate = new Date().toISOString().split('T')[0];
+
+    return (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden animate-in zoom-in-95">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-purple-600 to-violet-600">
+                    <div>
+                        <h2 className="text-lg font-bold text-white">Batch Schedule Jobs</h2>
+                        <p className="text-purple-200 text-sm">{jobs.length} jobs selected</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                        <X size={20} className="text-white" />
+                    </button>
+                </div>
+
+                {/* Job List */}
+                <div className="p-6 overflow-y-auto max-h-[60vh] space-y-4">
+                    {jobs.map((job, idx) => (
+                        <div key={job.id} className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">
+                                            {idx + 1}
+                                        </span>
+                                        <h4 className="font-bold text-slate-800 truncate">
+                                            {job.title || job.description || 'Service'}
+                                        </h4>
+                                    </div>
+                                    <p className="text-sm text-slate-500 mt-1">{job.customer?.name || 'Customer'}</p>
+                                    {job.customer?.address && (
+                                        <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                                            <MapPin size={10} />
+                                            {job.customer.address.split(',')[0]}
+                                        </p>
+                                    )}
+                                </div>
+                                {job.total > 0 && (
+                                    <span className="text-sm font-bold text-emerald-600">
+                                        {formatCurrency(job.total)}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Schedule Inputs */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Date</label>
+                                    <input
+                                        type="date"
+                                        min={minDate}
+                                        value={scheduleData[job.id]?.date || ''}
+                                        onChange={(e) => handleDateChange(job.id, e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500 mb-1 block">Start Time</label>
+                                    <select
+                                        value={scheduleData[job.id]?.startTime || '08:00'}
+                                        onChange={(e) => handleTimeChange(job.id, e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-purple-500"
+                                    >
+                                        {timeOptions.map(opt => (
+                                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+                    <button
+                        onClick={onClose}
+                        className="px-4 py-2.5 text-slate-600 font-medium hover:bg-slate-200 rounded-xl transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="px-6 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Scheduling...
+                            </>
+                        ) : (
+                            <>
+                                <Calendar size={16} />
+                                Schedule {jobs.length} Jobs
+                            </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // JOBS VIEW
 // ============================================
-// ============================================
-// JOBS VIEW
-// ============================================
-const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob, onAcceptProposal, onDeclineProposal }) => {
+const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCancellation, onCreateJob, onAcceptProposal, onDeclineProposal, onQuickSchedule, onBatchSchedule }) => {
     const [showCompleted, setShowCompleted] = useState(true);
     const [showCancelled, setShowCancelled] = useState(false);
+    const [statusFilter, setStatusFilter] = useState('all'); // NEW: Status filter
+    const [batchMode, setBatchMode] = useState(false); // NEW: Batch selection mode
+    const [selectedJobs, setSelectedJobs] = useState(new Set()); // NEW: Selected job IDs
+    const [viewMode, setViewMode] = useState('list'); // NEW: list or map view
 
     const cancellationRequests = jobs.filter(j => j.status === 'cancellation_requested');
-    const activeJobs = jobs.filter(j => !['completed', 'cancelled', 'cancellation_requested'].includes(j.status));
+
+    // Apply status filter to active jobs
+    const allActiveJobs = jobs.filter(j => !['completed', 'cancelled', 'cancellation_requested'].includes(j.status));
+    const activeJobs = statusFilter === 'all'
+        ? allActiveJobs
+        : statusFilter === 'needs_scheduling'
+            ? allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status))
+            : statusFilter === 'scheduled'
+                ? allActiveJobs.filter(j => j.status === 'scheduled')
+                : statusFilter === 'in_progress'
+                    ? allActiveJobs.filter(j => j.status === 'in_progress')
+                    : statusFilter === 'pending_approval'
+                        ? allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status))
+                        : allActiveJobs;
+
     const completedJobs = jobs.filter(j => j.status === 'completed');
     const cancelledJobs = jobs.filter(j => j.status === 'cancelled');
+
+    // Calculate estimated revenue from active jobs
+    const estimatedRevenue = allActiveJobs.reduce((sum, job) => sum + (job.total || job.price || 0), 0);
+
+    // Get jobs that need scheduling (for batch mode)
+    const schedulableJobs = allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status));
+
+    // Toggle job selection for batch mode
+    const toggleJobSelection = (jobId) => {
+        setSelectedJobs(prev => {
+            const next = new Set(prev);
+            if (next.has(jobId)) {
+                next.delete(jobId);
+            } else {
+                next.add(jobId);
+            }
+            return next;
+        });
+    };
+
+    // Select all schedulable jobs
+    const selectAllSchedulable = () => {
+        setSelectedJobs(new Set(schedulableJobs.map(j => j.id)));
+    };
+
+    // Clear selection
+    const clearSelection = () => {
+        setSelectedJobs(new Set());
+    };
+
+    // Handle batch schedule
+    const handleBatchSchedule = () => {
+        const jobsToSchedule = jobs.filter(j => selectedJobs.has(j.id));
+        if (jobsToSchedule.length > 0 && onBatchSchedule) {
+            onBatchSchedule(jobsToSchedule);
+            setBatchMode(false);
+            setSelectedJobs(new Set());
+        }
+    };
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -685,17 +914,49 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
         const showCompleteButton = job.status === 'scheduled' || job.status === 'in_progress';
         const showResubmitButton = job.status === 'completion_rejected';
         const isInactive = ['completed', 'cancelled'].includes(job.status);
+        const needsScheduling = ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(job.status);
+        const isSelected = selectedJobs.has(job.id);
+        const canSelect = batchMode && needsScheduling;
 
         // Get the latest homeowner proposal for display
         const latestHomeownerProposal = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner').slice(-1)[0];
         const proposedDate = latestHomeownerProposal?.date ? new Date(latestHomeownerProposal.date) : null;
         const hasHomeownerProposal = job.status === 'scheduling' && proposedDate;
 
+        // Get assigned crew members
+        const assignedCrew = job.assignedCrew || job.crew || [];
+        const hasAssignedCrew = assignedCrew.length > 0 || job.assignedTechName;
+
+        const handleCardClick = () => {
+            if (canSelect) {
+                toggleJobSelection(job.id);
+            } else {
+                onJobClick(job);
+            }
+        };
+
         return (
             <div
-                onClick={() => onJobClick(job)}
-                className={`bg-white rounded-xl border ${hasHomeownerProposal ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'} p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
+                onClick={handleCardClick}
+                className={`bg-white rounded-xl border ${isSelected ? 'border-emerald-500 ring-2 ring-emerald-200' : hasHomeownerProposal ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-200'} p-4 hover:shadow-md transition-shadow cursor-pointer ${isInactive ? 'opacity-75' : ''}`}
             >
+                {/* Batch Selection Checkbox */}
+                {canSelect && (
+                    <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
+                        <div
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                isSelected
+                                    ? 'border-emerald-500 bg-emerald-500'
+                                    : 'border-slate-300 hover:border-emerald-400'
+                            }`}
+                        >
+                            {isSelected && <CheckCircle size={14} className="text-white" />}
+                        </div>
+                        <span className="text-xs text-slate-500">
+                            {isSelected ? 'Selected for batch scheduling' : 'Click to select'}
+                        </span>
+                    </div>
+                )}
                 <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -724,12 +985,51 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                                 </p>
                             </div>
                         )}
-                        {job.scheduledDate && !hasHomeownerProposal && (
-                            <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                                <Calendar size={12} />
-                                {formatDate(job.scheduledDate)}
-                                {job.scheduledTime && ` at ${formatTime(job.scheduledTime)}`}
-                            </p>
+                        {/* Enhanced scheduled date/time display */}
+                        {job.scheduledDate && !hasHomeownerProposal && job.status === 'scheduled' && (
+                            <div className="mt-2 px-2 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                                <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    {new Date(job.scheduledDate).toLocaleDateString('en-US', {
+                                        weekday: 'short',
+                                        month: 'short',
+                                        day: 'numeric'
+                                    })}
+                                    {job.scheduledTime && (
+                                        <span className="ml-1">
+                                            at {new Date(job.scheduledTime).toLocaleTimeString('en-US', {
+                                                hour: 'numeric',
+                                                minute: '2-digit'
+                                            })}
+                                        </span>
+                                    )}
+                                </p>
+                            </div>
+                        )}
+                        {/* Crew member avatars */}
+                        {hasAssignedCrew && (
+                            <div className="mt-2 flex items-center gap-1">
+                                <Users size={12} className="text-slate-400" />
+                                <div className="flex -space-x-1">
+                                    {(assignedCrew.slice(0, 3) || []).map((member, idx) => (
+                                        <div
+                                            key={member.techId || idx}
+                                            className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[9px] font-bold text-slate-600"
+                                            title={member.techName || member.name}
+                                        >
+                                            {(member.techName || member.name || 'T')?.charAt(0).toUpperCase()}
+                                        </div>
+                                    ))}
+                                    {!assignedCrew.length && job.assignedTechName && (
+                                        <div className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[9px] font-bold text-slate-600">
+                                            {job.assignedTechName.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                </div>
+                                {assignedCrew.length > 3 && (
+                                    <span className="text-[10px] text-slate-500">+{assignedCrew.length - 3}</span>
+                                )}
+                            </div>
                         )}
                         {job.completedAt && (
                             <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
@@ -745,9 +1045,25 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                         )}
                     </div>
 
-                    {job.total && (
-                        <p className="font-bold text-slate-800">{formatCurrency(job.total)}</p>
-                    )}
+                    <div className="flex flex-col items-end gap-2">
+                        {job.total && (
+                            <p className="font-bold text-slate-800">{formatCurrency(job.total)}</p>
+                        )}
+
+                        {/* Quick Schedule button for unscheduled jobs */}
+                        {needsScheduling && !hasHomeownerProposal && (
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onQuickSchedule?.(job);
+                                }}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-bold hover:bg-purple-700 flex items-center gap-1.5 transition-colors"
+                            >
+                                <Calendar size={12} />
+                                Schedule
+                            </button>
+                        )}
+                    </div>
 
                     {showCompleteButton && (
                         <button
@@ -821,17 +1137,141 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
                     <p className="text-slate-500">
-                        {activeJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
+                        {allActiveJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
                     </p>
                 </div>
-                <button
-                    onClick={onCreateJob}
-                    className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
-                >
-                    <Plus size={18} />
-                    New Job
-                </button>
+                <div className="flex items-center gap-3">
+                    {/* Estimated Revenue Card */}
+                    {estimatedRevenue > 0 && (
+                        <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                            <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">Est. Revenue</p>
+                            <p className="text-lg font-bold text-emerald-700">{formatCurrency(estimatedRevenue)}</p>
+                        </div>
+                    )}
+                    {/* View Mode Toggle */}
+                    <div className="flex bg-slate-100 rounded-xl p-1">
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                viewMode === 'list'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            List
+                        </button>
+                        <button
+                            onClick={() => setViewMode('map')}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                                viewMode === 'map'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                        >
+                            <MapPin size={14} />
+                            Map
+                        </button>
+                    </div>
+                    {/* Batch Schedule Toggle - only show if there are schedulable jobs */}
+                    {schedulableJobs.length > 1 && viewMode === 'list' && (
+                        <button
+                            onClick={() => {
+                                setBatchMode(!batchMode);
+                                if (batchMode) {
+                                    setSelectedJobs(new Set());
+                                }
+                            }}
+                            className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                                batchMode
+                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            <Package size={16} />
+                            {batchMode ? 'Exit Batch' : 'Batch Schedule'}
+                        </button>
+                    )}
+                    <button
+                        onClick={onCreateJob}
+                        className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
+                    >
+                        <Plus size={18} />
+                        New Job
+                    </button>
+                </div>
             </div>
+
+            {/* Batch Selection Action Bar */}
+            {batchMode && (
+                <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm text-purple-700">
+                            <strong>{selectedJobs.size}</strong> of {schedulableJobs.length} jobs selected
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={selectAllSchedulable}
+                                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                            >
+                                Select All
+                            </button>
+                            <span className="text-purple-300">|</span>
+                            <button
+                                onClick={clearSelection}
+                                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleBatchSchedule}
+                        disabled={selectedJobs.size === 0}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${
+                            selectedJobs.size > 0
+                                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                : 'bg-purple-200 text-purple-400 cursor-not-allowed'
+                        }`}
+                    >
+                        <Calendar size={16} />
+                        Schedule {selectedJobs.size > 0 ? `${selectedJobs.size} Jobs` : 'Selected'}
+                    </button>
+                </div>
+            )}
+
+            {/* Status Filter Tabs */}
+            {allActiveJobs.length > 0 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                    {[
+                        { key: 'all', label: 'All', count: allActiveJobs.length },
+                        { key: 'needs_scheduling', label: 'Needs Scheduling', count: allActiveJobs.filter(j => ['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(j.status)).length },
+                        { key: 'scheduled', label: 'Scheduled', count: allActiveJobs.filter(j => j.status === 'scheduled').length },
+                        { key: 'in_progress', label: 'In Progress', count: allActiveJobs.filter(j => j.status === 'in_progress').length },
+                        { key: 'pending_approval', label: 'Pending Approval', count: allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status)).length },
+                    ].map(filter => (
+                        <button
+                            key={filter.key}
+                            onClick={() => setStatusFilter(filter.key)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                                statusFilter === filter.key
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                        >
+                            {filter.label}
+                            {filter.count > 0 && (
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
+                                    statusFilter === filter.key
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-slate-200 text-slate-600'
+                                }`}>
+                                    {filter.count}
+                                </span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {totalJobs === 0 ? (
                 <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
@@ -839,7 +1279,102 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                     <h3 className="font-bold text-slate-800 text-lg mb-2">No Jobs Yet</h3>
                     <p className="text-slate-500">Jobs from accepted quotes will appear here.</p>
                 </div>
+            ) : viewMode === 'map' ? (
+                /* MAP VIEW */
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                    {/* Map Container */}
+                    <div className="bg-slate-100 relative" style={{ height: '400px' }}>
+                        {/* Jobs with addresses */}
+                        {(() => {
+                            const jobsWithAddresses = allActiveJobs.filter(j => j.customer?.address || j.serviceAddress?.formatted);
+                            if (jobsWithAddresses.length === 0) {
+                                return (
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                                        <MapPin size={48} className="text-slate-300 mb-4" />
+                                        <h4 className="font-semibold text-slate-600 mb-2">No Job Locations</h4>
+                                        <p className="text-sm text-slate-500">Jobs with addresses will appear on the map</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+                                    <MapPin size={48} className="text-indigo-400 mb-4" />
+                                    <h4 className="font-semibold text-slate-700 mb-2">
+                                        {jobsWithAddresses.length} Jobs with Locations
+                                    </h4>
+                                    {/* Visual job markers */}
+                                    <div className="flex flex-wrap justify-center gap-2 mb-4 max-w-md">
+                                        {jobsWithAddresses.slice(0, 8).map((job, idx) => (
+                                            <div
+                                                key={job.id}
+                                                onClick={() => onJobClick(job)}
+                                                className="px-3 py-2 bg-white border border-slate-200 rounded-lg shadow-sm cursor-pointer hover:border-indigo-300 hover:shadow-md transition-all"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <p className="text-xs font-medium text-slate-700 truncate max-w-[120px]">
+                                                            {job.customer?.name || 'Customer'}
+                                                        </p>
+                                                        <p className="text-[10px] text-slate-500 truncate max-w-[120px]">
+                                                            {(job.serviceAddress?.formatted || job.customer?.address || '').split(',')[0]}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {jobsWithAddresses.length > 8 && (
+                                            <div className="px-3 py-2 bg-slate-200 text-slate-600 rounded-lg text-xs font-medium">
+                                                +{jobsWithAddresses.length - 8} more
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Open in Google Maps */}
+                                    <button
+                                        onClick={() => {
+                                            const addresses = jobsWithAddresses
+                                                .map(j => j.serviceAddress?.formatted || j.customer?.address)
+                                                .filter(Boolean);
+                                            const url = `https://www.google.com/maps/dir/${addresses.map(a => encodeURIComponent(a)).join('/')}`;
+                                            window.open(url, '_blank');
+                                        }}
+                                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors"
+                                    >
+                                        <Navigation size={16} />
+                                        Open Route in Maps
+                                    </button>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                    {/* Job List (compact) */}
+                    <div className="border-t border-slate-200 max-h-[300px] overflow-y-auto">
+                        {allActiveJobs.map((job, idx) => (
+                            <div
+                                key={job.id}
+                                onClick={() => onJobClick(job)}
+                                className="flex items-center gap-3 p-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50 cursor-pointer"
+                            >
+                                <div className="w-8 h-8 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold shrink-0">
+                                    {idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-slate-800 truncate">{job.title || job.description || 'Service'}</p>
+                                    <p className="text-xs text-slate-500 truncate">{job.customer?.name || 'Customer'}</p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${getStatusColor(job.status)}`}>
+                                        {getStatusLabel(job.status)}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             ) : (
+                /* LIST VIEW */
                 <div className="space-y-6">
                     {/* Cancellation Requests - URGENT */}
                     {cancellationRequests.length > 0 && (
@@ -1751,6 +2286,7 @@ export const ContractorProApp = () => {
     const [selectedJob, setSelectedJob] = useState(null);
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [offeringTimesJob, setOfferingTimesJob] = useState(null);
+    const [batchSchedulingJobs, setBatchSchedulingJobs] = useState(null); // NEW: For batch scheduling
     const [scheduleView, setScheduleView] = useState('calendar');
     const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -2305,6 +2841,48 @@ export const ContractorProApp = () => {
         }
     }, []);
 
+    // Handle batch scheduling multiple jobs at once
+    const handleBatchSchedule = useCallback(async (jobsToSchedule) => {
+        const results = { success: 0, failed: 0 };
+
+        for (const { job, date, startTime, duration } of jobsToSchedule) {
+            try {
+                // Create scheduled date/time
+                const [hours, minutes] = startTime.split(':').map(Number);
+                const scheduledDateTime = new Date(`${date}T${startTime}:00`);
+
+                // Calculate end time
+                const endDateTime = new Date(scheduledDateTime);
+                endDateTime.setMinutes(endDateTime.getMinutes() + (duration || 120));
+
+                const jobRef = doc(db, REQUESTS_COLLECTION_PATH, job.id);
+                await updateDoc(jobRef, {
+                    scheduledTime: scheduledDateTime.toISOString(),
+                    scheduledDate: scheduledDateTime.toISOString(),
+                    scheduledEndTime: endDateTime.toISOString(),
+                    estimatedDuration: duration || 120,
+                    status: 'scheduled',
+                    lastActivity: serverTimestamp()
+                });
+
+                results.success++;
+            } catch (error) {
+                console.error(`Error scheduling job ${job.id}:`, error);
+                results.failed++;
+            }
+        }
+
+        setBatchSchedulingJobs(null);
+
+        if (results.failed === 0) {
+            toast.success(`Successfully scheduled ${results.success} jobs!`);
+        } else if (results.success > 0) {
+            toast.success(`Scheduled ${results.success} jobs, ${results.failed} failed`);
+        } else {
+            toast.error('Failed to schedule jobs');
+        }
+    }, []);
+
     const handleCompleteJob = useCallback((job) => {
         setCompletingJob(job);
     }, []);
@@ -2436,6 +3014,8 @@ export const ContractorProApp = () => {
                             onCreateJob={() => setShowCreateJobModal(true)}
                             onAcceptProposal={handleAcceptProposal}
                             onDeclineProposal={handleDeclineProposal}
+                            onQuickSchedule={(job) => setOfferingTimesJob(job)}
+                            onBatchSchedule={(jobsList) => setBatchSchedulingJobs(jobsList)}
                         />
                     )}
 
@@ -2901,6 +3481,15 @@ export const ContractorProApp = () => {
                         setOfferingTimesJob(null);
                         handleNavigate(view);
                     }}
+                />
+            )}
+
+            {/* Batch Scheduling Modal */}
+            {batchSchedulingJobs && batchSchedulingJobs.length > 0 && (
+                <BatchSchedulingModal
+                    jobs={batchSchedulingJobs}
+                    onClose={() => setBatchSchedulingJobs(null)}
+                    onSchedule={handleBatchSchedule}
                 />
             )}
 

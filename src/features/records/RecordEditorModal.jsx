@@ -8,8 +8,16 @@ import { generatePDFThumbnail } from '../../lib/pdfUtils';
 import { AddRecordForm } from './AddRecordForm';
 import { REQUESTS_COLLECTION_PATH } from '../../config/constants';
 
+// Helper to get today's date in local timezone (YYYY-MM-DD format)
+const getLocalDateString = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 export const RecordEditorModal = ({ user, db, storage, appId, profile, activeProperty, editingRecord, onClose, onSuccess, existingRecords }) => {
-    const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: new Date().toISOString().split('T')[0], attachments: [] };
+    const initial = { category: '', item: '', brand: '', model: '', warranty: '', notes: '', area: '', maintenanceFrequency: 'none', dateInstalled: getLocalDateString(), attachments: [] };
     const [newRecord, setNewRecord] = useState(editingRecord || initial);
     const [saving, setSaving] = useState(false);
 
@@ -114,24 +122,9 @@ export const RecordEditorModal = ({ user, db, storage, appId, profile, activePro
         const sharedContractorAddress = resolveContractorAddress();
         const sharedWarranty = resolveWarranty();
         
-        // ============ DEBUG LOG ============
-        console.log('📋 BATCH SAVE - Contractor Resolution:', {
-            contractor: sharedContractor,
-            phone: sharedContractorPhone,
-            email: sharedContractorEmail,
-            address: sharedContractorAddress,
-            sources: { 
-                override: contractorOverrides, 
-                firstItem: items[0], 
-                newRecord, 
-                editingRecord 
-            }
-        });
-        // ===================================
-        
         items.forEach((item) => {
              const newDocRef = doc(collectionRef);
-             const dateInstalled = item.dateInstalled || newRecord?.dateInstalled || editingRecord?.dateInstalled || new Date().toISOString().split('T')[0];
+             const dateInstalled = item.dateInstalled || newRecord?.dateInstalled || editingRecord?.dateInstalled || getLocalDateString();
              const nextDate = calculateNextDate(dateInstalled, item.maintenanceFrequency || 'none');
              
              const docData = { 

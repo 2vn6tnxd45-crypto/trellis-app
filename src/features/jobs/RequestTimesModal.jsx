@@ -277,7 +277,10 @@ export const RequestTimesModal = ({ job, onClose, onSuccess, timezone }) => {
                                     type="date"
                                     value={proposedDate}
                                     onChange={(e) => setProposedDate(e.target.value)}
-                                    min={new Date().toISOString().split('T')[0]}
+                                    min={(() => {
+                                        const today = new Date();
+                                        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                                    })()}
                                     className="flex-1 px-3 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 outline-none"
                                 />
                                 <select

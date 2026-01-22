@@ -19,17 +19,25 @@ import { generateSchedulingSuggestions } from '../lib/schedulingAI';
 
 const SuggestionCard = ({ suggestion, isSelected, onSelect, compact = false }) => {
     const [expanded, setExpanded] = useState(false);
-    
+    const [justSelected, setJustSelected] = useState(false);
+
+    // Add selection animation effect
+    const handleSelect = () => {
+        onSelect(suggestion);
+        setJustSelected(true);
+        setTimeout(() => setJustSelected(false), 500);
+    };
+
     return (
         <button
-            onClick={() => onSelect(suggestion)}
-            className={`w-full text-left transition-all ${
+            onClick={handleSelect}
+            className={`w-full text-left transition-all duration-200 ${
                 isSelected
-                    ? 'ring-2 ring-emerald-500 bg-emerald-50'
-                    : 'hover:bg-slate-50'
-            } ${compact ? 'p-3' : 'p-4'} rounded-xl border ${
-                suggestion.isRecommended 
-                    ? 'border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50' 
+                    ? 'ring-2 ring-emerald-500 bg-emerald-50 scale-[0.98]'
+                    : 'hover:bg-slate-50 hover:scale-[1.01]'
+            } ${justSelected ? 'animate-pulse' : ''} ${compact ? 'p-3' : 'p-4'} rounded-xl border ${
+                suggestion.isRecommended
+                    ? 'border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50'
                     : 'border-slate-200 bg-white'
             }`}
         >
@@ -100,9 +108,9 @@ const SuggestionCard = ({ suggestion, isSelected, onSelect, compact = false }) =
             
             {/* Selection indicator */}
             {isSelected && (
-                <div className="mt-3 flex items-center gap-2 text-emerald-600 text-xs font-medium">
-                    <Check size={14} />
-                    Selected
+                <div className="mt-3 flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-100 px-2 py-1 rounded-lg w-fit">
+                    <Check size={14} className="text-emerald-600" />
+                    <span className="text-emerald-700">Added to selection</span>
                 </div>
             )}
         </button>

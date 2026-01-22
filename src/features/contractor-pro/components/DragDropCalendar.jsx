@@ -372,6 +372,7 @@ const TimeSlot = React.memo(({
     onDragLeave,
     onJobClick,
     onEvaluationClick,  // NEW: Handler for evaluation clicks
+    onSlotClick,  // NEW: Handler for clicking empty slot
     preferences
 }) => {
     const timezone = preferences?.businessTimezone;
@@ -440,15 +441,24 @@ const TimeSlot = React.memo(({
 
     const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingHour;
 
+    // Handle click on empty slot
+    const handleSlotClick = (e) => {
+        // Only trigger if clicking on the slot background, not a job
+        if (e.target === e.currentTarget && onSlotClick && slotJobs.length === 0 && isWithinWorkingHours) {
+            onSlotClick(date, hour);
+        }
+    };
+
     return (
         <div
             onDrop={(e) => onDrop(e, date, hour)}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
+            onClick={handleSlotClick}
             className={`h-[60px] border-b border-r border-slate-100 p-1 transition-colors relative ${isDropTarget
                 ? 'bg-emerald-100 border-emerald-300'
                 : isWithinWorkingHours
-                    ? 'bg-white hover:bg-slate-50'
+                    ? 'bg-white hover:bg-slate-50 cursor-pointer'
                     : 'bg-slate-50'
                 }`}
         >
@@ -1209,6 +1219,118 @@ const AcceptProposalModal = ({ job, allJobs = [], onAccept, onCounter, onCancel,
 };
 
 // ============================================
+// CLICK-TO-SCHEDULE MODAL
+// ============================================
+
+const ClickScheduleModal = ({ date, hour, unscheduledJobs, onSelect, onCancel, timezone }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const formattedDate = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        timeZone: timezone || undefined
+    });
+
+    const formattedTime = formatTime(hour);
+
+    // Filter jobs by search term
+    const filteredJobs = unscheduledJobs.filter(job => {
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return (
+            (job.title || '').toLowerCase().includes(term) ||
+            (job.description || '').toLowerCase().includes(term) ||
+            (job.customer?.name || '').toLowerCase().includes(term) ||
+            (job.customer?.address || '').toLowerCase().includes(term)
+        );
+    });
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 max-h-[80vh] flex flex-col">
+                <h3 className="font-bold text-lg text-slate-800 mb-1">Schedule a Job</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    {formattedDate} at {formattedTime}
+                </p>
+
+                {/* Search */}
+                {unscheduledJobs.length > 3 && (
+                    <div className="mb-4">
+                        <input
+                            type="text"
+                            placeholder="Search jobs..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                        />
+                    </div>
+                )}
+
+                {/* Job List */}
+                <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                    {filteredJobs.length === 0 ? (
+                        <div className="text-center py-8 text-slate-400">
+                            <Calendar size={24} className="mx-auto mb-2" />
+                            <p className="text-sm">
+                                {searchTerm ? 'No matching jobs found' : 'No unscheduled jobs'}
+                            </p>
+                        </div>
+                    ) : (
+                        filteredJobs.map(job => (
+                            <button
+                                key={job.id}
+                                onClick={() => onSelect(job)}
+                                className="w-full p-3 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 hover:bg-emerald-50 transition-all text-left group"
+                            >
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-emerald-700">
+                                            {job.title || job.description || 'Service'}
+                                        </h4>
+                                        <p className="text-xs text-slate-500 truncate">
+                                            {job.customer?.name || 'Customer'}
+                                        </p>
+                                        {job.customer?.address && (
+                                            <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1">
+                                                <MapPin size={10} />
+                                                {job.customer.address.split(',')[0]}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <span className="text-xs text-slate-400">
+                                            ~{job.estimatedDuration || 120} min
+                                        </span>
+                                        {job.total > 0 && (
+                                            <p className="text-xs font-bold text-emerald-600 mt-0.5">
+                                                ${job.total.toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </button>
+                        ))
+                    )}
+                </div>
+
+                {/* Cancel Button */}
+                <div className="mt-4 pt-4 border-t border-slate-100">
+                    <button
+                        onClick={onCancel}
+                        className="w-full px-4 py-3 text-slate-600 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
 // MAIN DRAG & DROP CALENDAR
 // ============================================
 
@@ -1232,6 +1354,7 @@ export const DragDropCalendar = ({
     const [confirmDrop, setConfirmDrop] = useState(null);
     const [proposalJob, setProposalJob] = useState(null); // For Accept/Counter modal
     const [isProcessingProposal, setIsProcessingProposal] = useState(false);
+    const [clickScheduleTarget, setClickScheduleTarget] = useState(null); // NEW: For click-to-schedule
 
     const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate]);
     const today = new Date();
@@ -1747,6 +1870,7 @@ export const DragDropCalendar = ({
                                         onDragLeave={handleDragLeave}
                                         onJobClick={handleInternalJobClick}
                                         onEvaluationClick={onEvaluationClick}
+                                        onSlotClick={(date, hour) => setClickScheduleTarget({ date, hour })}
                                         preferences={preferences}
                                     />
                                 );
@@ -1784,6 +1908,26 @@ export const DragDropCalendar = ({
                     onCancel={() => setProposalJob(null)}
                     isProcessing={isProcessingProposal}
                     timezone={timezone}
+                />
+            )}
+
+            {/* Click-to-Schedule Modal */}
+            {clickScheduleTarget && (
+                <ClickScheduleModal
+                    date={clickScheduleTarget.date}
+                    hour={clickScheduleTarget.hour}
+                    unscheduledJobs={unscheduledJobs}
+                    timezone={timezone}
+                    onSelect={(job) => {
+                        // Open the drop confirmation modal with the selected job
+                        setConfirmDrop({
+                            job,
+                            date: clickScheduleTarget.date,
+                            hour: clickScheduleTarget.hour
+                        });
+                        setClickScheduleTarget(null);
+                    }}
+                    onCancel={() => setClickScheduleTarget(null)}
                 />
             )}
         </div>
