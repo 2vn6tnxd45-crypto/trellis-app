@@ -5,20 +5,27 @@
 // Main application wrapper for contractor dashboard with routing
 
 import React, { useState, useCallback } from 'react';
-import { 
+import {
     Home, FileText, Users, User, Settings as SettingsIcon,
-    LogOut, Menu, X, Plus, Bell, ChevronLeft
+    LogOut, Menu, X, Plus, Bell, ChevronLeft, Sparkles, Calendar,
+    DollarSign, FlaskConical
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
 // Components
 import { ContractorAuthScreen } from './components/ContractorAuthScreen';
 import { DashboardOverview } from './components/DashboardOverview';
+import { TeamManagement } from './components/TeamManagement';
+import { AIDispatchAssistant } from './components/AIDispatchAssistant';
+import { ProfitabilityDashboard } from './components/ProfitabilityDashboard';
+import { ScenarioSimulator } from './components/ScenarioSimulator';
 import { Logo } from '../../components/common/Logo';
 
 // Hooks
 import { useContractorAuth } from './hooks/useContractorAuth';
 import { useInvitations, useCustomers, useDashboardStats } from './hooks/useContractorData';
+import { useJobs, useTodaySchedule } from './hooks/useJobs';
+import { useTeam } from './hooks/useTeam';
 
 // ============================================
 // NAV ITEM
@@ -78,32 +85,50 @@ const SidebarNav = ({
             
             {/* Nav Items */}
             <nav className="flex-1 p-4 space-y-1">
-                <NavItem 
+                <NavItem
                     icon={Home}
                     label="Dashboard"
                     active={activeView === 'dashboard'}
                     onClick={() => onNavigate('dashboard')}
                 />
-                <NavItem 
+                <NavItem
+                    icon={Sparkles}
+                    label="AI Dispatch"
+                    active={activeView === 'dispatch'}
+                    onClick={() => onNavigate('dispatch')}
+                />
+                <NavItem
+                    icon={Users}
+                    label="Team"
+                    active={activeView === 'team'}
+                    onClick={() => onNavigate('team')}
+                />
+                <NavItem
+                    icon={FlaskConical}
+                    label="Simulator"
+                    active={activeView === 'simulator'}
+                    onClick={() => onNavigate('simulator')}
+                />
+                <NavItem
+                    icon={DollarSign}
+                    label="Profitability"
+                    active={activeView === 'profitability'}
+                    onClick={() => onNavigate('profitability')}
+                />
+                <NavItem
                     icon={FileText}
                     label="Invitations"
                     active={activeView === 'invitations'}
                     onClick={() => onNavigate('invitations')}
                     badge={pendingCount}
                 />
-                <NavItem 
-                    icon={Users}
+                <NavItem
+                    icon={User}
                     label="Customers"
                     active={activeView === 'customers'}
                     onClick={() => onNavigate('customers')}
                 />
-                <NavItem 
-                    icon={User}
-                    label="Profile"
-                    active={activeView === 'profile'}
-                    onClick={() => onNavigate('profile')}
-                />
-                <NavItem 
+                <NavItem
                     icon={SettingsIcon}
                     label="Settings"
                     active={activeView === 'settings'}
@@ -133,9 +158,10 @@ const MobileNav = ({ activeView, onNavigate, pendingCount }) => (
         <div className="flex items-center justify-around">
             {[
                 { id: 'dashboard', icon: Home, label: 'Home' },
+                { id: 'dispatch', icon: Sparkles, label: 'AI Dispatch' },
+                { id: 'team', icon: Users, label: 'Team' },
                 { id: 'invitations', icon: FileText, label: 'Invites', badge: pendingCount },
-                { id: 'customers', icon: Users, label: 'Customers' },
-                { id: 'profile', icon: User, label: 'Profile' },
+                { id: 'settings', icon: SettingsIcon, label: 'Settings' },
             ].map(item => (
                 <button
                     key={item.id}
@@ -261,10 +287,14 @@ export const ContractorProApp = () => {
         byLastContact: customersByLastContact
     } = useCustomers(user?.uid);
     
-    const { 
-        stats, 
-        loading: statsLoading 
+    const {
+        stats,
+        loading: statsLoading
     } = useDashboardStats(user?.uid);
+
+    // Jobs and team for simulator
+    const { jobs, loading: jobsLoading } = useJobs(user?.uid);
+    const { team, loading: teamLoading } = useTeam(user?.uid);
     
     // Navigation
     const handleNavigate = useCallback((view) => {
@@ -284,6 +314,10 @@ export const ContractorProApp = () => {
     const getViewTitle = () => {
         switch (activeView) {
             case 'dashboard': return 'Dashboard';
+            case 'dispatch': return 'AI Dispatch';
+            case 'team': return 'Team';
+            case 'simulator': return 'What-If Simulator';
+            case 'profitability': return 'Profitability';
             case 'invitations': return 'Invitations';
             case 'customers': return 'Customers';
             case 'profile': return 'Profile';
@@ -356,27 +390,50 @@ export const ContractorProApp = () => {
                         />
                     )}
                     
+                    {activeView === 'dispatch' && (
+                        <AIDispatchAssistant contractorId={user?.uid} />
+                    )}
+
+                    {activeView === 'team' && (
+                        <TeamManagement contractorId={user?.uid} />
+                    )}
+
+                    {activeView === 'simulator' && (
+                        <ScenarioSimulator
+                            jobs={jobs}
+                            team={team}
+                            onApplyScenario={async (scenario) => {
+                                // TODO: Implement actual scenario application
+                                toast.success('Scenario applied successfully!');
+                            }}
+                        />
+                    )}
+
+                    {activeView === 'profitability' && (
+                        <ProfitabilityDashboard contractorId={user?.uid} />
+                    )}
+
                     {activeView === 'invitations' && (
-                        <InvitationsView 
+                        <InvitationsView
                             invitations={invitations}
                             loading={invitationsLoading}
                         />
                     )}
-                    
+
                     {activeView === 'customers' && (
-                        <CustomersView 
+                        <CustomersView
                             customers={customers}
                             loading={customersLoading}
                         />
                     )}
-                    
+
                     {activeView === 'profile' && (
-                        <ProfileView 
+                        <ProfileView
                             profile={profile}
                             onUpdateProfile={updateProfile}
                         />
                     )}
-                    
+
                     {activeView === 'settings' && (
                         <SettingsView onSignOut={signOut} />
                     )}
