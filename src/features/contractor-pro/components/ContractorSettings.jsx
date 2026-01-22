@@ -19,6 +19,7 @@ import {
     CheckCircle, XCircle, Loader2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { deleteContractorAccount } from '../lib/contractorService';
 import { BusinessSettings } from './BusinessSettings';
 import { TeamManagement } from './TeamManagement';
 import { VehicleManagement } from './VehicleManagement';
@@ -161,11 +162,10 @@ const TabButton = ({ tab, isActive, onClick, isMobile }) => {
         return (
             <button
                 onClick={onClick}
-                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[72px] ${
-                    isActive
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'text-slate-500 hover:bg-slate-100'
-                }`}
+                className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[72px] ${isActive
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'text-slate-500 hover:bg-slate-100'
+                    }`}
             >
                 <Icon size={20} />
                 <span className="text-[10px] font-medium">{tab.label}</span>
@@ -176,15 +176,13 @@ const TabButton = ({ tab, isActive, onClick, isMobile }) => {
     return (
         <button
             onClick={onClick}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${
-                isActive
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left ${isActive
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+                }`}
         >
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${
-                isActive ? 'bg-emerald-100' : 'bg-slate-100'
-            }`}>
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isActive ? 'bg-emerald-100' : 'bg-slate-100'
+                }`}>
                 <Icon size={18} className={isActive ? 'text-emerald-600' : 'text-slate-500'} />
             </div>
             <div className="flex-1 min-w-0">
@@ -731,7 +729,7 @@ const IntegrationsSettingsSection = ({ contractorId, profile }) => (
     </div>
 );
 
-const AccountSettingsSection = ({ user, profile, onUpdateSettings, onSignOut }) => (
+const AccountSettingsSection = ({ user, profile, onUpdateSettings, onSignOut, onDeleteAccount }) => (
     <div className="space-y-6">
         <div className="border-b border-slate-200 pb-4">
             <h2 className="text-xl font-bold text-slate-800">Account Settings</h2>
@@ -743,6 +741,7 @@ const AccountSettingsSection = ({ user, profile, onUpdateSettings, onSignOut }) 
             profile={profile}
             onUpdateSettings={onUpdateSettings}
             onSignOut={onSignOut}
+            onDeleteAccount={onDeleteAccount}
         />
     </div>
 );
@@ -779,6 +778,16 @@ export const ContractorSettings = ({
         setActiveTab(tabId);
         setSearchQuery('');
         setShowSearch(false);
+    };
+
+    const handleDeleteAccount = async (contractorId) => {
+        try {
+            await deleteContractorAccount(contractorId);
+            return { success: true };
+        } catch (error) {
+            console.error('Account deletion failed:', error);
+            throw error;
+        }
     };
 
     const renderContent = () => {
@@ -845,6 +854,7 @@ export const ContractorSettings = ({
                         profile={profile}
                         onUpdateSettings={onUpdateSettings}
                         onSignOut={onSignOut}
+                        onDeleteAccount={handleDeleteAccount}
                     />
                 );
             default:

@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 // DELETE ACCOUNT MODAL
 // ============================================
 
-const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onDeleteSuccess }) => {
+const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onDeleteAccount, onDeleteSuccess }) => {
     const [confirmText, setConfirmText] = useState('');
     const [deleting, setDeleting] = useState(false);
 
@@ -26,14 +26,16 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
 
         setDeleting(true);
         try {
-            // In production, this would call a backend function to delete the account
-            // For now, just sign out
-            toast.success('Account deletion initiated');
+            // Call the passed delete handler
+            if (onDeleteAccount) {
+                await onDeleteAccount(contractorId);
+            }
+            toast.success('Account deleted successfully');
             onDeleteSuccess?.();
         } catch (error) {
+            console.error(error);
             toast.error('Failed to delete account');
-        } finally {
-            setDeleting(false);
+            setDeleting(false); // Only stop loading on error, otherwise we navigate away
         }
     };
 
@@ -104,7 +106,7 @@ const ContractorDeleteAccountModal = ({ isOpen, onClose, user, contractorId, onD
 // MAIN SETTINGS VIEW
 // ============================================
 
-export const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
+export const SettingsView = ({ user, profile, onUpdateSettings, onSignOut, onDeleteAccount }) => {
     const [settings, setSettings] = useState({
         emailNotifications: profile?.settings?.emailNotifications ?? true,
         smsNotifications: profile?.settings?.smsNotifications ?? false,
@@ -188,6 +190,7 @@ export const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => 
                 onClose={() => setShowDeleteModal(false)}
                 user={user}
                 contractorId={profile?.id}
+                onDeleteAccount={onDeleteAccount}
                 onDeleteSuccess={onSignOut}
             />
         </div>

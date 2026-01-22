@@ -148,11 +148,10 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
             draggable // Always allow drag - contractor can also drag to propose a different time
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${
-                hasProposal
+            className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${hasProposal
                     ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
                     : 'bg-white border-slate-200'
-            } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
+                } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
         >
             {hasProposal && (
                 <div className="mb-2 px-2 py-1.5 bg-blue-100 rounded-lg text-blue-700">
@@ -250,10 +249,10 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
 }, (prevProps, nextProps) => {
     // Custom comparison for performance
     return prevProps.job.id === nextProps.job.id &&
-           prevProps.job.status === nextProps.job.status &&
-           prevProps.job.title === nextProps.job.title &&
-           prevProps.job.hasHomeownerProposal === nextProps.job.hasHomeownerProposal &&
-           prevProps.job.proposedTimes?.length === nextProps.job.proposedTimes?.length;
+        prevProps.job.status === nextProps.job.status &&
+        prevProps.job.title === nextProps.job.title &&
+        prevProps.job.hasHomeownerProposal === nextProps.job.hasHomeownerProposal &&
+        prevProps.job.proposedTimes?.length === nextProps.job.proposedTimes?.length;
 });
 
 // ============================================
@@ -358,18 +357,24 @@ const TimeSlot = React.memo(({
                 // Offset for multiple jobs starting at same hour
                 const topOffset = 4 + (jobIndex * 4);
 
+                // Calculate starts minutes for proper vertical positioning
+                // This ensures a job at 1:30 is lower than a job at 1:00
+                const jobDate = new Date(job.scheduledTime || job.scheduledDate);
+                const startMinutes = jobDate.getMinutes();
+                // Formula: startMinutes/60 * 100% + existing stacking offset
+                const topPosition = `calc(${(startMinutes / 60) * 100}% + ${topOffset}px)`;
+
                 return (
                     <button
                         key={job.id}
                         onClick={() => onJobClick?.(job)}
                         style={{
                             height: `${heightPx}px`,
-                            top: `${topOffset}px`,
+                            top: topPosition,
                             zIndex: 10 + jobIndex
                         }}
-                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${
-                            job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
-                        }`}
+                        className={`absolute left-1 right-1 p-2 text-white rounded-lg text-xs text-left transition-colors shadow-md overflow-hidden ${job._multiDayInfo ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600'
+                            }`}
                     >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
                             <p className="font-bold truncate flex-1">{job.title || job.description || 'Job'}</p>
@@ -412,11 +417,10 @@ const TimeSlot = React.memo(({
                         key={`${slot.id}-${slot.slotId || 'proposal'}-${idx}`}
                         onClick={() => onJobClick?.({ ...slot, _isProposal: true })}
                         style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
-                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity ${
-                            isHomeownerProposal
+                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity ${isHomeownerProposal
                                 ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
                                 : 'bg-amber-50 border-amber-300 hover:bg-amber-100'
-                        }`}
+                            }`}
                         title={isHomeownerProposal ? 'Click to accept or counter-propose' : 'Offered time slot (Pending confirmation)'}
                     >
                         <div className="flex items-center gap-1 mb-0.5">
@@ -575,39 +579,35 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
 
                 {/* Crew Requirements Banner */}
                 {requiresMultipleTechs && (
-                    <div className={`mb-4 p-3 rounded-xl border ${
-                        crewValidation.meetsRequirement
+                    <div className={`mb-4 p-3 rounded-xl border ${crewValidation.meetsRequirement
                             ? 'bg-emerald-50 border-emerald-200'
                             : crewValidation.isValid
                                 ? 'bg-amber-50 border-amber-200'
                                 : 'bg-red-50 border-red-200'
-                    }`}>
+                        }`}>
                         <div className="flex items-start gap-2">
-                            <UsersIcon size={16} className={`mt-0.5 shrink-0 ${
-                                crewValidation.meetsRequirement
+                            <UsersIcon size={16} className={`mt-0.5 shrink-0 ${crewValidation.meetsRequirement
                                     ? 'text-emerald-600'
                                     : crewValidation.isValid
                                         ? 'text-amber-600'
                                         : 'text-red-600'
-                            }`} />
+                                }`} />
                             <div className="flex-1">
                                 <div className="flex items-center justify-between">
-                                    <p className={`font-medium ${
-                                        crewValidation.meetsRequirement
+                                    <p className={`font-medium ${crewValidation.meetsRequirement
                                             ? 'text-emerald-800'
                                             : crewValidation.isValid
                                                 ? 'text-amber-800'
                                                 : 'text-red-800'
-                                    }`}>
+                                        }`}>
                                         Crew Required: {requiredCrew} {requiredCrew === 1 ? 'person' : 'people'}
                                     </p>
-                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                        crewValidation.meetsRequirement
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${crewValidation.meetsRequirement
                                             ? 'bg-emerald-100 text-emerald-700'
                                             : crewValidation.isValid
                                                 ? 'bg-amber-100 text-amber-700'
                                                 : 'bg-red-100 text-red-700'
-                                    }`}>
+                                        }`}>
                                         {selectedCrew.length}/{requiredCrew} selected
                                     </span>
                                 </div>
@@ -702,17 +702,15 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                                         key={member.id}
                                         type="button"
                                         onClick={() => toggleCrewMember(member.id)}
-                                        className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${
-                                            isSelected
+                                        className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${isSelected
                                                 ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
                                                 : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                                        }`}
+                                            }`}
                                     >
-                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                            isSelected
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected
                                                 ? 'border-emerald-500 bg-emerald-500'
                                                 : 'border-slate-300'
-                                        }`}>
+                                            }`}>
                                             {isSelected && <Check size={12} className="text-white" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
