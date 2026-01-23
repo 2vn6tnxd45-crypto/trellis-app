@@ -80,11 +80,14 @@ const JobCard = ({
     onAssign,
     onUnassign,
     onOpenCrewModal,
+    onOfferSlots,
     isAssigned,
     compact = false,
     vehicles = [],
     date = new Date() // Add date prop with default
 }) => {
+    const [expanded, setExpanded] = useState(false);
+
     // Inject date into job object for the inner render logic we just added
     job.currentRenderDate = date;
     const duration = parseDurationToMinutes(job.estimatedDuration);
@@ -126,11 +129,18 @@ const JobCard = ({
             }}
             onDragEnd={onDragEnd}
             className={`
-                bg-white rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing relative
-                ${isDragging ? 'opacity-50 border-emerald-400 shadow-lg' : 'border-slate-200 hover:border-slate-300'}
+                rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing relative
+                ${isDragging ? 'opacity-50 border-emerald-400 shadow-lg' : job.isOverdue ? 'border-red-300 bg-red-50' : 'bg-white border-slate-200 hover:border-slate-300'}
                 ${compact ? 'p-2' : 'p-3'}
             `}
         >
+            {/* Overdue Flag */}
+            {job.isOverdue && (
+                <div className="absolute top-0 right-0 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-bl-lg rounded-tr-lg">
+                    OVERDUE
+                </div>
+            )}
+
             {/* Header */}
             <div className="flex items-start gap-2">
                 <GripVertical size={16} className="text-slate-300 mt-0.5 shrink-0" />
@@ -208,6 +218,19 @@ const JobCard = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1 shrink-0">
+                    {/* Offer Time Slots Button - for unassigned jobs */}
+                    {!isAssigned && onOfferSlots && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onOfferSlots?.(job);
+                            }}
+                            className="p-1 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-600"
+                            title="Offer time slots to customer"
+                        >
+                            <Calendar size={14} />
+                        </button>
+                    )}
                     {/* Crew Assignment Button - Always visible to allow fixing crews */}
                     {onOpenCrewModal && (
                         <button
@@ -235,6 +258,20 @@ const JobCard = ({
                     )}
                 </div>
             </div>
+
+            {/* Scheduled Date (shown for backlog items not on current date) */}
+            {!isAssigned && (job.scheduledDate || job.scheduledTime) && (
+                <p className={`mt-1 text-[11px] ${job.isOverdue ? 'text-red-600' : 'text-slate-500'}`}>
+                    {(() => {
+                        try {
+                            const rawDate = job.scheduledDate || job.scheduledTime;
+                            const d = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
+                            if (isNaN(d.getTime())) return '';
+                            return `Scheduled: ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                        } catch { return ''; }
+                    })()}
+                </p>
+            )}
 
             {/* Details */}
             <div className={`mt-2 flex flex-wrap gap-2 ${compact ? 'text-xs' : 'text-sm'}`}>
@@ -357,9 +394,16 @@ const TechColumn = ({
     const capacityPercent = Math.min(100, (jobCount / maxJobs) * 100);
     const hoursPercent = Math.min(100, (totalHours / maxHours) * 100);
 
-    // Use smart availability checking
-    const safeDate = new Date(date);
-    const availability = isTechWorkingOnDay(tech, safeDate);
+    // Use smart availability checking (with safe date fallback)
+    const safeDate = (date instanceof Date && !isNaN(date.getTime())) ? date : new Date();
+    const availability = useMemo(() => {
+        try {
+            return isTechWorkingOnDay(tech, safeDate);
+        } catch (e) {
+            console.warn('[DispatchBoard] isTechWorkingOnDay error for', tech.name, e);
+            return { working: true, reason: 'default', dayName: '' };
+        }
+    }, [tech, safeDate]);
     const hasOverride = tech._workingTodayOverride;
     const worksToday = hasOverride || availability.working;
     const isScheduledOff = !hasOverride && availability.reason === 'scheduled_off';
@@ -528,7 +572,11 @@ const UnassignedColumn = ({
     onAssign,
     onAutoAssign,
     isAutoAssigning,
-    vehicles = []
+    vehicles = [],
+    showAllBacklog,
+    onToggleBacklog,
+    totalBacklogCount,
+    onOfferSlots
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
 
@@ -548,6 +596,9 @@ const UnassignedColumn = ({
         });
     }, [jobs, techs, allJobs, date]);
 
+    // Count overdue jobs
+    const overdueCount = jobs.filter(j => j.isOverdue).length;
+
     return (
         <div className="flex flex-col bg-amber-50 rounded-xl border-2 border-amber-200 min-w-[300px] max-w-[350px]">
             {/* Header */}
@@ -557,7 +608,14 @@ const UnassignedColumn = ({
                         <AlertCircle className="text-amber-600" size={20} />
                         <div>
                             <p className="font-bold text-amber-800">Unassigned</p>
-                            <p className="text-xs text-amber-600">{jobs.length} jobs</p>
+                            <p className="text-xs text-amber-600">
+                                {jobs.length} jobs
+                                {overdueCount > 0 && (
+                                    <span className="ml-1 text-red-600 font-semibold">
+                                        ({overdueCount} overdue)
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     </div>
 
@@ -579,6 +637,25 @@ const UnassignedColumn = ({
                                 </>
                             )}
                         </button>
+                    )}
+                </div>
+
+                {/* Backlog Toggle */}
+                <div className="mt-2 flex items-center justify-between">
+                    <button
+                        onClick={onToggleBacklog}
+                        className={`text-xs px-2 py-1 rounded-md transition-colors font-medium ${
+                            showAllBacklog
+                                ? 'bg-amber-600 text-white'
+                                : 'bg-white text-amber-700 border border-amber-300 hover:bg-amber-50'
+                        }`}
+                    >
+                        {showAllBacklog ? 'All Backlog' : 'Today Only'}
+                    </button>
+                    {totalBacklogCount > 0 && !showAllBacklog && (
+                        <span className="text-xs text-amber-700">
+                            {totalBacklogCount} total unassigned
+                        </span>
                     )}
                 </div>
             </div>
@@ -603,6 +680,7 @@ const UnassignedColumn = ({
                             showSuggestions={true}
                             suggestions={suggestions}
                             onAssign={onAssign}
+                            onOfferSlots={onOfferSlots}
                             vehicles={vehicles}
                         />
                     ))
@@ -624,6 +702,7 @@ export const DispatchBoard = ({
     onJobUpdate,
     onTeamMemberUpdate,  // Callback to update a team member (for schedule overrides)
     onEditTeamMember,    // Callback to open team member edit modal
+    onOfferSlots,        // Callback to open Offer Time Slots modal for a job
     timezone
 }) => {
     const [selectedDate, setSelectedDate] = useState(initialDate);
@@ -632,6 +711,7 @@ export const DispatchBoard = ({
     const [workingTodayOverrides, setWorkingTodayOverrides] = useState({}); // Track one-time overrides
     const [showRouteOptimization, setShowRouteOptimization] = useState(false);
     const [routeComparisonData, setRouteComparisonData] = useState(null);
+    const [showAllBacklog, setShowAllBacklog] = useState(true); // Show all unassigned jobs by default
 
     // Timezone fallback - use system timezone if not configured
     const effectiveTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -729,13 +809,39 @@ export const DispatchBoard = ({
         });
     }, [jobs, selectedDate]);
 
+    // All unassigned jobs across all dates (global backlog)
+    const allUnassignedJobs = useMemo(() => {
+        return jobs.filter(job => {
+            if (['completed', 'cancelled', 'draft'].includes(job.status)) return false;
+            const assignedTechIds = getAssignedTechIds(job);
+            return assignedTechIds.length === 0;
+        }).map(job => {
+            // Mark overdue jobs
+            try {
+                const rawDate = job.scheduledDate || job.scheduledTime;
+                if (rawDate) {
+                    const jobDate = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
+                    if (!isNaN(jobDate.getTime())) {
+                        const jobMidnight = new Date(jobDate);
+                        jobMidnight.setHours(0, 0, 0, 0);
+                        const todayMidnight = new Date();
+                        todayMidnight.setHours(0, 0, 0, 0);
+                        if (jobMidnight < todayMidnight) {
+                            return { ...job, isOverdue: true };
+                        }
+                    }
+                }
+            } catch (e) { /* ignore date parse errors */ }
+            return job;
+        });
+    }, [jobs]);
+
     // Split into assigned and unassigned
     const { assignedJobs, unassignedJobs } = useMemo(() => {
         const assigned = [];
-        const unassigned = [];
         const seenIds = new Set(); // Prevent duplicates across categories
 
-        // 1. Process jobs for the selected date
+        // 1. Process jobs for the selected date - extract assigned jobs
         jobsForDate.forEach(job => {
             if (seenIds.has(job.id)) return;
             seenIds.add(job.id);
@@ -743,35 +849,53 @@ export const DispatchBoard = ({
             const assignedTechIds = getAssignedTechIds(job);
             if (assignedTechIds.length > 0) {
                 assigned.push(job);
-            } else {
-                unassigned.push(job);
             }
         });
 
-        // 2. Add backlog jobs to unassigned
-        backlogJobs.forEach(job => {
-            if (seenIds.has(job.id)) return;
-            seenIds.add(job.id);
-            unassigned.push({ ...job, isOverdue: true }); // Mark as overdue for UI
-        });
+        // 2. Determine unassigned list based on toggle
+        let unassigned;
+        if (showAllBacklog) {
+            // Show ALL unassigned jobs across all dates (global backlog view)
+            unassigned = [...allUnassignedJobs];
+        } else {
+            // Show only unassigned for selected date + overdue + unscheduled
+            unassigned = [];
 
-        // 3. Add unscheduled jobs to unassigned
-        unscheduledJobs.forEach(job => {
-            if (seenIds.has(job.id)) return;
-            seenIds.add(job.id);
-            unassigned.push(job);
-        });
+            jobsForDate.forEach(job => {
+                if (seenIds.has(job.id)) return;
+                const assignedTechIds = getAssignedTechIds(job);
+                if (assignedTechIds.length === 0) {
+                    unassigned.push(job);
+                }
+            });
 
-        // Sort unassigned: Overdue first, then Today, then Unscheduled
-        // Actually, maybe better to sort by Date?
+            backlogJobs.forEach(job => {
+                const id = job.id;
+                if (unassigned.some(j => j.id === id)) return;
+                unassigned.push({ ...job, isOverdue: true });
+            });
+
+            unscheduledJobs.forEach(job => {
+                const id = job.id;
+                if (unassigned.some(j => j.id === id)) return;
+                unassigned.push(job);
+            });
+        }
+
+        // Sort unassigned: Overdue first, then scheduled (by date), then unscheduled
         unassigned.sort((a, b) => {
             if (a.isOverdue && !b.isOverdue) return -1;
             if (!a.isOverdue && b.isOverdue) return 1;
-            return 0; // Keep existing order
+            // Then by scheduled date (jobs with dates before those without)
+            const aDate = a.scheduledDate || a.scheduledTime;
+            const bDate = b.scheduledDate || b.scheduledTime;
+            if (aDate && !bDate) return -1;
+            if (!aDate && bDate) return 1;
+            return 0;
         });
 
         return { assignedJobs: assigned, unassignedJobs: unassigned };
-    }, [jobsForDate, backlogJobs, unscheduledJobs]);
+    }, [jobsForDate, backlogJobs, unscheduledJobs, allUnassignedJobs, showAllBacklog]);
 
     // Group assigned jobs by tech (multi-tech jobs appear in multiple columns)
     const jobsByTech = useMemo(() => {
@@ -1155,20 +1279,36 @@ export const DispatchBoard = ({
         }
     }, [routeComparisonData, onJobUpdate]);
 
-    // Get week dates for the mini week navigator
-    const getWeekDates = () => {
-        const dates = [];
-        const start = new Date(selectedDate);
-        start.setDate(start.getDate() - start.getDay()); // Start of week (Sunday)
-        for (let i = 0; i < 7; i++) {
-            const d = new Date(start);
-            d.setDate(start.getDate() + i);
-            dates.push(d);
+    // Get week dates for the mini week navigator (memoized to prevent unnecessary recalculations)
+    const weekDates = useMemo(() => {
+        try {
+            const safeDate = selectedDate instanceof Date && !isNaN(selectedDate.getTime())
+                ? selectedDate
+                : new Date();
+            const dates = [];
+            const start = new Date(safeDate);
+            start.setDate(start.getDate() - start.getDay()); // Start of week (Sunday)
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(start);
+                d.setDate(start.getDate() + i);
+                dates.push(d);
+            }
+            return dates;
+        } catch (e) {
+            console.error('[DispatchBoard] getWeekDates error:', e);
+            // Fallback: generate week from today
+            const dates = [];
+            const today = new Date();
+            const start = new Date(today);
+            start.setDate(start.getDate() - start.getDay());
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(start);
+                d.setDate(start.getDate() + i);
+                dates.push(d);
+            }
+            return dates;
         }
-        return dates;
-    };
-
-    const weekDates = getWeekDates();
+    }, [selectedDate]);
 
     return (
         <div className="space-y-4">
@@ -1301,6 +1441,10 @@ export const DispatchBoard = ({
                     onAutoAssign={handleAutoAssign}
                     isAutoAssigning={isAutoAssigning}
                     vehicles={vehicles}
+                    showAllBacklog={showAllBacklog}
+                    onToggleBacklog={() => setShowAllBacklog(prev => !prev)}
+                    totalBacklogCount={allUnassignedJobs.length}
+                    onOfferSlots={onOfferSlots}
                 />
 
                 {/* Tech Columns */}

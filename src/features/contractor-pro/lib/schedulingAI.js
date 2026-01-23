@@ -666,6 +666,11 @@ export const bulkAssignJobs = async (assignments) => {
  * Defaults to AVAILABLE if no workingHours configured (user-friendly default)
  */
 export const isTechWorkingOnDay = (tech, date) => {
+    // Defensive: validate date before operations
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+        return { working: true, reason: 'default', dayName: '' };
+    }
+
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const techHours = tech.workingHours?.[dayName];
 

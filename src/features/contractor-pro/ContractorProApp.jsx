@@ -3148,6 +3148,7 @@ export const ContractorProApp = () => {
                                     onJobUpdate={() => {
                                         // Jobs will auto-refresh via subscription
                                     }}
+                                    onOfferSlots={(job) => setOfferingTimesJob(job)}
                                 />
                             )}
 
