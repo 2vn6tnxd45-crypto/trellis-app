@@ -624,6 +624,9 @@ export const DispatchBoard = ({
     const [showRouteOptimization, setShowRouteOptimization] = useState(false);
     const [routeComparisonData, setRouteComparisonData] = useState(null);
 
+    // Timezone fallback - use system timezone if not configured
+    const effectiveTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
     // Route optimization hook
     const {
         isOptimizing: isRouteOptimizing,
@@ -636,21 +639,27 @@ export const DispatchBoard = ({
     // Filter jobs for selected date
     const jobsForDate = useMemo(() => {
         return jobs.filter(job => {
-            // Handle Multi-Day Blocks
-            if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
-                return job.scheduleBlocks.some(block => {
-                    const blockDate = new Date(block.date); // "YYYY-MM-DD" is parseable
-                    // Use loose comparison or strict day comparison
-                    return isSameDayInTimezone(blockDate, selectedDate, timezone);
-                });
-            }
+            try {
+                // Handle Multi-Day Blocks
+                if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
+                    return job.scheduleBlocks.some(block => {
+                        const blockDate = new Date(block.date);
+                        if (isNaN(blockDate.getTime())) return false;
+                        return isSameDayInTimezone(blockDate, selectedDate, effectiveTimezone);
+                    });
+                }
 
-            // Legacy / Single Day
-            if (!job.scheduledDate) return false;
-            const jobDate = job.scheduledDate.toDate ? job.scheduledDate.toDate() : new Date(job.scheduledDate);
-            return isSameDayInTimezone(jobDate, selectedDate, timezone);
+                // Legacy / Single Day
+                if (!job.scheduledDate) return false;
+                const jobDate = job.scheduledDate.toDate ? job.scheduledDate.toDate() : new Date(job.scheduledDate);
+                if (isNaN(jobDate.getTime())) return false; // Skip invalid dates
+                return isSameDayInTimezone(jobDate, selectedDate, effectiveTimezone);
+            } catch (e) {
+                console.warn('[DispatchBoard] Invalid job date:', job.id, e);
+                return false;
+            }
         });
-    }, [jobs, selectedDate, timezone]);
+    }, [jobs, selectedDate, effectiveTimezone]);
 
     // Also include unscheduled jobs that need assignment
     const unscheduledJobs = useMemo(() => {
@@ -663,26 +672,32 @@ export const DispatchBoard = ({
     // Identify overdue/backlog jobs (unassigned and in the past)
     const backlogJobs = useMemo(() => {
         return jobs.filter(job => {
-            if (['completed', 'cancelled', 'draft'].includes(job.status)) return false;
+            try {
+                if (['completed', 'cancelled', 'draft'].includes(job.status)) return false;
 
-            // Check if already assigned
-            const assignedTechIds = getAssignedTechIds(job);
-            if (assignedTechIds.length > 0) return false;
+                // Check if already assigned
+                const assignedTechIds = getAssignedTechIds(job);
+                if (assignedTechIds.length > 0) return false;
 
-            // Must have a date that is strictly BEFORE the selected date (midnight)
-            if (!job.scheduledDate && !job.scheduledTime) return false;
+                // Must have a date that is strictly BEFORE the selected date (midnight)
+                if (!job.scheduledDate && !job.scheduledTime) return false;
 
-            const jobDateRaw = job.scheduledDate || job.scheduledTime;
-            const jobDate = jobDateRaw.toDate ? jobDateRaw.toDate() : new Date(jobDateRaw);
+                const jobDateRaw = job.scheduledDate || job.scheduledTime;
+                const jobDate = jobDateRaw.toDate ? jobDateRaw.toDate() : new Date(jobDateRaw);
+                if (isNaN(jobDate.getTime())) return false; // Skip invalid dates
 
-            // Normalize to midnight for comparison
-            const jobMidnight = new Date(jobDate);
-            jobMidnight.setHours(0, 0, 0, 0);
+                // Normalize to midnight for comparison
+                const jobMidnight = new Date(jobDate);
+                jobMidnight.setHours(0, 0, 0, 0);
 
-            const selectedMidnight = new Date(selectedDate);
-            selectedMidnight.setHours(0, 0, 0, 0);
+                const selectedMidnight = new Date(selectedDate);
+                selectedMidnight.setHours(0, 0, 0, 0);
 
-            return jobMidnight < selectedMidnight;
+                return jobMidnight < selectedMidnight;
+            } catch (e) {
+                console.warn('[DispatchBoard] Invalid backlog job date:', job.id, e);
+                return false;
+            }
         });
     }, [jobs, selectedDate]);
 
@@ -952,11 +967,11 @@ export const DispatchBoard = ({
         }
     }, [unassignedJobs, teamMembers, assignedJobs, selectedDate, onJobUpdate]);
 
-    const isToday = isSameDayInTimezone(selectedDate, new Date(), timezone);
+    const isToday = isSameDayInTimezone(selectedDate, new Date(), effectiveTimezone);
 
     // Handle marking a tech as working today (one-time override)
     const handleMarkWorkingToday = useCallback((tech) => {
-        const dateKey = selectedDate.toISOString().split('T')[0];
+        const dateKey = (selectedDate instanceof Date && !isNaN(selectedDate) ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
         setWorkingTodayOverrides(prev => ({
             ...prev,
             [`${tech.id}_${dateKey}`]: true
@@ -1130,8 +1145,8 @@ export const DispatchBoard = ({
 
                     <div className="flex gap-1">
                         {weekDates.map((date, i) => {
-                            const isSelected = isSameDayInTimezone(date, selectedDate, timezone);
-                            const isCurrentDay = isSameDayInTimezone(date, new Date(), timezone);
+                            const isSelected = isSameDayInTimezone(date, selectedDate, effectiveTimezone);
+                            const isCurrentDay = isSameDayInTimezone(date, new Date(), effectiveTimezone);
                             const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
                             const dayNum = date.getDate();
 
@@ -1250,7 +1265,7 @@ export const DispatchBoard = ({
                 {/* Tech Columns */}
                 {teamMembers.map(tech => {
                     // Check for one-time override
-                    const dateKey = selectedDate.toISOString().split('T')[0];
+                    const dateKey = (selectedDate instanceof Date && !isNaN(selectedDate) ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
                     const hasOverride = workingTodayOverrides[`${tech.id}_${dateKey}`];
 
                     // Merge override into tech for this render

@@ -766,7 +766,7 @@ export const TechAssignmentPanel = ({
                                         </div>
                                         {assignment.failed ? (
                                             <p className="text-xs text-red-600 mt-1">
-                                                {assignment.reason || 'No suitable tech available'}
+                                                {assignment.warnings?.[0] || assignment.reason || 'No suitable tech available'}
                                             </p>
                                         ) : (
                                             <div className="mt-1">

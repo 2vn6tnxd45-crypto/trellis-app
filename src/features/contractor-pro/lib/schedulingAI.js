@@ -280,8 +280,8 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
     if (timeOffCheck.blocked) {
         score -= 200; // Major penalty - tech is on time-off
         warnings.push(`On ${timeOffCheck.reason}`);
-        // Return early for time-off - tech is completely unavailable
-        return { score, reasons, warnings, isBlocked: true, blockReason: `On ${timeOffCheck.reason}` };
+        // Don't return early - allow assignment with warning for override scenarios
+        // The score penalty will rank this tech lower but not completely exclude them
     }
 
     // 0.5. CREW REQUIREMENTS CHECK
@@ -515,7 +515,7 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
                 isBlocked: result.isBlocked
             };
         })
-        .filter(t => !t.isBlocked && t.score > -50) // Filter out blocked and very low scoring techs
+        .filter(t => t.score > -200) // Only exclude extremely poor matches (e.g., on time-off with other penalties)
         .sort((a, b) => b.score - a.score);
 
         if (techScores.length === 0) {

@@ -148,13 +148,15 @@ const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
         // Add multi-day context
         if (jobIsMultiDay(job)) {
             const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
+            const totalDays = job.multiDaySchedule.totalDays || job.multiDaySchedule.segments?.length || 1;
+            const displayDayNumber = dayNumber || 1;
             return {
                 ...job,
                 _multiDayInfo: {
-                    dayNumber,
-                    totalDays: job.multiDaySchedule.totalDays,
+                    dayNumber: displayDayNumber,
+                    totalDays,
                     segment,
-                    label: `Day ${dayNumber}/${job.multiDaySchedule.totalDays}`
+                    label: `Day ${displayDayNumber}/${totalDays}`
                 }
             };
         }

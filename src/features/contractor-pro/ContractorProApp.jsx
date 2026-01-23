@@ -3139,6 +3139,7 @@ export const ContractorProApp = () => {
                                 <DispatchBoard
                                     jobs={jobs}
                                     teamMembers={profile?.scheduling?.teamMembers || []}
+                                    vehicles={vehicles || []}
                                     initialDate={selectedDate}
                                     timezone={profile?.scheduling?.timezone}
                                     onJobUpdate={() => {
@@ -3405,6 +3406,15 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
+                    {activeView === 'team' && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                            <TeamManagement
+                                contractorId={contractorId}
+                                teamMembers={profile?.scheduling?.teamMembers || []}
+                                onUpdate={() => {}}
+                            />
+                        </div>
+                    )}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
 

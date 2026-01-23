@@ -26,6 +26,19 @@ import { validateProposedCrew } from '../lib/crewRequirementsService';
 // ============================================
 
 /**
+ * Format duration from minutes into human-readable format
+ */
+const formatDuration = (minutes) => {
+    if (!minutes || minutes <= 0) return 'TBD';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours < 24) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    const days = Math.ceil(minutes / 480); // 8-hour work days
+    return `~${days} days (${hours}h)`;
+};
+
+/**
  * Normalize a date value to ensure proper timezone handling
  * Handles date-only strings (YYYY-MM-DD) which JavaScript parses as UTC midnight
  * by treating them as local dates instead
@@ -341,7 +354,7 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
                     )}
                     <div className="flex items-center justify-between mt-2">
                         <span className="text-xs text-slate-400">
-                            ~{job.estimatedDuration || 120} min
+                            {formatDuration(job.estimatedDuration || 120)}
                         </span>
                         {job.total > 0 && (
                             <span className="text-xs font-bold text-emerald-600">
@@ -1475,7 +1488,7 @@ const ClickScheduleModal = ({ date, hour, unscheduledJobs, onSelect, onCancel, t
                                     </div>
                                     <div className="text-right shrink-0">
                                         <span className="text-xs text-slate-400">
-                                            ~{job.estimatedDuration || 120} min
+                                            {formatDuration(job.estimatedDuration || 120)}
                                         </span>
                                         {job.total > 0 && (
                                             <p className="text-xs font-bold text-emerald-600 mt-0.5">
@@ -1547,16 +1560,17 @@ export const DragDropCalendar = ({
             // Job is SCHEDULED if it has a scheduledTime or scheduledDate AND status is 'scheduled'
             const hasSchedule = job.scheduledTime || job.scheduledDate;
             const isScheduledStatus = job.status === 'scheduled' || job.status === 'in_progress';
-            const isSuggestedSchedule = hasSchedule && (
+            const hasCrew = (job.assignedCrew?.length > 0) || job.assignedTechId;
+            const isSuggestedSchedule = hasSchedule && !hasCrew && (
                 job.status === 'pending_schedule' ||
                 (job.status === 'pending' && job.scheduling?.suggestedTime)
             );
 
-            if (hasSchedule && isScheduledStatus) {
-                // Fully scheduled - show on calendar, NOT in sidebar
+            if (hasSchedule && (isScheduledStatus || hasCrew)) {
+                // Fully scheduled OR has crew assigned - show on calendar as confirmed, NOT in sidebar
                 scheduled.push(job);
             } else if (isSuggestedSchedule) {
-                // Has a date but not confirmed - show on calendar with "Suggested" indicator AND in sidebar
+                // Has a date but not confirmed and no crew - show on calendar with "Suggested" indicator AND in sidebar
                 scheduled.push({ ...job, _isSuggested: true });
                 unscheduled.push({ ...job, _isSuggested: true });
             } else {
