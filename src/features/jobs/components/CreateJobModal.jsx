@@ -11,6 +11,8 @@ import {
     Sparkles, ChevronDown, ChevronUp, Truck, Info
 } from 'lucide-react';
 import { createJobDirect, JOB_PRIORITY, linkJobToHomeowner } from '../lib/jobService';
+import { findNextAvailableSlot, isTechBusyAtTime, checkConflicts } from '../../contractor-pro/lib/schedulingAI';
+import { getContractorTimezone } from '../../contractor-pro/lib/timezoneUtils';
 import { useGoogleMaps } from '../../../hooks/useGoogleMaps';
 import toast from 'react-hot-toast';
 import JobLineItemsSection, { createNewLineItem } from './JobLineItemsSection';
@@ -248,9 +250,11 @@ const MultiCrewSelector = ({
     onSelect,
     crewSizeRequired,
     scheduledDate,
+    scheduledTime,
     estimatedDuration,
     workingHours = {},
     existingJobs = [],
+    timezone,
     onPerDayAssignmentChange
 }) => {
     const [showPerDayView, setShowPerDayView] = useState(false);
@@ -308,7 +312,7 @@ const MultiCrewSelector = ({
     const memberAvailability = useMemo(() => {
         if (!teamMembers?.length) return new Map();
         if (!isMultiDay || segments.length === 0) {
-            // Single day - just check the scheduled date
+            // Single day - check date and time-slot availability
             if (!scheduledDate) return new Map();
 
             const date = new Date(scheduledDate);
@@ -317,14 +321,39 @@ const MultiCrewSelector = ({
             const availability = new Map();
             teamMembers.forEach(tech => {
                 const hours = tech.workingHours?.[dayName];
-                const isAvailable = hours?.enabled !== false;
+                const isDayOff = hours?.enabled === false;
+                let busyAtTime = false;
+                let busyReason = '';
+
+                // Check time-slot conflict if a time is selected
+                if (!isDayOff && scheduledTime) {
+                    const busyCheck = isTechBusyAtTime(
+                        tech, date, scheduledTime,
+                        estimatedDuration || 60, existingJobs, timezone
+                    );
+                    busyAtTime = busyCheck.busy;
+                    busyReason = busyCheck.reason;
+                }
+
+                const isAvailable = !isDayOff && !busyAtTime;
+                const unavailDays = [];
+                const conflicts = [];
+
+                if (isDayOff) {
+                    unavailDays.push({ date: scheduledDate, reason: 'day_off', message: `Off on ${dayName}s` });
+                } else if (busyAtTime) {
+                    conflicts.push({ date: scheduledDate, message: busyReason || 'Time conflict' });
+                }
+
                 availability.set(tech.id, {
                     memberId: tech.id,
                     memberName: tech.name,
                     fullyAvailable: isAvailable,
                     partiallyAvailable: false,
-                    unavailableDays: isAvailable ? [] : [{ date: scheduledDate, reason: 'day_off', message: `Off on ${dayName}s` }],
-                    conflicts: [],
+                    busyAtTime,
+                    busyReason,
+                    unavailableDays: unavailDays,
+                    conflicts,
                     availableDayCount: isAvailable ? 1 : 0
                 });
             });
@@ -389,7 +418,7 @@ const MultiCrewSelector = ({
         });
 
         return availability;
-    }, [teamMembers, segments, scheduledDate, isMultiDay, existingJobs]);
+    }, [teamMembers, segments, scheduledDate, scheduledTime, isMultiDay, existingJobs, estimatedDuration, timezone]);
 
     // Calculate crew summary for multi-day jobs
     const crewSummary = useMemo(() => {
@@ -522,6 +551,8 @@ const MultiCrewSelector = ({
                     const availability = memberAvailability.get(tech.id);
                     const isFullyAvailable = availability?.fullyAvailable !== false;
                     const isPartiallyAvailable = availability?.partiallyAvailable === true;
+                    const isBusyAtTime = availability?.busyAtTime === true;
+                    const isDayOff = availability?.unavailableDays?.some(d => d.reason === 'day_off');
 
                     return (
                         <button
@@ -530,14 +561,16 @@ const MultiCrewSelector = ({
                             onClick={() => toggleMember(tech.id)}
                             className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all duration-200 ${isSelected
                                 ? 'border-emerald-500 bg-emerald-50 shadow-md shadow-emerald-100'
-                                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                                : isBusyAtTime || isDayOff
+                                    ? 'border-red-200 bg-red-50/50 hover:border-red-300'
+                                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                                 }`}
                         >
                             {/* Avatar with selection indicator */}
                             <div className="relative">
                                 <div
                                     className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold transition-transform ${isSelected ? 'scale-110' : 'group-hover:scale-105'}`}
-                                    style={{ backgroundColor: tech.color || '#64748B' }}
+                                    style={{ backgroundColor: (isBusyAtTime || isDayOff) && !isSelected ? '#94a3b8' : (tech.color || '#64748B') }}
                                 >
                                     {tech.name?.charAt(0)}
                                 </div>
@@ -546,14 +579,17 @@ const MultiCrewSelector = ({
                                         <CheckCircle size={12} className="text-white" />
                                     </div>
                                 )}
-                                {isPartiallyAvailable && isMultiDay && !isSelected && (
+                                {(isBusyAtTime || isDayOff) && !isSelected && (
+                                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white" />
+                                )}
+                                {isPartiallyAvailable && isMultiDay && !isSelected && !isBusyAtTime && !isDayOff && (
                                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white" />
                                 )}
                             </div>
 
                             {/* Name and role */}
                             <div className="text-left">
-                                <p className={`text-sm font-semibold ${isSelected ? 'text-emerald-700' : 'text-slate-700'}`}>
+                                <p className={`text-sm font-semibold ${isSelected ? 'text-emerald-700' : (isBusyAtTime || isDayOff) ? 'text-slate-400' : 'text-slate-700'}`}>
                                     {tech.name}
                                 </p>
                                 {isMultiDay && segments.length > 1 ? (
@@ -563,6 +599,10 @@ const MultiCrewSelector = ({
                                             : `${availability?.availableDayCount || 0}/${segments.length} days`
                                         }
                                     </p>
+                                ) : isBusyAtTime ? (
+                                    <p className="text-xs text-red-500 font-medium">Busy - Time conflict</p>
+                                ) : isDayOff ? (
+                                    <p className="text-xs text-red-500 font-medium">Day off</p>
                                 ) : (
                                     <p className="text-xs text-slate-500">{tech.role || 'technician'}</p>
                                 )}
@@ -875,6 +915,35 @@ const CreateJobModal = ({
         if (!validate()) {
             toast.error('Please fix the errors before submitting');
             return;
+        }
+
+        // Pre-check scheduling conflicts for assigned crew
+        if (formData.assignedCrewIds?.length > 0 && formData.scheduledDate) {
+            const tz = getContractorTimezone(contractorSettings);
+            const date = new Date(formData.scheduledDate + 'T12:00:00');
+            const jobForCheck = {
+                scheduledTime: formData.scheduledTime || null,
+                estimatedDuration: formData.estimatedDuration || 60
+            };
+
+            const blockingConflicts = [];
+            for (const techId of formData.assignedCrewIds) {
+                const tech = teamMembers.find(t => t.id === techId);
+                if (!tech) continue;
+
+                const result = checkConflicts(tech, jobForCheck, existingJobs, date, tz);
+                if (result.hasErrors) {
+                    const errors = result.conflicts.filter(c => c.severity === 'error');
+                    blockingConflicts.push(...errors.map(c => `${tech.name}: ${c.message}`));
+                }
+            }
+
+            if (blockingConflicts.length > 0) {
+                const proceed = window.confirm(
+                    `Scheduling conflicts detected:\n\n${blockingConflicts.join('\n')}\n\nDo you want to proceed anyway?`
+                );
+                if (!proceed) return;
+            }
         }
 
         setLoading(true);
@@ -1413,31 +1482,70 @@ const CreateJobModal = ({
                                 </button>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Date
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={formData.scheduledDate}
-                                        onChange={(e) => handleChange('scheduledDate', e.target.value)}
-                                        min={new Date().toISOString().split('T')[0]}
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    />
+                            <>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                            Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={formData.scheduledDate}
+                                            onChange={(e) => handleChange('scheduledDate', e.target.value)}
+                                            min={new Date().toISOString().split('T')[0]}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                                            Time
+                                        </label>
+                                        <input
+                                            type="time"
+                                            value={formData.scheduledTime}
+                                            onChange={(e) => handleChange('scheduledTime', e.target.value)}
+                                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                                        Time
-                                    </label>
-                                    <input
-                                        type="time"
-                                        value={formData.scheduledTime}
-                                        onChange={(e) => handleChange('scheduledTime', e.target.value)}
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                                    />
-                                </div>
-                            </div>
+                                {/* Find Next Available button */}
+                                {formData.scheduledDate && formData.assignedCrewIds?.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const primaryTechId = formData.assignedCrewIds[0];
+                                            const tech = teamMembers.find(t => t.id === primaryTechId);
+                                            if (!tech) return;
+
+                                            const tz = getContractorTimezone(contractorSettings);
+                                            const searchDate = new Date(formData.scheduledDate + 'T12:00:00');
+                                            const slot = findNextAvailableSlot(
+                                                tech,
+                                                formData.estimatedDuration || 60,
+                                                existingJobs,
+                                                searchDate,
+                                                tz
+                                            );
+
+                                            if (slot) {
+                                                const slotDateStr = slot.date.toISOString().split('T')[0];
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    scheduledDate: slotDateStr,
+                                                    scheduledTime: slot.startTime
+                                                }));
+                                                toast.success(`Found slot: ${slot.dayName} ${slot.startTime} - ${slot.endTime}`);
+                                            } else {
+                                                toast.error('No available slot found in the next 7 days');
+                                            }
+                                        }}
+                                        className="mt-2 w-full text-xs px-3 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-medium flex items-center justify-center gap-1.5 transition-colors"
+                                    >
+                                        <Sparkles size={12} />
+                                        Find Next Available Slot
+                                    </button>
+                                )}
+                            </>
                         )}
 
                         {!formData.scheduledDate && (
@@ -1473,9 +1581,11 @@ const CreateJobModal = ({
                             }}
                             crewSizeRequired={formData.crewSize || 1}
                             scheduledDate={formData.scheduledDate}
+                            scheduledTime={formData.scheduledTime}
                             estimatedDuration={formData.estimatedDuration}
                             workingHours={workingHours}
                             existingJobs={existingJobs}
+                            timezone={getContractorTimezone(contractorSettings)}
                         />
                     )}
 

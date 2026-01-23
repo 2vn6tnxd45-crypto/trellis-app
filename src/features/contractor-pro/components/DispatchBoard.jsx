@@ -27,6 +27,7 @@ import {
 import { isSameDayInTimezone } from '../lib/timezoneUtils';
 import { CrewAssignmentModal } from './CrewAssignmentModal';
 import { RouteComparison } from './RouteComparison';
+import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
 import { useRouteOptimization } from '../hooks/useRouteOptimization';
 import {
     getAssignedTechIds,
@@ -637,10 +638,12 @@ export const DispatchBoard = ({
     } = useRouteOptimization();
 
     // Filter jobs for selected date
+    // Handles all scheduling formats: multi-day blocks, multi-day schedule,
+    // ISO scheduledTime, legacy scheduledDate, and Firestore Timestamps
     const jobsForDate = useMemo(() => {
         return jobs.filter(job => {
             try {
-                // Handle Multi-Day Blocks
+                // CASE 1: Multi-Day Blocks (from CreateJobModal)
                 if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
                     return job.scheduleBlocks.some(block => {
                         const blockDate = new Date(block.date);
@@ -649,10 +652,21 @@ export const DispatchBoard = ({
                     });
                 }
 
-                // Legacy / Single Day
-                if (!job.scheduledDate) return false;
-                const jobDate = job.scheduledDate.toDate ? job.scheduledDate.toDate() : new Date(job.scheduledDate);
-                if (isNaN(jobDate.getTime())) return false; // Skip invalid dates
+                // CASE 2: Multi-Day schedule (from DragDropCalendar direct scheduling)
+                if (job.multiDaySchedule?.days?.length > 0) {
+                    return job.multiDaySchedule.days.some(day => {
+                        const dayDate = new Date(day.startTime || day.date);
+                        if (isNaN(dayDate.getTime())) return false;
+                        return isSameDayInTimezone(dayDate, selectedDate, effectiveTimezone);
+                    });
+                }
+
+                // CASE 3: Use scheduledDate or scheduledTime (whichever is available)
+                const rawDate = job.scheduledDate || job.scheduledTime;
+                if (!rawDate) return false;
+
+                const jobDate = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
+                if (isNaN(jobDate.getTime())) return false;
                 return isSameDayInTimezone(jobDate, selectedDate, effectiveTimezone);
             } catch (e) {
                 console.warn('[DispatchBoard] Invalid job date:', job.id, e);
@@ -780,15 +794,6 @@ export const DispatchBoard = ({
         const tech = teamMembers.find(t => t.id === techId);
         if (!tech) return;
 
-        // CHECK FOR CONFLICTS
-        const conflict = checkCrewConflict(techId, job, jobs);
-        if (conflict.hasConflict) {
-            const proceed = window.confirm(
-                `⚠️ SCHEDULING CONFLICT DETECTED\n\n${conflict.reason}\n\nDo you want to double-book this technician anyway?`
-            );
-            if (!proceed) return;
-        }
-
         try {
             const assignedTechIds = getAssignedTechIds(job);
             const crewRequired = job.crewRequirements?.required || job.requiredCrewSize || 1;
@@ -860,6 +865,9 @@ export const DispatchBoard = ({
         }
     }, [teamMembers, onJobUpdate]);
 
+    // State for conflict confirmation modal
+    const [conflictModal, setConflictModal] = useState(null);
+
     const handleDrop = useCallback(async (jobId, techId, techName) => {
         const job = jobs.find(j => j.id === jobId);
         if (!job) return;
@@ -869,31 +877,41 @@ export const DispatchBoard = ({
         if (tech) {
             const { hasErrors, hasWarnings, conflicts } = checkConflicts(tech, job, jobsForDate, selectedDate, timezone);
 
-            // For day_off errors, allow with a warning instead of blocking
-            // This lets contractors override if needed
-            const dayOffConflict = conflicts.find(c => c.type === 'day_off');
-            const otherErrors = conflicts.filter(c => c.severity === 'error' && c.type !== 'day_off');
+            // Collect all blocking conflicts (errors) including day_off
+            const blockingConflicts = conflicts.filter(c => c.severity === 'error');
 
-            if (otherErrors.length > 0) {
-                toast.error(otherErrors[0].message || 'Cannot assign');
-                return;
+            if (blockingConflicts.length > 0) {
+                // Show confirmation modal instead of silently proceeding or just toasting
+                setConflictModal({
+                    job,
+                    techId,
+                    techName,
+                    techObj: tech,
+                    conflicts: blockingConflicts,
+                    warnings: conflicts.filter(c => c.severity === 'warning')
+                });
+                return; // Block until user confirms
             }
 
-            if (dayOffConflict) {
-                // Show warning but allow - contractor is overriding
-                toast(`${dayOffConflict.message} - assigning anyway`, { icon: '⚠️', duration: 3000 });
-            } else if (hasWarnings) {
-                // Other warnings
-                toast(conflicts.find(c => c.severity === 'warning')?.message, { icon: '⚠️' });
+            if (hasWarnings) {
+                // Non-blocking warnings (hours limit, skill mismatch) - show toast but proceed
+                const warningMsg = conflicts.find(c => c.severity === 'warning')?.message;
+                if (warningMsg) {
+                    toast(warningMsg, { icon: '⚠️' });
+                }
             }
         }
 
-        // Determine intent:
-        // If job is already assigned to someone else, are we adding or moving?
-        // Dispatch boards usually 'move' (reassign).
-        // To add multiple, use the modal.
         await handleAssign(job, techId, techName);
     }, [jobs, teamMembers, jobsForDate, selectedDate, timezone, handleAssign]);
+
+    // Handle conflict modal confirmation (user chose to override)
+    const handleConflictOverride = useCallback(async () => {
+        if (!conflictModal) return;
+        const { job, techId, techName } = conflictModal;
+        setConflictModal(null);
+        await handleAssign(job, techId, techName);
+    }, [conflictModal, handleAssign]);
 
     const handleUnassign = useCallback(async (job) => {
         try {
@@ -1486,6 +1504,22 @@ export const DispatchBoard = ({
                     </div>
                 </div>
             )}
+
+            {/* Scheduling Conflict Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!conflictModal}
+                onClose={() => setConflictModal(null)}
+                onConfirm={handleConflictOverride}
+                title="Scheduling Conflict"
+                message={
+                    conflictModal
+                        ? `${conflictModal.techName} has a conflict:\n\n${conflictModal.conflicts.map(c => `• ${c.message}`).join('\n')}\n\nDo you want to override and assign anyway?`
+                        : ''
+                }
+                confirmLabel="Override & Assign"
+                cancelLabel="Cancel"
+                variant="warning"
+            />
         </div>
     );
 };

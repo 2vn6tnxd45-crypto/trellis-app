@@ -700,9 +700,9 @@ export const checkConflicts = (tech, job, existingJobs, date, timezone) => {
     if (!availability.working) {
         conflicts.push({
             type: 'day_off',
-            severity: 'warning', // Changed from 'error' to 'warning' - allow override
-            message: `${tech.name} is normally off on ${availability.dayName}s`,
-            canOverride: true
+            severity: 'error',
+            message: `${tech.name} is scheduled off on ${availability.dayName}s`,
+            canOverride: true // Contractor can still override via confirmation modal
         });
     }
 
@@ -818,6 +818,142 @@ export const suggestTimeSlot = (tech, job, existingJobs, date) => {
     }
 
     return null; // No slot available
+};
+
+/**
+ * Find the next available time slot for a technician, starting from a given date/time.
+ * Iterates in 30-minute blocks through the tech's working hours across multiple days.
+ * @param {object} tech - Tech object with workingHours
+ * @param {number} durationMinutes - Required job duration in minutes
+ * @param {array} existingJobs - All existing jobs to check against
+ * @param {Date} startDate - Date to start searching from
+ * @param {string} timezone - IANA timezone identifier
+ * @param {number} maxDaysToSearch - Max days to look ahead (default 7)
+ * @returns {object|null} { date: Date, startTime: string "HH:MM", endTime: string "HH:MM" } or null
+ */
+export const findNextAvailableSlot = (tech, durationMinutes, existingJobs, startDate, timezone, maxDaysToSearch = 7) => {
+    if (!tech || !durationMinutes) return null;
+
+    const duration = typeof durationMinutes === 'number' ? durationMinutes : parseDurationToMinutes(durationMinutes);
+    const buffer = tech.defaultBufferMinutes || 30;
+
+    for (let dayOffset = 0; dayOffset < maxDaysToSearch; dayOffset++) {
+        const searchDate = new Date(startDate);
+        searchDate.setDate(searchDate.getDate() + dayOffset);
+
+        // Check if tech works this day
+        const dayName = searchDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const techHours = tech.workingHours?.[dayName];
+
+        if (techHours?.enabled === false) continue;
+        if (!techHours?.start || !techHours?.end) continue;
+
+        const [workStartH, workStartM] = techHours.start.split(':').map(Number);
+        const [workEndH, workEndM] = techHours.end.split(':').map(Number);
+        const workStart = workStartH * 60 + workStartM;
+        const workEnd = workEndH * 60 + workEndM;
+
+        // Get booked slots for this tech on this date
+        const techJobsOnDay = existingJobs.filter(j => {
+            if (j.assignedTechId !== tech.id && !j.assignedCrewIds?.includes(tech.id)) return false;
+            if (j.status === 'cancelled' || j.status === 'completed') return false;
+
+            // Determine if this job is on the search date
+            const jobDate = j.scheduledTime
+                ? new Date(typeof j.scheduledTime === 'string' ? j.scheduledTime : (j.scheduledTime.toDate ? j.scheduledTime.toDate() : j.scheduledTime))
+                : j.scheduledDate
+                    ? new Date(typeof j.scheduledDate === 'string' ? j.scheduledDate : (j.scheduledDate.toDate ? j.scheduledDate.toDate() : j.scheduledDate))
+                    : null;
+
+            if (!jobDate || isNaN(jobDate.getTime())) return false;
+            return jobDate.toDateString() === searchDate.toDateString();
+        });
+
+        // Build occupied slots in minutes-from-midnight
+        const occupiedSlots = techJobsOnDay.map(j => {
+            const [h, m] = normalizeTime(j.scheduledTime || j.scheduledDate, timezone);
+            const start = h * 60 + m;
+            const dur = parseDurationToMinutes(j.estimatedDuration);
+            return { start, end: start + dur + buffer };
+        }).sort((a, b) => a.start - b.start);
+
+        // Search 30-min blocks from work start
+        let searchStart = workStart;
+
+        // If searching today, skip past current time
+        if (dayOffset === 0) {
+            const now = new Date();
+            const nowInTz = new Intl.DateTimeFormat('en-US', {
+                timeZone: timezone || 'UTC',
+                hour: 'numeric', minute: 'numeric', hour12: false
+            }).format(now);
+            const [nowH, nowM] = nowInTz.split(':').map(Number);
+            const nowMinutes = (nowH === 24 ? 0 : nowH) * 60 + nowM;
+            // Round up to next 30-min block
+            const roundedNow = Math.ceil(nowMinutes / 30) * 30;
+            searchStart = Math.max(searchStart, roundedNow);
+        }
+
+        while (searchStart + duration <= workEnd) {
+            const slotEnd = searchStart + duration;
+            // Check if this slot overlaps with any occupied slot
+            const hasConflict = occupiedSlots.some(occ =>
+                !(slotEnd + buffer <= occ.start || searchStart >= occ.end)
+            );
+
+            if (!hasConflict) {
+                const startH = Math.floor(searchStart / 60);
+                const startMin = searchStart % 60;
+                const endH = Math.floor(slotEnd / 60);
+                const endMin = slotEnd % 60;
+                return {
+                    date: searchDate,
+                    startTime: `${String(startH).padStart(2, '0')}:${String(startMin).padStart(2, '0')}`,
+                    endTime: `${String(endH).padStart(2, '0')}:${String(endMin).padStart(2, '0')}`,
+                    dayName
+                };
+            }
+
+            searchStart += 30; // Move to next 30-min block
+        }
+    }
+
+    return null; // No available slot found within search window
+};
+
+/**
+ * Check if a tech is busy (has a conflicting job) at a specific date/time
+ * Used for TechSelector busy indicators
+ * @param {object} tech - Tech object
+ * @param {Date|string} date - Target date
+ * @param {string} timeStr - Time string ("HH:MM" or ISO)
+ * @param {number} durationMinutes - Job duration
+ * @param {array} existingJobs - All jobs
+ * @param {string} timezone - IANA timezone
+ * @returns {object} { busy: boolean, reason: string }
+ */
+export const isTechBusyAtTime = (tech, date, timeStr, durationMinutes, existingJobs, timezone) => {
+    if (!tech || !date) return { busy: false, reason: '' };
+
+    const targetDate = typeof date === 'string' ? new Date(date) : date;
+
+    // Check day off
+    const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech.workingHours?.[dayName];
+    if (techHours?.enabled === false) {
+        return { busy: true, reason: 'Day off' };
+    }
+
+    // If no time specified, just check day-off
+    if (!timeStr) return { busy: false, reason: '' };
+
+    // Check slot availability
+    const available = isSlotAvailable(tech, targetDate, timeStr, durationMinutes || 60, existingJobs, timezone);
+    if (!available) {
+        return { busy: true, reason: 'Time conflict' };
+    }
+
+    return { busy: false, reason: '' };
 };
 
 // ============================================
@@ -1716,6 +1852,8 @@ export default {
     checkConflicts,
     isTechWorkingOnDay,
     suggestTimeSlot,
+    findNextAvailableSlot,
+    isTechBusyAtTime,
     parseDurationToMinutes,
     sanitizeJobDuration,
     // Time slot suggestion functions

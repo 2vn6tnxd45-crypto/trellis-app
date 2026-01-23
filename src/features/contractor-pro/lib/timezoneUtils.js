@@ -196,15 +196,42 @@ export const formatDateTimeInTimezone = (date, timezone, includeTimezone = true)
  * @returns {Date} Date object representing the time in UTC
  */
 export const createDateInTimezone = (year, month, day, hour, minute, timezone) => {
-    // Create a date string in the target timezone
-    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+    // Build an ISO-like string and use Intl to find the real UTC offset for this wall-clock time
+    // in the target timezone. This avoids the bug where `new Date(dateStr)` parses as local time
+    // and then double-applying offsets causes a 6-hour shift (e.g., 9 AM CST → 3 PM display).
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${year}-${pad(month + 1)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00`;
 
-    // Get the offset for this date in the target timezone
-    const tempDate = new Date(dateStr);
-    const offset = getTimezoneOffset(timezone, tempDate);
+    // Strategy: Create a reference Date from the string (parsed as local),
+    // then compute what UTC instant corresponds to the given wall-clock in the target timezone.
+    // We use Intl.DateTimeFormat to extract the target timezone's offset at this approximate time.
+    const approxDate = new Date(dateStr + 'Z'); // Parse as UTC to get a stable reference point
 
-    // Adjust for the offset to get UTC
-    return new Date(tempDate.getTime() - offset * 60 * 1000);
+    // Format this reference instant in the target timezone to discover the offset
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    });
+
+    // Get what the target timezone shows for our reference UTC instant
+    const parts = formatter.formatToParts(approxDate);
+    const getPart = (type) => parseInt(parts.find(p => p.type === type)?.value || '0', 10);
+    const tzYear = getPart('year');
+    const tzMonth = getPart('month');
+    const tzDay = getPart('day');
+    const tzHour = getPart('hour') === 24 ? 0 : getPart('hour');
+    const tzMinute = getPart('minute');
+
+    // The difference between what we wanted (wall-clock) and what the tz shows for approxDate
+    // tells us the offset to apply
+    const wantedMinutes = hour * 60 + minute + (day * 24 * 60);
+    const gotMinutes = tzHour * 60 + tzMinute + (tzDay * 24 * 60);
+    const diffMinutes = wantedMinutes - gotMinutes;
+
+    // Adjust the reference UTC instant by the difference
+    return new Date(approxDate.getTime() + diffMinutes * 60 * 1000);
 };
 
 /**
