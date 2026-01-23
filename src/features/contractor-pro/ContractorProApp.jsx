@@ -2940,6 +2940,9 @@ export const ContractorProApp = () => {
             case 'reports': return 'Business Reports';
             case 'attention': return 'Needs Attention';
             case 'expenses': return 'Expense Tracker';
+            case 'team': return 'Team';
+            case 'timesheets': return 'Timesheets';
+            case 'memberships': return 'Memberships';
             case 'profile': return 'Profile';
             case 'settings': return 'Settings';
             default: return 'Dashboard';
@@ -3408,11 +3411,22 @@ export const ContractorProApp = () => {
                     {activeView === 'invitations' && <InvitationsView invitations={invitations} loading={invitationsLoading} onCreate={handleCreateInvitation} />}
                     {activeView === 'team' && (
                         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-                            <TeamManagement
-                                contractorId={contractorId}
-                                teamMembers={profile?.scheduling?.teamMembers || []}
-                                onUpdate={() => {}}
-                            />
+                            {!profile ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                                    <span className="ml-2 text-slate-500">Loading team...</span>
+                                </div>
+                            ) : (
+                                <TeamManagement
+                                    contractorId={contractorId}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    vehicles={vehicles || []}
+                                    companyHours={profile?.scheduling?.businessHours}
+                                    onUpdate={(updatedMembers) => {
+                                        // Profile auto-refreshes via Firestore subscription
+                                    }}
+                                />
+                            )}
                         </div>
                     )}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}

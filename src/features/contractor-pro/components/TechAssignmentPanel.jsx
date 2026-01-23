@@ -552,18 +552,99 @@ export const TechAssignmentPanel = ({
         }, 1500);
     }, [onJobUpdate]);
 
-    // Auto-assign all unassigned scheduled jobs
+    // Auto-assign all unassigned jobs
+    // Handles both scheduled (has date) and unscheduled (needs date) jobs
     const handleAutoAssign = useCallback(async () => {
-        const scheduledUnassigned = unassignedJobs.filter(j => j.scheduledTime || j.scheduledDate);
-        if (scheduledUnassigned.length === 0) {
-            toast.error('No scheduled unassigned jobs to assign');
+        if (unassignedJobs.length === 0) {
+            toast.error('No unassigned jobs to assign');
             return;
         }
 
         setIsAutoAssigning(true);
         try {
-            const results = autoAssignAll(scheduledUnassigned, teamMembers, assignedJobs, new Date());
-            setAutoAssignResults(results);
+            // Find the next available working day (skip days where all techs are off)
+            const findNextWorkingDay = (startDate) => {
+                let candidate = new Date(startDate);
+                for (let i = 0; i < 14; i++) { // Look up to 2 weeks ahead
+                    const dayName = candidate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+                    // Check if at least one tech works this day
+                    const anyTechAvailable = teamMembers.some(tech => {
+                        if (!tech.workingHours) return true; // No schedule = available
+                        const dayConfig = tech.workingHours[dayName];
+                        if (dayConfig === undefined) return true; // Not configured = available
+                        return dayConfig.enabled !== false;
+                    });
+                    if (anyTechAvailable) return candidate;
+                    candidate = new Date(candidate);
+                    candidate.setDate(candidate.getDate() + 1);
+                }
+                return startDate; // Fallback to original date
+            };
+
+            // For jobs without a scheduled date, assign the next available working day
+            const jobsToAssign = unassignedJobs.map(job => {
+                if (job.scheduledTime || job.scheduledDate) return job;
+                // No date set — find the next working day starting from today
+                const nextDay = findNextWorkingDay(new Date());
+                return {
+                    ...job,
+                    _autoAssignDate: nextDay // Temporary field for scheduling
+                };
+            });
+
+            // Group jobs by their target date and run autoAssignAll for each date
+            const jobsByDate = {};
+            jobsToAssign.forEach(job => {
+                const targetDate = job._autoAssignDate ||
+                    (job.scheduledTime ? new Date(job.scheduledTime) :
+                     job.scheduledDate ? new Date(job.scheduledDate) : new Date());
+                const dateKey = targetDate.toISOString().split('T')[0];
+                if (!jobsByDate[dateKey]) jobsByDate[dateKey] = { date: targetDate, jobs: [] };
+                jobsByDate[dateKey].jobs.push(job);
+            });
+
+            // Spread jobs across multiple days if too many for one day
+            const allResults = { assignments: [], successful: [], failed: [], summary: { total: 0, assigned: 0, unassigned: 0 } };
+            const maxJobsPerDay = teamMembers.reduce((sum, t) => sum + (t.maxJobsPerDay || 4), 0);
+
+            let currentDate = findNextWorkingDay(new Date());
+            let dayJobCount = 0;
+            const spreadJobs = [];
+
+            for (const job of jobsToAssign) {
+                if (dayJobCount >= maxJobsPerDay) {
+                    // Move to next working day
+                    const nextDay = new Date(currentDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    currentDate = findNextWorkingDay(nextDay);
+                    dayJobCount = 0;
+                }
+                spreadJobs.push({ ...job, _autoAssignDate: new Date(currentDate) });
+                dayJobCount++;
+            }
+
+            // Group spread jobs by date
+            const spreadByDate = {};
+            spreadJobs.forEach(job => {
+                const dateKey = job._autoAssignDate.toISOString().split('T')[0];
+                if (!spreadByDate[dateKey]) spreadByDate[dateKey] = { date: job._autoAssignDate, jobs: [] };
+                spreadByDate[dateKey].jobs.push(job);
+            });
+
+            for (const [, { date, jobs: dateJobs }] of Object.entries(spreadByDate)) {
+                const result = autoAssignAll(dateJobs, teamMembers, assignedJobs, date);
+                allResults.assignments.push(...result.assignments);
+                allResults.successful.push(...result.successful);
+                allResults.failed.push(...result.failed);
+            }
+
+            allResults.summary = {
+                total: allResults.assignments.length,
+                assigned: allResults.successful.length,
+                unassigned: allResults.failed.length
+            };
+
+            setAutoAssignResults(allResults);
         } catch (error) {
             console.error('Auto-assign error:', error);
             toast.error('Failed to generate assignments');
@@ -586,6 +667,20 @@ export const TechAssignmentPanel = ({
 
                 if (crew.length > 0) {
                     await assignCrewToJob(assignment.jobId, crew, 'ai');
+
+                    // If the job didn't have a scheduled date, set one from the auto-assign
+                    const job = assignment.job;
+                    if (job && !job.scheduledTime && !job.scheduledDate && job._autoAssignDate) {
+                        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, assignment.jobId);
+                        await updateDoc(jobRef, {
+                            scheduledDate: job._autoAssignDate.toISOString().split('T')[0],
+                            scheduledTime: job._autoAssignDate.toISOString(),
+                            assignedBy: 'ai',
+                            status: 'scheduled',
+                            lastActivity: serverTimestamp()
+                        });
+                    }
+
                     successCount++;
                     setRecentlyAssigned(prev => new Set([...prev, assignment.jobId]));
                 }

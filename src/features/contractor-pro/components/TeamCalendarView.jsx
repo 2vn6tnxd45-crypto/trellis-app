@@ -148,8 +148,11 @@ const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
         // Add multi-day context
         if (jobIsMultiDay(job)) {
             const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
-            const totalDays = job.multiDaySchedule.totalDays || job.multiDaySchedule.segments?.length || 1;
-            const displayDayNumber = dayNumber || 1;
+            // Only show multi-day badge if we have a valid segment for this date
+            if (!segment) return job;
+            const totalDays = Number(job.multiDaySchedule.totalDays) ||
+                              job.multiDaySchedule.segments?.length || 1;
+            const displayDayNumber = (typeof dayNumber === 'number' && dayNumber > 0) ? dayNumber : 1;
             return {
                 ...job,
                 _multiDayInfo: {

@@ -270,8 +270,10 @@ export const getMultiDayLabel = (job, currentDate) => {
  * @returns {boolean}
  */
 export const jobIsMultiDay = (job) => {
-    return job.multiDaySchedule?.isMultiDay === true ||
-           (job.multiDaySchedule?.segments?.length || 0) > 1;
+    // A job is only multi-day if it has actual segments defined
+    const hasSegments = Array.isArray(job.multiDaySchedule?.segments) &&
+                        job.multiDaySchedule.segments.length > 1;
+    return hasSegments;
 };
 
 /**

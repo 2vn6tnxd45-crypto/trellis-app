@@ -106,10 +106,26 @@ const getEventStatus = (event) => {
     if (event.type === 'evaluation') return 'evaluation';
 
     // Handle jobs
-    if (event.status === 'scheduled' || event.scheduledTime) return 'confirmed';
     if (event.status === 'in_progress') return 'in_progress';
+
+    // Confirmed = has crew assigned OR manually assigned OR status is 'scheduled' with crew
+    const hasAssignedCrew = event.assignedCrew?.length > 0 || !!event.assignedTechId;
+    const isManuallyAssigned = event.assignedBy === 'manual' || event.assignedBy === 'owner';
+
+    if (hasAssignedCrew && (event.scheduledTime || event.scheduledDate || event.status === 'scheduled')) {
+        return 'confirmed';
+    }
+
+    // AI-suggested = has scheduled time but assigned by AI without crew confirmation
+    if ((event.scheduledTime || event.scheduledDate || event.status === 'scheduled') &&
+        (event.assignedBy === 'ai' || !hasAssignedCrew)) {
+        return 'suggested';
+    }
+
+    // Pending = offered slots or proposed times awaiting homeowner response
     if (event.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending';
     if (event.proposedTimes?.length > 0) return 'pending';
+
     return 'unscheduled';
 };
 
@@ -126,17 +142,28 @@ const STATUS_STYLES = {
         bgLight: 'bg-emerald-50',
         border: 'border-emerald-200',
         text: 'text-emerald-700',
-        label: 'Confirmed'
+        label: 'Assigned'
     },
-    pending: {
+    suggested: {
         bg: 'bg-amber-500',
-        bgLight: 'bg-amber-50',
-        border: 'border-amber-200',
+        bgLight: 'bg-amber-50/60',
+        border: 'border-amber-300',
         borderDashed: 'border-dashed border-2',
         text: 'text-amber-700',
+        label: 'Suggested',
+        style: {
+            backgroundImage: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.08) 0px, rgba(245, 158, 11, 0.08) 10px, transparent 10px, transparent 20px)'
+        }
+    },
+    pending: {
+        bg: 'bg-orange-500',
+        bgLight: 'bg-orange-50',
+        border: 'border-orange-200',
+        borderDashed: 'border-dashed border-2',
+        text: 'text-orange-700',
         label: 'Awaiting Response',
         style: {
-            backgroundImage: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.1) 0px, rgba(245, 158, 11, 0.1) 10px, transparent 10px, transparent 20px)'
+            backgroundImage: 'repeating-linear-gradient(45deg, rgba(249, 115, 22, 0.1) 0px, rgba(249, 115, 22, 0.1) 10px, transparent 10px, transparent 20px)'
         }
     },
     in_progress: {
@@ -153,7 +180,6 @@ const STATUS_STYLES = {
         text: 'text-slate-600',
         label: 'Unscheduled'
     },
-    // NEW: Evaluation status for site visits and virtual evaluations
     evaluation: {
         bg: 'bg-purple-500',
         bgLight: 'bg-purple-50',
@@ -282,8 +308,8 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                         <button
                                             key={event.id}
                                             onClick={() => onSelectJob(event)}
-                                            style={status === 'pending' ? styles.style : {}}
-                                            className={`w-full p-3 rounded-xl border ${styles.border} ${status === 'pending' ? styles.borderDashed : ''} ${styles.bgLight} text-left hover:shadow-md transition-all`}
+                                            style={styles.style || {}}
+                                            className={`w-full p-3 rounded-xl border ${styles.border} ${styles.borderDashed || ''} ${styles.bgLight} text-left hover:shadow-md transition-all`}
                                         >
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
@@ -292,8 +318,18 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                                         <span className="text-xs font-medium text-slate-500">
                                                             {displayTime ? formatTime(displayTime) : 'TBD'}
                                                         </span>
-                                                        {status === 'pending' && (
+                                                        {status === 'suggested' && (
                                                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
+                                                                SUGG
+                                                            </span>
+                                                        )}
+                                                        {status === 'confirmed' && (
+                                                            <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium">
+                                                                ASSIGNED
+                                                            </span>
+                                                        )}
+                                                        {status === 'pending' && (
+                                                            <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">
                                                                 OFFERED
                                                             </span>
                                                         )}
@@ -700,13 +736,18 @@ export const ContractorCalendar = ({
         return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     };
 
-    // Count pure unscheduled (not pending)
-    const unscheduledCount = jobs.filter(job =>
-        !job.scheduledTime &&
-        !job.scheduledDate &&
-        (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) &&
-        !['completed', 'cancelled'].includes(job.status)
-    ).length;
+    // Count pure unscheduled (not pending, not assigned)
+    const unscheduledCount = jobs.filter(job => {
+        // Skip completed/cancelled
+        if (['completed', 'cancelled'].includes(job.status)) return false;
+        // Skip jobs with assigned crew
+        if (job.assignedCrew?.length > 0 || job.assignedTechId) return false;
+        // Skip jobs with a scheduled date/time
+        if (job.scheduledTime || job.scheduledDate) return false;
+        // Skip jobs with offered slots
+        if (job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return false;
+        return true;
+    }).length;
 
     return (
         <div className="space-y-6">

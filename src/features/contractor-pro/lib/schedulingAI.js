@@ -373,13 +373,13 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
     const balanceScore = SCORING_WEIGHTS.WORKLOAD_BALANCE * (1 - currentJobCount / maxJobs);
     score += balanceScore;
 
-    // 7. LOCATION/PROXIMITY
+    // 7. LOCATION/PROXIMITY (uses sync distance estimation)
     const jobZip = job.customer?.address?.match(/\d{5}/)?.[0] ||
         job.serviceAddress?.match(/\d{5}/)?.[0];
     const techHomeZip = tech.homeZip;
 
     if (jobZip && techHomeZip) {
-        const distance = estimateDistance(techHomeZip, jobZip);
+        const distance = estimateDistanceSync(techHomeZip, jobZip);
         const maxRadius = tech.maxTravelMiles || 30;
 
         if (distance <= maxRadius) {
@@ -395,7 +395,7 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
             .map(j => j.customer?.address?.match(/\d{5}/)?.[0])
             .filter(Boolean);
 
-        if (otherJobZips.some(z => estimateDistance(z, jobZip) <= 10)) {
+        if (otherJobZips.some(z => estimateDistanceSync(z, jobZip) <= 10)) {
             score += 15;
             reasons.push('Near other jobs today');
         }

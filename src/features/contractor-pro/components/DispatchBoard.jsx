@@ -532,11 +532,19 @@ const UnassignedColumn = ({
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
 
-    // Get suggestions for each job
+    // Get suggestions for each job (with error protection)
     const jobsWithSuggestions = useMemo(() => {
+        if (!date || isNaN(new Date(date).getTime())) {
+            return jobs.map(job => ({ job, suggestions: [] }));
+        }
         return jobs.map(job => {
-            const { suggestions } = suggestAssignments(job, techs, allJobs, date);
-            return { job, suggestions };
+            try {
+                const { suggestions } = suggestAssignments(job, techs, allJobs, date);
+                return { job, suggestions };
+            } catch (e) {
+                console.warn('[DispatchBoard] Error getting suggestions for job:', job.id, e);
+                return { job, suggestions: [] };
+            }
         });
     }, [jobs, techs, allJobs, date]);
 
@@ -677,10 +685,16 @@ export const DispatchBoard = ({
 
     // Also include unscheduled jobs that need assignment
     const unscheduledJobs = useMemo(() => {
-        return jobs.filter(job =>
-            !job.scheduledDate &&
-            ['pending_schedule', 'slots_offered', 'accepted', 'quoted'].includes(job.status)
-        );
+        return jobs.filter(job => {
+            // Skip completed/cancelled jobs
+            if (['completed', 'cancelled', 'draft'].includes(job.status)) return false;
+            // Skip already-assigned jobs
+            const assignedTechIds = getAssignedTechIds(job);
+            if (assignedTechIds.length > 0) return false;
+            // Include jobs with no scheduled date
+            if (!job.scheduledDate && !job.scheduledTime) return true;
+            return false;
+        });
     }, [jobs]);
 
     // Identify overdue/backlog jobs (unassigned and in the past)
@@ -778,11 +792,20 @@ export const DispatchBoard = ({
         return map;
     }, [assignedJobs, teamMembers]);
 
-    // Navigation
+    // Navigation (with validation to prevent crashes)
     const goToDate = (days) => {
-        const newDate = new Date(selectedDate);
-        newDate.setDate(newDate.getDate() + days);
-        setSelectedDate(newDate);
+        try {
+            const newDate = new Date(selectedDate);
+            if (isNaN(newDate.getTime())) {
+                setSelectedDate(new Date());
+                return;
+            }
+            newDate.setDate(newDate.getDate() + days);
+            setSelectedDate(newDate);
+        } catch (e) {
+            console.error('[DispatchBoard] Date navigation error:', e);
+            setSelectedDate(new Date());
+        }
     };
 
     const goToToday = () => {
