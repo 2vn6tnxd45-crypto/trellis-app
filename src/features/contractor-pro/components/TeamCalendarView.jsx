@@ -5,7 +5,7 @@
 // Shows all team members' schedules in a unified calendar view
 // Supports daily and weekly views with drag-drop assignment
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, Users, AlertCircle, CheckCircle, Sparkles,
@@ -21,7 +21,7 @@ import { parseDurationToMinutes } from '../lib/schedulingAI';
 import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
 import { analyzeRescheduleImpact } from '../lib/scheduleImpactAnalysis';
 import { useCascadeWarning } from './CascadeWarningModal';
-import { isSameDayInTimezone, createDateInTimezone } from '../lib/timezoneUtils';
+import { isSameDayInTimezone, createDateInTimezone, formatTimeInTimezone } from '../lib/timezoneUtils';
 import { isTechAssigned, getAssignedTechIds } from '../lib/crewUtils';
 
 // ============================================
@@ -75,12 +75,7 @@ const getWeekDates = (date) => {
 
 const formatTime = (dateStr, timeZone) => {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZone
-    });
+    return formatTimeInTimezone(dateStr, timeZone);
 };
 
 const formatDate = (date) => {
@@ -474,7 +469,7 @@ export const TeamCalendarView = ({
         );
     }, [jobs, businessTimezone]);
 
-    // Working hours
+    // Working hours - expands to fit late-day jobs
     const workingHours = useMemo(() => {
         let minHour = 7, maxHour = 19;
 
@@ -491,12 +486,37 @@ export const TeamCalendarView = ({
             }
         });
 
+        // Auto-expand grid to fit jobs that extend past business hours
+        if (jobs?.length) {
+            jobs.forEach(job => {
+                const startTime = job.scheduledTime || job.scheduledDate;
+                if (!startTime) return;
+                const startHour = getHourFromDate(startTime, businessTimezone);
+                const durationMinutes = job.estimatedDuration || job.duration || 60;
+                const jobEndHour = startHour + Math.ceil(durationMinutes / 60);
+                if (startHour < minHour) minHour = Math.max(0, startHour);
+                if (jobEndHour > maxHour) maxHour = Math.min(23, jobEndHour);
+            });
+        }
+
         const hours = [];
         for (let h = minHour; h <= maxHour; h++) {
             hours.push(h);
         }
         return hours;
-    }, [teamMembers]);
+    }, [teamMembers, jobs, businessTimezone]);
+
+    // Auto-scroll to current time on mount
+    const scrollContainerRef = useRef(null);
+    useEffect(() => {
+        if (scrollContainerRef.current && workingHours.length > 0) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const slotHeight = 50; // min-h-[50px] per hour slot
+            const scrollTo = Math.max(0, (currentHour - workingHours[0]) * slotHeight - slotHeight);
+            scrollContainerRef.current.scrollTop = scrollTo;
+        }
+    }, [workingHours]);
 
     // Drag and drop handlers
     const handleDragStart = (event) => {
@@ -712,7 +732,7 @@ export const TeamCalendarView = ({
             {/* Calendar Grid */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Main Calendar Area */}
-                <div className="flex-1 overflow-auto">
+                <div ref={scrollContainerRef} className="flex-1 overflow-auto">
                     {viewMode === 'day' ? (
                         /* Day View */
                         <div className="min-w-max">

@@ -81,10 +81,24 @@ const checkResourceConflicts = (selectedSlot, allJobs, preferences) => {
             jobDate.getFullYear() === selectedDate.getFullYear();
     });
 
-    // Check for time overlaps
+    // Check for actual time overlaps
     const overlappingJobs = sameDateJobs.filter(job => {
-        // For strict safety, flag ANY job on the same day if we can't determine exact hours
-        return true;
+        const jobStartRaw = job.scheduledTime || job.scheduledDate;
+        if (!jobStartRaw) return false;
+        const jobStartDate = new Date(jobStartRaw.toDate ? jobStartRaw.toDate() : jobStartRaw);
+        const jobDurationMin = job.estimatedDuration || job.duration || 60;
+        const jobEndDate = new Date(jobStartDate.getTime() + jobDurationMin * 60000);
+
+        // Parse selected slot times (HH:MM format)
+        const [startH, startM] = (selectedStart || '08:00').split(':').map(Number);
+        const [endH, endM] = (selectedEnd || '17:00').split(':').map(Number);
+        const slotStart = new Date(selectedDate);
+        slotStart.setHours(startH, startM, 0, 0);
+        const slotEnd = new Date(selectedDate);
+        slotEnd.setHours(endH, endM, 0, 0);
+
+        // Overlap: slot starts before job ends AND slot ends after job starts
+        return slotStart < jobEndDate && slotEnd > jobStartDate;
     });
 
     if (overlappingJobs.length === 0) return null;
@@ -230,6 +244,47 @@ export const OfferTimeSlotsModal = ({
 
         return disabled.length > 0 ? disabled : [0]; // Default: Sunday off
     }, [schedulingPreferences]);
+
+    // Compute busy time ranges per date for graying out conflicting time options
+    const getBusyTimesForDate = useCallback((dateStr) => {
+        if (!dateStr || !allJobs?.length) return [];
+        const targetDate = new Date(dateStr);
+        return allJobs
+            .filter(job => {
+                const jobDateRaw = job.scheduledTime || job.scheduledDate;
+                if (!jobDateRaw) return false;
+                const jobDate = new Date(jobDateRaw.toDate ? jobDateRaw.toDate() : jobDateRaw);
+                return jobDate.getDate() === targetDate.getDate() &&
+                    jobDate.getMonth() === targetDate.getMonth() &&
+                    jobDate.getFullYear() === targetDate.getFullYear();
+            })
+            .map(job => {
+                const jobStart = new Date((job.scheduledTime || job.scheduledDate).toDate
+                    ? (job.scheduledTime || job.scheduledDate).toDate()
+                    : (job.scheduledTime || job.scheduledDate));
+                const durationMin = job.estimatedDuration || job.duration || 60;
+                return {
+                    startHour: jobStart.getHours(),
+                    startMin: jobStart.getMinutes(),
+                    endHour: Math.floor((jobStart.getHours() * 60 + jobStart.getMinutes() + durationMin) / 60),
+                    endMin: (jobStart.getMinutes() + durationMin) % 60
+                };
+            });
+    }, [allJobs]);
+
+    // Get time options with busy slots marked as disabled
+    const getTimeOptionsForSlot = useCallback((slotDate) => {
+        const busyTimes = getBusyTimesForDate(slotDate);
+        if (busyTimes.length === 0) return TIME_OPTIONS;
+        return TIME_OPTIONS.map(option => {
+            const [h, m] = option.value.split(':').map(Number);
+            const isBusy = busyTimes.some(busy =>
+                (h > busy.startHour || (h === busy.startHour && m >= busy.startMin)) &&
+                (h < busy.endHour || (h === busy.endHour && m < busy.endMin))
+            );
+            return isBusy ? { ...option, disabled: true, disabledReason: 'Busy' } : option;
+        });
+    }, [getBusyTimesForDate]);
 
     // DEBUG LOG (Fix 5c)
     useEffect(() => {
@@ -897,7 +952,7 @@ export const OfferTimeSlotsModal = ({
                                                         <Select
                                                             value={slot.startTime}
                                                             onChange={(val) => updateSlot(slot.id, 'startTime', val)}
-                                                            options={TIME_OPTIONS}
+                                                            options={getTimeOptionsForSlot(slot.date)}
                                                         />
                                                     </div>
                                                     <div className="flex-1">
@@ -905,7 +960,7 @@ export const OfferTimeSlotsModal = ({
                                                         <Select
                                                             value={slot.endTime}
                                                             onChange={(val) => updateSlot(slot.id, 'endTime', val)}
-                                                            options={TIME_OPTIONS}
+                                                            options={getTimeOptionsForSlot(slot.date)}
                                                         />
                                                     </div>
                                                 </div>

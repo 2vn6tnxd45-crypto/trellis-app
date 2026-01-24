@@ -5,7 +5,7 @@
 // Visual calendar where contractors can drag unscheduled jobs onto time slots
 // UPDATED: Displays pending/offered slots
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
@@ -1661,7 +1661,7 @@ export const DragDropCalendar = ({
             }));
     }, [evaluations]);
 
-    // Working hours range
+    // Working hours range - expands to fit late-day jobs
     const workingHours = useMemo(() => {
         let minHour = 8, maxHour = 18;
 
@@ -1676,12 +1676,37 @@ export const DragDropCalendar = ({
             });
         }
 
+        // Auto-expand grid to fit jobs that extend past business hours
+        if (jobs?.length) {
+            jobs.forEach(job => {
+                const startTime = job.scheduledTime || job.scheduledDate;
+                if (!startTime) return;
+                const startHour = getHourFromDate(startTime, timezone);
+                const durationMinutes = job.estimatedDuration || 60;
+                const jobEndHour = startHour + Math.ceil(durationMinutes / 60);
+                if (startHour < minHour) minHour = Math.max(0, startHour);
+                if (jobEndHour > maxHour) maxHour = Math.min(23, jobEndHour);
+            });
+        }
+
         const hours = [];
         for (let h = minHour; h <= maxHour; h++) {
             hours.push(h);
         }
         return hours;
-    }, [preferences]);
+    }, [preferences, jobs, timezone]);
+
+    // Auto-scroll to current time on mount
+    const scrollContainerRef = useRef(null);
+    useEffect(() => {
+        if (scrollContainerRef.current && workingHours.length > 0) {
+            const now = new Date();
+            const currentHour = now.getHours();
+            const slotHeight = 60; // px per hour slot
+            const scrollTo = Math.max(0, (currentHour - workingHours[0]) * slotHeight - slotHeight);
+            scrollContainerRef.current.scrollTop = scrollTo;
+        }
+    }, [workingHours]);
 
     // Navigation
     const navigatePrev = () => {
@@ -2063,7 +2088,7 @@ export const DragDropCalendar = ({
                 </div>
 
                 {/* Time Grid */}
-                <div className="flex-1 overflow-y-auto">
+                <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
                     {workingHours.map(hour => (
                         <div key={hour} className="grid grid-cols-8">
                             {/* Time Label */}

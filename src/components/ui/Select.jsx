@@ -59,25 +59,29 @@ export const Select = ({
                     <div className="p-1">
                         {options.map((option) => {
                             const isSelected = option.value === value;
+                            const isDisabled = option.disabled;
                             const OptionIcon = option.icon;
 
                             return (
                                 <button
                                     key={option.value}
                                     type="button"
-                                    onClick={() => handleSelect(option.value)}
-                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${isSelected
-                                            ? 'bg-emerald-50 text-emerald-700 font-medium'
-                                            : 'text-slate-600 hover:bg-slate-50'
+                                    onClick={() => !isDisabled && handleSelect(option.value)}
+                                    disabled={isDisabled}
+                                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${isDisabled
+                                            ? 'text-slate-300 cursor-not-allowed bg-slate-50'
+                                            : isSelected
+                                                ? 'bg-emerald-50 text-emerald-700 font-medium'
+                                                : 'text-slate-600 hover:bg-slate-50'
                                         }`}
                                 >
                                     <div className="flex items-center gap-2">
                                         {OptionIcon && (
-                                            <OptionIcon size={16} className={isSelected ? 'text-emerald-500' : 'text-slate-400'} />
+                                            <OptionIcon size={16} className={isDisabled ? 'text-slate-300' : isSelected ? 'text-emerald-500' : 'text-slate-400'} />
                                         )}
-                                        <span>{option.label}</span>
+                                        <span>{option.label}{isDisabled && option.disabledReason ? ` (${option.disabledReason})` : ''}</span>
                                     </div>
-                                    {isSelected && <Check size={14} className="text-emerald-500" />}
+                                    {isSelected && !isDisabled && <Check size={14} className="text-emerald-500" />}
                                 </button>
                             );
                         })}
