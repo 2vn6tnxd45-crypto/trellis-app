@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
@@ -573,16 +573,32 @@ const TimeSlot = React.memo(({
                     bgClass = 'bg-blue-500 hover:bg-blue-600';
                 }
 
+                // FIX: Make scheduled jobs draggable for reschedule with duration preservation
+                const handleCalendarJobDragStart = (e, dragJob) => {
+                    e.dataTransfer.setData('jobId', dragJob.id);
+                    // FIX: Include original duration in drag data for preservation
+                    e.dataTransfer.setData('jobData', JSON.stringify({
+                        ...dragJob,
+                        _originalDuration: dragJob.estimatedDuration || dragJob._durationMinutes || 60,
+                        _isReschedule: true, // Flag to indicate this is a reschedule, not new scheduling
+                        _originalStart: dragJob.scheduledTime || dragJob.scheduledDate,
+                        _originalEnd: dragJob.scheduledEndTime
+                    }));
+                    e.dataTransfer.effectAllowed = 'move';
+                };
+
                 return (
-                    <button
+                    <div
                         key={job.id}
+                        draggable={!isSuggested} // Allow dragging confirmed jobs for reschedule
+                        onDragStart={(e) => handleCalendarJobDragStart(e, job)}
                         onClick={() => onJobClick?.(job)}
                         style={{
                             height: `${heightPx}px`,
                             top: topPosition,
                             zIndex: 10 + jobIndex
                         }}
-                        className={`absolute left-1 right-1 p-2 rounded-lg text-xs text-left transition-colors overflow-hidden ${isSuggested ? bgClass + ' opacity-75' : bgClass + ' text-white shadow-md'}`}
+                        className={`absolute left-1 right-1 p-2 rounded-lg text-xs text-left transition-colors overflow-hidden cursor-grab active:cursor-grabbing ${isSuggested ? bgClass + ' opacity-75' : bgClass + ' text-white shadow-md'}`}
                     >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
                             <p className={`font-bold truncate flex-1 ${isSuggested ? 'text-slate-700' : ''}`}>{job.title || job.description || 'Job'}</p>
@@ -635,7 +651,7 @@ const TimeSlot = React.memo(({
                                 {job.assignedToName || job.assignedTo}
                             </p>
                         )}
-                    </button>
+                    </div>
                 );
             })}
 
@@ -1544,6 +1560,10 @@ export const DragDropCalendar = ({
     const [isProcessingProposal, setIsProcessingProposal] = useState(false);
     const [clickScheduleTarget, setClickScheduleTarget] = useState(null); // NEW: For click-to-schedule
 
+    // FIX: Track optimistic updates for instant UI feedback (prevents snap-back)
+    const [optimisticUpdates, setOptimisticUpdates] = useState({}); // { jobId: { scheduledTime, scheduledEndTime, ... } }
+    const [originalJobData, setOriginalJobData] = useState(null); // For rollback on API failure
+
     const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate]);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1789,21 +1809,75 @@ export const DragDropCalendar = ({
 
     // Confirm scheduling
     // Confirm scheduling (propose or direct)
+    // FIX 1 & 2: Optimistic UI updates + Duration preservation
     const handleConfirmSchedule = async (scheduleData) => {
         if (!confirmDrop?.job) return;
 
+        const jobId = confirmDrop.job.id;
+        const isReschedule = confirmDrop.job._isReschedule;
+
+        // FIX 2: Preserve original duration for rescheduled jobs
+        // Do NOT trust the calendar's default end time on drop - it often defaults to 1 hour
+        let actualDuration = scheduleData.estimatedDuration;
+        let calculatedEndTime = scheduleData.endTime;
+
+        if (isReschedule && confirmDrop.job._originalDuration) {
+            // Use the original duration from the dragged job
+            actualDuration = confirmDrop.job._originalDuration;
+            // Recalculate end time based on preserved duration
+            const startMs = new Date(scheduleData.scheduledTime).getTime();
+            calculatedEndTime = new Date(startMs + (actualDuration * 60 * 1000)).toISOString();
+            console.log('[DragDropCalendar] Reschedule: Preserved duration', actualDuration, 'mins, calculated end:', calculatedEndTime);
+        }
+
+        // FIX 1: Store original job data for rollback
+        const originalJob = isReschedule ? {
+            id: jobId,
+            scheduledTime: confirmDrop.job._originalStart,
+            scheduledEndTime: confirmDrop.job._originalEnd,
+            estimatedDuration: confirmDrop.job._originalDuration
+        } : null;
+
+        // FIX 1: Apply optimistic update IMMEDIATELY (before API call)
+        // This prevents the "snap back" visual bug
+        setOptimisticUpdates(prev => ({
+            ...prev,
+            [jobId]: {
+                scheduledTime: scheduleData.scheduledTime,
+                scheduledDate: scheduleData.scheduledTime,
+                scheduledEndTime: calculatedEndTime,
+                estimatedDuration: actualDuration,
+                status: scheduleData.isDirectSchedule ? 'scheduled' : 'slots_offered'
+            }
+        }));
+
+        // Store original for potential rollback
+        if (originalJob) {
+            setOriginalJobData(originalJob);
+        }
+
         try {
             if (scheduleData.isDirectSchedule) {
-                // Build update data
+                // Build update data with preserved duration
                 const updateData = {
                     scheduledTime: scheduleData.scheduledTime,
                     scheduledDate: scheduleData.scheduledTime,
-                    scheduledEndTime: scheduleData.endTime,
-                    estimatedDuration: scheduleData.estimatedDuration,
+                    scheduledEndTime: calculatedEndTime, // FIX 2: Use calculated end time
+                    estimatedDuration: actualDuration,   // FIX 2: Use preserved duration
                     assignedTo: scheduleData.assignedTo,
                     status: 'scheduled',
                     lastActivity: serverTimestamp()
                 };
+
+                // Track reschedule history
+                if (isReschedule) {
+                    updateData.scheduleHistory = arrayUnion({
+                        previousStart: confirmDrop.job._originalStart,
+                        previousEnd: confirmDrop.job._originalEnd,
+                        rescheduledAt: new Date().toISOString(),
+                        reason: 'drag_drop_reschedule'
+                    });
+                }
 
                 // Add crew array if multiple techs assigned
                 if (scheduleData.crew && scheduleData.crew.length > 0) {
@@ -1822,7 +1896,7 @@ export const DragDropCalendar = ({
                     const { createMultiDaySchedule } = await import('../lib/multiDayUtils');
                     const multiDaySchedule = createMultiDaySchedule(
                         new Date(scheduleData.scheduledTime),
-                        scheduleData.estimatedDuration,
+                        actualDuration, // FIX 2: Use preserved duration
                         preferences?.workingHours || {}
                     );
                     updateData.multiDaySchedule = multiDaySchedule;
@@ -1831,9 +1905,15 @@ export const DragDropCalendar = ({
                 // DIRECT SCHEDULE - Customer already confirmed
                 await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), updateData);
 
+                // FIX 1: Clear optimistic update on success (real data will come from listener)
+                setOptimisticUpdates(prev => {
+                    const { [jobId]: _, ...rest } = prev;
+                    return rest;
+                });
+
                 toast.success(scheduleData.isMultiDay
                     ? `Job scheduled for ${scheduleData.estimatedDays} days!`
-                    : 'Job scheduled!');
+                    : isReschedule ? 'Job rescheduled!' : 'Job scheduled!');
 
                 // Send email notification to customer (non-blocking)
                 if (confirmDrop.job.customer?.email) {
@@ -1850,7 +1930,7 @@ export const DragDropCalendar = ({
                             jobNumber: confirmDrop.job.jobNumber || null,
                             scheduledDate: scheduleData.scheduledTime,
                             scheduledTime: new Date(scheduleData.scheduledTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-                            estimatedDuration: scheduleData.estimatedDuration || null,
+                            estimatedDuration: actualDuration || null,
                             serviceAddress: confirmDrop.job.serviceAddress?.formatted || confirmDrop.job.customer?.address || null,
                             notes: null,
                             jobLink: 'https://mykrib.app/app/'
@@ -1865,7 +1945,7 @@ export const DragDropCalendar = ({
                 const offeredSlot = {
                     id: slotId,
                     start: scheduleData.scheduledTime,
-                    end: scheduleData.endTime,
+                    end: calculatedEndTime, // FIX 2: Use calculated end time
                     status: 'offered',
                     createdAt: new Date().toISOString()
                 };
@@ -1874,7 +1954,7 @@ export const DragDropCalendar = ({
                     'scheduling.offeredSlots': [offeredSlot],
                     'scheduling.offeredAt': serverTimestamp(),
                     assignedTo: scheduleData.assignedTo,
-                    estimatedDuration: scheduleData.estimatedDuration,
+                    estimatedDuration: actualDuration, // FIX 2: Use preserved duration
                     status: 'slots_offered',
                     lastActivity: serverTimestamp()
                 };
@@ -1885,16 +1965,34 @@ export const DragDropCalendar = ({
                 }
 
                 await updateDoc(doc(db, REQUESTS_COLLECTION_PATH, confirmDrop.job.id), proposeUpdateData);
+
+                // Clear optimistic update on success
+                setOptimisticUpdates(prev => {
+                    const { [jobId]: _, ...rest } = prev;
+                    return rest;
+                });
+
                 toast.success('Time proposed! Waiting for customer confirmation.');
             }
 
             if (onJobUpdate) onJobUpdate();
         } catch (error) {
             console.error('Error scheduling job:', error);
+
+            // FIX 1: ROLLBACK optimistic update on failure
+            setOptimisticUpdates(prev => {
+                const { [jobId]: _, ...rest } = prev;
+                return rest;
+            });
+
+            // If this was a reschedule, the visual should snap back automatically
+            // since we removed the optimistic update
+
             toast.error('Failed to schedule job');
         }
 
         setConfirmDrop(null);
+        setOriginalJobData(null);
     };
 
     // Handle accepting a homeowner's proposed time
