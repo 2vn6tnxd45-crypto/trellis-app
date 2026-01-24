@@ -758,10 +758,16 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         const [hours, minutes] = selectedTime.split(':').map(Number);
         let scheduledDateTime;
         if (timezone) {
+            // Extract date components in the business timezone
+            const dateParts = new Intl.DateTimeFormat('en-US', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                timeZone: timezone
+            }).formatToParts(date);
+            const getPart = (type) => parseInt(dateParts.find(p => p.type === type)?.value || '0', 10);
             scheduledDateTime = createDateInTimezone(
-                date.getFullYear(),
-                date.getMonth(),
-                date.getDate(),
+                getPart('year'),
+                getPart('month') - 1,
+                getPart('day'),
                 hours,
                 minutes,
                 timezone
@@ -811,10 +817,21 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         let scheduledDateTime;
 
         if (timezone) {
+            // Extract date components in the business timezone to avoid
+            // mismatch when browser timezone differs from business timezone
+            const dateParts = new Intl.DateTimeFormat('en-US', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                timeZone: timezone
+            }).formatToParts(date);
+            const getPart = (type) => parseInt(dateParts.find(p => p.type === type)?.value || '0', 10);
+            const tzYear = getPart('year');
+            const tzMonth = getPart('month') - 1; // 0-indexed
+            const tzDay = getPart('day');
+
             scheduledDateTime = createDateInTimezone(
-                date.getFullYear(),
-                date.getMonth(),
-                date.getDate(),
+                tzYear,
+                tzMonth,
+                tzDay,
                 hours,
                 minutes,
                 timezone
@@ -2167,16 +2184,21 @@ export const DragDropCalendar = ({
                     {weekDates.map((date, idx) => {
                         const isToday = isSameDayInTimezone(date, today, timezone);
                         const isClosed = isDayClosedForBusiness(date, preferences?.workingHours);
+                        const headerOptions = timezone ? { timeZone: timezone } : undefined;
+                        const dayLabel = date.toLocaleDateString('en-US', { weekday: 'short', ...headerOptions });
+                        const dayNumber = timezone
+                            ? new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: timezone }).format(date)
+                            : date.getDate();
                         return (
                             <div
                                 key={idx}
                                 className={`p-2 text-center border-l border-slate-100 ${isToday ? 'bg-emerald-50' : ''} ${isClosed ? 'bg-slate-100' : ''}`}
                             >
                                 <p className={`text-xs font-medium ${isToday ? 'text-emerald-600' : isClosed ? 'text-slate-400' : 'text-slate-500'}`}>
-                                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                                    {dayLabel}
                                 </p>
                                 <p className={`text-lg font-bold ${isToday ? 'text-emerald-600' : isClosed ? 'text-slate-400' : 'text-slate-800'}`}>
-                                    {date.getDate()}
+                                    {dayNumber}
                                 </p>
                                 {isClosed && (
                                     <span className="text-[10px] text-slate-400 font-medium">Closed</span>

@@ -556,9 +556,26 @@ export const TeamCalendarView = ({
             return;
         }
 
-        // Calculate new time
-        const scheduledDate = new Date(date);
-        scheduledDate.setHours(hour, 0, 0, 0);
+        // Calculate new time in business timezone
+        let scheduledDate;
+        if (businessTimezone) {
+            const dateParts = new Intl.DateTimeFormat('en-US', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                timeZone: businessTimezone
+            }).formatToParts(date);
+            const getPart = (type) => parseInt(dateParts.find(p => p.type === type)?.value || '0', 10);
+            scheduledDate = createDateInTimezone(
+                getPart('year'),
+                getPart('month') - 1,
+                getPart('day'),
+                hour,
+                0,
+                businessTimezone
+            );
+        } else {
+            scheduledDate = new Date(date);
+            scheduledDate.setHours(hour, 0, 0, 0);
+        }
 
         // Analyze impact
         const impact = analyzeRescheduleImpact(
