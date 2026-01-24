@@ -57,7 +57,7 @@ const ReportingDashboard = lazy(() => import('./components/ReportingDashboard').
 import { NeedsAttention } from './components/NeedsAttention';
 import { ExpenseTracker } from './components/ExpenseTracker';
 import { useExpenses } from './hooks/useExpenses';
-import { useCalendarEvents } from './hooks/useContractorData'; // Ensure import is available
+
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
