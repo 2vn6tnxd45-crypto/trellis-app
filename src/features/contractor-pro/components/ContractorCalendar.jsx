@@ -11,7 +11,7 @@ import {
     Plus, Filter, List, Grid3X3, AlertCircle, CheckCircle,
     User, DollarSign, ArrowRight, Sparkles, X, ClipboardList, Video
 } from 'lucide-react';
-import { isSameDayInTimezone, createDateInTimezone, formatDateInTimezone } from '../lib/timezoneUtils';
+import { isSameDayInTimezone, createDateInTimezone, formatDateInTimezone, formatTimeInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPER FUNCTIONS
@@ -60,10 +60,13 @@ const formatDate = (date) => {
     }).format(date);
 };
 
-const formatTime = (dateStr) => {
+const formatTime = (dateStr, timezone) => {
     if (!dateStr) return '';
+    if (timezone) {
+        return formatTimeInTimezone(dateStr, timezone);
+    }
     const date = new Date(dateStr);
-    return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };
 
 
@@ -316,7 +319,7 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                                     <div className="flex items-center gap-2">
                                                         <div className={`w-2 h-2 rounded-full ${styles.bg}`} />
                                                         <span className="text-xs font-medium text-slate-500">
-                                                            {displayTime ? formatTime(displayTime) : 'TBD'}
+                                                            {displayTime ? formatTime(displayTime, timezone) : 'TBD'}
                                                         </span>
                                                         {status === 'suggested' && (
                                                             <span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">
@@ -345,14 +348,14 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                                             </span>
                                                         )}
                                                     </div>
-                                                    <h4 className="font-bold text-slate-800 mt-1 truncate">
+                                                    <h4 className="font-bold text-slate-800 mt-1 truncate" title={event.title || event.description || 'Service'}>
                                                         {event.title || event.description || 'Service'}
                                                     </h4>
-                                                    <p className="text-xs text-slate-500 truncate mt-0.5">
+                                                    <p className="text-xs text-slate-500 truncate mt-0.5" title={event.customer?.name || 'Customer'}>
                                                         {event.customer?.name || 'Customer'}
                                                     </p>
                                                     {isEvaluation && event.customer?.address && (
-                                                        <p className="text-xs text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                                                        <p className="text-xs text-slate-400 truncate mt-0.5 flex items-center gap-1" title={event.customer.address}>
                                                             <MapPin size={10} />
                                                             {event.customer.address}
                                                         </p>
@@ -465,8 +468,9 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezon
                                 key={`${event.id}-${idx}`}
                                 style={status === 'pending' ? styles.style : {}}
                                 className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-90' : ''} ${multiDayClasses} ${marginClass} relative`}
+                                title={event.title || event.description || 'Job'}
                             >
-                                {formatTime(displayTime)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
+                                {formatTime(displayTime, timezone)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
                             </div>
                         );
                     })}
@@ -543,12 +547,12 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
             <div className={`p-4 rounded-xl border ${urgent ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-white'}`}>
                 <div className="flex justify-between items-start mb-2">
                     <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-800 truncate">
+                        <h4 className="font-bold text-slate-800 truncate" title={job.title || job.description || 'Service Request'}>
                             {job.title || job.description || 'Service Request'}
                         </h4>
                         <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
                             <User size={12} />
-                            <span className="truncate">{customerName}</span>
+                            <span className="truncate" title={customerName}>{customerName}</span>
                         </div>
                     </div>
                     {job.total > 0 && (
@@ -561,7 +565,7 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
                 {address && (
                     <div className="flex items-center gap-1 text-xs text-slate-400 mb-3">
                         <MapPin size={12} />
-                        <span className="truncate">{address}</span>
+                        <span className="truncate" title={address}>{address}</span>
                     </div>
                 )}
 

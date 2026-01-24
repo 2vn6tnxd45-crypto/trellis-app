@@ -14,6 +14,7 @@ import {
     Users, MessageSquare, Phone, Loader2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { suggestRouteOrder, suggestRouteOrderAsync, parseDurationToMinutes } from '../lib/schedulingAI';
+import { formatTimeInTimezone } from '../lib/timezoneUtils';
 import { googleMapsApiKey } from '../../../config/constants';
 import { getDistance } from '../lib/distanceMatrixService';
 
@@ -21,8 +22,11 @@ import { getDistance } from '../lib/distanceMatrixService';
 // HELPERS
 // ============================================
 
-const formatTime = (dateStr) => {
+const formatTime = (dateStr, timezone) => {
     if (!dateStr) return '';
+    if (timezone) {
+        return formatTimeInTimezone(dateStr, timezone);
+    }
     const date = new Date(dateStr);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };
@@ -112,7 +116,7 @@ const sendDispatchSMS = (job, travelTime) => {
 // ROUTE JOB CARD
 // ============================================
 
-const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) => {
+const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember, timezone }) => {
     return (
         <div className="relative">
             {/* Travel indicator */}
@@ -146,7 +150,7 @@ const RouteJobCard = ({ job, index, travelFromPrev, onClick, assignedMember }) =
                         </div>
                         <div className="flex flex-col items-end gap-1">
                             <span className="text-sm font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                                {formatTime(job.scheduledTime)}
+                                {formatTime(job.scheduledTime, timezone)}
                             </span>
                             {assignedMember && (
                                 <div className="flex items-center gap-1 text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
@@ -721,6 +725,7 @@ export const RouteVisualization = ({
                                     isLast={idx === displayJobs.length - 1}
                                     onClick={onJobClick}
                                     assignedMember={member}
+                                    timezone={preferences?.timezone}
                                 />
                             );
                         })}

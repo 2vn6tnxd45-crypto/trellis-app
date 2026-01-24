@@ -24,7 +24,7 @@ import {
     isTechWorkingOnDay,
     parseDurationToMinutes
 } from '../lib/schedulingAI';
-import { isSameDayInTimezone } from '../lib/timezoneUtils';
+import { isSameDayInTimezone, formatTimeInTimezone } from '../lib/timezoneUtils';
 import { CrewAssignmentModal } from './CrewAssignmentModal';
 import { RouteComparison } from './RouteComparison';
 import { ConfirmationModal } from '../../../components/common/ConfirmationModal';
@@ -56,12 +56,23 @@ const formatDate = (date) => {
     });
 };
 
-const formatTime = (time) => {
+const formatTime = (time, timezone) => {
     if (!time) return '';
-    const [h, m] = time.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour = h % 12 || 12;
-    return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+    // Handle "HH:MM" string format (e.g., from schedule blocks)
+    if (typeof time === 'string' && /^\d{1,2}:\d{2}$/.test(time)) {
+        const [h, m] = time.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const hour = h % 12 || 12;
+        return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
+    }
+    // Handle ISO datetime strings or Date objects - use timezone-aware formatting
+    if (timezone) {
+        return formatTimeInTimezone(time, timezone);
+    }
+    // Fallback for no timezone
+    const date = new Date(time);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 };
 
 
@@ -84,7 +95,8 @@ const JobCard = ({
     isAssigned,
     compact = false,
     vehicles = [],
-    date = new Date() // Add date prop with default
+    date = new Date(), // Add date prop with default
+    timezone
 }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -146,7 +158,7 @@ const JobCard = ({
                 <GripVertical size={16} className="text-slate-300 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                        <p className={`font-bold text-slate-800 truncate ${compact ? 'text-sm' : ''}`}>
+                        <p className={`font-bold text-slate-800 truncate ${compact ? 'text-sm' : ''}`} title={job.title || job.serviceType || 'Job'}>
                             {job.title || job.serviceType || 'Job'}
                         </p>
                         {isMultiDay && (
@@ -156,7 +168,7 @@ const JobCard = ({
                         )}
                     </div>
 
-                    <p className="text-sm text-slate-500 truncate">
+                    <p className="text-sm text-slate-500 truncate" title={job.customer?.name || job.customerName || 'Customer'}>
                         {job.customer?.name || job.customerName || 'Customer'}
                     </p>
 
@@ -286,9 +298,9 @@ const JobCard = ({
                                 // EDIT: We need to pass 'date' to JobCard. For now, let's use the first block or job.scheduledTime as fallback.
                                 // Ideally, we update the call sites to pass 'date'.
                                 const block = job.scheduleBlocks.find(b => isSameDayInTimezone(new Date(b.date), new Date(job.currentRenderDate || new Date()), 'UTC'));
-                                return block ? `${formatTime(block.startTime)} - ${formatTime(block.endTime)}` : formatTime(job.scheduledTime);
+                                return block ? `${formatTime(block.startTime, timezone)} - ${formatTime(block.endTime, timezone)}` : formatTime(job.scheduledTime, timezone);
                             }
-                            return formatTime(job.scheduledTime);
+                            return formatTime(job.scheduledTime, timezone);
                         })()}
                     </span>
                 )}
@@ -297,7 +309,7 @@ const JobCard = ({
                     {durationStr}
                 </span>
                 {job.customer?.address && (
-                    <span className="flex items-center gap-1 text-slate-500 truncate max-w-[150px]">
+                    <span className="flex items-center gap-1 text-slate-500 truncate max-w-[150px]" title={job.customer.address}>
                         <MapPin size={12} />
                         {job.customer.address.split(',')[0]}
                     </span>
@@ -379,7 +391,8 @@ const TechColumn = ({
     allJobs,
     onMarkWorkingToday,
     onEditSchedule,
-    vehicles = []
+    vehicles = [],
+    timezone
 }) => {
     const [isDragOver, setIsDragOver] = useState(false);
 
@@ -552,6 +565,7 @@ const TechColumn = ({
                             compact={true}
                             vehicles={vehicles}
                             date={date}
+                            timezone={timezone}
                         />
                     ))
                 )}
@@ -576,7 +590,8 @@ const UnassignedColumn = ({
     showAllBacklog,
     onToggleBacklog,
     totalBacklogCount,
-    onOfferSlots
+    onOfferSlots,
+    timezone
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
 
@@ -682,6 +697,7 @@ const UnassignedColumn = ({
                             onAssign={onAssign}
                             onOfferSlots={onOfferSlots}
                             vehicles={vehicles}
+                            timezone={timezone}
                         />
                     ))
                 )}
@@ -1445,6 +1461,7 @@ export const DispatchBoard = ({
                     onToggleBacklog={() => setShowAllBacklog(prev => !prev)}
                     totalBacklogCount={allUnassignedJobs.length}
                     onOfferSlots={onOfferSlots}
+                    timezone={effectiveTimezone}
                 />
 
                 {/* Tech Columns */}
@@ -1472,6 +1489,7 @@ export const DispatchBoard = ({
                             onMarkWorkingToday={handleMarkWorkingToday}
                             onEditSchedule={handleEditSchedule}
                             vehicles={vehicles}
+                            timezone={effectiveTimezone}
                         />
                     );
                 })}

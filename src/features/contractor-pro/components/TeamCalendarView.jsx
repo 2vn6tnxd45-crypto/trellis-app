@@ -251,12 +251,12 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
                             </span>
                         )}
                     </div>
-                    <p className="font-bold text-slate-800 text-sm truncate mt-0.5">
+                    <p className="font-bold text-slate-800 text-sm truncate mt-0.5" title={event.title || event.description || 'Job'}>
                         {event.title || event.description || 'Job'}
                     </p>
                     {!compact && (
                         <>
-                            <p className="text-xs text-slate-500 truncate">
+                            <p className="text-xs text-slate-500 truncate" title={event.customer?.name || 'Customer'}>
                                 {event.customer?.name || 'Customer'}
                             </p>
                             {isEvaluation && (
@@ -791,7 +791,7 @@ export const TeamCalendarView = ({
                                                         onClick={() => handleEventClick(event)}
                                                         className="mx-1 my-0.5 p-1.5 bg-amber-100 border border-amber-300 border-dashed rounded-lg cursor-pointer hover:bg-amber-200 transition-colors"
                                                     >
-                                                        <p className="text-xs font-medium text-amber-800 truncate">
+                                                        <p className="text-xs font-medium text-amber-800 truncate" title={event.title || event.description || 'Service'}>
                                                             {event.title || event.description || 'Service'}
                                                         </p>
                                                         <p className="text-[10px] text-amber-600">

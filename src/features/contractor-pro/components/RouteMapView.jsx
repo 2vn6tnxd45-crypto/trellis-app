@@ -24,6 +24,7 @@ import {
     Timer,
     Fuel
 } from 'lucide-react';
+import { formatTimeInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // ROUTE STATS CARD
@@ -444,8 +445,11 @@ export const RouteMapView = ({
 // HELPER FUNCTIONS
 // ============================================
 
-const formatTime = (date) => {
+const formatTime = (date, timezone) => {
     if (!date) return '';
+    if (timezone) {
+        return formatTimeInTimezone(date, timezone);
+    }
     const d = new Date(date);
     return d.toLocaleTimeString('en-US', {
         hour: 'numeric',
