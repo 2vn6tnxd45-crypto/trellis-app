@@ -8,7 +8,7 @@ import React, { useState, useCallback } from 'react';
 import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Sparkles, Calendar,
-    DollarSign, FlaskConical
+    DollarSign, FlaskConical, AlertTriangle, Trash2
 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -26,6 +26,13 @@ import { useContractorAuth } from './hooks/useContractorAuth';
 import { useInvitations, useCustomers, useDashboardStats } from './hooks/useContractorData';
 import { useJobs, useTodaySchedule } from './hooks/useJobs';
 import { useTeam } from './hooks/useTeam';
+
+// Utils
+import { formatPhoneNumber } from '../../lib/utils';
+
+// Services
+import { updateContractorSettings } from './lib/contractorService';
+import { updateJobStatus, JOB_STATUSES } from './lib/jobService';
 
 // ============================================
 // NAV ITEM
@@ -229,35 +236,343 @@ const CustomersView = ({ customers, loading }) => (
     </div>
 );
 
-const ProfileView = ({ profile, onUpdateProfile }) => (
-    <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Profile</h1>
-        <p className="text-slate-500">Coming soon: Profile editor</p>
-        {/* TODO: Implement profile editor */}
-    </div>
-);
+const ProfileView = ({ profile, onUpdateProfile }) => {
+    const profileData = profile?.profile || {};
+    const [form, setForm] = useState({
+        companyName: profileData.companyName || '',
+        displayName: profileData.displayName || '',
+        phone: profileData.phone || '',
+        email: profileData.email || '',
+    });
+    const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
 
-const SettingsView = ({ onSignOut }) => (
-    <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <h2 className="font-bold text-slate-800 mb-4">Account</h2>
-            <button
-                onClick={onSignOut}
-                className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors"
-            >
-                Sign Out
-            </button>
+    const handlePhoneChange = (value) => {
+        setForm(prev => ({ ...prev, phone: formatPhoneNumber(value) }));
+        if (errors.phone) setErrors(prev => ({ ...prev, phone: null }));
+    };
+
+    const handleSubmit = async () => {
+        const newErrors = {};
+        if (!form.companyName.trim()) newErrors.companyName = 'Company name is required';
+        if (!form.phone.trim() || form.phone.replace(/\D/g, '').length < 10) {
+            newErrors.phone = 'Valid phone number is required';
+        }
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+        setSaving(true);
+        try {
+            await onUpdateProfile({
+                companyName: form.companyName.trim(),
+                displayName: form.displayName.trim(),
+                phone: form.phone,
+                email: form.email,
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6 max-w-lg">
+            <h1 className="text-2xl font-bold text-slate-800">Profile</h1>
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Company Name *</label>
+                    <input
+                        type="text"
+                        value={form.companyName}
+                        onChange={(e) => {
+                            setForm(prev => ({ ...prev, companyName: e.target.value }));
+                            if (errors.companyName) setErrors(prev => ({ ...prev, companyName: null }));
+                        }}
+                        className={`w-full px-4 py-2.5 rounded-xl border ${errors.companyName ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-emerald-500'} focus:ring-2 focus:border-transparent outline-none`}
+                        placeholder="Your company name"
+                    />
+                    {errors.companyName && <p className="text-sm text-red-600 mt-1">{errors.companyName}</p>}
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Contact Name</label>
+                    <input
+                        type="text"
+                        value={form.displayName}
+                        onChange={(e) => setForm(prev => ({ ...prev, displayName: e.target.value }))}
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                        placeholder="Your name"
+                    />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone *</label>
+                    <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        className={`w-full px-4 py-2.5 rounded-xl border ${errors.phone ? 'border-red-300 focus:ring-red-500' : 'border-slate-200 focus:ring-emerald-500'} focus:ring-2 focus:border-transparent outline-none`}
+                        placeholder="(555) 123-4567"
+                    />
+                    {errors.phone && <p className="text-sm text-red-600 mt-1">{errors.phone}</p>}
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input
+                        type="email"
+                        value={form.email}
+                        disabled
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 outline-none cursor-not-allowed"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Email cannot be changed here</p>
+                </div>
+                <button
+                    onClick={handleSubmit}
+                    disabled={saving}
+                    className="w-full px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                    {saving ? 'Saving...' : 'Save Profile'}
+                </button>
+            </div>
         </div>
-    </div>
-);
+    );
+};
+
+const SettingsView = ({ onSignOut, profile, user }) => {
+    const settings = profile?.settings || {};
+    const [notifications, setNotifications] = useState({
+        emailNotifications: settings.emailNotifications !== false,
+        smsNotifications: settings.smsNotifications || false,
+        weeklyDigest: settings.weeklyDigest !== false,
+    });
+    const [savingNotifs, setSavingNotifs] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState('');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+    const handleToggle = async (key) => {
+        const updated = { ...notifications, [key]: !notifications[key] };
+        setNotifications(updated);
+        if (user?.uid) {
+            setSavingNotifs(true);
+            try {
+                await updateContractorSettings(user.uid, updated);
+                toast.success('Settings saved');
+            } catch {
+                toast.error('Failed to save settings');
+                setNotifications(notifications);
+            } finally {
+                setSavingNotifs(false);
+            }
+        }
+    };
+
+    const ToggleSwitch = ({ enabled, onToggle, disabled }) => (
+        <button
+            onClick={onToggle}
+            disabled={disabled}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-emerald-600' : 'bg-slate-300'} ${disabled ? 'opacity-50' : ''}`}
+        >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+    );
+
+    return (
+        <div className="space-y-6 max-w-lg">
+            <h1 className="text-2xl font-bold text-slate-800">Settings</h1>
+
+            {/* Notification Preferences */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h2 className="font-bold text-slate-800 mb-4">Notification Preferences</h2>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium text-slate-700">Email Notifications</p>
+                            <p className="text-sm text-slate-500">Get notified when invitations are claimed</p>
+                        </div>
+                        <ToggleSwitch enabled={notifications.emailNotifications} onToggle={() => handleToggle('emailNotifications')} disabled={savingNotifs} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium text-slate-700">SMS Notifications</p>
+                            <p className="text-sm text-slate-500">Receive text message alerts</p>
+                        </div>
+                        <ToggleSwitch enabled={notifications.smsNotifications} onToggle={() => handleToggle('smsNotifications')} disabled={savingNotifs} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium text-slate-700">Weekly Digest</p>
+                            <p className="text-sm text-slate-500">Summary of activity each week</p>
+                        </div>
+                        <ToggleSwitch enabled={notifications.weeklyDigest} onToggle={() => handleToggle('weeklyDigest')} disabled={savingNotifs} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Account */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                <h2 className="font-bold text-slate-800 mb-4">Account</h2>
+                <button
+                    onClick={onSignOut}
+                    className="px-4 py-2 bg-red-50 text-red-600 font-medium rounded-xl hover:bg-red-100 transition-colors"
+                >
+                    Sign Out
+                </button>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="bg-white rounded-2xl border border-red-200 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <AlertTriangle size={18} className="text-red-600" />
+                    <h2 className="font-bold text-red-800">Danger Zone</h2>
+                </div>
+                <p className="text-sm text-slate-600 mb-4">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                </p>
+                <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="px-4 py-2 bg-red-600 text-white font-medium rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                    <Trash2 size={16} />
+                    Delete Account
+                </button>
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowDeleteModal(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">Delete Account</h3>
+                        <p className="text-sm text-slate-600 mb-4">
+                            This will permanently delete your contractor profile, all invitations, and customer data.
+                            Type <span className="font-mono font-bold text-red-600">DELETE</span> to confirm.
+                        </p>
+                        <input
+                            type="text"
+                            value={deleteConfirm}
+                            onChange={(e) => setDeleteConfirm(e.target.value)}
+                            placeholder="Type DELETE to confirm"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none mb-4"
+                        />
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => { setShowDeleteModal(false); setDeleteConfirm(''); }}
+                                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                disabled={deleteConfirm !== 'DELETE'}
+                                onClick={() => {
+                                    toast.error('Account deletion requires contacting support.');
+                                    setShowDeleteModal(false);
+                                    setDeleteConfirm('');
+                                }}
+                                className="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Delete Permanently
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================
+// CANCEL JOB MODAL
+// ============================================
+const CANCELLATION_REASONS = [
+    { value: 'customer_cancelled', label: 'Customer Cancelled' },
+    { value: 'scheduling_conflict', label: 'Scheduling Conflict' },
+    { value: 'weather', label: 'Weather / Safety' },
+    { value: 'parts_unavailable', label: 'Parts Unavailable' },
+    { value: 'duplicate', label: 'Duplicate Job' },
+    { value: 'other', label: 'Other' },
+];
+
+const CancelJobModal = ({ isOpen, job, onConfirm, onClose }) => {
+    const [reason, setReason] = useState('');
+    const [notes, setNotes] = useState('');
+    const [cancelling, setCancelling] = useState(false);
+
+    if (!isOpen || !job) return null;
+
+    const handleConfirm = async () => {
+        if (!reason) {
+            toast.error('Please select a reason');
+            return;
+        }
+        setCancelling(true);
+        try {
+            await onConfirm(job.id, reason, notes);
+            setReason('');
+            setNotes('');
+            onClose();
+        } finally {
+            setCancelling(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+                <h3 className="text-lg font-bold text-slate-800 mb-1">Cancel Job</h3>
+                <p className="text-sm text-slate-500 mb-4">
+                    {job.title || job.jobNumber} - {job.customerName || 'Unknown Customer'}
+                </p>
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
+                        <select
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none bg-white"
+                        >
+                            <option value="">Select a reason...</option>
+                            {CANCELLATION_REASONS.map(r => (
+                                <option key={r.value} value={r.value}>{r.label}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Notes (optional)</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            rows={3}
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
+                            placeholder="Additional details..."
+                        />
+                    </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                    <button
+                        onClick={onClose}
+                        className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 font-medium rounded-xl hover:bg-slate-50"
+                    >
+                        Go Back
+                    </button>
+                    <button
+                        onClick={handleConfirm}
+                        disabled={!reason || cancelling}
+                        className="flex-1 px-4 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {cancelling ? 'Cancelling...' : 'Cancel Job'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // ============================================
 // MAIN APP
 // ============================================
 export const ContractorProApp = () => {
     const [activeView, setActiveView] = useState('dashboard');
-    
+    const [cancellingJob, setCancellingJob] = useState(null);
+
     // Auth hook
     const {
         user,
@@ -309,6 +624,21 @@ export const ContractorProApp = () => {
         url.searchParams.set('pro', 'invite');
         window.location.href = url.toString();
     }, []);
+
+    // Cancel job handler
+    const handleCancelJob = useCallback(async (jobId, reason, notes) => {
+        if (!user?.uid) return;
+        try {
+            await updateJobStatus(user.uid, jobId, JOB_STATUSES.CANCELLED, {
+                reason,
+                notes
+            });
+            toast.success('Job cancelled');
+        } catch (error) {
+            console.error('Error cancelling job:', error);
+            toast.error('Failed to cancel job');
+        }
+    }, [user]);
     
     // View title
     const getViewTitle = () => {
@@ -391,7 +721,7 @@ export const ContractorProApp = () => {
                     )}
                     
                     {activeView === 'dispatch' && (
-                        <AIDispatchAssistant contractorId={user?.uid} />
+                        <AIDispatchAssistant contractorId={user?.uid} onCancelJob={setCancellingJob} />
                     )}
 
                     {activeView === 'team' && (
@@ -435,17 +765,25 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'settings' && (
-                        <SettingsView onSignOut={signOut} />
+                        <SettingsView onSignOut={signOut} profile={profile} user={user} />
                     )}
                 </main>
                 
                 {/* Mobile Nav */}
-                <MobileNav 
+                <MobileNav
                     activeView={activeView}
                     onNavigate={handleNavigate}
                     pendingCount={pendingInvitations.length}
                 />
             </div>
+
+            {/* Cancel Job Modal */}
+            <CancelJobModal
+                isOpen={!!cancellingJob}
+                job={cancellingJob}
+                onConfirm={handleCancelJob}
+                onClose={() => setCancellingJob(null)}
+            />
         </div>
     );
 };

@@ -212,6 +212,12 @@ export const updateJobStatus = async (contractorId, jobId, newStatus, metadata =
             updates.lateReason = metadata.reason || 'unspecified';
         }
 
+        // Cancellation tracking
+        if (newStatus === JOB_STATUSES.CANCELLED) {
+            updates.cancelledAt = now;
+            updates.cancellationReason = metadata.reason || 'unspecified';
+        }
+
         // Add any additional metadata
         if (metadata.notes) {
             updates.statusNotes = metadata.notes;
