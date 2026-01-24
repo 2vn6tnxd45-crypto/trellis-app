@@ -207,27 +207,72 @@ const checkScheduleConflicts = (newStart, newEnd, existingJobs, assignedTechIds,
 };
 
 const getJobsForDate = (jobs, date, timezone) => {
+    // Helper: get date string in business timezone for comparison
+    const getDateStr = (d) => {
+        if (timezone) {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                timeZone: timezone
+            }).format(d);
+            return parts; // Returns YYYY-MM-DD format
+        }
+        const year = d.getFullYear();
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    // Helper: find segment for a date with timezone awareness
+    const findSegmentForDate = (targetDate, multiDaySchedule) => {
+        if (!multiDaySchedule?.segments?.length) {
+            return { isInSchedule: false, segment: null, dayNumber: null };
+        }
+        const targetStr = getDateStr(targetDate);
+        const segments = multiDaySchedule.segments;
+        const idx = segments.findIndex(s => s.date === targetStr);
+        if (idx === -1) {
+            return { isInSchedule: false, segment: null, dayNumber: null };
+        }
+        const segment = segments[idx];
+        // Derive dayNumber from index if not present on segment
+        const dayNumber = segment.dayNumber || (idx + 1);
+        // Derive startHour from startTime if not present
+        const startHour = typeof segment.startHour === 'number'
+            ? segment.startHour
+            : (segment.startTime ? parseInt(segment.startTime.split(':')[0]) : null);
+        return {
+            isInSchedule: true,
+            segment: { ...segment, dayNumber, startHour },
+            dayNumber
+        };
+    };
+
     return jobs.filter(job => {
+        // For multi-day jobs, check segment dates first
+        if (jobIsMultiDay(job)) {
+            const { isInSchedule } = findSegmentForDate(date, job.multiDaySchedule);
+            if (isInSchedule) return true;
+        }
+
         // Check regular scheduled date - use normalized date to handle date-only strings
         const rawJobDate = job.scheduledTime || job.scheduledDate;
         if (rawJobDate) {
             const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timezone);
             if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timezone)) {
+                // For multi-day jobs, only match the first day via scheduledTime
+                // (other days are matched via segments above)
+                if (jobIsMultiDay(job)) {
+                    return true; // Will be enriched with segment info in map below
+                }
                 return true;
             }
-        }
-
-        // Check multi-day job segments
-        if (jobIsMultiDay(job)) {
-            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
-            return isInSchedule;
         }
 
         return false;
     }).map(job => {
         // Add multi-day context if applicable
         if (jobIsMultiDay(job)) {
-            const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
+            const { segment, dayNumber } = findSegmentForDate(date, job.multiDaySchedule);
             const totalDays = job.multiDaySchedule.totalDays || job.multiDaySchedule.segments?.length || 1;
             const displayDayNumber = dayNumber || 1;
             return {
@@ -235,7 +280,7 @@ const getJobsForDate = (jobs, date, timezone) => {
                 _multiDayInfo: {
                     dayNumber: displayDayNumber,
                     totalDays,
-                    segment,
+                    segment: segment || null,
                     label: `Day ${displayDayNumber}/${totalDays}`
                 }
             };
@@ -466,10 +511,18 @@ const TimeSlot = React.memo(({
         let durationMinutes = job.estimatedDuration || 60;
 
         // If we have both scheduledTime and scheduledEndTime, calculate actual duration
-        if (job.scheduledTime && job.scheduledEndTime) {
+        if (job._multiDayInfo?.segment) {
+            const seg = job._multiDayInfo.segment;
+            if (seg.durationMinutes) {
+                durationMinutes = seg.durationMinutes;
+            } else if (seg.startTime && seg.endTime) {
+                // Compute from segment start/end times
+                const [sH, sM] = seg.startTime.split(':').map(Number);
+                const [eH, eM] = seg.endTime.split(':').map(Number);
+                durationMinutes = (eH * 60 + (eM || 0)) - (sH * 60 + (sM || 0));
+            }
+        } else if (job.scheduledTime && job.scheduledEndTime) {
             durationMinutes = getDurationMinutes(job.scheduledTime, job.scheduledEndTime);
-        } else if (job._multiDayInfo?.segment?.durationMinutes) {
-            durationMinutes = job._multiDayInfo.segment.durationMinutes;
         }
 
         const durationHours = Math.max(1, Math.ceil(durationMinutes / 60));
@@ -544,18 +597,35 @@ const TimeSlot = React.memo(({
                 const showDuration = (job._durationMinutes || 60) >= 30;
                 // Offset for multiple jobs starting at same hour
                 const horizontalOffset = jobIndex * 12; // Cascade effect
-                const zIndex = 10 + jobIndex;
+                // Multi-day/full-day jobs get lower z-index so shorter jobs aren't hidden
+                const isFullDay = job._multiDayInfo || (job._durationHours || 1) >= 8;
+                const zIndex = isFullDay ? 5 + jobIndex : 10 + jobIndex;
 
-                // Calculate start minutes for proper vertical positioning (timezone-aware)
-                // This ensures a job at 1:30 is lower than a job at 1:00
-                const startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledDate, timezone);
+                // For multi-day jobs, use segment times instead of job scheduledTime
+                let startMinutes, startTimeStr, endTimeStr;
+                if (job._multiDayInfo?.segment?.startTime) {
+                    const seg = job._multiDayInfo.segment;
+                    const [sH, sM] = seg.startTime.split(':').map(Number);
+                    startMinutes = sM || 0;
+                    const startAmPm = sH >= 12 ? 'PM' : 'AM';
+                    const startHr = sH % 12 || 12;
+                    startTimeStr = `${startHr}:${(sM || 0).toString().padStart(2, '0')} ${startAmPm}`;
+                    if (seg.endTime) {
+                        const [eH, eM] = seg.endTime.split(':').map(Number);
+                        const endAmPm = eH >= 12 ? 'PM' : 'AM';
+                        const endHr = eH % 12 || 12;
+                        endTimeStr = `${endHr}:${(eM || 0).toString().padStart(2, '0')} ${endAmPm}`;
+                    } else {
+                        endTimeStr = null;
+                    }
+                } else {
+                    // Regular job: use scheduledTime with timezone awareness
+                    startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledDate, timezone);
+                    startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledDate, timezone);
+                    endTimeStr = job.scheduledEndTime ? formatTimeFromDate(job.scheduledEndTime, timezone) : null;
+                }
                 // Formula: startMinutes/60 * 100%
-                // Add tiny offset for border if needed, but pure % is safest for alignment
                 const topPosition = `${(startMinutes / 60) * 100}%`;
-
-                // Format display time
-                const startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledDate, timezone);
-                const endTimeStr = job.scheduledEndTime ? formatTimeFromDate(job.scheduledEndTime, timezone) : null;
                 const timeDisplay = endTimeStr ? `${startTimeStr} - ${endTimeStr}` : startTimeStr;
 
                 // Get customer name
@@ -597,7 +667,7 @@ const TimeSlot = React.memo(({
                         style={{
                             height: `${heightPx}px`,
                             top: topPosition,
-                            zIndex: 10 + jobIndex
+                            zIndex
                         }}
                         className={`absolute left-1 right-1 p-2 rounded-lg text-xs text-left transition-colors overflow-hidden cursor-grab active:cursor-grabbing ${isSuggested ? bgClass + ' opacity-75' : bgClass + ' text-white shadow-md'}`}
                     >
