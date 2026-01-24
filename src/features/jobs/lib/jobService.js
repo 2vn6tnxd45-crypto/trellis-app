@@ -6,6 +6,7 @@ import { db } from '../../../config/firebase';
 import { CONTRACTORS_COLLECTION_PATH, REQUESTS_COLLECTION_PATH, appId } from '../../../config/constants';
 import { extractCrewRequirements } from '../../contractor-pro/lib/crewRequirementsService';
 import { isMultiDayJob, createMultiDaySchedule } from '../../contractor-pro/lib/multiDayUtils';
+import { createDateInTimezone } from '../../contractor-pro/lib/timezoneUtils';
 import { addressesMatch, formatAddress } from '../../../lib/addressUtils';
 
 export const JOB_STATUSES = {
@@ -49,21 +50,32 @@ const normalizeDate = (date) => {
 
 // Build proper schedule fields from date + time inputs
 // Handles both single-day and multi-day jobs
+// Uses createDateInTimezone to correctly convert wall-clock time to UTC
 const buildScheduleFields = (jobData, workingHours = {}) => {
+    const timezone = jobData.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Helper: parse "YYYY-MM-DD" + "HH:MM" into a proper UTC Date using timezone
+    const buildDateTime = (datePart, timePart) => {
+        if (datePart.includes('T')) return new Date(datePart); // Already ISO, use as-is
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute] = (timePart || '09:00').split(':').map(Number);
+        return createDateInTimezone(year, month - 1, day, hour, minute, timezone);
+    };
+
     // New Logic: If explicit multi-day schedule blocks are provided
     if (jobData.isMultiDay && jobData.scheduleBlocks && jobData.scheduleBlocks.length > 0) {
         const datePart = jobData.scheduledDate;
         const timePart = jobData.scheduledTime || '09:00';
-        const scheduledDateTime = new Date(datePart.includes('T') ? datePart : `${datePart}T${timePart}:00`);
+        const scheduledDateTime = buildDateTime(datePart, timePart);
 
         // Calculate end time of the LAST block for the top-level scheduledEndTime
         let maxEndTime = scheduledDateTime;
         try {
             const sortedBlocks = [...jobData.scheduleBlocks].sort((a, b) =>
-                new Date(`${a.date}T${a.endTime}`).getTime() - new Date(`${b.date}T${b.endTime}`).getTime()
+                buildDateTime(a.date, a.endTime).getTime() - buildDateTime(b.date, b.endTime).getTime()
             );
             const lastBlock = sortedBlocks[sortedBlocks.length - 1];
-            maxEndTime = new Date(`${lastBlock.date}T${lastBlock.endTime}:00`);
+            maxEndTime = buildDateTime(lastBlock.date, lastBlock.endTime);
         } catch (e) { console.warn('Error calculating maxEndTime', e); }
 
         return {
@@ -85,10 +97,10 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         };
     }
 
-    // Combine date and time into full ISO timestamp
+    // Combine date and time into full ISO timestamp using timezone-aware construction
     const datePart = jobData.scheduledDate; // "2026-01-19"
     const timePart = jobData.scheduledTime || '09:00'; // "09:00" or default to 9am
-    const scheduledDateTime = new Date(`${datePart}T${timePart}:00`);
+    const scheduledDateTime = buildDateTime(datePart, timePart);
 
     const durationMinutes = jobData.estimatedDuration || 60;
 
@@ -101,11 +113,16 @@ const buildScheduleFields = (jobData, workingHours = {}) => {
         const [startH, startM] = firstSegment.startTime.split(':').map(Number);
         const [endH, endM] = firstSegment.endTime.split(':').map(Number);
 
-        const startDateTime = new Date(scheduledDateTime);
-        startDateTime.setHours(startH, startM, 0, 0);
-
-        const endDateTime = new Date(scheduledDateTime);
-        endDateTime.setHours(endH, endM, 0, 0);
+        // Use the date of scheduledDateTime but set to segment times in the correct timezone
+        const baseDate = scheduledDateTime;
+        const startDateTime = createDateInTimezone(
+            baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate(),
+            startH, startM, timezone
+        );
+        const endDateTime = createDateInTimezone(
+            baseDate.getUTCFullYear(), baseDate.getUTCMonth(), baseDate.getUTCDate(),
+            endH, endM, timezone
+        );
 
         return {
             scheduledDate: startDateTime.toISOString(),
@@ -1101,6 +1118,33 @@ export const getPendingJobCountForEmail = async (email) => {
     } catch (error) {
         console.error('[jobService] Error getting pending job count:', error);
         return 0;
+    }
+};
+
+/**
+ * Cancel a job (contractor-initiated)
+ * Clears schedule data and sets status to cancelled
+ */
+export const cancelJob = async (contractorId, jobId, reason = '') => {
+    try {
+        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+        await updateDoc(jobRef, {
+            status: JOB_STATUSES.CANCELLED,
+            cancelledAt: serverTimestamp(),
+            cancelledBy: 'contractor',
+            cancellationReason: reason,
+            // Clear scheduling data
+            assignedTechId: null,
+            assignedTechName: null,
+            assignedVehicleId: null,
+            assignedCrew: [],
+            assignedCrewIds: [],
+            updatedAt: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error('[jobService] Error cancelling job:', error);
+        return { success: false, error: error.message };
     }
 };
 

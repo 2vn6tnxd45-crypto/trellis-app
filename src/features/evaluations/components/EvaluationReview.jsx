@@ -38,6 +38,8 @@ export const EvaluationReview = ({
     onAddSuggestedItems, // Callback when AI suggests quote items to add
     onCancel,
     onBack,
+    existingJobs = [], // For scheduling conflict detection
+    timezone,
     isLoading = false
 }) => {
     const [activeTab, setActiveTab] = useState('submissions');
@@ -410,6 +412,8 @@ export const EvaluationReview = ({
             {showScheduleModal && (
                 <ScheduleVisitModal
                     evaluation={evaluation}
+                    existingJobs={existingJobs}
+                    timezone={timezone}
                     onConfirm={handleScheduleConfirm}
                     onClose={() => setShowScheduleModal(false)}
                     isSubmitting={isSubmitting}
@@ -1168,7 +1172,7 @@ const FindingsModal = ({ evaluation, onSubmit, onClose, isSubmitting }) => {
 // SCHEDULE VISIT MODAL
 // ============================================
 
-const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) => {
+const ScheduleVisitModal = ({ evaluation, existingJobs = [], timezone, onConfirm, onClose, isSubmitting }) => {
     // Default to tomorrow at 10am (using local timezone)
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1181,6 +1185,33 @@ const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) =>
     const [scheduledDate, setScheduledDate] = useState(defaultDate);
     const [scheduledTime, setScheduledTime] = useState('10:00');
     const [duration, setDuration] = useState(30);
+
+    // Conflict detection: check if selected time overlaps with any existing job
+    const conflicts = useMemo(() => {
+        if (!scheduledDate || !scheduledTime || !existingJobs.length) return [];
+
+        const evalStart = new Date(`${scheduledDate}T${scheduledTime}:00`);
+        const evalEnd = new Date(evalStart.getTime() + duration * 60 * 1000);
+
+        if (isNaN(evalStart.getTime())) return [];
+
+        return existingJobs.filter(job => {
+            if (job.status === 'cancelled' || job.status === 'completed') return false;
+
+            // Get job's scheduled time
+            const rawTime = job.scheduledTime || job.scheduledDate;
+            if (!rawTime) return false;
+
+            const jobStart = rawTime?.toDate ? rawTime.toDate() : new Date(rawTime);
+            if (isNaN(jobStart.getTime())) return false;
+
+            const jobDuration = job.estimatedDuration || 60;
+            const jobEnd = new Date(jobStart.getTime() + jobDuration * 60 * 1000);
+
+            // Check overlap: evalStart < jobEnd && evalEnd > jobStart
+            return evalStart < jobEnd && evalEnd > jobStart;
+        });
+    }, [scheduledDate, scheduledTime, duration, existingJobs]);
 
     const handleConfirm = () => {
         // Combine date and time into ISO string
@@ -1259,6 +1290,34 @@ const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) =>
                     </div>
                 </div>
 
+                {/* Conflict Warning */}
+                {conflicts.length > 0 && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle className="text-amber-500 shrink-0 mt-0.5" size={16} />
+                            <div>
+                                <p className="text-sm font-medium text-amber-800">
+                                    Scheduling Conflict Detected
+                                </p>
+                                <p className="text-xs text-amber-700 mt-1">
+                                    {conflicts.length} existing job{conflicts.length > 1 ? 's' : ''} overlap{conflicts.length === 1 ? 's' : ''} with this time:
+                                </p>
+                                <ul className="mt-1 space-y-1">
+                                    {conflicts.slice(0, 3).map((job, idx) => (
+                                        <li key={idx} className="text-xs text-amber-700">
+                                            • {job.title || job.description || 'Untitled Job'}
+                                            {job.assignedTechName ? ` (${job.assignedTechName})` : ''}
+                                        </li>
+                                    ))}
+                                </ul>
+                                <p className="text-xs text-amber-600 mt-2 italic">
+                                    You can still schedule, but be aware of the overlap.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onClose}
@@ -1270,14 +1329,18 @@ const ScheduleVisitModal = ({ evaluation, onConfirm, onClose, isSubmitting }) =>
                     <button
                         onClick={handleConfirm}
                         disabled={!isValid || isSubmitting}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium disabled:opacity-50 transition-colors ${
+                            conflicts.length > 0
+                                ? 'bg-amber-600 text-white hover:bg-amber-700'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
                     >
                         {isSubmitting ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                             <Calendar className="w-4 h-4" />
                         )}
-                        Schedule Visit
+                        {conflicts.length > 0 ? 'Schedule Anyway' : 'Schedule Visit'}
                     </button>
                 </div>
             </div>

@@ -3280,6 +3280,8 @@ export const ContractorProApp = () => {
                                 onConvertToQuote={handleConvertToQuote}
                                 onCancel={cancelEvaluationFn}
                                 onBack={handleEvaluationBack}
+                                existingJobs={jobs}
+                                timezone={profile?.scheduling?.timezone}
                             />
                         </div>
                     )}

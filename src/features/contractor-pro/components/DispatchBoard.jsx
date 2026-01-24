@@ -10,7 +10,8 @@ import {
     Calendar, ChevronLeft, ChevronRight, User, Clock,
     MapPin, Wrench, AlertTriangle, CheckCircle, Sparkles,
     GripVertical, X, ChevronDown, ChevronUp, Zap,
-    Users, Loader2, Info, AlertCircle, Truck, Route
+    Users, Loader2, Info, AlertCircle, Truck, Route,
+    XCircle, Eye
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -41,6 +42,8 @@ import {
     findVehiclesForCrewSize
 } from '../lib/vehicleService';
 import { checkCrewConflict } from '../lib/schedulingConflicts';
+import { cancelJob } from '../../jobs/lib/jobService';
+import { formatDateTimeInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // HELPERS
@@ -65,14 +68,11 @@ const formatTime = (time, timezone) => {
         const hour = h % 12 || 12;
         return `${hour}:${m.toString().padStart(2, '0')} ${ampm}`;
     }
-    // Handle ISO datetime strings or Date objects - use timezone-aware formatting
-    if (timezone) {
-        return formatTimeInTimezone(time, timezone);
-    }
-    // Fallback for no timezone
-    const date = new Date(time);
-    if (isNaN(date.getTime())) return '';
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    // Normalize Firestore Timestamps to Date objects
+    const normalizedTime = time?.toDate ? time.toDate() : time;
+    // Always use timezone-aware formatting to prevent offset bugs
+    const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return formatTimeInTimezone(normalizedTime, tz);
 };
 
 
@@ -92,6 +92,8 @@ const JobCard = ({
     onUnassign,
     onOpenCrewModal,
     onOfferSlots,
+    onCancelJob,
+    onViewDetails,
     isAssigned,
     compact = false,
     vehicles = [],
@@ -230,6 +232,19 @@ const JobCard = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-1 shrink-0">
+                    {/* View Details Button */}
+                    {onViewDetails && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onViewDetails?.(job);
+                            }}
+                            className="p-1 hover:bg-blue-50 rounded text-slate-400 hover:text-blue-600"
+                            title="View job details"
+                        >
+                            <Eye size={14} />
+                        </button>
+                    )}
                     {/* Offer Time Slots Button - for unassigned jobs */}
                     {!isAssigned && onOfferSlots && (
                         <button
@@ -256,6 +271,19 @@ const JobCard = ({
                             <Users size={14} />
                         </button>
                     )}
+                    {/* Cancel Job Button */}
+                    {onCancelJob && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onCancelJob?.(job);
+                            }}
+                            className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500"
+                            title="Cancel job"
+                        >
+                            <XCircle size={14} />
+                        </button>
+                    )}
                     {isAssigned && (
                         <button
                             onClick={(e) => {
@@ -277,9 +305,10 @@ const JobCard = ({
                     {(() => {
                         try {
                             const rawDate = job.scheduledDate || job.scheduledTime;
-                            const d = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
+                            const d = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
                             if (isNaN(d.getTime())) return '';
-                            return `Scheduled: ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                            const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+                            return `Scheduled: ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz })}`;
                         } catch { return ''; }
                     })()}
                 </p>
@@ -387,6 +416,8 @@ const TechColumn = ({
     onDrop,
     onUnassign,
     onOpenCrewModal,
+    onCancelJob,
+    onViewDetails,
     isDropTarget,
     allJobs,
     onMarkWorkingToday,
@@ -562,6 +593,8 @@ const TechColumn = ({
                             isAssigned={true}
                             onUnassign={onUnassign}
                             onOpenCrewModal={onOpenCrewModal}
+                            onCancelJob={onCancelJob}
+                            onViewDetails={onViewDetails}
                             compact={true}
                             vehicles={vehicles}
                             date={date}
@@ -591,6 +624,8 @@ const UnassignedColumn = ({
     onToggleBacklog,
     totalBacklogCount,
     onOfferSlots,
+    onCancelJob,
+    onViewDetails,
     timezone
 }) => {
     const [draggingJob, setDraggingJob] = useState(null);
@@ -696,6 +731,8 @@ const UnassignedColumn = ({
                             suggestions={suggestions}
                             onAssign={onAssign}
                             onOfferSlots={onOfferSlots}
+                            onCancelJob={onCancelJob}
+                            onViewDetails={onViewDetails}
                             vehicles={vehicles}
                             timezone={timezone}
                         />
@@ -728,6 +765,9 @@ export const DispatchBoard = ({
     const [showRouteOptimization, setShowRouteOptimization] = useState(false);
     const [routeComparisonData, setRouteComparisonData] = useState(null);
     const [showAllBacklog, setShowAllBacklog] = useState(true); // Show all unassigned jobs by default
+    const [cancellingJob, setCancellingJob] = useState(null); // Job being cancelled
+    const [detailJob, setDetailJob] = useState(null); // Job detail panel
+    const [unassigningJob, setUnassigningJob] = useState(null); // Job pending unassign confirmation
 
     // Timezone fallback - use system timezone if not configured
     const effectiveTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1076,16 +1116,39 @@ export const DispatchBoard = ({
         await handleAssign(job, techId, techName);
     }, [conflictModal, handleAssign]);
 
-    const handleUnassign = useCallback(async (job) => {
+    const handleUnassign = useCallback((job) => {
+        setUnassigningJob(job);
+    }, []);
+
+    const confirmUnassign = useCallback(async () => {
+        if (!unassigningJob) return;
         try {
-            await unassignAllCrew(job.id);
+            await unassignAllCrew(unassigningJob.id);
             toast.success('Job unassigned');
+            setUnassigningJob(null);
             onJobUpdate?.();
         } catch (error) {
             console.error('Unassign error:', error);
             toast.error('Failed to unassign');
         }
-    }, [onJobUpdate]);
+    }, [unassigningJob, onJobUpdate]);
+
+    const handleCancelJob = useCallback(async (reason) => {
+        if (!cancellingJob) return;
+        try {
+            const result = await cancelJob(null, cancellingJob.id, reason);
+            if (result.success) {
+                toast.success(`Job "${cancellingJob.title}" cancelled`);
+                setCancellingJob(null);
+                onJobUpdate?.();
+            } else {
+                toast.error('Failed to cancel job');
+            }
+        } catch (error) {
+            console.error('Cancel job error:', error);
+            toast.error('Failed to cancel job');
+        }
+    }, [cancellingJob, onJobUpdate]);
 
     const handleAutoAssign = useCallback(async () => {
         if (unassignedJobs.length === 0) return;
@@ -1461,6 +1524,8 @@ export const DispatchBoard = ({
                     onToggleBacklog={() => setShowAllBacklog(prev => !prev)}
                     totalBacklogCount={allUnassignedJobs.length}
                     onOfferSlots={onOfferSlots}
+                    onCancelJob={setCancellingJob}
+                    onViewDetails={setDetailJob}
                     timezone={effectiveTimezone}
                 />
 
@@ -1486,6 +1551,8 @@ export const DispatchBoard = ({
                             onDrop={handleDrop}
                             onUnassign={handleUnassign}
                             onOpenCrewModal={setCrewModalJob}
+                            onCancelJob={setCancellingJob}
+                            onViewDetails={setDetailJob}
                             onMarkWorkingToday={handleMarkWorkingToday}
                             onEditSchedule={handleEditSchedule}
                             vehicles={vehicles}
@@ -1705,6 +1772,118 @@ export const DispatchBoard = ({
                 cancelLabel="Cancel"
                 variant="warning"
             />
+
+            {/* Unassign Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!unassigningJob}
+                onClose={() => setUnassigningJob(null)}
+                onConfirm={confirmUnassign}
+                title="Unassign Job"
+                message={
+                    unassigningJob
+                        ? `Remove all crew assignments from "${unassigningJob.title}"?\n\n• Assigned to: ${unassigningJob.assignedTechName || 'Unknown'}\n• Time: ${unassigningJob.scheduledTime ? formatTime(unassigningJob.scheduledTime, effectiveTimezone) : 'Unscheduled'}\n\nThe job will be moved back to the unassigned queue.`
+                        : ''
+                }
+                confirmLabel="Unassign"
+                cancelLabel="Keep Assigned"
+                variant="warning"
+            />
+
+            {/* Cancel Job Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={!!cancellingJob}
+                onClose={() => setCancellingJob(null)}
+                onConfirm={() => handleCancelJob('Cancelled by contractor')}
+                title="Cancel Job"
+                message={
+                    cancellingJob
+                        ? `Are you sure you want to cancel "${cancellingJob.title}"?\n\n• Customer: ${cancellingJob.customer?.name || 'Unknown'}\n• Scheduled: ${cancellingJob.scheduledTime ? formatTime(cancellingJob.scheduledTime, effectiveTimezone) : 'Unscheduled'}\n\nThis will remove all tech assignments and mark the job as cancelled.`
+                        : ''
+                }
+                confirmLabel="Cancel Job"
+                cancelLabel="Keep Job"
+                variant="danger"
+            />
+
+            {/* Job Detail Panel */}
+            {detailJob && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setDetailJob(null)}>
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-4 border-b border-slate-200 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-800">{detailJob.title}</h2>
+                                <p className="text-sm text-slate-500">Job #{detailJob.jobNumber || 'N/A'}</p>
+                            </div>
+                            <button onClick={() => setDetailJob(null)} className="p-2 hover:bg-slate-100 rounded-lg">
+                                <X size={20} className="text-slate-400" />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Status</p>
+                                    <p className="text-sm font-semibold capitalize">{detailJob.status?.replace(/_/g, ' ') || 'Unknown'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Priority</p>
+                                    <p className="text-sm font-semibold capitalize">{detailJob.priority || 'Normal'}</p>
+                                </div>
+                            </div>
+                            <div>
+                                <p className="text-xs text-slate-500 uppercase font-medium">Customer</p>
+                                <p className="text-sm font-semibold">{detailJob.customer?.name || 'Unknown'}</p>
+                                {detailJob.customer?.phone && <p className="text-sm text-slate-600">{detailJob.customer.phone}</p>}
+                                {detailJob.customer?.email && <p className="text-sm text-slate-600">{detailJob.customer.email}</p>}
+                            </div>
+                            {detailJob.customer?.address && (
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Address</p>
+                                    <p className="text-sm">{detailJob.customer.address}</p>
+                                </div>
+                            )}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Scheduled Time</p>
+                                    <p className="text-sm font-semibold">
+                                        {detailJob.scheduledTime ? formatTime(detailJob.scheduledTime, effectiveTimezone) : 'Unscheduled'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Duration</p>
+                                    <p className="text-sm font-semibold">{detailJob.estimatedDuration ? `${detailJob.estimatedDuration} min` : 'N/A'}</p>
+                                </div>
+                            </div>
+                            {detailJob.assignedTechName && (
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Assigned To</p>
+                                    <p className="text-sm font-semibold">{detailJob.assignedTechName}</p>
+                                </div>
+                            )}
+                            {detailJob.notes && (
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Notes</p>
+                                    <p className="text-sm text-slate-700">{detailJob.notes}</p>
+                                </div>
+                            )}
+                            {detailJob.price > 0 && (
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase font-medium">Price</p>
+                                    <p className="text-sm font-semibold">${detailJob.price?.toFixed(2)}</p>
+                                </div>
+                            )}
+                            <div className="pt-4 border-t border-slate-100 flex gap-2">
+                                <button
+                                    onClick={() => { setCancellingJob(detailJob); setDetailJob(null); }}
+                                    className="flex-1 px-4 py-2 bg-red-50 text-red-700 font-medium rounded-lg hover:bg-red-100 flex items-center justify-center gap-2"
+                                >
+                                    <XCircle size={16} />
+                                    Cancel Job
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
