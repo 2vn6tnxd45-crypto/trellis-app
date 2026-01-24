@@ -396,8 +396,8 @@ export const TeamCalendarView = ({
     // Add warning modal hook
     const { showWarning, WarningModal } = useCascadeWarning();
 
-    // Get business timezone
-    const businessTimezone = preferences?.businessTimezone || 'America/Los_Angeles';
+    // Get business timezone (stored as preferences.timezone, not preferences.businessTimezone)
+    const businessTimezone = preferences?.timezone || 'America/Los_Angeles';
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

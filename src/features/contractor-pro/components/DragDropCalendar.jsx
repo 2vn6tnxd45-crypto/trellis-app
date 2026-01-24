@@ -436,9 +436,10 @@ const TimeSlot = React.memo(({
     onJobClick,
     onEvaluationClick,  // NEW: Handler for evaluation clicks
     onSlotClick,  // NEW: Handler for clicking empty slot
-    preferences
+    preferences,
+    timezone: timezoneProp  // Explicit timezone prop from parent
 }) => {
-    const timezone = preferences?.businessTimezone;
+    const timezone = timezoneProp || preferences?.businessTimezone || preferences?.timezone;
 
     // Filter jobs that START in this hour (not just any job for the day)
     const slotJobs = jobs.filter(job => {
@@ -839,6 +840,12 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         } else {
             scheduledDateTime = new Date(date);
             scheduledDateTime.setHours(hours, minutes, 0, 0);
+        }
+
+        // Prevent scheduling in the past
+        if (scheduledDateTime < new Date()) {
+            toast.error('Cannot schedule a job in the past. Please select a future date and time.');
+            return;
         }
 
         const endDateTime = new Date(scheduledDateTime);
@@ -1799,6 +1806,26 @@ export const DragDropCalendar = ({
             console.error('Failed to parse job data from drag:', err);
         }
 
+        // Prevent dropping on past dates/times
+        let slotDateTime;
+        if (timezone) {
+            const dateParts = new Intl.DateTimeFormat('en-US', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                timeZone: timezone
+            }).formatToParts(date);
+            const getPart = (type) => parseInt(dateParts.find(p => p.type === type)?.value || '0', 10);
+            slotDateTime = createDateInTimezone(getPart('year'), getPart('month') - 1, getPart('day'), hour, 0, timezone);
+        } else {
+            slotDateTime = new Date(date);
+            slotDateTime.setHours(hour, 0, 0, 0);
+        }
+        if (slotDateTime < new Date()) {
+            toast.error('Cannot schedule a job in the past.', { icon: '⏰', duration: 3000 });
+            setDropTarget(null);
+            setDraggedJob(null);
+            return;
+        }
+
         // Check if the target day is a closed business day
         if (isDayClosedForBusiness(date, preferences?.workingHours)) {
             const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -1822,7 +1849,7 @@ export const DragDropCalendar = ({
 
         setDropTarget(null);
         setDraggedJob(null);
-    }, [preferences?.workingHours]);
+    }, [preferences?.workingHours, timezone]);
 
     // Confirm scheduling
     // Confirm scheduling (propose or direct)
@@ -2242,6 +2269,7 @@ export const DragDropCalendar = ({
                                         onEvaluationClick={onEvaluationClick}
                                         onSlotClick={(date, hour) => setClickScheduleTarget({ date, hour })}
                                         preferences={preferences}
+                                        timezone={timezone}
                                     />
                                 );
                             })}
