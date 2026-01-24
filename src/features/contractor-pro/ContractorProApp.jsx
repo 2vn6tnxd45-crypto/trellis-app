@@ -28,6 +28,7 @@ import { DashboardOverview } from './components/DashboardOverview';
 import { Logo } from '../../components/common/Logo';
 import { DeleteConfirmModal } from '../../components/common/DeleteConfirmModal';
 import { FullPageLoader } from '../../components/common';
+import { FeatureErrorBoundary } from '../../components/common/FeatureErrorBoundary';
 // Lazy-loaded heavy components (code splitting for performance)
 const InvoiceGenerator = lazy(() => import('../invoices/InvoiceGenerator').then(m => ({ default: m.InvoiceGenerator })));
 import { ContractorCalendar } from './components/ContractorCalendar';
@@ -502,12 +503,12 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
     const mainItems = [
         { id: 'dashboard', icon: Home, label: 'Home' },
         { id: 'jobs', icon: Briefcase, label: 'Jobs', badge: unscheduledJobsCount },
-        { id: 'messages', icon: MessageSquare, label: 'Messages', badge: unreadMessageCount },
+        { id: 'evaluations', icon: ClipboardCheck, label: 'Evals', badge: pendingEvaluationsCount },
         { id: 'quotes', icon: FileText, label: 'Quotes', badge: pendingQuotesCount },
     ];
 
     const moreItems = [
-        { id: 'evaluations', icon: ClipboardCheck, label: 'Evaluations', badge: pendingEvaluationsCount },
+        { id: 'messages', icon: MessageSquare, label: 'Messages', badge: unreadMessageCount },
         { id: 'schedule', icon: Calendar, label: 'Schedule' },
         { id: 'customers', icon: Users, label: 'Customers' },
         { id: 'invoices', icon: Receipt, label: 'Invoices' },
@@ -563,7 +564,10 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                         <button
                             key={item.id}
                             onClick={() => onNavigate(item.id)}
-                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
+                                activeView === item.id
+                                || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                                || (item.id === 'evaluations' && ['evaluations', 'create-evaluation', 'evaluation-detail'].includes(activeView))
                                 ? 'text-emerald-600'
                                 : 'text-slate-400'
                                 }`}
@@ -597,8 +601,11 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
 // ============================================
 const formatDate = (date) => {
     if (!date) return 'N/A';
-    const d = date.toDate ? date.toDate() : new Date(date);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    try {
+        const d = date.toDate ? date.toDate() : new Date(date);
+        if (isNaN(d.getTime())) return 'N/A';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch { return 'N/A'; }
 };
 
 // Format time - handles ISO strings, Date objects, Firestore timestamps, and "HH:MM" strings
@@ -919,7 +926,8 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
 
         // Get the latest homeowner proposal for display
         const latestHomeownerProposal = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner').slice(-1)[0];
-        const proposedDate = latestHomeownerProposal?.date ? new Date(latestHomeownerProposal.date) : null;
+        const proposedDateRaw = latestHomeownerProposal?.date ? new Date(latestHomeownerProposal.date) : null;
+        const proposedDate = proposedDateRaw && !isNaN(proposedDateRaw.getTime()) ? proposedDateRaw : null;
         const hasHomeownerProposal = job.status === 'scheduling' && proposedDate;
 
         // Get assigned crew members
@@ -984,26 +992,26 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                             </div>
                         )}
                         {/* Enhanced scheduled date/time display */}
-                        {job.scheduledDate && !hasHomeownerProposal && job.status === 'scheduled' && (
-                            <div className="mt-2 px-2 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
-                                <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
-                                    <Calendar size={12} />
-                                    {new Date(job.scheduledDate).toLocaleDateString('en-US', {
-                                        weekday: 'short',
-                                        month: 'short',
-                                        day: 'numeric'
-                                    })}
-                                    {job.scheduledTime && (
-                                        <span className="ml-1">
-                                            at {new Date(job.scheduledTime).toLocaleTimeString('en-US', {
-                                                hour: 'numeric',
-                                                minute: '2-digit'
-                                            })}
-                                        </span>
-                                    )}
-                                </p>
-                            </div>
-                        )}
+                        {job.scheduledDate && !hasHomeownerProposal && job.status === 'scheduled' && (() => {
+                            const schedDate = new Date(job.scheduledDate);
+                            if (isNaN(schedDate.getTime())) return null;
+                            let timeStr = null;
+                            if (job.scheduledTime) {
+                                const schedTime = new Date(job.scheduledTime);
+                                if (!isNaN(schedTime.getTime())) {
+                                    timeStr = schedTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+                                }
+                            }
+                            return (
+                                <div className="mt-2 px-2 py-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                                    <p className="text-xs text-emerald-700 font-medium flex items-center gap-1">
+                                        <Calendar size={12} />
+                                        {schedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                        {timeStr && <span className="ml-1">at {timeStr}</span>}
+                                    </p>
+                                </div>
+                            );
+                        })()}
                         {/* Crew member avatars */}
                         {hasAssignedCrew && (
                             <div className="mt-2 flex items-center gap-1">
@@ -1131,17 +1139,17 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800">My Jobs</h1>
-                    <p className="text-slate-500">
+                    <p className="text-slate-500 text-sm">
                         {allActiveJobs.length} active • {completedJobs.length} completed • {cancelledJobs.length} cancelled
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    {/* Estimated Revenue Card */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    {/* Estimated Revenue Card - hidden on small mobile */}
                     {estimatedRevenue > 0 && (
-                        <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <div className="hidden sm:block px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
                             <p className="text-[10px] text-emerald-600 font-medium uppercase tracking-wider">Est. Revenue</p>
                             <p className="text-lg font-bold text-emerald-700">{formatCurrency(estimatedRevenue)}</p>
                         </div>
@@ -1183,15 +1191,16 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                                 }`}
                         >
                             <Package size={16} />
-                            {batchMode ? 'Exit Batch' : 'Batch Schedule'}
+                            {batchMode ? 'Exit Batch' : 'Batch'}
                         </button>
                     )}
                     <button
                         onClick={onCreateJob}
-                        className="px-4 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-2"
+                        className="px-3 py-2 sm:px-4 sm:py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base"
                     >
-                        <Plus size={18} />
-                        New Job
+                        <Plus size={16} />
+                        <span className="hidden sm:inline">New Job</span>
+                        <span className="sm:hidden">New</span>
                     </button>
                 </div>
             </div>
@@ -3012,28 +3021,33 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'jobs' && (
-                        <JobsView
-                            jobs={jobs}
-                            loading={jobsLoading}
-                            onJobClick={handleJobClick}
-                            onCompleteJob={handleCompleteJob}
-                            onReviewCancellation={setReviewingCancellation}
-                            onCreateJob={() => setShowCreateJobModal(true)}
-                            onAcceptProposal={handleAcceptProposal}
-                            onDeclineProposal={handleDeclineProposal}
-                            onQuickSchedule={(job) => setOfferingTimesJob(job)}
-                            onBatchSchedule={(jobsList) => setBatchSchedulingJobs(jobsList)}
-                        />
+                        <FeatureErrorBoundary label="Jobs" onRetry={() => setActiveView('jobs')}>
+                            <JobsView
+                                jobs={jobs}
+                                loading={jobsLoading}
+                                onJobClick={handleJobClick}
+                                onCompleteJob={handleCompleteJob}
+                                onReviewCancellation={setReviewingCancellation}
+                                onCreateJob={() => setShowCreateJobModal(true)}
+                                onAcceptProposal={handleAcceptProposal}
+                                onDeclineProposal={handleDeclineProposal}
+                                onQuickSchedule={(job) => setOfferingTimesJob(job)}
+                                onBatchSchedule={(jobsList) => setBatchSchedulingJobs(jobsList)}
+                            />
+                        </FeatureErrorBoundary>
                     )}
 
                     {activeView === 'messages' && (
-                        <ContractorMessagesView
-                            contractorId={contractorId}
-                            contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
-                        />
+                        <FeatureErrorBoundary label="Messages" onRetry={() => setActiveView('messages')}>
+                            <ContractorMessagesView
+                                contractorId={contractorId}
+                                contractorName={profile?.profile?.companyName || profile?.profile?.displayName || 'Contractor'}
+                            />
+                        </FeatureErrorBoundary>
                     )}
 
                     {activeView === 'schedule' && (
+                        <FeatureErrorBoundary label="Schedule" onRetry={() => setActiveView('schedule')}>
                         <div className="space-y-4 h-[calc(100vh-theme(spacing.24))] flex flex-col">
                             <div className="flex items-center justify-between flex-wrap gap-4 shrink-0">
                                 <div>
@@ -3220,15 +3234,18 @@ export const ContractorProApp = () => {
                                 />
                             )}
                         </div>
+                        </FeatureErrorBoundary>
                     )}
 
                     {activeView === 'quotes' && (
-                        <QuotesListView
-                            quotes={quotes}
-                            loading={quotesLoading}
-                            onCreateQuote={handleCreateQuote}
-                            onSelectQuote={handleSelectQuote}
-                        />
+                        <FeatureErrorBoundary label="Quotes" onRetry={() => setActiveView('quotes')}>
+                            <QuotesListView
+                                quotes={quotes}
+                                loading={quotesLoading}
+                                onCreateQuote={handleCreateQuote}
+                                onSelectQuote={handleSelectQuote}
+                            />
+                        </FeatureErrorBoundary>
                     )}
 
                     {activeView === 'create-quote' && (
@@ -3285,15 +3302,17 @@ export const ContractorProApp = () => {
 
                     {/* Evaluation Views */}
                     {activeView === 'evaluations' && (
-                        <EvaluationsListView
-                            evaluations={evaluations}
-                            pendingEvaluations={pendingEvaluations}
-                            completedEvaluations={completedEvaluations}
-                            loading={evalsLoading}
-                            contractorId={contractorId}
-                            onCreateEvaluation={handleCreateEvaluation}
-                            onSelectEvaluation={handleSelectEvaluation}
-                        />
+                        <FeatureErrorBoundary label="Evaluations" onRetry={() => setActiveView('evaluations')}>
+                            <EvaluationsListView
+                                evaluations={evaluations}
+                                pendingEvaluations={pendingEvaluations}
+                                completedEvaluations={completedEvaluations}
+                                loading={evalsLoading}
+                                contractorId={contractorId}
+                                onCreateEvaluation={handleCreateEvaluation}
+                                onSelectEvaluation={handleSelectEvaluation}
+                            />
+                        </FeatureErrorBoundary>
                     )}
 
                     {activeView === 'create-evaluation' && (
