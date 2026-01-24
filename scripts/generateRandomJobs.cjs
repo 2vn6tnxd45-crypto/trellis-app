@@ -31,6 +31,7 @@
  *   --vehicle-count=<n>      Number of vehicles (default: matches crew roughly)
  *   --radius=<miles>         Radius in miles from Austin center (default: 15)
  *   --skip-homeowner         Skip homeowner property/items generation
+ *   --reset                   DELETE existing data before creating new (clean slate)
  *   --dry-run                Preview without creating anything
  */
 
@@ -59,7 +60,8 @@ const CONFIG = {
     vehicleCount: args['vehicle-count'] ? parseInt(args['vehicle-count']) : null,
     radiusMiles: parseFloat(args['radius']) || 15,
     dryRun: args['dry-run'] || false,
-    skipHomeowner: args['skip-homeowner'] || false
+    skipHomeowner: args['skip-homeowner'] || false,
+    reset: args['reset'] || false  // Delete existing data before creating new
 };
 
 // Additional collection paths
@@ -997,6 +999,80 @@ function generateHomeItem(homeownerId, propertyId, template, index) {
 // MAIN SCRIPT
 // ============================================
 
+/**
+ * Delete all existing test data for a contractor/homeowner
+ * This provides a clean slate before populating fresh data
+ */
+async function cleanExistingData(db, contractorId, homeownerId) {
+    console.log('\n--- RESET MODE: Cleaning existing data ---');
+    let totalDeleted = 0;
+
+    // Helper to delete docs matching a query
+    async function deleteMatchingDocs(collection, field, value, label) {
+        try {
+            const snapshot = await db.collection(collection)
+                .where(field, '==', value)
+                .get();
+
+            if (snapshot.empty) {
+                console.log(`   ${label}: 0 (none found)`);
+                return 0;
+            }
+
+            // Delete in batches to avoid timeouts
+            const batchSize = 50;
+            let deleted = 0;
+            const docs = snapshot.docs;
+
+            for (let i = 0; i < docs.length; i += batchSize) {
+                const batch = db.batch();
+                const chunk = docs.slice(i, i + batchSize);
+                chunk.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                deleted += chunk.length;
+            }
+
+            console.log(`   ${label}: ${deleted} deleted`);
+            return deleted;
+        } catch (error) {
+            console.log(`   ${label}: error - ${error.message}`);
+            return 0;
+        }
+    }
+
+    // Clean contractor data
+    totalDeleted += await deleteMatchingDocs(REQUESTS_COLLECTION, 'contractorId', contractorId, 'Jobs');
+    totalDeleted += await deleteMatchingDocs(QUOTES_COLLECTION, 'contractorId', contractorId, 'Quotes');
+    totalDeleted += await deleteMatchingDocs(CUSTOMERS_COLLECTION, 'contractorId', contractorId, 'Customers');
+    totalDeleted += await deleteMatchingDocs(MEMBERSHIP_PLANS_COLLECTION, 'contractorId', contractorId, 'Membership Plans');
+
+    // Clean contractor vehicles subcollection
+    try {
+        const vehiclesRef = db.collection(`${CONTRACTORS_COLLECTION}/${contractorId}/vehicles`);
+        const vehicleSnapshot = await vehiclesRef.get();
+        if (!vehicleSnapshot.empty) {
+            const batch = db.batch();
+            vehicleSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            console.log(`   Vehicles: ${vehicleSnapshot.size} deleted`);
+            totalDeleted += vehicleSnapshot.size;
+        } else {
+            console.log('   Vehicles: 0 (none found)');
+        }
+    } catch (error) {
+        console.log(`   Vehicles: error - ${error.message}`);
+    }
+
+    // Clean homeowner data if specified
+    if (homeownerId) {
+        totalDeleted += await deleteMatchingDocs(PROPERTIES_COLLECTION, 'homeownerId', homeownerId, 'Properties');
+        totalDeleted += await deleteMatchingDocs(ITEMS_COLLECTION, 'homeownerId', homeownerId, 'Home Items');
+    }
+
+    console.log(`   TOTAL: ${totalDeleted} documents deleted\n`);
+    return totalDeleted;
+}
+
 async function initializeFirebase() {
     try {
         const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
@@ -1036,7 +1112,15 @@ async function main() {
     console.log(`Jobs to create: ${CONFIG.count}`);
     console.log(`Crew members: ${crewCount}`);
     console.log(`Vehicles: ${vehicleCount}`);
+    console.log(`Reset mode: ${CONFIG.reset ? 'Yes (will delete existing data)' : 'No'}`);
     console.log(`Dry run: ${CONFIG.dryRun ? 'Yes' : 'No'}\n`);
+
+    // ---- Step 0: Clean existing data if reset flag is set ----
+    if (CONFIG.reset && !CONFIG.dryRun) {
+        await cleanExistingData(db, CONFIG.contractorId, CONFIG.homeownerId);
+    } else if (CONFIG.reset && CONFIG.dryRun) {
+        console.log('\n--- RESET MODE: Would delete existing data (dry run) ---\n');
+    }
 
     // ---- Step 1: Generate Business Hours ----
     console.log('--- Step 1: Business Hours ---');
