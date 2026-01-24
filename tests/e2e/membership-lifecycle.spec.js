@@ -154,28 +154,35 @@ test.describe('Membership Lifecycle - Recurring Revenue', () => {
         // Look for "Sell Membership" button
         const sellBtn = page.locator('button:has-text("Sell Membership"), button:has-text("New Member")').first();
         if (await sellBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await sellBtn.click();
-            await page.waitForTimeout(1500);
-            await screenshot(page, testId, '02-sell-modal');
+            // Check if button is enabled (disabled when no plans exist)
+            const isDisabled = await sellBtn.isDisabled().catch(() => true);
+            if (isDisabled) {
+                console.log('[MEM-SELL] Sell Membership button is DISABLED (no plans created yet)');
+                await screenshot(page, testId, '02-sell-button-disabled');
+            } else {
+                await sellBtn.click();
+                await page.waitForTimeout(1500);
+                await screenshot(page, testId, '02-sell-modal');
 
-            // Check for modal steps
-            const modalElements = [
-                { name: 'Customer Selection', selector: 'text=/select customer/i, text=/customer/i' },
-                { name: 'Plan Selection', selector: 'text=/select plan/i, text=/choose plan/i' },
-                { name: 'Payment Method', selector: 'text=/payment/i, text=/credit card/i, text=/stripe/i' },
-                { name: 'Close Button', selector: 'button:has-text("Cancel"), button[aria-label*="close" i]' }
-            ];
+                // Check for modal steps
+                const modalElements = [
+                    { name: 'Customer Selection', selector: 'text=/select customer/i, text=/customer/i' },
+                    { name: 'Plan Selection', selector: 'text=/select plan/i, text=/choose plan/i' },
+                    { name: 'Payment Method', selector: 'text=/payment/i, text=/credit card/i, text=/stripe/i' },
+                    { name: 'Close Button', selector: 'button:has-text("Cancel"), button[aria-label*="close" i]' }
+                ];
 
-            for (const element of modalElements) {
-                const visible = await page.locator(element.selector).first()
-                    .isVisible({ timeout: 2000 }).catch(() => false);
-                console.log(`[MEM-SELL] ${element.name}: ${visible ? '✓' : '✗'}`);
-            }
+                for (const element of modalElements) {
+                    const visible = await page.locator(element.selector).first()
+                        .isVisible({ timeout: 2000 }).catch(() => false);
+                    console.log(`[MEM-SELL] ${element.name}: ${visible ? '✓' : '✗'}`);
+                }
 
-            // Close modal
-            const closeBtn = page.locator('button:has-text("Cancel"), button[aria-label*="close" i]').first();
-            if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-                await closeBtn.click();
+                // Close modal
+                const closeBtn = page.locator('button:has-text("Cancel"), button[aria-label*="close" i]').first();
+                if (await closeBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await closeBtn.click();
+                }
             }
         } else {
             console.log('[MEM-SELL] Sell Membership button not found - may need plans first');
