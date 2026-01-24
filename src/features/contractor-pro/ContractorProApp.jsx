@@ -57,6 +57,7 @@ const ReportingDashboard = lazy(() => import('./components/ReportingDashboard').
 import { NeedsAttention } from './components/NeedsAttention';
 import { ExpenseTracker } from './components/ExpenseTracker';
 import { useExpenses } from './hooks/useExpenses';
+import { useCalendarEvents } from './hooks/useContractorData'; // Ensure import is available
 
 // Chat Components
 import { ContractorMessagesView } from './components/ContractorMessagesView';
@@ -130,11 +131,10 @@ const StarRating = ({ value, onChange, disabled = false }) => {
                 >
                     <Star
                         size={24}
-                        className={`transition-colors ${
-                            (hoverValue || value) >= star
-                                ? 'fill-amber-400 text-amber-400'
-                                : 'text-slate-300'
-                        }`}
+                        className={`transition-colors ${(hoverValue || value) >= star
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'text-slate-300'
+                            }`}
                     />
                 </button>
             ))}
@@ -271,22 +271,20 @@ const RateHomeownerModal = ({ job, contractorId, onClose, onSuccess }) => {
                             <button
                                 type="button"
                                 onClick={() => setWouldWorkAgain(true)}
-                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                                    wouldWorkAgain === true
-                                        ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-500'
-                                        : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
-                                }`}
+                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${wouldWorkAgain === true
+                                    ? 'bg-emerald-100 text-emerald-700 border-2 border-emerald-500'
+                                    : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
+                                    }`}
                             >
                                 <ThumbsUp size={16} /> Yes
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setWouldWorkAgain(false)}
-                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                                    wouldWorkAgain === false
-                                        ? 'bg-red-100 text-red-700 border-2 border-red-500'
-                                        : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
-                                }`}
+                                className={`flex-1 py-2 px-4 rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2 ${wouldWorkAgain === false
+                                    ? 'bg-red-100 text-red-700 border-2 border-red-500'
+                                    : 'bg-slate-100 text-slate-600 border-2 border-transparent hover:bg-slate-200'
+                                    }`}
                             >
                                 <ThumbsDown size={16} /> No
                             </button>
@@ -541,9 +539,8 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                                         onNavigate(item.id);
                                         setShowMoreMenu(false);
                                     }}
-                                    className={`flex flex-col items-center p-3 rounded-xl transition-colors relative ${
-                                        activeView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
-                                    }`}
+                                    className={`flex flex-col items-center p-3 rounded-xl transition-colors relative ${activeView === item.id ? 'bg-emerald-50 text-emerald-600' : 'text-slate-600 hover:bg-slate-50'
+                                        }`}
                                 >
                                     <item.icon size={24} />
                                     <span className="text-xs mt-1.5 font-medium text-center">{item.label}</span>
@@ -566,11 +563,10 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                         <button
                             key={item.id}
                             onClick={() => onNavigate(item.id)}
-                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
-                                activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
-                                    ? 'text-emerald-600'
-                                    : 'text-slate-400'
-                            }`}
+                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
+                                ? 'text-emerald-600'
+                                : 'text-slate-400'
+                                }`}
                         >
                             <item.icon size={22} />
                             <span className="text-xs mt-1 font-medium">{item.label}</span>
@@ -584,9 +580,8 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                     {/* More Button */}
                     <button
                         onClick={() => setShowMoreMenu(!showMoreMenu)}
-                        className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
-                            isMoreActive || showMoreMenu ? 'text-emerald-600' : 'text-slate-400'
-                        }`}
+                        className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${isMoreActive || showMoreMenu ? 'text-emerald-600' : 'text-slate-400'
+                            }`}
                     >
                         <Menu size={22} />
                         <span className="text-xs mt-1 font-medium">More</span>
@@ -948,11 +943,10 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                 {canSelect && (
                     <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-100">
                         <div
-                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                                isSelected
-                                    ? 'border-emerald-500 bg-emerald-500'
-                                    : 'border-slate-300 hover:border-emerald-400'
-                            }`}
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected
+                                ? 'border-emerald-500 bg-emerald-500'
+                                : 'border-slate-300 hover:border-emerald-400'
+                                }`}
                         >
                             {isSelected && <CheckCircle size={14} className="text-white" />}
                         </div>
@@ -1156,21 +1150,19 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                     <div className="flex bg-slate-100 rounded-xl p-1">
                         <button
                             onClick={() => setViewMode('list')}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                viewMode === 'list'
-                                    ? 'bg-white text-slate-800 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${viewMode === 'list'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
                         >
                             List
                         </button>
                         <button
                             onClick={() => setViewMode('map')}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
-                                viewMode === 'map'
-                                    ? 'bg-white text-slate-800 shadow-sm'
-                                    : 'text-slate-500 hover:text-slate-700'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${viewMode === 'map'
+                                ? 'bg-white text-slate-800 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700'
+                                }`}
                         >
                             <MapPin size={14} />
                             Map
@@ -1185,11 +1177,10 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                                     setSelectedJobs(new Set());
                                 }
                             }}
-                            className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${
-                                batchMode
-                                    ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
+                            className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 ${batchMode
+                                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
                         >
                             <Package size={16} />
                             {batchMode ? 'Exit Batch' : 'Batch Schedule'}
@@ -1231,11 +1222,10 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                     <button
                         onClick={handleBatchSchedule}
                         disabled={selectedJobs.size === 0}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${
-                            selectedJobs.size > 0
-                                ? 'bg-purple-600 text-white hover:bg-purple-700'
-                                : 'bg-purple-200 text-purple-400 cursor-not-allowed'
-                        }`}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${selectedJobs.size > 0
+                            ? 'bg-purple-600 text-white hover:bg-purple-700'
+                            : 'bg-purple-200 text-purple-400 cursor-not-allowed'
+                            }`}
                     >
                         <Calendar size={16} />
                         Schedule {selectedJobs.size > 0 ? `${selectedJobs.size} Jobs` : 'Selected'}
@@ -1257,19 +1247,17 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                         <button
                             key={filter.key}
                             onClick={() => setStatusFilter(filter.key)}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                                statusFilter === filter.key
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${statusFilter === filter.key
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                }`}
                         >
                             {filter.label}
                             {filter.count > 0 && (
-                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${
-                                    statusFilter === filter.key
-                                        ? 'bg-white/20 text-white'
-                                        : 'bg-slate-200 text-slate-600'
-                                }`}>
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${statusFilter === filter.key
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-600'
+                                    }`}>
                                     {filter.count}
                                 </span>
                             )}
@@ -2305,6 +2293,9 @@ export const ContractorProApp = () => {
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
+    // NEW: Calendar View Mode state (week or month)
+    const [calendarViewMode, setCalendarViewMode] = useState('week');
+
     // NEW: Evaluation state
     const [selectedEvaluation, setSelectedEvaluation] = useState(null);
 
@@ -3043,8 +3034,8 @@ export const ContractorProApp = () => {
                     )}
 
                     {activeView === 'schedule' && (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="space-y-4 h-[calc(100vh-theme(spacing.24))] flex flex-col">
+                            <div className="flex items-center justify-between flex-wrap gap-4 shrink-0">
                                 <div>
                                     <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
                                     <p className="text-slate-500">
@@ -3052,89 +3043,139 @@ export const ContractorProApp = () => {
                                     </p>
                                 </div>
 
-                                {hasTeam && (
-                                    <div className="flex bg-slate-100 rounded-xl p-1">
+                                <div className="flex items-center gap-2">
+                                    {/* Week/Month Toggle - Always visible in Schedule view */}
+                                    <div className="flex bg-slate-100 rounded-xl p-1 mr-2">
                                         <button
-                                            onClick={() => setScheduleView('calendar')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
+                                            onClick={() => setCalendarViewMode('week')}
+                                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'week'
                                                 ? 'bg-white text-slate-800 shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
-                                            Calendar
+                                            Week
                                         </button>
                                         <button
-                                            onClick={() => setScheduleView('dispatch')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
+                                            onClick={() => setCalendarViewMode('month')}
+                                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'month'
                                                 ? 'bg-white text-slate-800 shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                         >
-                                            Dispatch
-                                        </button>
-                                        <button
-                                            onClick={() => setScheduleView('team')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
-                                                ? 'bg-white text-slate-800 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                        >
-                                            Assignment
-                                        </button>
-                                        <button
-                                            onClick={() => setScheduleView('team-calendar')}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
-                                                ? 'bg-white text-slate-800 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                        >
-                                            Team Calendar
+                                            Month
                                         </button>
                                     </div>
-                                )}
+
+                                    {hasTeam && (
+                                        <div className="flex bg-slate-100 rounded-xl p-1">
+                                            <button
+                                                onClick={() => setScheduleView('calendar')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                            >
+                                                Calendar
+                                            </button>
+                                            <button
+                                                onClick={() => setScheduleView('dispatch')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                            >
+                                                Dispatch
+                                            </button>
+                                            <button
+                                                onClick={() => setScheduleView('team')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                            >
+                                                Assignment
+                                            </button>
+                                            <button
+                                                onClick={() => setScheduleView('team-calendar')}
+                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
+                                                    ? 'bg-white text-slate-800 shadow-sm'
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                            >
+                                                Team Calendar
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Solo contractor - simple calendar */}
                             {!hasTeam && (
-                                <DragDropCalendar
-                                    jobs={jobs}
-                                    evaluations={calendarEvaluations}
-                                    timezone={profile?.scheduling?.timezone}
-                                    preferences={profile?.scheduling}
-                                    selectedDate={selectedDate}
-                                    onDateChange={setSelectedDate}
-                                    onJobClick={handleJobClick}
-                                    onEvaluationClick={(evaluation) => {
-                                        // Navigate to evaluation details or show modal
-                                        setActiveView('evaluations');
-                                    }}
-                                    teamMembers={[]}
-                                    vehicles={vehicles || []}
-                                    onSetupTeam={() => setActiveView('settings')}
-                                    onAcceptProposal={handleAcceptProposal}
-                                    onDeclineProposal={handleDeclineProposal}
-                                />
+                                <div className="flex-1 min-h-0 overflow-hidden">
+                                    {calendarViewMode === 'month' ? (
+                                        <div className="h-full overflow-y-auto">
+                                            <ContractorCalendar
+                                                jobs={jobs}
+                                                timezone={profile?.scheduling?.timezone}
+                                                viewMode="month"
+                                                hideHeader={true}
+                                                onSelectJob={handleJobClick}
+                                                onCreateJob={() => setShowCreateJobModal(true)}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <DragDropCalendar
+                                            jobs={jobs}
+                                            evaluations={calendarEvaluations}
+                                            timezone={profile?.scheduling?.timezone}
+                                            preferences={profile?.scheduling}
+                                            selectedDate={selectedDate}
+                                            onDateChange={setSelectedDate}
+                                            onJobClick={handleJobClick}
+                                            onEvaluationClick={(evaluation) => {
+                                                // Navigate to evaluation details or show modal
+                                                setActiveView('evaluations');
+                                            }}
+                                            teamMembers={[]}
+                                            vehicles={vehicles || []}
+                                            onSetupTeam={() => setActiveView('settings')}
+                                            onAcceptProposal={handleAcceptProposal}
+                                            onDeclineProposal={handleDeclineProposal}
+                                        />
+                                    )}
+                                </div>
                             )}
 
                             {/* Team - Calendar View */}
                             {hasTeam && scheduleView === 'calendar' && (
-                                <DragDropCalendar
-                                    jobs={jobs}
-                                    evaluations={calendarEvaluations}
-                                    timezone={profile?.scheduling?.timezone}
-                                    preferences={profile?.scheduling}
-                                    selectedDate={selectedDate}
-                                    onDateChange={setSelectedDate}
-                                    onJobClick={handleJobClick}
-                                    onEvaluationClick={(evaluation) => {
-                                        setActiveView('evaluations');
-                                    }}
-                                    teamMembers={profile?.scheduling?.teamMembers || []}
-                                    vehicles={vehicles || []}
-                                    onSetupTeam={() => setActiveView('settings')}
-                                    onAcceptProposal={handleAcceptProposal}
-                                    onDeclineProposal={handleDeclineProposal}
-                                />
+                                calendarViewMode === 'month' ? (
+                                    <ContractorCalendar
+                                        jobs={jobs}
+                                        timezone={profile?.scheduling?.timezone}
+                                        viewMode="month"
+                                        hideHeader={true}
+                                        onSelectJob={handleJobClick}
+                                        onCreateJob={() => setShowCreateJobModal(true)}
+                                    />
+                                ) : (
+                                    <DragDropCalendar
+                                        jobs={jobs}
+                                        evaluations={calendarEvaluations}
+                                        timezone={profile?.scheduling?.timezone}
+                                        preferences={profile?.scheduling}
+                                        selectedDate={selectedDate}
+                                        onDateChange={setSelectedDate}
+                                        onJobClick={handleJobClick}
+                                        onEvaluationClick={(evaluation) => {
+                                            setActiveView('evaluations');
+                                        }}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
+                                        vehicles={vehicles || []}
+                                        onSetupTeam={() => setActiveView('settings')}
+                                        onAcceptProposal={handleAcceptProposal}
+                                        onDeclineProposal={handleDeclineProposal}
+                                    />
+                                )
                             )}
 
                             {/* Team - Dispatch Board */}

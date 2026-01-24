@@ -313,8 +313,8 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${hasProposal
-                    ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
-                    : 'bg-white border-slate-200'
+                ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
+                : 'bg-white border-slate-200'
                 } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
         >
             {hasProposal && (
@@ -526,30 +526,31 @@ const TimeSlot = React.memo(({
             onDragOver={handleDragOver}
             onDragLeave={onDragLeave}
             onClick={handleSlotClick}
-            className={`h-[60px] border-b border-r border-slate-100 p-1 transition-colors relative ${
-                isDayClosed
-                    ? 'bg-slate-100/80 cursor-not-allowed'
-                    : isDropTarget
-                        ? 'bg-emerald-100 border-emerald-300'
-                        : isWithinWorkingHours
-                            ? 'bg-white hover:bg-slate-50 cursor-pointer'
-                            : 'bg-slate-50'
+            className={`h-[60px] border-b border-r border-slate-100 transition-colors relative ${isDayClosed
+                ? 'bg-slate-100/80 cursor-not-allowed'
+                : isDropTarget
+                    ? 'bg-emerald-100 border-emerald-300'
+                    : isWithinWorkingHours
+                        ? 'bg-white hover:bg-slate-50 cursor-pointer'
+                        : 'bg-slate-50'
                 }`}
             title={isDayClosed ? 'Business closed - scheduling not allowed' : undefined}
         >
             {/* Confirmed Jobs - Height scaled by duration, positioned absolutely to overlap cells */}
             {slotJobs.map((job, jobIndex) => {
                 // Calculate visual height: each hour = 60px
-                const heightPx = Math.max(52, (job._durationHours || 1) * 60 - 8); // -8 for padding
+                const heightPx = Math.max(52, (job._durationHours || 1) * 60 - 4); // -4 for gap
                 const showDuration = (job._durationMinutes || 60) >= 30;
                 // Offset for multiple jobs starting at same hour
-                const topOffset = 4 + (jobIndex * 4);
+                const horizontalOffset = jobIndex * 12; // Cascade effect
+                const zIndex = 10 + jobIndex;
 
                 // Calculate start minutes for proper vertical positioning (timezone-aware)
                 // This ensures a job at 1:30 is lower than a job at 1:00
                 const startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledDate, timezone);
-                // Formula: startMinutes/60 * 100% + existing stacking offset
-                const topPosition = `calc(${(startMinutes / 60) * 100}% + ${topOffset}px)`;
+                // Formula: startMinutes/60 * 100%
+                // Add tiny offset for border if needed, but pure % is safest for alignment
+                const topPosition = `${(startMinutes / 60) * 100}%`;
 
                 // Format display time
                 const startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledDate, timezone);
@@ -648,8 +649,8 @@ const TimeSlot = React.memo(({
                         onClick={() => onJobClick?.({ ...slot, _isProposal: true })}
                         style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
                         className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity ${isHomeownerProposal
-                                ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
-                                : 'bg-amber-50 border-amber-300 hover:bg-amber-100'
+                            ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
+                            : 'bg-amber-50 border-amber-300 hover:bg-amber-100'
                             }`}
                         title={isHomeownerProposal ? 'Click to accept or counter-propose' : 'Offered time slot (Pending confirmation)'}
                     >
@@ -877,33 +878,33 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                 {/* Crew Requirements Banner */}
                 {requiresMultipleTechs && (
                     <div className={`mb-4 p-3 rounded-xl border ${crewValidation.meetsRequirement
-                            ? 'bg-emerald-50 border-emerald-200'
-                            : crewValidation.isValid
-                                ? 'bg-amber-50 border-amber-200'
-                                : 'bg-red-50 border-red-200'
+                        ? 'bg-emerald-50 border-emerald-200'
+                        : crewValidation.isValid
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-red-50 border-red-200'
                         }`}>
                         <div className="flex items-start gap-2">
                             <UsersIcon size={16} className={`mt-0.5 shrink-0 ${crewValidation.meetsRequirement
-                                    ? 'text-emerald-600'
-                                    : crewValidation.isValid
-                                        ? 'text-amber-600'
-                                        : 'text-red-600'
+                                ? 'text-emerald-600'
+                                : crewValidation.isValid
+                                    ? 'text-amber-600'
+                                    : 'text-red-600'
                                 }`} />
                             <div className="flex-1">
                                 <div className="flex items-center justify-between">
                                     <p className={`font-medium ${crewValidation.meetsRequirement
-                                            ? 'text-emerald-800'
-                                            : crewValidation.isValid
-                                                ? 'text-amber-800'
-                                                : 'text-red-800'
+                                        ? 'text-emerald-800'
+                                        : crewValidation.isValid
+                                            ? 'text-amber-800'
+                                            : 'text-red-800'
                                         }`}>
                                         Crew Required: {requiredCrew} {requiredCrew === 1 ? 'person' : 'people'}
                                     </p>
                                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${crewValidation.meetsRequirement
-                                            ? 'bg-emerald-100 text-emerald-700'
-                                            : crewValidation.isValid
-                                                ? 'bg-amber-100 text-amber-700'
-                                                : 'bg-red-100 text-red-700'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : crewValidation.isValid
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-red-100 text-red-700'
                                         }`}>
                                         {selectedCrew.length}/{requiredCrew} selected
                                     </span>
@@ -1076,13 +1077,13 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                                         type="button"
                                         onClick={() => toggleCrewMember(member.id)}
                                         className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${isSelected
-                                                ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
-                                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500'
+                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                                             }`}
                                     >
                                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected
-                                                ? 'border-emerald-500 bg-emerald-500'
-                                                : 'border-slate-300'
+                                            ? 'border-emerald-500 bg-emerald-500'
+                                            : 'border-slate-300'
                                             }`}>
                                             {isSelected && <Check size={12} className="text-white" />}
                                         </div>

@@ -639,9 +639,23 @@ export const ContractorCalendar = ({
     onSelectJob,
     onOfferTimes,
     onCreateJob,
-    timezone
+    timezone,
+    viewMode: controlledViewMode, // NEW: Controlled view mode
+    onViewModeChange, // NEW: Handler for view mode change
+    hideHeader = false // NEW: Option to hide the main header
 }) => {
-    const [viewMode, setViewMode] = useState('week'); // 'week' | 'month'
+    const [internalViewMode, setInternalViewMode] = useState('week'); // 'week' | 'month'
+
+    // Use controlled mode if provided, otherwise internal state
+    const viewMode = controlledViewMode || internalViewMode;
+    const setViewMode = (mode) => {
+        if (onViewModeChange) {
+            onViewModeChange(mode);
+        } else {
+            setInternalViewMode(mode);
+        }
+    };
+
     const [currentDate, setCurrentDate] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -756,21 +770,23 @@ export const ContractorCalendar = ({
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
-                    <p className="text-slate-500">Manage your jobs and availability</p>
+            {!hideHeader && (
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
+                        <p className="text-slate-500">Manage your jobs and availability</p>
+                    </div>
+                    {onCreateJob && (
+                        <button
+                            onClick={onCreateJob}
+                            className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2"
+                        >
+                            <Plus size={18} />
+                            New Job
+                        </button>
+                    )}
                 </div>
-                {onCreateJob && (
-                    <button
-                        onClick={onCreateJob}
-                        className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2"
-                    >
-                        <Plus size={18} />
-                        New Job
-                    </button>
-                )}
-            </div>
+            )}
 
             {/* Calendar Controls */}
             <div className="flex items-center justify-between bg-white rounded-2xl border border-slate-200 p-4">
