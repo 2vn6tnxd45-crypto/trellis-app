@@ -13,8 +13,72 @@ const BASE_URL = process.env.LOCAL_TEST === '1' ? 'http://localhost:5173' : 'htt
 console.log(`[TestConfig] Using base URL: ${BASE_URL}`);
 
 // ============================================
+// TEST ACCOUNT CREDENTIALS
+// ============================================
+// Use these for tests that need existing data (jobs, customers, memberships)
+export const TEST_ACCOUNTS = {
+    contractor: {
+        email: 'danvdova@gmail.com',
+        password: 'Test1234'
+    },
+    homeowner: {
+        email: 'danvdova@gmail.com',
+        password: 'Test1234'
+    }
+};
+
+// ============================================
 // AUTHENTICATION HELPERS
 // ============================================
+
+/**
+ * Login with existing credentials (use for tests needing pre-existing data)
+ */
+export async function loginWithCredentials(page, email, password, userType = 'contractor') {
+    console.log(`[Auth] Logging in with existing account: ${email}`);
+
+    try {
+        // Navigate to appropriate portal
+        const url = userType === 'contractor' ? `${BASE_URL}/home?pro` : `${BASE_URL}/home`;
+        await page.goto(url);
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
+
+        // Check if already logged in
+        const alreadyLoggedIn = await page.locator('aside').first().isVisible({ timeout: 2000 }).catch(() => false);
+        if (alreadyLoggedIn) {
+            console.log('[Auth] Already logged in');
+            return true;
+        }
+
+        // Click Sign In button if present
+        const signInButton = page.locator('text=/sign in|log in|get started/i').first();
+        if (await signInButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await signInButton.click();
+            await page.waitForTimeout(1000);
+        }
+
+        // Fill login form
+        await page.fill('input[type="email"]', email);
+        await page.fill('input[type="password"]', password);
+
+        // Submit
+        const submitBtn = page.locator('button:has-text("Sign In"), button:has-text("Log In"), button[type="submit"]').first();
+        if (await submitBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await submitBtn.click();
+            await page.waitForTimeout(2000);
+        }
+
+        // Wait for dashboard to load
+        await page.locator('aside').first().waitFor({ state: 'visible', timeout: 10000 });
+        console.log('[Auth] Login successful');
+        return true;
+
+    } catch (error) {
+        console.log(`[Auth] Login failed: ${error.message}`);
+        throw error;
+    }
+}
 
 /**
  * Generate unique test account credentials
@@ -478,9 +542,9 @@ export async function withRateLimitRetry(action, maxRetries = 3) {
             return await action();
         } catch (error) {
             const isRateLimit = error.message?.includes('rate') ||
-                               error.message?.includes('too many') ||
-                               error.message?.includes('Too many') ||
-                               error.message?.includes('quota');
+                error.message?.includes('too many') ||
+                error.message?.includes('Too many') ||
+                error.message?.includes('quota');
 
             if (isRateLimit && attempt < maxRetries) {
                 await waitForRateLimit(attempt);
