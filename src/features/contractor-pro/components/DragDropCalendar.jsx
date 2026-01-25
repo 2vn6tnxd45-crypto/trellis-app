@@ -185,7 +185,8 @@ const checkScheduleConflicts = (newStart, newEnd, existingJobs, assignedTechIds,
         if (!hasOverlappingTech) continue;
 
         // Get job time window
-        const jobStart = job.scheduledTime || job.scheduledDate;
+        // FIXED: Also check scheduledStartTime field (BUG-020)
+        const jobStart = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
         const jobEnd = job.scheduledEndTime || (jobStart ? new Date(new Date(jobStart).getTime() + (job.estimatedDuration || 60) * 60000).toISOString() : null);
 
         if (!jobStart) continue;
@@ -255,7 +256,8 @@ const getJobsForDate = (jobs, date, timezone) => {
         }
 
         // Check regular scheduled date - use normalized date to handle date-only strings
-        const rawJobDate = job.scheduledTime || job.scheduledDate;
+        // FIXED: Also check scheduledStartTime field (BUG-020)
+        const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
         if (rawJobDate) {
             const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timezone);
             if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timezone)) {
@@ -502,7 +504,8 @@ const TimeSlot = React.memo(({
             }
         }
         // For regular jobs, use the scheduled time with timezone awareness
-        const jobTime = job.scheduledTime || job.scheduledDate;
+        // FIXED: Also check scheduledStartTime field (BUG-020)
+        const jobTime = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
         const jobHour = getHourFromDate(jobTime, timezone);
         return jobHour === hour;
     }).map(job => {
@@ -620,8 +623,9 @@ const TimeSlot = React.memo(({
                     }
                 } else {
                     // Regular job: use scheduledTime with timezone awareness
-                    startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledDate, timezone);
-                    startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledDate, timezone);
+                    // FIXED: Also check scheduledStartTime field (BUG-020)
+                    startMinutes = getMinutesFromDate(job.scheduledTime || job.scheduledStartTime || job.scheduledDate, timezone);
+                    startTimeStr = formatTimeFromDate(job.scheduledTime || job.scheduledStartTime || job.scheduledDate, timezone);
                     endTimeStr = job.scheduledEndTime ? formatTimeFromDate(job.scheduledEndTime, timezone) : null;
                 }
                 // Formula: startMinutes/60 * 100%
@@ -648,11 +652,12 @@ const TimeSlot = React.memo(({
                 const handleCalendarJobDragStart = (e, dragJob) => {
                     e.dataTransfer.setData('jobId', dragJob.id);
                     // FIX: Include original duration in drag data for preservation
+                    // FIXED: Also check scheduledStartTime field (BUG-020)
                     e.dataTransfer.setData('jobData', JSON.stringify({
                         ...dragJob,
                         _originalDuration: dragJob.estimatedDuration || dragJob._durationMinutes || 60,
                         _isReschedule: true, // Flag to indicate this is a reschedule, not new scheduling
-                        _originalStart: dragJob.scheduledTime || dragJob.scheduledDate,
+                        _originalStart: dragJob.scheduledTime || dragJob.scheduledStartTime || dragJob.scheduledDate,
                         _originalEnd: dragJob.scheduledEndTime
                     }));
                     e.dataTransfer.effectAllowed = 'move';
@@ -1673,7 +1678,8 @@ export const DragDropCalendar = ({
             if (['completed', 'cancelled'].includes(job.status)) return;
 
             // Job is SCHEDULED if it has a scheduledTime or scheduledDate AND status is 'scheduled'
-            const hasSchedule = job.scheduledTime || job.scheduledDate;
+            // FIXED: Also check scheduledStartTime field (BUG-020)
+            const hasSchedule = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
             const isScheduledStatus = job.status === 'scheduled' || job.status === 'in_progress';
             const hasCrew = (job.assignedCrew?.length > 0) || job.assignedTechId;
             const isSuggestedSchedule = hasSchedule && !hasCrew && (
@@ -1792,9 +1798,10 @@ export const DragDropCalendar = ({
         }
 
         // Auto-expand grid to fit jobs that extend past business hours
+        // FIXED: Also check scheduledStartTime field (BUG-020)
         if (jobs?.length) {
             jobs.forEach(job => {
-                const startTime = job.scheduledTime || job.scheduledDate;
+                const startTime = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
                 if (!startTime) return;
                 const startHour = getHourFromDate(startTime, timezone);
                 const durationMinutes = job.estimatedDuration || 60;

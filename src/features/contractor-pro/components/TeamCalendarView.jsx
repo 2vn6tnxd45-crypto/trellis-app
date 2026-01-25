@@ -158,15 +158,17 @@ const STATUS_STYLES = {
 const getEventStatus = (event) => {
     if (event.type === 'evaluation') return 'evaluation';
     if (jobIsMultiDay(event)) return 'multi_day';
-    if (event.status === 'scheduled' || event.scheduledTime) return 'confirmed';
+    if (event.status === 'scheduled' || event.scheduledTime || event.scheduledStartTime) return 'confirmed';
     if (event.status === 'in_progress') return 'in_progress';
     if (event.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return 'pending';
     return 'unassigned';
 };
 
 // Resolve the best date value for a job, handling time-only scheduledTime strings
+// FIXED: Now also checks scheduledStartTime field (BUG-020)
 const resolveJobDate = (job, timeZone) => {
-    const st = job.scheduledTime;
+    // Check both scheduledTime and scheduledStartTime (different parts of codebase use different names)
+    const st = job.scheduledTime || job.scheduledStartTime;
     const sd = job.scheduledDate;
 
     // If scheduledTime is a full datetime (ISO string or Timestamp), use it
@@ -326,7 +328,7 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1">
                         <p className={`font-medium ${styles.text} text-xs truncate`}>
-                            {formatTime(event.start || event.scheduledTime, timeZone)}
+                            {formatTime(event.start || event.scheduledTime || event.scheduledStartTime, timeZone)}
                         </p>
                         {isRecurring && (
                             <span className="text-[9px] bg-emerald-200 text-emerald-700 px-1 py-0.5 rounded font-bold flex items-center gap-0.5">
@@ -385,8 +387,9 @@ const TimeSlotCell = ({
     timeZone // Add timeZone prop
 }) => {
     // Filter events for this hour
+    // FIXED: Also check scheduledStartTime field (BUG-020)
     const slotEvents = events.filter(event => {
-        const eventHour = getHourFromDate(event.start || event.scheduledTime, timeZone);
+        const eventHour = getHourFromDate(event.start || event.scheduledTime || event.scheduledStartTime, timeZone);
         return eventHour === hour;
     });
 
@@ -582,7 +585,7 @@ export const TeamCalendarView = ({
         // Auto-expand grid to fit jobs that extend past business hours
         if (jobs?.length) {
             jobs.forEach(job => {
-                const startTime = job.scheduledTime || job.scheduledDate;
+                const startTime = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
                 if (!startTime) return;
                 const startHour = getHourFromDate(startTime, businessTimezone);
                 const durationMinutes = job.estimatedDuration || job.duration || 60;
@@ -912,7 +915,7 @@ export const TeamCalendarView = ({
                                         <div className="w-48 shrink-0 border-r border-b border-amber-100 bg-amber-50/30 min-h-[60px] relative">
                                             {getUnassignedEventsForDate(currentDate)
                                                 .filter(event => {
-                                                    const eventHour = getHourFromDate(event.scheduledTime || event.scheduledDate, businessTimezone);
+                                                    const eventHour = getHourFromDate(event.scheduledTime || event.scheduledStartTime || event.scheduledDate, businessTimezone);
                                                     return eventHour === hour;
                                                 })
                                                 .map(event => (
@@ -925,7 +928,7 @@ export const TeamCalendarView = ({
                                                             {event.title || event.description || 'Service'}
                                                         </p>
                                                         <p className="text-[10px] text-amber-600">
-                                                            {formatTime(event.scheduledTime, businessTimezone)}
+                                                            {formatTime(event.scheduledTime || event.scheduledStartTime, businessTimezone)}
                                                         </p>
                                                     </div>
                                                 ))

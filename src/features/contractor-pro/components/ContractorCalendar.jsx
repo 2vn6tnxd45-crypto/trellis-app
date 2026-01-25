@@ -115,12 +115,13 @@ const getEventStatus = (event) => {
     const hasAssignedCrew = event.assignedCrew?.length > 0 || !!event.assignedTechId;
     const isManuallyAssigned = event.assignedBy === 'manual' || event.assignedBy === 'owner';
 
-    if (hasAssignedCrew && (event.scheduledTime || event.scheduledDate || event.status === 'scheduled')) {
+    // FIXED: Also check scheduledStartTime field (BUG-020)
+    if (hasAssignedCrew && (event.scheduledTime || event.scheduledStartTime || event.scheduledDate || event.status === 'scheduled')) {
         return 'confirmed';
     }
 
     // AI-suggested = has scheduled time but assigned by AI without crew confirmation
-    if ((event.scheduledTime || event.scheduledDate || event.status === 'scheduled') &&
+    if ((event.scheduledTime || event.scheduledStartTime || event.scheduledDate || event.status === 'scheduled') &&
         (event.assignedBy === 'ai' || !hasAssignedCrew)) {
         return 'suggested';
     }
@@ -272,9 +273,10 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                         ) : (
                             getEvents(selectedDate)
                                 .sort((a, b) => {
-                                    const timeA = a.start || a.scheduledTime || a.scheduledDate ||
+                                    // FIXED: Also check scheduledStartTime field (BUG-020)
+                                    const timeA = a.start || a.scheduledTime || a.scheduledStartTime || a.scheduledDate ||
                                         (a.scheduling?.offeredSlots?.find(s => isSameDayInTimezone(s.start, selectedDate, timezone))?.start);
-                                    const timeB = b.start || b.scheduledTime || b.scheduledDate ||
+                                    const timeB = b.start || b.scheduledTime || b.scheduledStartTime || b.scheduledDate ||
                                         (b.scheduling?.offeredSlots?.find(s => isSameDayInTimezone(s.start, selectedDate, timezone))?.start);
                                     return new Date(timeA) - new Date(timeB);
                                 })
@@ -284,7 +286,8 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                     const isEvaluation = event.type === 'evaluation';
 
                                     // Get display time
-                                    let displayTime = event.start || event.scheduledTime;
+                                    // FIXED: Also check scheduledStartTime field (BUG-020)
+                                    let displayTime = event.start || event.scheduledTime || event.scheduledStartTime;
                                     if (status === 'pending') {
                                         const slot = event.scheduling?.offeredSlots?.find(s =>
                                             s.status === 'offered' && isSameDayInTimezone(s.start, selectedDate, timezone)
@@ -433,7 +436,8 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezon
                         const isEvaluation = event.type === 'evaluation';
 
                         // Get display time
-                        let displayTime = event.start || event.scheduledTime;
+                        // FIXED: Also check scheduledStartTime field (BUG-020)
+                        let displayTime = event.start || event.scheduledTime || event.scheduledStartTime;
                         if (status === 'pending') {
                             const slot = event.scheduling?.offeredSlots?.find(s =>
                                 s.status === 'offered' && isSameDayInTimezone(s.start, date, timezone)
@@ -510,8 +514,10 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezon
 const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
     // Only show jobs that have NO confirmed time AND NO pending offers
     // If pending, they show on calendar now (in amber)
+    // FIXED: Also check scheduledStartTime field (BUG-020)
     const unscheduledJobs = jobs.filter(job =>
         !job.scheduledTime &&
+        !job.scheduledStartTime &&
         !job.scheduledDate &&
         (!job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) &&
         !['completed', 'cancelled'].includes(job.status)
@@ -523,9 +529,11 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
     );
 
     // Jobs awaiting customer response (but maybe not showing on calendar if data malformed, keeping safe)
+    // FIXED: Also check scheduledStartTime field (BUG-020)
     const awaitingResponse = jobs.filter(job =>
         (job.proposedTimes?.length > 0 || job.scheduling?.offeredSlots?.length > 0) &&
         !job.scheduledTime &&
+        !job.scheduledStartTime &&
         !job.scheduling?.requestedNewTimes
     );
 
@@ -680,11 +688,12 @@ export const ContractorCalendar = ({
 
         jobs.forEach(event => {
             // 1. Confirmed Time
-            if (event.start || event.scheduledTime || event.scheduledDate) {
+            // FIXED: Also check scheduledStartTime field (BUG-020)
+            if (event.start || event.scheduledTime || event.scheduledStartTime || event.scheduledDate) {
                 // Resolve the best date value, handling time-only scheduledTime strings
-                let start = event.start || event.scheduledTime || event.scheduledDate;
+                let start = event.start || event.scheduledTime || event.scheduledStartTime || event.scheduledDate;
                 // If scheduledTime is a time-only string (no date component), use scheduledDate instead
-                if (start === event.scheduledTime && typeof start === 'string' &&
+                if ((start === event.scheduledTime || start === event.scheduledStartTime) && typeof start === 'string' &&
                     !start.includes('T') && !/^\d{4}-\d{2}-\d{2}/.test(start)) {
                     start = event.scheduledDate || start;
                 }
@@ -767,7 +776,8 @@ export const ContractorCalendar = ({
         // Skip jobs with assigned crew
         if (job.assignedCrew?.length > 0 || job.assignedTechId) return false;
         // Skip jobs with a scheduled date/time
-        if (job.scheduledTime || job.scheduledDate) return false;
+        // FIXED: Also check scheduledStartTime field (BUG-020)
+        if (job.scheduledTime || job.scheduledStartTime || job.scheduledDate) return false;
         // Skip jobs with offered slots
         if (job.scheduling?.offeredSlots?.some(s => s.status === 'offered')) return false;
         return true;

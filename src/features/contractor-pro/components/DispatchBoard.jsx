@@ -300,11 +300,12 @@ const JobCard = ({
             </div>
 
             {/* Scheduled Date (shown for backlog items not on current date) */}
-            {!isAssigned && (job.scheduledDate || job.scheduledTime) && (
+            {/* FIXED: Also check scheduledStartTime field (BUG-020) */}
+            {!isAssigned && (job.scheduledDate || job.scheduledTime || job.scheduledStartTime) && (
                 <p className={`mt-1 text-[11px] ${job.isOverdue ? 'text-red-600' : 'text-slate-500'}`}>
                     {(() => {
                         try {
-                            const rawDate = job.scheduledDate || job.scheduledTime;
+                            const rawDate = job.scheduledDate || job.scheduledTime || job.scheduledStartTime;
                             const d = rawDate?.toDate ? rawDate.toDate() : new Date(rawDate);
                             if (isNaN(d.getTime())) return '';
                             const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -316,20 +317,21 @@ const JobCard = ({
 
             {/* Details */}
             <div className={`mt-2 flex flex-wrap gap-2 ${compact ? 'text-xs' : 'text-sm'}`}>
-                {job.scheduledTime && (
+                {/* FIXED: Also check scheduledStartTime field (BUG-020) */}
+                {(job.scheduledTime || job.scheduledStartTime) && (
                     <span className="flex items-center gap-1 text-slate-600">
                         <Clock size={12} />
                         {(() => {
                             // Multi-Day Block Time
                             if (job.isMultiDay && job.scheduleBlocks?.length > 0) {
-                                // We need to know which day we are rendering. 
+                                // We need to know which day we are rendering.
                                 // Since JobCard doesn't have 'date' prop, we can try to find the block closest to 'now' or rely on parent passing it.
                                 // EDIT: We need to pass 'date' to JobCard. For now, let's use the first block or job.scheduledTime as fallback.
                                 // Ideally, we update the call sites to pass 'date'.
                                 const block = job.scheduleBlocks.find(b => isSameDayInTimezone(new Date(b.date), new Date(job.currentRenderDate || new Date()), 'UTC'));
-                                return block ? `${formatTime(block.startTime, timezone)} - ${formatTime(block.endTime, timezone)}` : formatTime(job.scheduledTime, timezone);
+                                return block ? `${formatTime(block.startTime, timezone)} - ${formatTime(block.endTime, timezone)}` : formatTime(job.scheduledTime || job.scheduledStartTime, timezone);
                             }
-                            return formatTime(job.scheduledTime, timezone);
+                            return formatTime(job.scheduledTime || job.scheduledStartTime, timezone);
                         })()}
                     </span>
                 )}
@@ -806,7 +808,8 @@ export const DispatchBoard = ({
                 }
 
                 // CASE 3: Use scheduledDate or scheduledTime (whichever is available)
-                const rawDate = job.scheduledDate || job.scheduledTime;
+                // FIXED: Also check scheduledStartTime field (BUG-020)
+                const rawDate = job.scheduledDate || job.scheduledTime || job.scheduledStartTime;
                 if (!rawDate) return false;
 
                 const jobDate = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
@@ -828,7 +831,8 @@ export const DispatchBoard = ({
             const assignedTechIds = getAssignedTechIds(job);
             if (assignedTechIds.length > 0) return false;
             // Include jobs with no scheduled date
-            if (!job.scheduledDate && !job.scheduledTime) return true;
+            // FIXED: Also check scheduledStartTime field (BUG-020)
+            if (!job.scheduledDate && !job.scheduledTime && !job.scheduledStartTime) return true;
             return false;
         });
     }, [jobs]);
@@ -844,9 +848,10 @@ export const DispatchBoard = ({
                 if (assignedTechIds.length > 0) return false;
 
                 // Must have a date that is strictly BEFORE the selected date (midnight)
-                if (!job.scheduledDate && !job.scheduledTime) return false;
+                // FIXED: Also check scheduledStartTime field (BUG-020)
+                if (!job.scheduledDate && !job.scheduledTime && !job.scheduledStartTime) return false;
 
-                const jobDateRaw = job.scheduledDate || job.scheduledTime;
+                const jobDateRaw = job.scheduledDate || job.scheduledTime || job.scheduledStartTime;
                 const jobDate = jobDateRaw.toDate ? jobDateRaw.toDate() : new Date(jobDateRaw);
                 if (isNaN(jobDate.getTime())) return false; // Skip invalid dates
 
@@ -873,8 +878,9 @@ export const DispatchBoard = ({
             return assignedTechIds.length === 0;
         }).map(job => {
             // Mark overdue jobs
+            // FIXED: Also check scheduledStartTime field (BUG-020)
             try {
-                const rawDate = job.scheduledDate || job.scheduledTime;
+                const rawDate = job.scheduledDate || job.scheduledTime || job.scheduledStartTime;
                 if (rawDate) {
                     const jobDate = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
                     if (!isNaN(jobDate.getTime())) {
