@@ -21,6 +21,16 @@ import { autoAssignAll } from '../lib/schedulingAI';
 // HELPERS
 // ============================================
 
+// Helper to format duration in minutes to "Xh Ym" format (BUG-029 fix)
+const formatDurationMinutes = (minutes) => {
+    if (!minutes || minutes <= 0) return '0m';
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+};
+
 // Helper to safely extract address string (prevents React Error #310)
 const safeAddress = (addr) => {
     if (!addr) return '';
@@ -69,8 +79,10 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
 
             if (assignedTechIds.length > 0) {
                 // Job is assigned to one or more techs
+                let assignedToKnownTech = false;
                 assignedTechIds.forEach(techId => {
                     if (stats[techId]) {
+                        assignedToKnownTech = true;
                         stats[techId].jobCount++;
                         // For multi-tech jobs, we might want to split or duplicate stats.
                         // Duplicating for now to show load on schedule.
@@ -81,6 +93,13 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
                         stats[techId].jobs.push(job);
                     }
                 });
+                // BUG-027/028 fix: Jobs assigned to non-existent team members should show as unassigned
+                if (!assignedToKnownTech) {
+                    stats['unassigned'].jobCount++;
+                    stats['unassigned'].totalMinutes += job.estimatedDuration || 120;
+                    stats['unassigned'].totalRevenue += job.total || 0;
+                    stats['unassigned'].jobs.push(job);
+                }
             } else {
                 // Job is completely unassigned
                 stats['unassigned'].jobCount++;
@@ -114,7 +133,7 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
                                 {member.name}
                             </span>
                             <span className="text-xs text-slate-500">
-                                {jobCount} jobs • {Math.round(totalMinutes / 60)}h
+                                {jobCount} jobs • {formatDurationMinutes(totalMinutes)}
                             </span>
                         </div>
 
@@ -431,7 +450,7 @@ const TeamMemberSchedule = ({ member, jobs, onUnassign }) => {
                 <div className="flex items-center gap-4">
                     <div className="text-right">
                         <p className="text-sm font-bold text-slate-800">{jobs.length} jobs</p>
-                        <p className="text-xs text-slate-500">{Math.round(totalMinutes / 60)}h work</p>
+                        <p className="text-xs text-slate-500">{formatDurationMinutes(totalMinutes)} work</p>
                     </div>
                     {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </div>
