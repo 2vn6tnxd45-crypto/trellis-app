@@ -419,7 +419,7 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
 // MONTH VIEW COMPONENT
 // ============================================
 
-const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezone }) => {
+const MonthView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedDate, timezone }) => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const daysInMonth = getDaysInMonth(year, month);
@@ -497,14 +497,18 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, selectedDate, timezon
                         }
 
                         return (
-                            <div
+                            <button
                                 key={`${event.id}-${idx}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectJob?.(event);
+                                }}
                                 style={status === 'pending' ? styles.style : {}}
-                                className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-90' : ''} ${multiDayClasses} ${marginClass} relative`}
+                                className={`text-[10px] px-1.5 py-0.5 mt-0.5 truncate ${styles.bg} text-white ${status === 'pending' ? 'opacity-90' : ''} ${multiDayClasses} ${marginClass} relative w-full text-left hover:opacity-80 cursor-pointer`}
                                 title={event.title || event.description || 'Job'}
                             >
                                 {formatTime(displayTime, timezone)} {isEvaluation ? 'Eval' : (event.customer?.name?.split(' ')[0] || 'Job')}
-                            </div>
+                            </button>
                         );
                     })}
                     {dayJobs.length > 2 && (
@@ -923,6 +927,7 @@ export const ContractorCalendar = ({
                             currentDate={currentDate}
                             getEvents={getEvents}
                             onSelectDate={setSelectedDate}
+                            onSelectJob={onSelectJob}
                             selectedDate={selectedDate}
                             timezone={timezone}
                         />
