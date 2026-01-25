@@ -16,7 +16,7 @@ import {
     Receipt, Navigation, RotateCcw,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown
+    ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown, Truck
 } from 'lucide-react';
 import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -54,6 +54,8 @@ import { TeamManagement } from './components/TeamManagement';
 // NEW: Vehicle Fleet Management
 import { VehicleManagement } from './components/VehicleManagement';
 import { useVehicles } from './hooks/useVehicles';
+// NEW: Crew Assignment Modal
+import { CrewAssignmentModal } from './components/CrewAssignmentModal';
 // NEW: Price Book
 import { PriceBook } from './components/PriceBook';
 const ReportingDashboard = lazy(() => import('./components/ReportingDashboard').then(m => ({ default: m.ReportingDashboard })));
@@ -462,6 +464,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
+                <NavItem icon={Truck} label="Fleet" active={activeView === 'fleet'} onClick={() => onNavigate('fleet')} />
                 <NavItem icon={RotateCcw} label="Recurring" active={activeView === 'recurring'} onClick={() => onNavigate('recurring')} />
                 <NavItem icon={Crown} label="Memberships" active={['memberships', 'membership-plans'].includes(activeView)} onClick={() => onNavigate('memberships')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
@@ -517,6 +520,7 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
         { id: 'invoices', icon: Receipt, label: 'Invoices' },
         { id: 'memberships', icon: Crown, label: 'Memberships' },
         { id: 'team', icon: Users, label: 'Team' },
+        { id: 'fleet', icon: Truck, label: 'Fleet' },
         { id: 'reports', icon: TrendingUp, label: 'Reports' },
         { id: 'profile', icon: User, label: 'Profile' },
         { id: 'settings', icon: SettingsIcon, label: 'Settings' },
@@ -2318,6 +2322,9 @@ export const ContractorProApp = () => {
     // NEW: Evaluation state
     const [selectedEvaluation, setSelectedEvaluation] = useState(null);
 
+    // NEW: Crew assignment modal state
+    const [crewAssignmentJob, setCrewAssignmentJob] = useState(null);
+
     const {
         user,
         profile,
@@ -3531,6 +3538,23 @@ export const ContractorProApp = () => {
                             )}
                         </div>
                     )}
+                    {activeView === 'fleet' && (
+                        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+                            {vehiclesLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                    <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                                    <span className="ml-2 text-slate-500">Loading fleet...</span>
+                                </div>
+                            ) : (
+                                <VehicleManagement
+                                    contractorId={contractorId}
+                                    vehicles={vehicles || []}
+                                    teamMembers={profile?.scheduling?.teamMembers || []}
+                                    jobs={jobs || []}
+                                />
+                            )}
+                        </div>
+                    )}
                     {activeView === 'customers' && <CustomersView customers={customers} loading={customersLoading} />}
                     {activeView === 'profile' && <ProfileView profile={profile} onUpdateProfile={updateProfile} />}
 
@@ -3581,6 +3605,48 @@ export const ContractorProApp = () => {
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto flex-1">
+                            {/* Crew & Vehicle Assignment Section */}
+                            <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                        <Users size={16} className="text-emerald-600" />
+                                        Assigned Crew
+                                    </span>
+                                    <button
+                                        onClick={() => setCrewAssignmentJob(selectedJob)}
+                                        className="text-xs font-bold text-emerald-600 hover:text-emerald-700 px-2 py-1 hover:bg-emerald-50 rounded-lg transition-colors"
+                                    >
+                                        {selectedJob.assignedCrew?.length > 0 ? 'Edit' : 'Assign'}
+                                    </button>
+                                </div>
+                                {selectedJob.assignedCrew?.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {selectedJob.assignedCrew.map((member, idx) => (
+                                            <div key={idx} className="flex items-center gap-2 text-sm">
+                                                <div
+                                                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                                    style={{ backgroundColor: member.color || '#64748B' }}
+                                                >
+                                                    {member.techName?.charAt(0) || '?'}
+                                                </div>
+                                                <span className="text-slate-700">{member.techName}</span>
+                                                {member.role === 'lead' && (
+                                                    <span className="text-xs bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">Lead</span>
+                                                )}
+                                                {member.vehicleName && (
+                                                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                                                        <Truck size={12} />
+                                                        {member.vehicleName}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-400">No crew assigned yet</p>
+                                )}
+                            </div>
+
                             <JobScheduler
                                 job={selectedJob}
                                 userType="contractor"
@@ -3710,6 +3776,22 @@ export const ContractorProApp = () => {
                     // Toast already shown in modal
                 }}
             />
+
+            {/* Crew Assignment Modal */}
+            {crewAssignmentJob && (
+                <CrewAssignmentModal
+                    job={crewAssignmentJob}
+                    teamMembers={profile?.scheduling?.teamMembers || []}
+                    vehicles={vehicles || []}
+                    existingJobs={jobs || []}
+                    onSave={(crew) => {
+                        // Job will auto-refresh via Firestore subscription
+                        setCrewAssignmentJob(null);
+                        setSelectedJob(null); // Close job detail modal to see updated data
+                    }}
+                    onClose={() => setCrewAssignmentJob(null)}
+                />
+            )}
         </div>
     );
 };

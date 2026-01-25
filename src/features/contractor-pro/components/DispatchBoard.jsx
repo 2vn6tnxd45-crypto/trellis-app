@@ -11,7 +11,7 @@ import {
     MapPin, Wrench, AlertTriangle, CheckCircle, Sparkles,
     GripVertical, X, ChevronDown, ChevronUp, Zap,
     Users, Loader2, Info, AlertCircle, Truck, Route,
-    XCircle, Eye
+    XCircle, Eye, Map, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -1651,7 +1651,7 @@ export const DispatchBoard = ({
                                 // Multi-Vehicle Results
                                 <div className="space-y-4">
                                     {/* Summary Stats */}
-                                    <div className="grid grid-cols-3 gap-4 mb-6">
+                                    <div className="grid grid-cols-4 gap-4 mb-6">
                                         <div className="p-3 bg-emerald-50 rounded-xl text-center">
                                             <p className="text-2xl font-bold text-emerald-600">
                                                 {routeComparisonData.assignments.length}
@@ -1663,6 +1663,12 @@ export const DispatchBoard = ({
                                                 {routeComparisonData.assignments.reduce((sum, a) => sum + a.route.length, 0)}
                                             </p>
                                             <p className="text-sm text-blue-700">Total Stops</p>
+                                        </div>
+                                        <div className="p-3 bg-purple-50 rounded-xl text-center">
+                                            <p className="text-2xl font-bold text-purple-600">
+                                                {routeComparisonData.assignments.reduce((sum, a) => sum + (a.totalTime || 0), 0)} min
+                                            </p>
+                                            <p className="text-sm text-purple-700">Total Drive Time</p>
                                         </div>
                                         {routeComparisonData.unassigned?.length > 0 && (
                                             <div className="p-3 bg-amber-50 rounded-xl text-center">
@@ -1695,31 +1701,48 @@ export const DispatchBoard = ({
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {routeComparisonData.assignments.map((assignment, idx) => (
                                             <div key={idx} className="border-2 border-slate-200 rounded-xl overflow-hidden">
-                                                <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-                                                    <Truck size={16} className="text-slate-500" />
-                                                    <span className="font-bold text-slate-700">
-                                                        {assignment.vehicleName || `Vehicle ${idx + 1}`}
-                                                    </span>
-                                                    <span className="ml-auto text-sm text-slate-500">
-                                                        {assignment.route.length} stops
-                                                    </span>
-                                                </div>
-                                                <div className="p-3 space-y-2 max-h-[200px] overflow-y-auto">
-                                                    {assignment.route.map((job, stopIdx) => (
-                                                        <div key={job.id} className="flex items-center gap-2">
-                                                            <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold">
-                                                                {stopIdx + 1}
-                                                            </div>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="text-sm font-medium text-slate-700 truncate">
-                                                                    {job.title || job.serviceType || 'Job'}
-                                                                </p>
-                                                                <p className="text-xs text-slate-500 truncate">
-                                                                    {job.customer?.name || job.customerName}
-                                                                </p>
-                                                            </div>
+                                                <div className="p-3 bg-slate-50 border-b border-slate-200">
+                                                    <div className="flex items-center gap-2">
+                                                        <Truck size={16} className="text-slate-500" />
+                                                        <span className="font-bold text-slate-700">
+                                                            {assignment.vehicleName || `Vehicle ${idx + 1}`}
+                                                        </span>
+                                                        <span className="ml-auto text-sm text-slate-500">
+                                                            {assignment.route.length} stops
+                                                        </span>
+                                                    </div>
+                                                    {assignment.totalTime > 0 && (
+                                                        <div className="flex items-center gap-1 mt-1 text-xs text-purple-600">
+                                                            <Clock size={12} />
+                                                            <span>{assignment.totalTime} min drive time</span>
                                                         </div>
-                                                    ))}
+                                                    )}
+                                                </div>
+                                                <div className="p-3 space-y-2 max-h-[250px] overflow-y-auto">
+                                                    {assignment.route.map((job, stopIdx) => {
+                                                        const arrival = assignment.arrivals?.[stopIdx];
+                                                        return (
+                                                            <div key={job.id} className="flex items-start gap-2">
+                                                                <div className="w-5 h-5 rounded-full bg-purple-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                                                                    {stopIdx + 1}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium text-slate-700 truncate">
+                                                                        {job.title || job.serviceType || 'Job'}
+                                                                    </p>
+                                                                    <p className="text-xs text-slate-500 truncate">
+                                                                        {job.customer?.name || job.customerName}
+                                                                    </p>
+                                                                    {arrival?.arrivalTimeStr && (
+                                                                        <p className="text-xs text-purple-500 flex items-center gap-1">
+                                                                            <Clock size={10} />
+                                                                            ETA: {arrival.arrivalTimeStr}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
                                         ))}
@@ -1741,23 +1764,59 @@ export const DispatchBoard = ({
                         </div>
 
                         {/* Footer */}
-                        <div className="p-4 border-t border-slate-200 flex justify-end gap-3">
-                            <button
-                                onClick={() => {
-                                    setShowRouteOptimization(false);
-                                    setRouteComparisonData(null);
-                                }}
-                                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleApplyOptimizedRoutes}
-                                className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                            >
-                                <CheckCircle size={16} />
-                                Apply Optimized Routes
-                            </button>
+                        <div className="p-4 border-t border-slate-200 flex justify-between items-center">
+                            {/* Open in Google Maps */}
+                            {routeComparisonData.assignments?.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        // Build Google Maps directions URL from optimized routes
+                                        const allJobs = routeComparisonData.assignments.flatMap(a => a.route);
+                                        if (allJobs.length === 0) return;
+
+                                        const waypoints = allJobs
+                                            .map(job => {
+                                                const addr = job.serviceAddress?.formatted || job.customer?.address;
+                                                return addr ? encodeURIComponent(addr) : null;
+                                            })
+                                            .filter(Boolean);
+
+                                        if (waypoints.length > 0) {
+                                            const origin = waypoints[0];
+                                            const destination = waypoints[waypoints.length - 1];
+                                            const waypointsParam = waypoints.length > 2
+                                                ? `&waypoints=${waypoints.slice(1, -1).join('|')}`
+                                                : '';
+                                            const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypointsParam}`;
+                                            window.open(url, '_blank');
+                                        } else {
+                                            toast.error('No addresses found for directions');
+                                        }
+                                    }}
+                                    className="px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center gap-2"
+                                >
+                                    <Map size={16} />
+                                    Open in Google Maps
+                                    <ExternalLink size={12} />
+                                </button>
+                            )}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowRouteOptimization(false);
+                                        setRouteComparisonData(null);
+                                    }}
+                                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleApplyOptimizedRoutes}
+                                    className="px-4 py-2 bg-purple-600 text-white font-bold rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                                >
+                                    <CheckCircle size={16} />
+                                    Apply Optimized Routes
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

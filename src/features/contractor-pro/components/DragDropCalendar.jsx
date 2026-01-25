@@ -9,7 +9,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     User, GripVertical, Check, X, AlertCircle, Sparkles,
-    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus, CheckCircle, AlertTriangle
+    Navigation, Users as UsersIcon, Globe, RotateCcw, UserPlus, CheckCircle, AlertTriangle, Truck
 } from 'lucide-react';
 import { Select } from '../../../components/ui/Select';
 import { isRecurringJob } from '../../recurring';
@@ -715,12 +715,41 @@ const TimeSlot = React.memo(({
                                 </span>
                             )}
                         </div>
-                        {/* Tech assignment if available */}
-                        {job.assignedTo && heightPx > 70 && (
-                            <p className="text-[9px] opacity-70 mt-0.5 truncate flex items-center gap-0.5">
-                                <User size={8} />
-                                {job.assignedToName || job.assignedTo}
-                            </p>
+                        {/* Crew & Vehicle assignment if available */}
+                        {heightPx > 60 && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                                {/* Crew initials */}
+                                {job.assignedCrew?.length > 0 ? (
+                                    <div className="flex -space-x-1">
+                                        {job.assignedCrew.slice(0, 3).map((member, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold border border-white/50"
+                                                style={{ backgroundColor: member.color || '#64748B' }}
+                                                title={member.techName}
+                                            >
+                                                {member.techName?.charAt(0) || '?'}
+                                            </div>
+                                        ))}
+                                        {job.assignedCrew.length > 3 && (
+                                            <div className="w-4 h-4 rounded-full bg-slate-600 flex items-center justify-center text-[8px] font-bold border border-white/50">
+                                                +{job.assignedCrew.length - 3}
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : job.assignedTo && (
+                                    <p className="text-[9px] opacity-70 truncate flex items-center gap-0.5">
+                                        <User size={8} />
+                                        {job.assignedToName || job.assignedTo}
+                                    </p>
+                                )}
+                                {/* Vehicle indicator */}
+                                {(job.assignedVehicleName || job.assignedCrew?.some(m => m.vehicleName)) && (
+                                    <span className="text-[9px] opacity-70 flex items-center gap-0.5 ml-1" title={job.assignedVehicleName || job.assignedCrew?.find(m => m.vehicleName)?.vehicleName}>
+                                        <Truck size={8} />
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                 );

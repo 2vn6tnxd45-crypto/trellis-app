@@ -9,7 +9,7 @@ import React, { useState, useMemo } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar, Clock, MapPin,
     Plus, Filter, List, Grid3X3, AlertCircle, CheckCircle,
-    User, DollarSign, ArrowRight, Sparkles, X, ClipboardList, Video
+    User, DollarSign, ArrowRight, Sparkles, X, ClipboardList, Video, Truck
 } from 'lucide-react';
 import { isSameDayInTimezone, createDateInTimezone, formatDateInTimezone, formatTimeInTimezone } from '../lib/timezoneUtils';
 
@@ -357,6 +357,35 @@ const WeekView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selectedD
                                                     <p className="text-xs text-slate-500 truncate mt-0.5" title={event.customer?.name || 'Customer'}>
                                                         {event.customer?.name || 'Customer'}
                                                     </p>
+                                                    {/* Crew & Vehicle indicators */}
+                                                    {!isEvaluation && (event.assignedCrew?.length > 0 || event.assignedVehicleName) && (
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            {event.assignedCrew?.length > 0 && (
+                                                                <div className="flex -space-x-1">
+                                                                    {event.assignedCrew.slice(0, 3).map((member, idx) => (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white border border-white"
+                                                                            style={{ backgroundColor: member.color || '#64748B' }}
+                                                                            title={member.techName}
+                                                                        >
+                                                                            {member.techName?.charAt(0) || '?'}
+                                                                        </div>
+                                                                    ))}
+                                                                    {event.assignedCrew.length > 3 && (
+                                                                        <div className="w-4 h-4 rounded-full bg-slate-500 text-white flex items-center justify-center text-[8px] font-bold border border-white">
+                                                                            +{event.assignedCrew.length - 3}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                            {(event.assignedVehicleName || event.assignedCrew?.some(m => m.vehicleName)) && (
+                                                                <span className="text-[10px] text-slate-400 flex items-center gap-0.5" title={event.assignedVehicleName || event.assignedCrew?.find(m => m.vehicleName)?.vehicleName}>
+                                                                    <Truck size={10} />
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                     {isEvaluation && event.customer?.address && (
                                                         <p className="text-xs text-slate-400 truncate mt-0.5 flex items-center gap-1" title={event.customer.address}>
                                                             <MapPin size={10} />

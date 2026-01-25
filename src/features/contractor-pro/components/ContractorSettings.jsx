@@ -68,8 +68,8 @@ const SETTINGS_TABS = [
         label: 'Fleet',
         icon: Truck,
         description: 'Vehicles & equipment',
-        keywords: ['vehicle', 'truck', 'van', 'equipment', 'maintenance', 'fleet'],
-        conditional: (profile) => profile?.scheduling?.teamType === 'team' || profile?.scheduling?.vehicles > 1
+        keywords: ['vehicle', 'truck', 'van', 'equipment', 'maintenance', 'fleet']
+        // Always visible - fleet management available to all users
     },
     {
         id: 'quotes',
