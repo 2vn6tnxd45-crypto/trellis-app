@@ -8,7 +8,7 @@
 // - Quick presets
 // - Conflict checking (Schedule & Resource Capacity)
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
     X, Calendar, Clock, Plus, Trash2, Send,
     Sparkles, MapPin, User, DollarSign, AlertCircle,

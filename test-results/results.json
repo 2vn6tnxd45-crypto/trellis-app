@@ -41,7 +41,7 @@
       {
         "outputDir": "/Users/devondavila/trellis-app/trellis-app/test-results",
         "repeatEach": 1,
-        "retries": 0,
+        "retries": 2,
         "metadata": {
           "actualWorkers": 1
         },
@@ -52,12 +52,12 @@
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 120000
+        "timeout": 180000
       },
       {
         "outputDir": "/Users/devondavila/trellis-app/trellis-app/test-results",
         "repeatEach": 1,
-        "retries": 0,
+        "retries": 2,
         "metadata": {
           "actualWorkers": 1
         },
@@ -68,7 +68,7 @@
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
         ],
-        "timeout": 120000
+        "timeout": 180000
       }
     ],
     "shard": null,
@@ -76,157 +76,443 @@
     "updateSnapshots": "missing",
     "updateSourceMethod": "patch",
     "version": "1.57.0",
-    "workers": 2,
+    "workers": 1,
     "webServer": null
   },
   "suites": [
     {
-      "title": "e2e/add-maintenance-task.spec.js",
-      "file": "e2e/add-maintenance-task.spec.js",
+      "title": "e2e/recurring-services.spec.js",
+      "file": "e2e/recurring-services.spec.js",
       "column": 0,
       "line": 0,
-      "specs": [
+      "specs": [],
+      "suites": [
         {
-          "title": "Add maintenance task due today",
-          "ok": true,
-          "tags": [],
-          "tests": [
+          "title": "Membership / Recurring Services Flow",
+          "file": "e2e/recurring-services.spec.js",
+          "line": 3,
+          "column": 15,
+          "specs": [
             {
-              "timeout": 120000,
-              "annotations": [],
-              "expectedStatus": "passed",
-              "projectId": "chrome",
-              "projectName": "chrome",
-              "results": [
+              "title": "MEM-01: Contractor Creates a PAID Plan",
+              "ok": false,
+              "tags": [],
+              "tests": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "passed",
-                  "duration": 18163,
-                  "errors": [],
-                  "stdout": [
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chrome",
+                  "projectName": "chrome",
+                  "results": [
                     {
-                      "text": "🔐 Logging in...\n"
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 30457,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "location": {
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "column": 74,
+                          "line": 88
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "column": 74,
+                            "line": 88
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319564591\"\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-25T05:39:24.595Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "column": 74,
+                        "line": 88
+                      }
                     },
                     {
-                      "text": "✓ Dashboard loaded\n"
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 30113,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "location": {
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "column": 74,
+                          "line": 88
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "column": 74,
+                            "line": 88
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319596336\"\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-01-25T05:39:56.340Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "column": 74,
+                        "line": 88
+                      }
                     },
                     {
-                      "text": "Going to Inventory...\n"
-                    },
-                    {
-                      "text": "Finding and expanding Water Heater card...\n"
-                    },
-                    {
-                      "text": "Found 8 card-like elements\n"
-                    },
-                    {
-                      "text": "Found Water Heater card\n"
-                    },
-                    {
-                      "text": "Clicking on Water Heater card...\n"
-                    },
-                    {
-                      "text": "Found Add Task button with selector: text=Add Task\n"
-                    },
-                    {
-                      "text": "\"Add Task\" visible after card click: true\n"
-                    },
-                    {
-                      "text": "✓ Card expanded! Clicking + Add Task...\n"
-                    },
-                    {
-                      "text": "Found 8 visible inputs\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"Search...\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"e.g. Living Room Sofa\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"date\" placeholder=\"null\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"e.g. Samsung\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"Model #\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"number\" placeholder=\"0.00\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"Company Name\"\n"
-                    },
-                    {
-                      "text": "  Input type=\"text\" placeholder=\"e.g. 10 Year Parts, 1 Year Labor\"\n"
-                    },
-                    {
-                      "text": "✓ Task name: Flush water heater\n"
-                    },
-                    {
-                      "text": "✓ Due date: 2026-01-19\n"
-                    },
-                    {
-                      "text": "Clicking: \"Save Changes\"\n"
-                    },
-                    {
-                      "text": "✓ Task saved\n"
-                    },
-                    {
-                      "text": "Going to Home...\n"
-                    },
-                    {
-                      "text": "\n========================================\n"
-                    },
-                    {
-                      "text": "RESULTS\n"
-                    },
-                    {
-                      "text": "========================================\n\n"
-                    },
-                    {
-                      "text": "Done buttons on Home: 0\n"
-                    },
-                    {
-                      "text": "\n⚠ No Done buttons found on Home\n"
-                    },
-                    {
-                      "text": "\n✅ Test complete\n"
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 30211,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "location": {
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "column": 74,
+                          "line": 88
+                        },
+                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "column": 74,
+                            "line": 88
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319627461\"\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-01-25T05:40:27.465Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "column": 74,
+                        "line": 88
+                      }
                     }
                   ],
-                  "stderr": [],
-                  "retry": 0,
-                  "startTime": "2026-01-19T03:49:17.416Z",
-                  "annotations": [],
-                  "attachments": [
-                    {
-                      "name": "screenshot",
-                      "contentType": "image/png",
-                      "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-add-maintenance-task-Add-maintenance-task-due-today-chrome/test-finished-1.png"
-                    }
-                  ]
+                  "status": "unexpected"
                 }
               ],
-              "status": "expected"
+              "id": "0c1b040191dacaf60463-f3aada130469f5327372",
+              "file": "e2e/recurring-services.spec.js",
+              "line": 16,
+              "column": 3
+            },
+            {
+              "title": "MEM-02: Assign & Pay (Stripe Sandbox)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chrome",
+                  "projectName": "chrome",
+                  "results": [
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-25T05:39:56.020Z",
+                      "annotations": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-01-25T05:40:27.119Z",
+                      "annotations": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-01-25T05:40:58.312Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "0c1b040191dacaf60463-f728e60aa0f1a165ef6a",
+              "file": "e2e/recurring-services.spec.js",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "MEM-03: Verify & Cleanup (Homeowner)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chrome",
+                  "projectName": "chrome",
+                  "results": [
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-25T05:39:56.021Z",
+                      "annotations": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-01-25T05:40:27.120Z",
+                      "annotations": [],
+                      "attachments": []
+                    },
+                    {
+                      "workerIndex": -1,
+                      "parallelIndex": -1,
+                      "status": "skipped",
+                      "duration": 0,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-01-25T05:40:58.313Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "0c1b040191dacaf60463-f8a3c074f06e6427501c",
+              "file": "e2e/recurring-services.spec.js",
+              "line": 195,
+              "column": 3
             }
-          ],
-          "id": "299c82249d3193efa5d7-c69d7e8bf405f93acfb0",
-          "file": "e2e/add-maintenance-task.spec.js",
-          "line": 16,
-          "column": 1
+          ]
         }
       ]
     }
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-01-19T03:49:17.083Z",
-    "duration": 18736.674,
-    "expected": 1,
-    "skipped": 0,
-    "unexpected": 0,
+    "startTime": "2026-01-25T05:39:24.251Z",
+    "duration": 94082.577,
+    "expected": 0,
+    "skipped": 2,
+    "unexpected": 1,
     "flaky": 0
   }
 }

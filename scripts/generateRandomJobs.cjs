@@ -61,7 +61,7 @@ const CONFIG = {
     radiusMiles: parseFloat(args['radius']) || 15,
     dryRun: args['dry-run'] || false,
     skipHomeowner: args['skip-homeowner'] || false,
-    reset: args['reset'] || false  // Delete existing data before creating new
+    reset: args['reset'] || args['delete-existing'] || false  // Delete existing data before creating new
 };
 
 // Additional collection paths
@@ -72,69 +72,87 @@ const CUSTOMERS_COLLECTION = `artifacts/${APP_ID}/public/data/customers`;
 // PROPERTIES_COLLECTION and ITEMS_COLLECTION removed as they are user-specific
 
 // ============================================
-// VALID AUSTIN, TX ADDRESSES
-// These are real addresses in the Austin metro area
+// VALID ORANGE COUNTY, CA ADDRESSES
+// These are real addresses in Orange County, California
 // ============================================
-const AUSTIN_ADDRESSES = [
-    { address: '1100 Congress Ave, Austin, TX 78701', lat: 30.2747, lng: -97.7443 },
-    { address: '2400 E Cesar Chavez St, Austin, TX 78702', lat: 30.2555, lng: -97.7227 },
-    { address: '4001 S Lamar Blvd, Austin, TX 78704', lat: 30.2401, lng: -97.7923 },
-    { address: '8650 Spicewood Springs Rd, Austin, TX 78759', lat: 30.4159, lng: -97.7637 },
-    { address: '3300 Bee Cave Rd, Austin, TX 78746', lat: 30.2921, lng: -97.8158 },
-    { address: '9500 S IH-35, Austin, TX 78748', lat: 30.1564, lng: -97.7924 },
-    { address: '12901 N MoPac Expy, Austin, TX 78727', lat: 30.4252, lng: -97.6988 },
-    { address: '1000 E 41st St, Austin, TX 78751', lat: 30.3011, lng: -97.7211 },
-    { address: '5501 Ed Bluestein Blvd, Austin, TX 78723', lat: 30.2994, lng: -97.6717 },
-    { address: '7701 N Lamar Blvd, Austin, TX 78752', lat: 30.3505, lng: -97.6938 },
-    { address: '2901 S Capital of Texas Hwy, Austin, TX 78746', lat: 30.2610, lng: -97.8024 },
-    { address: '11200 Lakeline Mall Dr, Cedar Park, TX 78613', lat: 30.4731, lng: -97.8037 },
-    { address: '4301 W William Cannon Dr, Austin, TX 78749', lat: 30.2108, lng: -97.8413 },
-    { address: '6001 Airport Blvd, Austin, TX 78752', lat: 30.3207, lng: -97.6845 },
-    { address: '901 Little Texas Ln, Austin, TX 78745', lat: 30.2001, lng: -97.7814 },
-    { address: '5000 Burnet Rd, Austin, TX 78756', lat: 30.3242, lng: -97.7394 },
-    { address: '1601 S MoPac Expy, Austin, TX 78746', lat: 30.2571, lng: -97.7929 },
-    { address: '10515 N MoPac Expy, Austin, TX 78759', lat: 30.3982, lng: -97.7392 },
-    { address: '3600 Presidential Blvd, Austin, TX 78719', lat: 30.1927, lng: -97.6700 },
-    { address: '2110 W Slaughter Ln, Austin, TX 78748', lat: 30.1734, lng: -97.8423 },
-    { address: '7112 Ed Bluestein Blvd, Austin, TX 78723', lat: 30.3101, lng: -97.6591 },
-    { address: '4970 US-290 W, Austin, TX 78735', lat: 30.2403, lng: -97.8889 },
-    { address: '1819 Rosewood Ave, Austin, TX 78702', lat: 30.2670, lng: -97.7211 },
-    { address: '5300 Duval Rd, Austin, TX 78727', lat: 30.4109, lng: -97.7192 },
-    { address: '13201 Ranch Rd 620 N, Austin, TX 78717', lat: 30.4897, lng: -97.7880 },
-    { address: '4115 Guadalupe St, Austin, TX 78751', lat: 30.2984, lng: -97.7364 },
-    { address: '6406 N IH-35, Austin, TX 78752', lat: 30.3306, lng: -97.6901 },
-    { address: '8900 Shoal Creek Blvd, Austin, TX 78757', lat: 30.3708, lng: -97.7407 },
-    { address: '3500 Greystone Dr, Austin, TX 78731', lat: 30.3612, lng: -97.7651 },
-    { address: '2525 W Anderson Ln, Austin, TX 78757', lat: 30.3596, lng: -97.7385 },
-    { address: '1506 S 1st St, Austin, TX 78704', lat: 30.2512, lng: -97.7545 },
-    { address: '4534 Westgate Blvd, Austin, TX 78745', lat: 30.2208, lng: -97.7986 },
-    { address: '14028 N US-183, Austin, TX 78717', lat: 30.4825, lng: -97.7625 },
-    { address: '9607 Research Blvd, Austin, TX 78759', lat: 30.3916, lng: -97.7478 },
-    { address: '1023 Springdale Rd, Austin, TX 78721', lat: 30.2635, lng: -97.6945 },
-    { address: '6800 West Gate Blvd, Austin, TX 78745', lat: 30.2045, lng: -97.8102 },
-    { address: '2901 S Lamar Blvd, Austin, TX 78704', lat: 30.2459, lng: -97.7881 },
-    { address: '3801 S Congress Ave, Austin, TX 78704', lat: 30.2352, lng: -97.7562 },
-    { address: '12233 Ranch Rd 620 N, Austin, TX 78750', lat: 30.4486, lng: -97.8086 },
-    { address: '1700 S Pleasant Valley Rd, Austin, TX 78741', lat: 30.2391, lng: -97.7199 },
-    { address: '5601 Brodie Ln, Austin, TX 78745', lat: 30.2012, lng: -97.8324 },
-    { address: '7800 Shoal Creek Blvd, Austin, TX 78757', lat: 30.3564, lng: -97.7403 },
-    { address: '10901 N Lamar Blvd, Austin, TX 78753', lat: 30.3918, lng: -97.6869 },
-    { address: '2200 S Pleasant Valley Rd, Austin, TX 78741', lat: 30.2335, lng: -97.7165 },
-    { address: '4700 E Oltorf St, Austin, TX 78741', lat: 30.2322, lng: -97.7103 },
-    { address: '6500 N Lamar Blvd, Austin, TX 78752', lat: 30.3367, lng: -97.6966 },
-    { address: '501 E Riverside Dr, Austin, TX 78704', lat: 30.2453, lng: -97.7381 },
-    { address: '4477 S Lamar Blvd, Austin, TX 78745', lat: 30.2308, lng: -97.7955 },
-    { address: '11301 Lakeline Blvd, Austin, TX 78717', lat: 30.4682, lng: -97.7851 },
-    { address: '2700 W Anderson Ln, Austin, TX 78757', lat: 30.3604, lng: -97.7428 }
+const SERVICE_ADDRESSES = [
+    // Irvine
+    { address: '2600 Michelson Dr, Irvine, CA 92612', lat: 33.6846, lng: -117.8374 },
+    { address: '18000 Von Karman Ave, Irvine, CA 92612', lat: 33.6762, lng: -117.8551 },
+    { address: '4255 Campus Dr, Irvine, CA 92612', lat: 33.6588, lng: -117.8421 },
+    { address: '1 Civic Center Plaza, Irvine, CA 92606', lat: 33.6969, lng: -117.8265 },
+    { address: '6400 Oak Canyon, Irvine, CA 92618', lat: 33.6636, lng: -117.7486 },
+    // Newport Beach
+    { address: '1000 Newport Center Dr, Newport Beach, CA 92660', lat: 33.6185, lng: -117.8770 },
+    { address: '3900 Newport Blvd, Newport Beach, CA 92663', lat: 33.6189, lng: -117.9291 },
+    { address: '500 Pacific Coast Hwy, Newport Beach, CA 92660', lat: 33.6103, lng: -117.9302 },
+    { address: '1600 Dove St, Newport Beach, CA 92660', lat: 33.6557, lng: -117.8670 },
+    // Costa Mesa
+    { address: '3333 Bear St, Costa Mesa, CA 92626', lat: 33.6856, lng: -117.9082 },
+    { address: '2930 Bristol St, Costa Mesa, CA 92626', lat: 33.6786, lng: -117.8858 },
+    { address: '1835 Newport Blvd, Costa Mesa, CA 92627', lat: 33.6439, lng: -117.9151 },
+    { address: '500 Anton Blvd, Costa Mesa, CA 92626', lat: 33.6869, lng: -117.8838 },
+    // Huntington Beach
+    { address: '7777 Edinger Ave, Huntington Beach, CA 92647', lat: 33.7529, lng: -117.9997 },
+    { address: '16400 Pacific Coast Hwy, Huntington Beach, CA 92649', lat: 33.7255, lng: -118.0590 },
+    { address: '5000 Slater Ave, Huntington Beach, CA 92649', lat: 33.7217, lng: -118.0148 },
+    { address: '8201 Talbert Ave, Huntington Beach, CA 92646', lat: 33.7164, lng: -117.9733 },
+    // Anaheim
+    { address: '1313 Harbor Blvd, Anaheim, CA 92802', lat: 33.8097, lng: -117.9228 },
+    { address: '800 W Katella Ave, Anaheim, CA 92802', lat: 33.8003, lng: -117.9179 },
+    { address: '2099 S State College Blvd, Anaheim, CA 92806', lat: 33.8211, lng: -117.8879 },
+    { address: '5555 E Santa Ana Canyon Rd, Anaheim, CA 92807', lat: 33.8537, lng: -117.7657 },
+    // Fullerton
+    { address: '1600 E Chapman Ave, Fullerton, CA 92831', lat: 33.8749, lng: -117.8973 },
+    { address: '215 E Commonwealth Ave, Fullerton, CA 92832', lat: 33.8701, lng: -117.9243 },
+    { address: '321 E Chapman Ave, Fullerton, CA 92832', lat: 33.8713, lng: -117.9204 },
+    // Orange
+    { address: '1 City Blvd W, Orange, CA 92868', lat: 33.7858, lng: -117.8648 },
+    { address: '20 City Blvd E, Orange, CA 92868', lat: 33.7877, lng: -117.8594 },
+    { address: '1001 N Tustin Ave, Orange, CA 92867', lat: 33.8017, lng: -117.8259 },
+    // Santa Ana
+    { address: '2800 N Main St, Santa Ana, CA 92705', lat: 33.7712, lng: -117.8663 },
+    { address: '1500 E 17th St, Santa Ana, CA 92705', lat: 33.7553, lng: -117.8541 },
+    { address: '20 Civic Center Plaza, Santa Ana, CA 92701', lat: 33.7462, lng: -117.8676 },
+    // Tustin
+    { address: '2961 El Camino Real, Tustin, CA 92782', lat: 33.7251, lng: -117.8228 },
+    { address: '13011 Newport Ave, Tustin, CA 92780', lat: 33.7384, lng: -117.8181 },
+    // Lake Forest
+    { address: '23456 Madero, Lake Forest, CA 92630', lat: 33.6466, lng: -117.6893 },
+    { address: '25352 Cabot Rd, Lake Forest, CA 92630', lat: 33.6402, lng: -117.6912 },
+    // Mission Viejo
+    { address: '27762 Vista del Lago, Mission Viejo, CA 92692', lat: 33.6095, lng: -117.6596 },
+    { address: '200 Civic Center, Mission Viejo, CA 92691', lat: 33.5964, lng: -117.6586 },
+    // Laguna Beach
+    { address: '505 Forest Ave, Laguna Beach, CA 92651', lat: 33.5451, lng: -117.7853 },
+    { address: '361 Cliff Dr, Laguna Beach, CA 92651', lat: 33.5419, lng: -117.7811 },
+    // San Clemente
+    { address: '100 Avenida Presidio, San Clemente, CA 92672', lat: 33.4297, lng: -117.6136 },
+    { address: '910 Calle Negocio, San Clemente, CA 92673', lat: 33.4472, lng: -117.6115 },
+    // Laguna Niguel
+    { address: '30111 Crown Valley Pkwy, Laguna Niguel, CA 92677', lat: 33.5321, lng: -117.7084 },
+    { address: '27341 La Paz Rd, Laguna Niguel, CA 92677', lat: 33.5254, lng: -117.7146 },
+    // Aliso Viejo
+    { address: '1 Journey, Aliso Viejo, CA 92656', lat: 33.5739, lng: -117.7261 },
+    { address: '26701 Aliso Creek Rd, Aliso Viejo, CA 92656', lat: 33.5684, lng: -117.7281 },
+    // Rancho Santa Margarita
+    { address: '22365 El Toro Rd, Rancho Santa Margarita, CA 92688', lat: 33.6403, lng: -117.5916 },
+    { address: '30522 Avenida de las Flores, Rancho Santa Margarita, CA 92688', lat: 33.6259, lng: -117.5927 },
+    // Dana Point
+    { address: '34155 Pacific Coast Hwy, Dana Point, CA 92629', lat: 33.4593, lng: -117.6963 },
+    { address: '33282 Golden Lantern, Dana Point, CA 92629', lat: 33.4714, lng: -117.6876 },
+    // Yorba Linda
+    { address: '18001 Yorba Linda Blvd, Yorba Linda, CA 92886', lat: 33.8906, lng: -117.8103 },
+    { address: '4845 Casa Loma Ave, Yorba Linda, CA 92886', lat: 33.8849, lng: -117.7883 }
 ];
 
-// Home base options (contractor office locations)
+// Home base options (contractor office locations in Orange County)
 const HOME_BASE_OPTIONS = [
-    { address: '3500 Jefferson St, Austin, TX 78731', lat: 30.3461, lng: -97.7549 },
-    { address: '6701 Burnet Rd, Austin, TX 78757', lat: 30.3481, lng: -97.7361 },
-    { address: '2200 S Lamar Blvd, Austin, TX 78704', lat: 30.2485, lng: -97.7838 },
-    { address: '8868 Research Blvd, Austin, TX 78758', lat: 30.3803, lng: -97.7254 },
-    { address: '4030 W Braker Ln, Austin, TX 78759', lat: 30.3939, lng: -97.7377 },
+    { address: '4199 Campus Dr, Irvine, CA 92612', lat: 33.6579, lng: -117.8392 },
+    { address: '2323 N Broadway, Santa Ana, CA 92706', lat: 33.7591, lng: -117.8702 },
+    { address: '17100 Euclid St, Fountain Valley, CA 92708', lat: 33.7035, lng: -117.9531 },
+    { address: '500 N State College Blvd, Orange, CA 92868', lat: 33.7879, lng: -117.8879 },
+    { address: '23046 Avenida de la Carlota, Laguna Hills, CA 92653', lat: 33.6072, lng: -117.7089 },
 ];
 
 // ============================================
@@ -382,7 +400,7 @@ const HOME_ITEM_TEMPLATES = [
 // PROPERTY TEMPLATE
 // ============================================
 const PROPERTY_TEMPLATE = {
-    address: '1234 Test Street, Austin, TX 78701',
+    address: '1234 Test Street, Irvine, CA 92612',
     nickname: 'Main Residence',
     type: 'Single Family',
     yearBuilt: 2015,
@@ -419,7 +437,9 @@ function generateJobNumber() {
 }
 
 function generatePhone() {
-    return `(${randomInt(512, 737)}) ${randomInt(200, 999)}-${randomInt(1000, 9999)}`;
+    // Orange County, CA area codes: 714, 949, 657
+    const areaCodes = [714, 949, 657];
+    return `(${randomElement(areaCodes)}) ${randomInt(200, 999)}-${randomInt(1000, 9999)}`;
 }
 
 function generateEmail(firstName, lastName) {
@@ -528,7 +548,7 @@ function generateCrewMember(index, businessHours) {
         color: TECH_COLORS[index % TECH_COLORS.length],
         skills: randomSubset(TECH_SKILLS, 2, 5),
         certifications: [],
-        homeZip: randomElement(['78701', '78702', '78704', '78745', '78748', '78751', '78757', '78759']),
+        homeZip: randomElement(['92612', '92626', '92660', '92647', '92802', '92831', '92867', '92705']),
         maxTravelMiles: randomInt(15, 40),
         maxJobsPerDay: randomInt(3, 6),
         maxHoursPerDay: randomInt(7, 10),
@@ -606,7 +626,7 @@ function generateJob(contractorId, index, businessHours, crewMembers, forcedStat
     const customerName = `${firstName} ${lastName}`;
 
     // Pick a valid Austin address
-    const location = randomElement(AUSTIN_ADDRESSES);
+    const location = randomElement(SERVICE_ADDRESSES);
 
     // Schedule the job within business hours
     const schedule = generateValidSchedule(duration, businessHours);
@@ -687,7 +707,7 @@ function generateJob(contractorId, index, businessHours, crewMembers, forcedStat
         scheduledDate: scheduledDate,
         scheduledTime: scheduledTime,
         scheduledEndTime: scheduledEndTime,
-        scheduledTimezone: 'America/Chicago',
+        scheduledTimezone: 'America/Los_Angeles',
         isMultiDay: isMultiDay,
         crewRequirements: {
             required: crewSize,
@@ -851,7 +871,7 @@ function generateMembershipPlan(contractorId, template, index) {
 function generateCustomer(contractorId, index, membershipPlan = null) {
     const firstName = randomElement(FIRST_NAMES);
     const lastName = randomElement(LAST_NAMES);
-    const location = randomElement(AUSTIN_ADDRESSES);
+    const location = randomElement(SERVICE_ADDRESSES);
 
     const customer = {
         id: `customer_${Date.now()}_${index}`,
@@ -1063,10 +1083,35 @@ async function cleanExistingData(db, contractorId, homeownerId) {
         console.log(`   Vehicles: error - ${error.message}`);
     }
 
+    // Clear crew members from contractor profile (scheduling.teamMembers)
+    try {
+        const contractorRef = db.doc(`${CONTRACTORS_COLLECTION}/${contractorId}`);
+        await contractorRef.update({
+            'scheduling.teamMembers': admin.firestore.FieldValue.delete()
+        });
+        console.log('   Crew Members: cleared from profile');
+    } catch (error) {
+        console.log(`   Crew Members: error - ${error.message}`);
+    }
+
     // Clean homeowner data if specified
     if (homeownerId) {
-        totalDeleted += await deleteMatchingDocs(PROPERTIES_COLLECTION, 'homeownerId', homeownerId, 'Properties');
-        totalDeleted += await deleteMatchingDocs(ITEMS_COLLECTION, 'homeownerId', homeownerId, 'Home Items');
+        // Clean house_records subcollection
+        try {
+            const recordsRef = db.collection('artifacts').doc(APP_ID).collection('users').doc(homeownerId).collection('house_records');
+            const recordsSnapshot = await recordsRef.get();
+            if (!recordsSnapshot.empty) {
+                const batch = db.batch();
+                recordsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+                console.log(`   Home Items: ${recordsSnapshot.size} deleted`);
+                totalDeleted += recordsSnapshot.size;
+            } else {
+                console.log('   Home Items: 0 (none found)');
+            }
+        } catch (error) {
+            console.log(`   Home Items: error - ${error.message}`);
+        }
     }
 
     console.log(`   TOTAL: ${totalDeleted} documents deleted\n`);
@@ -1204,7 +1249,7 @@ async function main() {
         teamType: crewCount > 1 ? 'team' : 'solo',
         teamSize: crewCount,
         vehicles: vehicleCount,
-        timezone: 'America/Chicago',
+        timezone: 'America/Los_Angeles',
         workingHours: businessHours,
         bufferMinutes: randomElement([15, 30, 30, 30, 45]),
         defaultJobDuration: 120,
@@ -1312,7 +1357,7 @@ async function main() {
                 id: property.id,
                 name: property.nickname,
                 address: property.address, // Object or string, app handles both
-                coordinates: { lat: 30.2672, lng: -97.7431 } // Default to Austin center if missing
+                coordinates: { lat: 33.6846, lng: -117.8265 } // Default to Irvine center if missing
             }],
             activePropertyId: property.id,
             updatedAt: new Date()

@@ -1,0 +1,203 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic "Krib logo" [ref=e7]:
+        - generic [ref=e8]: kr
+        - generic [ref=e9]: ı
+        - generic [ref=e11]: b
+      - generic [ref=e12]:
+        - paragraph [ref=e13]: Apex Construction
+        - paragraph [ref=e14]: PRO
+    - navigation [ref=e15]:
+      - button "Dashboard" [ref=e16] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e20]: Dashboard
+      - generic [ref=e21]:
+        - paragraph [ref=e22]: Workflow
+        - button "Find Work" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+          - generic [ref=e27]: Find Work
+        - button "Evaluations" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - generic [ref=e32]: Evaluations
+        - button "Quotes" [ref=e33] [cursor=pointer]:
+          - img [ref=e34]
+          - generic [ref=e37]: Quotes
+        - button "Jobs 12" [ref=e38] [cursor=pointer]:
+          - img [ref=e39]
+          - generic [ref=e42]: Jobs
+          - generic [ref=e43]: "12"
+        - button "Schedule" [ref=e44] [cursor=pointer]:
+          - img [ref=e45]
+          - generic [ref=e47]: Schedule
+        - button "Invoices" [ref=e48] [cursor=pointer]:
+          - img [ref=e49]
+          - generic [ref=e52]: Invoices
+      - generic [ref=e53]:
+        - paragraph [ref=e54]: Communication
+        - button "Messages" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e58]: Messages
+      - generic [ref=e59]:
+        - paragraph [ref=e60]: Management
+        - button "Invitations" [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+          - generic [ref=e65]: Invitations
+        - button "Customers" [ref=e66] [cursor=pointer]:
+          - img [ref=e67]
+          - generic [ref=e72]: Customers
+        - button "Recurring" [ref=e73] [cursor=pointer]:
+          - img [ref=e74]
+          - generic [ref=e77]: Recurring
+        - button "Memberships" [ref=e78] [cursor=pointer]:
+          - img [ref=e79]
+          - generic [ref=e81]: Memberships
+        - button "Price Book" [ref=e82] [cursor=pointer]:
+          - img [ref=e83]
+          - generic [ref=e87]: Price Book
+        - button "Templates" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+          - generic [ref=e92]: Templates
+        - button "Expenses" [ref=e93] [cursor=pointer]:
+          - img [ref=e94]
+          - generic [ref=e97]: Expenses
+        - button "Timesheets" [ref=e98] [cursor=pointer]:
+          - img [ref=e99]
+          - generic [ref=e102]: Timesheets
+      - generic [ref=e103]:
+        - paragraph [ref=e104]: Insights
+        - button "Needs Attention 14" [ref=e105] [cursor=pointer]:
+          - img [ref=e106]
+          - generic [ref=e109]: Needs Attention
+          - generic [ref=e110]: "14"
+        - button "Reports" [ref=e111] [cursor=pointer]:
+          - img [ref=e112]
+          - generic [ref=e115]: Reports
+      - generic [ref=e116]:
+        - button "Profile" [ref=e117] [cursor=pointer]:
+          - img [ref=e118]
+          - generic [ref=e121]: Profile
+        - button "Settings" [ref=e122] [cursor=pointer]:
+          - img [ref=e123]
+          - generic [ref=e126]: Settings
+    - button "Sign Out" [ref=e128] [cursor=pointer]:
+      - img [ref=e129]
+      - generic [ref=e132]: Sign Out
+  - main [ref=e134]:
+    - generic [ref=e135]:
+      - generic [ref=e136]:
+        - generic [ref=e137]:
+          - heading "Memberships" [level=1] [ref=e138]:
+            - img [ref=e139]
+            - text: Memberships
+          - paragraph [ref=e141]: Manage service plans and member benefits
+        - generic [ref=e142]:
+          - button [ref=e143] [cursor=pointer]:
+            - img [ref=e144]
+          - button "Manage Plans" [ref=e149] [cursor=pointer]:
+            - img [ref=e150]
+            - text: Manage Plans
+          - button "Sell Membership" [ref=e153] [cursor=pointer]:
+            - img [ref=e154]
+            - text: Sell Membership
+      - generic [ref=e155]:
+        - generic [ref=e157]:
+          - img [ref=e159]
+          - generic [ref=e164]:
+            - paragraph [ref=e165]: "0"
+            - paragraph [ref=e166]: Active Members
+        - generic [ref=e168]:
+          - img [ref=e170]
+          - generic [ref=e173]:
+            - paragraph [ref=e174]: $0
+            - paragraph [ref=e175]: Monthly Revenue
+        - generic [ref=e177]:
+          - img [ref=e179]
+          - generic [ref=e181]:
+            - paragraph [ref=e182]: "20"
+            - paragraph [ref=e183]: Active Plans
+        - generic [ref=e185]:
+          - img [ref=e187]
+          - generic [ref=e192]:
+            - paragraph [ref=e193]: 0%
+            - paragraph [ref=e194]: Renewal Rate
+      - generic [ref=e195]:
+        - button "Members (0)" [ref=e196] [cursor=pointer]
+        - button "Analytics" [ref=e197] [cursor=pointer]
+        - button "Plans (20)" [ref=e198] [cursor=pointer]
+      - generic [ref=e199]:
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - generic [ref=e202]:
+              - heading "Customer Memberships" [level=2] [ref=e203]
+              - paragraph [ref=e204]: 0 active members • 0 expiring soon
+            - generic [ref=e205]:
+              - img [ref=e206]
+              - textbox "Search by name, email, address..." [ref=e209]
+          - generic [ref=e210]:
+            - button "All Members 0" [ref=e211] [cursor=pointer]:
+              - img [ref=e212]
+              - text: All Members
+              - generic [ref=e217]: "0"
+            - button "Active 0" [ref=e218] [cursor=pointer]:
+              - img [ref=e219]
+              - text: Active
+              - generic [ref=e222]: "0"
+            - button "Expiring Soon 0" [ref=e223] [cursor=pointer]:
+              - img [ref=e224]
+              - text: Expiring Soon
+              - generic [ref=e226]: "0"
+            - button "Expired 0" [ref=e227] [cursor=pointer]:
+              - img [ref=e228]
+              - text: Expired
+              - generic [ref=e231]: "0"
+            - button "Cancelled 0" [ref=e232] [cursor=pointer]:
+              - img [ref=e233]
+              - text: Cancelled
+              - generic [ref=e236]: "0"
+          - generic [ref=e237]:
+            - generic [ref=e238]:
+              - img [ref=e239]
+              - combobox [ref=e241]:
+                - option "All Plans" [selected]
+                - option "Sandbox Plan 1769319596336"
+                - option "Sandbox Plan 1769319564591"
+                - option "Sandbox Plan 1769319311743"
+                - option "Sandbox Plan 1769319280829"
+                - option "Sandbox Plan 1769319249123"
+                - option "Sandbox Plan 1769318910809"
+                - option "Sandbox Plan 1769318879859"
+                - option "Sandbox Plan 1769318848935"
+                - option "Sandbox Plan 1769318803781"
+                - option "Sandbox Plan 1769318773355"
+                - option "Sandbox Plan 1769318742149"
+                - option "Sandbox Plan 1769318400038"
+                - option "Sandbox Plan 1769318368692"
+                - option "Sandbox Plan 1769318337094"
+                - option "Sandbox Plan 1769318304427"
+                - option "Sandbox Plan 1769318274682"
+                - option "Sandbox Plan 1769318244032"
+                - option "Sandbox Plan 1769318156288"
+                - option "Sandbox Plan 1769318126430"
+                - option "Sandbox Plan 1769318095873"
+            - generic [ref=e242]:
+              - generic [ref=e243]: "Sort:"
+              - combobox [ref=e244]:
+                - option "Expiration Date" [selected]
+                - option "Customer Name"
+                - option "Plan Name"
+                - option "Total Savings"
+              - button [ref=e245] [cursor=pointer]:
+                - img [ref=e246]
+        - generic [ref=e248]:
+          - img [ref=e249]
+          - heading "No memberships found" [level=3] [ref=e254]
+          - paragraph [ref=e255]: Start selling membership plans to see them here
+        - paragraph [ref=e257]: Showing 0 of 0 memberships
+  - button "+ New Call" [ref=e258] [cursor=pointer]:
+    - img [ref=e260]
+    - generic: + New Call
+```
