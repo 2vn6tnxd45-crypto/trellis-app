@@ -79,9 +79,15 @@ export const createJob = async (contractorId, jobData) => {
         const jobNumber = generateJobNumber();
         const jobRef = doc(collection(db, CONTRACTORS_COLLECTION, contractorId, JOBS_SUBCOLLECTION));
 
+        // FIXED: Status now considers both scheduledDate AND assignedTechId (BUG-004)
+        // A job is only SCHEDULED if it has BOTH a date AND a tech assigned
+        // Having only a tech means it still needs scheduling (needs a date)
+        // Having only a date means it still needs scheduling (needs a tech)
+        const isFullyScheduled = jobData.scheduledDate && jobData.assignedTechId;
+
         const job = {
             jobNumber,
-            status: jobData.scheduledDate ? JOB_STATUSES.SCHEDULED : JOB_STATUSES.PENDING_SCHEDULE,
+            status: isFullyScheduled ? JOB_STATUSES.SCHEDULED : JOB_STATUSES.PENDING_SCHEDULE,
 
             // Customer info
             customerId: jobData.customerId || null,
@@ -350,16 +356,37 @@ export const subscribeToJobs = (contractorId, callback, options = {}) => {
 
 /**
  * Assign job to tech
+ * FIXED: Now properly sets scheduledDate, times, and status when assigning crew
+ * This ensures consistency between Jobs page and Assignment page (BUG-004, BUG-022)
  */
-export const assignJobToTech = async (contractorId, jobId, techId, techName) => {
+export const assignJobToTech = async (contractorId, jobId, techId, techName, scheduleInfo = {}) => {
     try {
         const jobRef = doc(db, CONTRACTORS_COLLECTION, contractorId, JOBS_SUBCOLLECTION, jobId);
 
-        await updateDoc(jobRef, {
+        // Get current job to preserve existing schedule if no new schedule provided
+        const jobSnap = await getDoc(jobRef);
+        const existingJob = jobSnap.exists() ? jobSnap.data() : {};
+
+        const updates = {
             assignedTechId: techId,
             assignedTechName: techName,
             updatedAt: serverTimestamp()
-        });
+        };
+
+        // If schedule info is provided, use it; otherwise keep existing or set defaults
+        if (scheduleInfo.scheduledDate) {
+            updates.scheduledDate = scheduleInfo.scheduledDate;
+            updates.scheduledStartTime = scheduleInfo.scheduledStartTime || '09:00';
+            updates.scheduledEndTime = scheduleInfo.scheduledEndTime || null;
+            updates.status = JOB_STATUSES.SCHEDULED;
+        } else if (existingJob.scheduledDate) {
+            // Job already has a date, just update status to SCHEDULED since we now have a tech
+            updates.status = JOB_STATUSES.SCHEDULED;
+        }
+        // Note: If no date provided and no existing date, status remains PENDING_SCHEDULE
+        // This is intentional - a job with only a tech but no date is still "needs scheduling"
+
+        await updateDoc(jobRef, updates);
 
         return { success: true };
     } catch (error) {

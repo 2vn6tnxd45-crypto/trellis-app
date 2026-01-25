@@ -417,13 +417,15 @@ export const addTimeOff = async (contractorId, memberId, timeOffData) => {
 
 /**
  * Check if team member is available on a specific date/time
+ * FIXED: Now properly handles missing/undefined workingHours data (BUG-019, BUG-021)
+ * Default behavior: If workingHours not set, assume Mon-Fri 8am-5pm available
  */
 export const checkMemberAvailability = (member, date, startTime, endTime) => {
     if (!member.isActive) {
         return { available: false, reason: 'Team member is inactive' };
     }
 
-    // Check time off
+    // Check time off first
     const checkDate = new Date(date);
     for (const pto of (member.timeOff || [])) {
         const ptoStart = new Date(pto.startDate);
@@ -435,23 +437,47 @@ export const checkMemberAvailability = (member, date, startTime, endTime) => {
 
     // Check working hours
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayName = dayNames[checkDate.getDay()];
-    const workingHours = member.workingHours?.[dayName];
+    const dayIndex = checkDate.getDay();
+    const dayName = dayNames[dayIndex];
 
-    if (!workingHours?.available) {
+    // FIXED: Get working hours with proper defaults for missing data
+    // If workingHours object is missing or incomplete, use sensible defaults
+    const defaultWorkingHours = {
+        sunday: { start: null, end: null, available: false },
+        monday: { start: '08:00', end: '17:00', available: true },
+        tuesday: { start: '08:00', end: '17:00', available: true },
+        wednesday: { start: '08:00', end: '17:00', available: true },
+        thursday: { start: '08:00', end: '17:00', available: true },
+        friday: { start: '08:00', end: '17:00', available: true },
+        saturday: { start: null, end: null, available: false }
+    };
+
+    // Merge member's workingHours with defaults
+    const memberWorkingHours = member.workingHours || {};
+    const workingHours = memberWorkingHours[dayName] || defaultWorkingHours[dayName];
+
+    // FIXED: Explicitly check for false, not falsy - undefined should use default (true for weekdays)
+    const isAvailable = workingHours.available !== false && workingHours.available !== undefined
+        ? workingHours.available
+        : defaultWorkingHours[dayName].available;
+
+    if (!isAvailable) {
         return { available: false, reason: `Not scheduled to work on ${dayName}` };
     }
 
     // Check if requested time is within working hours
-    if (startTime && workingHours.start && startTime < workingHours.start) {
-        return { available: false, reason: `Starts before working hours (${workingHours.start})` };
+    const effectiveStart = workingHours.start || defaultWorkingHours[dayName].start || '08:00';
+    const effectiveEnd = workingHours.end || defaultWorkingHours[dayName].end || '17:00';
+
+    if (startTime && startTime < effectiveStart) {
+        return { available: false, reason: `Starts before working hours (${effectiveStart})` };
     }
 
-    if (endTime && workingHours.end && endTime > workingHours.end) {
-        return { available: false, reason: `Ends after working hours (${workingHours.end})` };
+    if (endTime && endTime > effectiveEnd) {
+        return { available: false, reason: `Ends after working hours (${effectiveEnd})` };
     }
 
-    return { available: true, reason: null };
+    return { available: true, reason: null, workingHours: { start: effectiveStart, end: effectiveEnd } };
 };
 
 // ============================================
