@@ -258,12 +258,63 @@ const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
 };
 
 // ============================================
+// DEFAULT WORKING HOURS (Mon-Fri 8am-5pm)
+// ============================================
+const DEFAULT_WORKING_HOURS = {
+    sunday: { start: null, end: null, enabled: false },
+    monday: { start: '08:00', end: '17:00', enabled: true },
+    tuesday: { start: '08:00', end: '17:00', enabled: true },
+    wednesday: { start: '08:00', end: '17:00', enabled: true },
+    thursday: { start: '08:00', end: '17:00', enabled: true },
+    friday: { start: '08:00', end: '17:00', enabled: true },
+    saturday: { start: null, end: null, enabled: false }
+};
+
+/**
+ * Check if a tech works on a given day, with smart defaults
+ * - If workingHours not set at all: assume standard Mon-Fri schedule
+ * - If day not in workingHours: use default for that day
+ * - If enabled is explicitly false: they're off
+ * - If enabled is true or undefined on a weekday: they work
+ */
+const isTechWorkingOnDay = (tech, dayName) => {
+    const techHours = tech.workingHours?.[dayName];
+    const defaultHours = DEFAULT_WORKING_HOURS[dayName];
+
+    // If tech has no workingHours at all, use defaults
+    if (!tech.workingHours) {
+        return defaultHours?.enabled ?? false;
+    }
+
+    // If this specific day isn't configured, use default for that day
+    if (!techHours) {
+        return defaultHours?.enabled ?? false;
+    }
+
+    // If enabled is explicitly set, use it
+    if (typeof techHours.enabled === 'boolean') {
+        return techHours.enabled;
+    }
+
+    // If enabled is undefined but day exists, check if it's a weekday (default to working)
+    return defaultHours?.enabled ?? false;
+};
+
+// ============================================
 // TECH COLUMN HEADER
 // ============================================
 
-const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility }) => {
-    const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const worksToday = tech.workingHours?.[dayName]?.enabled !== false;
+const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility, currentDate }) => {
+    // Use currentDate if provided, otherwise use today
+    const dateToCheck = currentDate || new Date();
+    const dayName = dateToCheck.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const worksToday = isTechWorkingOnDay(tech, dayName);
+
+    // Get working hours for display
+    const techHours = tech.workingHours?.[dayName] || DEFAULT_WORKING_HOURS[dayName];
+    const hoursDisplay = worksToday && techHours?.start && techHours?.end
+        ? `${techHours.start.replace(':00', '')} - ${techHours.end.replace(':00', '')}`
+        : null;
 
     return (
         <div className="sticky top-0 bg-white z-10 border-b border-slate-200 p-2">
@@ -278,7 +329,8 @@ const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility }) => 
                     <p className="font-bold text-slate-800 text-sm truncate">{tech.name}</p>
                     <p className="text-xs text-slate-500">
                         {jobCount} job{jobCount !== 1 ? 's' : ''}
-                        {!worksToday && <span className="ml-1 text-amber-600">(Off today)</span>}
+                        {!worksToday && <span className="ml-1 text-amber-600">(Off)</span>}
+                        {worksToday && hoursDisplay && <span className="ml-1 text-emerald-600">({hoursDisplay})</span>}
                     </p>
                 </div>
                 <button
@@ -393,16 +445,17 @@ const TimeSlotCell = ({
         return eventHour === hour;
     });
 
-    // Check if within tech's working hours
+    // Check if within tech's working hours (using smart defaults)
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const techHours = tech?.workingHours?.[dayName];
-    const isWorkingHour = techHours?.enabled !== false;
+    const techHours = tech?.workingHours?.[dayName] || DEFAULT_WORKING_HOURS[dayName];
+    const isWorkingDay = isTechWorkingOnDay(tech, dayName);
 
+    // Get start/end hours with defaults
     let startHour = 8, endHour = 17;
     if (techHours?.start) startHour = parseInt(techHours.start.split(':')[0]);
     if (techHours?.end) endHour = parseInt(techHours.end.split(':')[0]);
 
-    const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingHour;
+    const isWithinWorkingHours = hour >= startHour && hour < endHour && isWorkingDay;
 
     return (
         <div
@@ -859,6 +912,7 @@ export const TeamCalendarView = ({
                                             jobCount={getEventsForTechAndDate(tech.id, currentDate).length}
                                             isVisible={visibleTechs.has(tech.id)}
                                             onToggleVisibility={toggleTechVisibility}
+                                            currentDate={currentDate}
                                         />
                                     </div>
                                 ))}
