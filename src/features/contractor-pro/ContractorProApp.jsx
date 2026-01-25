@@ -826,14 +826,21 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
 
     // Apply status filter to active jobs
     const allActiveJobs = jobs.filter(j => !['completed', 'cancelled', 'cancellation_requested'].includes(j.status));
+
+    // Helper to check if a job is effectively scheduled (has scheduledTime or scheduled status)
+    const isJobScheduled = (j) => j.status === 'scheduled' || j.scheduledTime || j.scheduledDate;
+
+    // Helper to check if a job needs scheduling (status indicates unscheduled AND no scheduledTime)
+    const jobNeedsScheduling = (j) => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status) && !j.scheduledTime && !j.scheduledDate;
+
     const activeJobs = statusFilter === 'all'
         ? allActiveJobs
         : statusFilter === 'needs_scheduling'
-            ? allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status))
+            ? allActiveJobs.filter(jobNeedsScheduling)
             : statusFilter === 'awaiting_response'
                 ? allActiveJobs.filter(j => j.status === 'slots_offered')
                 : statusFilter === 'scheduled'
-                    ? allActiveJobs.filter(j => j.status === 'scheduled')
+                    ? allActiveJobs.filter(isJobScheduled)
                     : statusFilter === 'in_progress'
                         ? allActiveJobs.filter(j => j.status === 'in_progress')
                         : statusFilter === 'pending_approval'
@@ -848,7 +855,8 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
 
     // Get jobs that need scheduling (for batch mode)
     // Note: 'slots_offered' excluded as those are awaiting customer response
-    const schedulableJobs = allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status));
+    // Also exclude jobs that already have a scheduledTime/scheduledDate
+    const schedulableJobs = allActiveJobs.filter(jobNeedsScheduling);
 
     // Toggle job selection for batch mode
     const toggleJobSelection = (jobId) => {
@@ -1249,9 +1257,9 @@ const JobsView = ({ jobs = [], loading, onJobClick, onCompleteJob, onReviewCance
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
                     {[
                         { key: 'all', label: 'All', count: allActiveJobs.length },
-                        { key: 'needs_scheduling', label: 'Needs Scheduling', count: allActiveJobs.filter(j => ['pending_schedule', 'quoted', 'accepted', 'scheduling'].includes(j.status)).length },
+                        { key: 'needs_scheduling', label: 'Needs Scheduling', count: allActiveJobs.filter(jobNeedsScheduling).length },
                         { key: 'awaiting_response', label: 'Awaiting Response', count: allActiveJobs.filter(j => j.status === 'slots_offered').length },
-                        { key: 'scheduled', label: 'Scheduled', count: allActiveJobs.filter(j => j.status === 'scheduled').length },
+                        { key: 'scheduled', label: 'Scheduled', count: allActiveJobs.filter(isJobScheduled).length },
                         { key: 'in_progress', label: 'In Progress', count: allActiveJobs.filter(j => j.status === 'in_progress').length },
                         { key: 'pending_approval', label: 'Pending Approval', count: allActiveJobs.filter(j => ['pending_completion_approval', 'completion_rejected'].includes(j.status)).length },
                     ].map(filter => (
