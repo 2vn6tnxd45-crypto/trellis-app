@@ -61,6 +61,39 @@ const normalizeDateForTimezone = (dateValue, timezone) => {
 
 
 
+/**
+ * Format duration from minutes into human-readable format
+ * For small durations show minutes, for larger show hours
+ */
+const formatDurationDisplay = (minutes) => {
+    if (!minutes || minutes <= 0) return '';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours < 24) {
+        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    // For very long durations, show days
+    const days = Math.ceil(minutes / 480); // 8-hour workdays
+    return `${days}d`;
+};
+
+/**
+ * Check if a specific day is a closed business day
+ * @param {Date} date - The date to check
+ * @param {Object} workingHours - Working hours configuration
+ * @returns {boolean} True if the day is closed (business is not operating)
+ */
+const isDayClosedForBusiness = (date, workingHours) => {
+    if (!workingHours) return false; // If no config, assume open (permissive default)
+
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayConfig = workingHours[dayName];
+
+    // Day is closed if it's explicitly disabled or not configured
+    return !dayConfig?.enabled;
+};
+
 const getWeekDates = (date) => {
     const start = new Date(date);
     start.setDate(start.getDate() - start.getDay());
@@ -416,7 +449,7 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
                         </>
                     )}
                 </div>
-                <span className="text-[10px] text-slate-400">{duration}m</span>
+                <span className="text-[10px] text-slate-400">{formatDurationDisplay(duration)}</span>
             </div>
         </div>
     );
@@ -899,7 +932,19 @@ export const TeamCalendarView = ({
             <div className="flex-1 flex overflow-hidden">
                 {/* Main Calendar Area */}
                 <div ref={scrollContainerRef} className="flex-1 overflow-auto">
-                    {viewMode === 'day' ? (
+                    {viewMode === 'day' && isDayClosedForBusiness(currentDate, preferences?.workingHours) ? (
+                        /* Closed Day Message */
+                        <div className="flex flex-col items-center justify-center h-full py-16 px-4">
+                            <div className="bg-slate-100 rounded-full p-4 mb-4">
+                                <Calendar size={32} className="text-slate-400" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-slate-700 mb-2">Business Closed</h3>
+                            <p className="text-slate-500 text-center max-w-md">
+                                {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}s are not scheduled work days.
+                                Use the navigation arrows to view other days.
+                            </p>
+                        </div>
+                    ) : viewMode === 'day' ? (
                         /* Day View */
                         <div className="min-w-max">
                             {/* Tech Headers */}

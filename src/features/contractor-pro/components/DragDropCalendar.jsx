@@ -249,23 +249,18 @@ const getJobsForDate = (jobs, date, timezone) => {
     };
 
     return jobs.filter(job => {
-        // For multi-day jobs, check segment dates first
+        // For multi-day jobs, ONLY use segment dates to avoid duplicates
         if (jobIsMultiDay(job)) {
             const { isInSchedule } = findSegmentForDate(date, job.multiDaySchedule);
-            if (isInSchedule) return true;
+            return isInSchedule;
         }
 
-        // Check regular scheduled date - use normalized date to handle date-only strings
+        // For regular single-day jobs, check scheduled date
         // FIXED: Also check scheduledStartTime field (BUG-020)
         const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
         if (rawJobDate) {
             const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timezone);
             if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timezone)) {
-                // For multi-day jobs, only match the first day via scheduledTime
-                // (other days are matched via segments above)
-                if (jobIsMultiDay(job)) {
-                    return true; // Will be enriched with segment info in map below
-                }
                 return true;
             }
         }
@@ -381,7 +376,7 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
                 <GripVertical size={16} className="text-slate-300 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold text-slate-800 text-sm truncate">
+                        <h4 className="font-bold text-slate-800 text-sm truncate" title={job.title || job.description || 'Service'}>
                             {job.title || job.description || 'Service'}
                         </h4>
                         {isRecurringJob(job) && (
@@ -390,11 +385,11 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
                             </span>
                         )}
                     </div>
-                    <p className="text-xs text-slate-500 truncate">
+                    <p className="text-xs text-slate-500 truncate" title={job.customer?.name || 'Customer'}>
                         {job.customer?.name || 'Customer'}
                     </p>
                     {job.customer?.address && (
-                        <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1">
+                        <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1" title={job.customer.address}>
                             <MapPin size={10} />
                             {job.customer.address.split(',')[0]}
                         </p>
@@ -677,7 +672,7 @@ const TimeSlot = React.memo(({
                         className={`absolute left-1 right-1 p-2 rounded-lg text-xs text-left transition-colors overflow-hidden cursor-grab active:cursor-grabbing ${isSuggested ? bgClass + ' opacity-75' : bgClass + ' text-white shadow-md'}`}
                     >
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <p className={`font-bold truncate flex-1 ${isSuggested ? 'text-slate-700' : ''}`}>{job.title || job.description || 'Job'}</p>
+                            <p className={`font-bold truncate flex-1 ${isSuggested ? 'text-slate-700' : ''}`} title={job.title || job.description || 'Job'}>{job.title || job.description || 'Job'}</p>
                             {isSuggested && (
                                 <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-bold shrink-0">
                                     Suggested
@@ -701,7 +696,7 @@ const TimeSlot = React.memo(({
                         </div>
                         {/* Customer name */}
                         {customerName && (
-                            <p className={`truncate ${isSuggested ? 'text-slate-600' : 'opacity-90'}`}>{customerName}</p>
+                            <p className={`truncate ${isSuggested ? 'text-slate-600' : 'opacity-90'}`} title={customerName}>{customerName}</p>
                         )}
                         {/* Time and duration info */}
                         <div className={`flex items-center gap-2 mt-0.5 text-[10px] ${isSuggested ? 'text-slate-500' : 'opacity-80'}`}>
@@ -1589,14 +1584,14 @@ const ClickScheduleModal = ({ date, hour, unscheduledJobs, onSelect, onCancel, t
                             >
                                 <div className="flex items-start gap-3">
                                     <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-emerald-700">
+                                        <h4 className="font-bold text-slate-800 text-sm truncate group-hover:text-emerald-700" title={job.title || job.description || 'Service'}>
                                             {job.title || job.description || 'Service'}
                                         </h4>
-                                        <p className="text-xs text-slate-500 truncate">
+                                        <p className="text-xs text-slate-500 truncate" title={job.customer?.name || 'Customer'}>
                                             {job.customer?.name || 'Customer'}
                                         </p>
                                         {job.customer?.address && (
-                                            <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1">
+                                            <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-1" title={job.customer.address}>
                                                 <MapPin size={10} />
                                                 {job.customer.address.split(',')[0]}
                                             </p>
@@ -1691,9 +1686,9 @@ export const DragDropCalendar = ({
                 // Fully scheduled OR has crew assigned - show on calendar as confirmed, NOT in sidebar
                 scheduled.push(job);
             } else if (isSuggestedSchedule) {
-                // Has a date but not confirmed and no crew - show on calendar with "Suggested" indicator AND in sidebar
+                // Has a date but not confirmed and no crew - show on calendar with "Suggested" indicator only
+                // Do NOT show in sidebar to avoid confusion about whether job is scheduled
                 scheduled.push({ ...job, _isSuggested: true });
-                unscheduled.push({ ...job, _isSuggested: true });
             } else {
                 // Check for homeowner proposals first - they need contractor action
                 const homeownerProposals = job.proposedTimes?.filter(p => p.proposedBy === 'homeowner') || [];

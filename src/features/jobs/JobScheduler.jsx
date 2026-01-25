@@ -49,7 +49,7 @@ const formatScheduledBadge = (job, timezone) => {
 
     const displayTimezone = timezone || detectTimezone();
 
-    // Check for multi-day job
+    // Check for multi-day job with new format
     if (job.multiDaySchedule?.isMultiDay) {
         const schedule = job.multiDaySchedule;
         const dateRange = formatDateRange(schedule.startDate, schedule.endDate);
@@ -57,6 +57,18 @@ const formatScheduledBadge = (job, timezone) => {
         const endTime = formatTimeString(schedule.dailyEndTime);
         // "Jan 15-16 • 8 AM - 4 PM daily"
         return `${dateRange} • ${startTime} - ${endTime} daily`;
+    }
+
+    // Check for legacy multi-day job with segments
+    if (job.multiDaySchedule?.segments?.length > 0) {
+        const schedule = job.multiDaySchedule;
+        const firstSegment = schedule.segments[0];
+        // Use the first segment's date as the actual start date
+        const actualStartDate = firstSegment.date || schedule.startDate || job.scheduledTime;
+        const dateStr = formatInTimezone(actualStartDate, displayTimezone, { month: 'short', day: 'numeric' });
+        const startTime = formatTimeString(firstSegment.startTime);
+        const endTime = formatTimeString(firstSegment.endTime);
+        return `${dateStr} • ${startTime} - ${endTime}`;
     }
 
     // Regular single-day job
@@ -111,7 +123,10 @@ const formatScheduledTimeRange = (job, timezone) => {
         const startTime = formatTimeString(firstSegment.startTime);
         const endTime = formatTimeString(firstSegment.endTime);
 
-        return `${schedule.totalDays} days • ${startDateStr} - ${endDateStr} • ${startTime} - ${endTime} daily`;
+        // Calculate total days from segments if not provided
+        const totalDays = schedule.totalDays || schedule.segments.length;
+
+        return `${totalDays} days • ${startDateStr} - ${endDateStr} • ${startTime} - ${endTime} daily`;
     }
 
     // Regular single-day job
