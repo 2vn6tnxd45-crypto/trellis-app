@@ -681,7 +681,13 @@ export const ContractorCalendar = ({
         jobs.forEach(event => {
             // 1. Confirmed Time
             if (event.start || event.scheduledTime || event.scheduledDate) {
-                const start = event.start || event.scheduledTime || event.scheduledDate;
+                // Resolve the best date value, handling time-only scheduledTime strings
+                let start = event.start || event.scheduledTime || event.scheduledDate;
+                // If scheduledTime is a time-only string (no date component), use scheduledDate instead
+                if (start === event.scheduledTime && typeof start === 'string' &&
+                    !start.includes('T') && !/^\d{4}-\d{2}-\d{2}/.test(start)) {
+                    start = event.scheduledDate || start;
+                }
                 addToMap(start, event);
 
                 // 2. Multi-day Segments

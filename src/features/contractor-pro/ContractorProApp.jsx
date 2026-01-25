@@ -13,7 +13,7 @@ import {
     MapPin, Phone, Mail, Building2, Save, CheckCircle, Shield,
     Briefcase, BadgeCheck, Award, CreditCard, TrendingUp,
     Scroll as ScrollIcon,
-    Receipt, Navigation,
+    Receipt, Navigation, RotateCcw,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
     ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown
@@ -45,6 +45,8 @@ import { RouteVisualization } from './components/RouteVisualization';
 import { TechAssignmentPanel } from './components/TechAssignmentPanel';
 import { TeamCalendarView } from './components/TeamCalendarView';
 import { LogoUpload } from './components/LogoUpload';
+import { RecurringServicesView } from './components/RecurringServicesView';
+import { RouteMapView } from './components/RouteMapView';
 
 // NEW: Dispatch Board and Team Management
 import { DispatchBoard } from './components/DispatchBoard';
@@ -460,6 +462,7 @@ const Sidebar = ({ activeView, onNavigate, profile, onSignOut, pendingCount, pen
                 <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Management</p>
                 <NavItem icon={Tag} label="Invitations" active={activeView === 'invitations'} onClick={() => onNavigate('invitations')} badge={pendingCount} />
                 <NavItem icon={Users} label="Customers" active={activeView === 'customers'} onClick={() => onNavigate('customers')} />
+                <NavItem icon={RotateCcw} label="Recurring" active={activeView === 'recurring'} onClick={() => onNavigate('recurring')} />
                 <NavItem icon={Crown} label="Memberships" active={['memberships', 'membership-plans'].includes(activeView)} onClick={() => onNavigate('memberships')} />
                 <NavItem icon={Package} label="Price Book" active={activeView === 'pricebook'} onClick={() => onNavigate('pricebook')} />
                 <NavItem icon={FileText} label="Templates" active={activeView === 'templates'} onClick={() => onNavigate('templates')} />
@@ -564,8 +567,7 @@ const MobileNav = ({ activeView, onNavigate, pendingCount, pendingQuotesCount, a
                         <button
                             key={item.id}
                             onClick={() => onNavigate(item.id)}
-                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${
-                                activeView === item.id
+                            className={`flex flex-col items-center p-2 rounded-xl transition-colors relative ${activeView === item.id
                                 || (item.id === 'quotes' && ['quotes', 'create-quote', 'quote-detail', 'edit-quote'].includes(activeView))
                                 || (item.id === 'evaluations' && ['evaluations', 'create-evaluation', 'evaluation-detail'].includes(activeView))
                                 ? 'text-emerald-600'
@@ -3048,95 +3050,138 @@ export const ContractorProApp = () => {
 
                     {activeView === 'schedule' && (
                         <FeatureErrorBoundary label="Schedule" onRetry={() => setActiveView('schedule')}>
-                        <div className="space-y-4 h-[calc(100vh-theme(spacing.24))] flex flex-col">
-                            <div className="flex items-center justify-between flex-wrap gap-4 shrink-0">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
-                                    <p className="text-slate-500">
-                                        {todaysJobs.length} job{todaysJobs.length !== 1 ? 's' : ''} today
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    {/* Week/Month Toggle - Always visible in Schedule view */}
-                                    <div className="flex bg-slate-100 rounded-xl p-1 mr-2">
-                                        <button
-                                            onClick={() => setCalendarViewMode('week')}
-                                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'week'
-                                                ? 'bg-white text-slate-800 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                        >
-                                            Week
-                                        </button>
-                                        <button
-                                            onClick={() => setCalendarViewMode('month')}
-                                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'month'
-                                                ? 'bg-white text-slate-800 shadow-sm'
-                                                : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                        >
-                                            Month
-                                        </button>
+                            <div className="space-y-4 h-[calc(100vh-theme(spacing.24))] flex flex-col">
+                                <div className="flex items-center justify-between flex-wrap gap-4 shrink-0">
+                                    <div>
+                                        <h1 className="text-2xl font-bold text-slate-800">Schedule</h1>
+                                        <p className="text-slate-500">
+                                            {todaysJobs.length} job{todaysJobs.length !== 1 ? 's' : ''} today
+                                        </p>
                                     </div>
 
-                                    {hasTeam && (
-                                        <div className="flex bg-slate-100 rounded-xl p-1">
+                                    <div className="flex items-center gap-2">
+                                        {/* Week/Month Toggle - Always visible in Schedule view */}
+                                        <div className="flex bg-slate-100 rounded-xl p-1 mr-2">
                                             <button
-                                                onClick={() => setScheduleView('calendar')}
-                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
+                                                onClick={() => setCalendarViewMode('week')}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'week'
                                                     ? 'bg-white text-slate-800 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700'
                                                     }`}
                                             >
-                                                Calendar
+                                                Week
                                             </button>
                                             <button
-                                                onClick={() => setScheduleView('dispatch')}
-                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
+                                                onClick={() => setCalendarViewMode('month')}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${calendarViewMode === 'month'
                                                     ? 'bg-white text-slate-800 shadow-sm'
                                                     : 'text-slate-500 hover:text-slate-700'
                                                     }`}
                                             >
-                                                Dispatch
-                                            </button>
-                                            <button
-                                                onClick={() => setScheduleView('team')}
-                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                            >
-                                                Assignment
-                                            </button>
-                                            <button
-                                                onClick={() => setScheduleView('team-calendar')}
-                                                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
-                                                    ? 'bg-white text-slate-800 shadow-sm'
-                                                    : 'text-slate-500 hover:text-slate-700'
-                                                    }`}
-                                            >
-                                                Team Calendar
+                                                Month
                                             </button>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
 
-                            {/* Solo contractor - simple calendar */}
-                            {!hasTeam && (
-                                <div className="flex-1 min-h-0 overflow-hidden">
-                                    {calendarViewMode === 'month' ? (
-                                        <div className="h-full overflow-y-auto">
-                                            <ContractorCalendar
+                                        {hasTeam && (
+                                            <div className="flex bg-slate-100 rounded-xl p-1">
+                                                <button
+                                                    onClick={() => setScheduleView('calendar')}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'calendar'
+                                                        ? 'bg-white text-slate-800 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                        }`}
+                                                >
+                                                    Calendar
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleView('dispatch')}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'dispatch'
+                                                        ? 'bg-white text-slate-800 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                        }`}
+                                                >
+                                                    Dispatch
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleView('map')}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'map'
+                                                        ? 'bg-white text-slate-800 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                        }`}
+                                                >
+                                                    Map
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleView('team')}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team'
+                                                        ? 'bg-white text-slate-800 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                        }`}
+                                                >
+                                                    Assignment
+                                                </button>
+                                                <button
+                                                    onClick={() => setScheduleView('team-calendar')}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${scheduleView === 'team-calendar'
+                                                        ? 'bg-white text-slate-800 shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-700'
+                                                        }`}
+                                                >
+                                                    Team Calendar
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Solo contractor - simple calendar */}
+                                {!hasTeam && (
+                                    <div className="flex-1 min-h-0 overflow-hidden">
+                                        {calendarViewMode === 'month' ? (
+                                            <div className="h-full overflow-y-auto">
+                                                <ContractorCalendar
+                                                    jobs={jobs}
+                                                    timezone={profile?.scheduling?.timezone}
+                                                    viewMode="month"
+                                                    hideHeader={true}
+                                                    onSelectJob={handleJobClick}
+                                                    onCreateJob={() => setShowCreateJobModal(true)}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <DragDropCalendar
                                                 jobs={jobs}
+                                                evaluations={calendarEvaluations}
                                                 timezone={profile?.scheduling?.timezone}
-                                                viewMode="month"
-                                                hideHeader={true}
-                                                onSelectJob={handleJobClick}
-                                                onCreateJob={() => setShowCreateJobModal(true)}
+                                                preferences={profile?.scheduling}
+                                                selectedDate={selectedDate}
+                                                onDateChange={setSelectedDate}
+                                                onJobClick={handleJobClick}
+                                                onEvaluationClick={(evaluation) => {
+                                                    // Navigate to evaluation details or show modal
+                                                    setActiveView('evaluations');
+                                                }}
+                                                teamMembers={[]}
+                                                vehicles={vehicles || []}
+                                                onSetupTeam={() => setActiveView('settings')}
+                                                onAcceptProposal={handleAcceptProposal}
+                                                onDeclineProposal={handleDeclineProposal}
                                             />
-                                        </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Team - Calendar View */}
+                                {hasTeam && scheduleView === 'calendar' && (
+                                    calendarViewMode === 'month' ? (
+                                        <ContractorCalendar
+                                            jobs={jobs}
+                                            timezone={profile?.scheduling?.timezone}
+                                            viewMode="month"
+                                            hideHeader={true}
+                                            onSelectJob={handleJobClick}
+                                            onCreateJob={() => setShowCreateJobModal(true)}
+                                        />
                                     ) : (
                                         <DragDropCalendar
                                             jobs={jobs}
@@ -3147,93 +3192,69 @@ export const ContractorProApp = () => {
                                             onDateChange={setSelectedDate}
                                             onJobClick={handleJobClick}
                                             onEvaluationClick={(evaluation) => {
-                                                // Navigate to evaluation details or show modal
                                                 setActiveView('evaluations');
                                             }}
-                                            teamMembers={[]}
+                                            teamMembers={profile?.scheduling?.teamMembers || []}
                                             vehicles={vehicles || []}
                                             onSetupTeam={() => setActiveView('settings')}
                                             onAcceptProposal={handleAcceptProposal}
                                             onDeclineProposal={handleDeclineProposal}
                                         />
-                                    )}
-                                </div>
-                            )}
+                                    )
+                                )}
 
-                            {/* Team - Calendar View */}
-                            {hasTeam && scheduleView === 'calendar' && (
-                                calendarViewMode === 'month' ? (
-                                    <ContractorCalendar
+                                {/* Team - Dispatch Board */}
+                                {hasTeam && scheduleView === 'dispatch' && (
+                                    <DispatchBoard
                                         jobs={jobs}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
+                                        vehicles={vehicles || []}
+                                        initialDate={selectedDate}
                                         timezone={profile?.scheduling?.timezone}
-                                        viewMode="month"
-                                        hideHeader={true}
-                                        onSelectJob={handleJobClick}
-                                        onCreateJob={() => setShowCreateJobModal(true)}
+                                        onJobUpdate={() => {
+                                            // Jobs will auto-refresh via subscription
+                                        }}
+                                        onOfferSlots={(job) => setOfferingTimesJob(job)}
                                     />
-                                ) : (
-                                    <DragDropCalendar
+                                )}
+
+                                {/* Team - Map View */}
+                                {hasTeam && scheduleView === 'map' && (
+                                    <RouteMapView
+                                        jobs={jobs}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
+                                        date={selectedDate}
+                                        onJobSelect={handleJobClick}
+                                    />
+                                )}
+
+                                {/* Team - Assignment Panel */}
+                                {hasTeam && scheduleView === 'team' && (
+                                    <TechAssignmentPanel
+                                        jobs={jobs}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
+                                        vehicles={vehicles || []}
+                                        onJobUpdate={() => { }}
+                                    />
+                                )}
+
+                                {/* Team - Team Calendar View */}
+                                {hasTeam && scheduleView === 'team-calendar' && (
+                                    <TeamCalendarView
                                         jobs={jobs}
                                         evaluations={calendarEvaluations}
-                                        timezone={profile?.scheduling?.timezone}
+                                        teamMembers={profile?.scheduling?.teamMembers || []}
                                         preferences={profile?.scheduling}
-                                        selectedDate={selectedDate}
-                                        onDateChange={setSelectedDate}
                                         onJobClick={handleJobClick}
                                         onEvaluationClick={(evaluation) => {
                                             setActiveView('evaluations');
                                         }}
-                                        teamMembers={profile?.scheduling?.teamMembers || []}
-                                        vehicles={vehicles || []}
-                                        onSetupTeam={() => setActiveView('settings')}
-                                        onAcceptProposal={handleAcceptProposal}
-                                        onDeclineProposal={handleDeclineProposal}
+                                        onJobUpdate={() => {
+                                            // Jobs will auto-refresh via subscription
+                                        }}
                                     />
-                                )
-                            )}
-
-                            {/* Team - Dispatch Board */}
-                            {hasTeam && scheduleView === 'dispatch' && (
-                                <DispatchBoard
-                                    jobs={jobs}
-                                    teamMembers={profile?.scheduling?.teamMembers || []}
-                                    vehicles={vehicles || []}
-                                    initialDate={selectedDate}
-                                    timezone={profile?.scheduling?.timezone}
-                                    onJobUpdate={() => {
-                                        // Jobs will auto-refresh via subscription
-                                    }}
-                                    onOfferSlots={(job) => setOfferingTimesJob(job)}
-                                />
-                            )}
-
-                            {/* Team - Assignment Panel */}
-                            {hasTeam && scheduleView === 'team' && (
-                                <TechAssignmentPanel
-                                    jobs={jobs}
-                                    teamMembers={profile?.scheduling?.teamMembers || []}
-                                    vehicles={vehicles || []}
-                                    onJobUpdate={() => { }}
-                                />
-                            )}
-
-                            {/* Team - Team Calendar View */}
-                            {hasTeam && scheduleView === 'team-calendar' && (
-                                <TeamCalendarView
-                                    jobs={jobs}
-                                    evaluations={calendarEvaluations}
-                                    teamMembers={profile?.scheduling?.teamMembers || []}
-                                    preferences={profile?.scheduling}
-                                    onJobClick={handleJobClick}
-                                    onEvaluationClick={(evaluation) => {
-                                        setActiveView('evaluations');
-                                    }}
-                                    onJobUpdate={() => {
-                                        // Jobs will auto-refresh via subscription
-                                    }}
-                                />
-                            )}
-                        </div>
+                                )}
+                            </div>
                         </FeatureErrorBoundary>
                     )}
 
@@ -3414,6 +3435,16 @@ export const ContractorProApp = () => {
                             onAddExpense={addExpense}
                             onEditExpense={editExpense}
                             onDeleteExpense={removeExpense}
+                        />
+                    )}
+
+                    {/* Recurring Services View */}
+                    {activeView === 'recurring' && (
+                        <RecurringServicesView
+                            contractorId={contractorId}
+                            customers={customers}
+                            teamMembers={profile?.scheduling?.teamMembers || []}
+                            onNavigate={setActiveView}
                         />
                     )}
 

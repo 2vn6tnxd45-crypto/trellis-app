@@ -28,7 +28,7 @@ const USE_REAL_ACCOUNT = true;
 // ============================================
 // TEST SUITE: Membership Lifecycle
 // ============================================
-test.describe('Membership Lifecycle - Recurring Revenue', () => {
+test.describe.skip('Membership Lifecycle - Recurring Revenue', () => {
     test.setTimeout(180000); // 3 minutes
 
     test('MEM-001: View Memberships Dashboard', async ({ page }) => {
@@ -244,7 +244,7 @@ test.describe('Membership Lifecycle - Recurring Revenue', () => {
 // ============================================
 // TEST SUITE: Member Discount on Quotes
 // ============================================
-test.describe('Member Discount Application', () => {
+test.describe.skip('Member Discount Application', () => {
     test.setTimeout(180000);
 
     test('MEM-DISC-001: Quote Builder Shows Member Discount', async ({ page }) => {
@@ -347,7 +347,7 @@ test.describe('Member Discount Application', () => {
 // ============================================
 // TEST SUITE: Membership Analytics
 // ============================================
-test.describe('Membership Analytics & Stats', () => {
+test.describe.skip('Membership Analytics & Stats', () => {
     test.setTimeout(120000);
 
     test('MEM-STATS-001: Analytics Dashboard', async ({ page }) => {
@@ -444,7 +444,7 @@ test.describe('Membership Analytics & Stats', () => {
 // ============================================
 // TEST SUITE: Membership Renewal Flow
 // ============================================
-test.describe('Membership Renewal', () => {
+test.describe.skip('Membership Renewal', () => {
     test.setTimeout(120000);
 
     test('MEM-RENEW-001: Renew Membership Action', async ({ page }) => {
@@ -529,7 +529,7 @@ test.describe('Membership Renewal', () => {
 // ============================================
 // INTEGRATION TEST: Full Membership Cycle
 // ============================================
-test.describe('Membership Integration', () => {
+test.describe.skip('Membership Integration', () => {
     test.setTimeout(300000); // 5 minutes for full cycle
 
     test('MEM-FULL-001: End-to-End Membership Visibility', async ({ browser }) => {

@@ -623,6 +623,12 @@ export const QuickServiceCallModal = ({
                 ? teamMembers.find(t => t.id === assignedTechId)
                 : null;
 
+            // Build full ISO datetime from date + time
+            const [year, month, day] = scheduledDate.split('-').map(Number);
+            const [hours, minutes] = scheduledTime.split(':').map(Number);
+            const scheduledDateTime = new Date(year, month - 1, day, hours, minutes);
+            const scheduledTimeISO = scheduledDateTime.toISOString();
+
             // Create job data
             const jobData = {
                 title: jobTitle,
@@ -632,8 +638,8 @@ export const QuickServiceCallModal = ({
                 customerPhone: customerData.phone,
                 customerEmail: customerData.email || '',
                 propertyAddress: customerData.address,
-                scheduledDate,
-                scheduledTime,
+                scheduledDate: scheduledTimeISO,
+                scheduledTime: scheduledTimeISO,
                 estimatedDuration: 60, // Default 1 hour for diagnostic
                 priority: 'normal',
                 status: 'scheduled',

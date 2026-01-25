@@ -75,6 +75,23 @@ const getWeekDates = (date) => {
 
 const formatTime = (dateStr, timeZone) => {
     if (!dateStr) return '';
+    // Handle time-only strings (e.g., "09:00" or "8:33 AM")
+    if (typeof dateStr === 'string' && !dateStr.includes('T') && !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        // Already a display-friendly time string
+        const match = dateStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (match) {
+            let h = parseInt(match[1], 10);
+            const m = match[2];
+            const meridiem = match[3];
+            if (meridiem) return `${h}:${m} ${meridiem.toUpperCase()}`;
+            // Convert 24h to 12h
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            if (h > 12) h -= 12;
+            if (h === 0) h = 12;
+            return `${h}:${m} ${ampm}`;
+        }
+        return dateStr;
+    }
     return formatTimeInTimezone(dateStr, timeZone);
 };
 
@@ -84,8 +101,35 @@ const formatDate = (date) => {
 
 const getHourFromDate = (dateStr, timeZone) => {
     if (!dateStr) return 8;
+    // Handle time-only strings (e.g., "09:00" or "8:33 AM")
+    if (typeof dateStr === 'string' && !dateStr.includes('T') && !/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+        const match = dateStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+        if (match) {
+            let h = parseInt(match[1], 10);
+            const meridiem = match[3];
+            if (meridiem) {
+                if (meridiem.toUpperCase() === 'PM' && h !== 12) h += 12;
+                if (meridiem.toUpperCase() === 'AM' && h === 12) h = 0;
+            }
+            return h;
+        }
+        return 8;
+    }
+    // Handle Firestore Timestamps
+    if (dateStr?.toDate) {
+        const date = dateStr.toDate();
+        if (timeZone) {
+            const parts = new Intl.DateTimeFormat('en-US', {
+                hour: 'numeric', hour12: false, timeZone
+            }).formatToParts(date);
+            const hourPart = parts.find(p => p.type === 'hour');
+            return parseInt(hourPart.value) % 24;
+        }
+        return date.getHours();
+    }
     // Create date object in target timezone to get correct hour
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return 8;
     if (timeZone) {
         const parts = new Intl.DateTimeFormat('en-US', {
             hour: 'numeric',
@@ -120,16 +164,65 @@ const getEventStatus = (event) => {
     return 'unassigned';
 };
 
+// Resolve the best date value for a job, handling time-only scheduledTime strings
+const resolveJobDate = (job, timeZone) => {
+    const st = job.scheduledTime;
+    const sd = job.scheduledDate;
+
+    // If scheduledTime is a full datetime (ISO string or Timestamp), use it
+    if (st) {
+        // Firestore Timestamp
+        if (st?.toDate) return st.toDate();
+        // Date object
+        if (st instanceof Date) return st;
+        // ISO datetime string (contains 'T' or is long enough to be a full date)
+        if (typeof st === 'string' && (st.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(st))) {
+            const parsed = normalizeDateForTimezone(st, timeZone);
+            if (parsed && !isNaN(parsed.getTime())) return parsed;
+        }
+        // scheduledTime is a time-only string (e.g., "09:00" or "8:33 AM")
+        // Combine with scheduledDate if available
+        if (typeof st === 'string' && sd) {
+            const dateStr = typeof sd === 'string' && /^\d{4}-\d{2}-\d{2}/.test(sd)
+                ? sd.split('T')[0]
+                : null;
+            if (dateStr) {
+                // Parse time-only string to hours/minutes
+                let hours = 0, minutes = 0;
+                if (st.includes(':')) {
+                    const timeParts = st.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+                    if (timeParts) {
+                        hours = parseInt(timeParts[1], 10);
+                        minutes = parseInt(timeParts[2], 10);
+                        if (timeParts[3]) {
+                            const meridiem = timeParts[3].toUpperCase();
+                            if (meridiem === 'PM' && hours !== 12) hours += 12;
+                            if (meridiem === 'AM' && hours === 12) hours = 0;
+                        }
+                    }
+                }
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return createDateInTimezone(year, month - 1, day, hours, minutes, timeZone || 'UTC');
+            }
+        }
+    }
+
+    // Fall back to scheduledDate
+    if (sd) {
+        const normalized = normalizeDateForTimezone(sd, timeZone);
+        if (normalized && !isNaN(normalized.getTime())) return normalized;
+    }
+
+    return null;
+};
+
 // Get jobs for a date including multi-day segment info
 const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
     return jobs.filter(job => {
-        // Regular scheduled date check - normalize to handle date-only strings
-        const rawJobDate = job.scheduledTime || job.scheduledDate;
-        if (rawJobDate) {
-            const normalizedJobDate = normalizeDateForTimezone(rawJobDate, timeZone);
-            if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timeZone)) {
-                return true;
-            }
+        // Regular scheduled date check - handles time-only scheduledTime strings
+        const normalizedJobDate = resolveJobDate(job, timeZone);
+        if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timeZone)) {
+            return true;
         }
 
         // Multi-day segment check

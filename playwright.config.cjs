@@ -10,30 +10,25 @@ module.exports = defineConfig({
   // Where your test files are
   testDir: './tests',
 
-  // Run tests in parallel - limited to 2 workers to avoid rate limiting
-  // Set to 1 for sequential execution if needed
-  workers: 2,
+  // Run tests sequentially - CRITICAL for live production with single user accounts
+  workers: 1,
 
-  // Retry failed tests (helps with rate limiting and flaky tests)
+  // Retry failed tests (helps with network variance)
   retries: 2,
 
   // Maximum time per test (3 minutes for complex E2E tests)
   timeout: 180000,
 
-  // Global setup/teardown for session management
-  // globalSetup: './tests/global-setup.js',
-  // globalTeardown: './tests/global-teardown.js',
-
   // What to do when a test fails
   reporter: [
     ['list'],                                              // Show results in terminal
     ['html', { open: 'never' }],                          // Generate HTML report
-    ['json', { outputFile: 'test-results/results.json' }] // JSON for Claude Code
+    ['json', { outputFile: 'test-results/results.json' }] // Keep JSON for tools
   ],
 
   // Settings that apply to all tests
   use: {
-    // The URL of your app
+    // The URL of your app - Live Production
     baseURL: 'https://mykrib.app',
 
     // ALWAYS take screenshots for visual verification
@@ -45,17 +40,14 @@ module.exports = defineConfig({
     // Save trace for debugging (viewable at trace.playwright.dev)
     trace: 'retain-on-failure',
 
-    // Slow down actions slightly to avoid rate limiting and improve stability
-    // slowMo: 100,
-
     // Browser viewport size
     viewport: { width: 1280, height: 720 },
 
-    // Generous timeouts to handle slow network/Firebase
+    // Generous timeouts to handle real-world network variance on the live site
     actionTimeout: 20000,
     navigationTimeout: 45000,
 
-    // Ignore HTTPS errors (useful for development)
+    // Ignore HTTPS errors
     ignoreHTTPSErrors: true,
   },
 
@@ -76,27 +68,8 @@ module.exports = defineConfig({
       name: 'mobile-chrome',
       use: { ...devices['Pixel 5'] },
     },
-    // Uncomment for cross-browser testing:
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
   ],
 
   // Output folder for screenshots, videos, traces
   outputDir: 'test-results/',
-
-  // Folder for test artifacts (auth state, etc.)
-  // snapshotDir: './tests/snapshots/',
-
-  // Web server config (if you want to start local server)
-  // webServer: {
-  //   command: 'npm run dev',
-  //   url: 'http://localhost:5173',
-  //   reuseExistingServer: !process.env.CI,
-  // },
 });

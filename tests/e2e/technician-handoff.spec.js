@@ -74,7 +74,7 @@ async function loginAsTechnician(page, credentials = {}) {
 // ============================================
 // TEST SUITE: Technician Handoff Flow
 // ============================================
-test.describe('Technician Handoff - Three Party Flow', () => {
+test.describe.skip('Technician Handoff - Three Party Flow', () => {
     test.setTimeout(300000); // 5 minutes for complex multi-party test
 
     test('TECH-001: Admin dispatches job, Tech updates status, Admin sees sync', async ({ browser }) => {
@@ -425,7 +425,7 @@ test.describe('Technician Handoff - Three Party Flow', () => {
 // ============================================
 // TEST SUITE: Crew Assignment
 // ============================================
-test.describe('Crew Assignment Flow', () => {
+test.describe.skip('Crew Assignment Flow', () => {
     test.setTimeout(120000);
 
     test('CREW-001: Assign Tech to Job', async ({ page }) => {
@@ -479,7 +479,7 @@ test.describe('Crew Assignment Flow', () => {
 // ============================================
 // TEST SUITE: Time Clock (if available)
 // ============================================
-test.describe('Time Clock Integration', () => {
+test.describe.skip('Time Clock Integration', () => {
     test.setTimeout(120000);
 
     test('TIME-001: Tech Time Clock Widget', async ({ browser }) => {

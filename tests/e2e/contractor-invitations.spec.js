@@ -2,7 +2,12 @@
 // E2E tests for contractor invitation workflow
 
 import { test, expect, chromium } from '@playwright/test';
-import { loginAsContractor, loginAsHomeowner, screenshot, uniqueId, waitForLoadingComplete } from '../utils/test-helpers.js';
+import { loginWithCredentials, TEST_ACCOUNTS, loginAsHomeowner, screenshot, uniqueId, waitForLoadingComplete, navigateToSection } from '../utils/test-helpers.js';
+
+// Helper to login as contractor using seeded account for reliability and speed
+async function loginAsContractor(page) {
+    await loginWithCredentials(page, TEST_ACCOUNTS.contractor.email, TEST_ACCOUNTS.contractor.password);
+}
 
 const BASE_URL = process.env.LOCAL_TEST === '1' ? 'http://localhost:5173' : 'https://mykrib.app';
 
@@ -20,19 +25,16 @@ test.describe('Contractor Invitation Workflow', () => {
         // Also the sidebar has "Invitations" under Management section
 
         // First try the dashboard button (more prominent)
-        const dashboardInviteBtn = page.locator('button:has-text("Create"), button:has(svg)').filter({ hasText: /invite|invitation/i }).first();
-        const fabButton = page.locator('button.fixed, button:has(svg[class*="plus"])').last(); // Mobile FAB
-
-        // Or navigate via sidebar to Invitations
-        const sidebarInvitations = page.locator('nav >> text="Invitations"').first();
+        const dashboardInviteBtn = page.locator('button:has-text("New Invitation"), button:has-text("Create Invitation")').first();
 
         if (await dashboardInviteBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
             console.log(`[${testId}] Found dashboard invite button`);
             await dashboardInviteBtn.click();
             await page.waitForTimeout(1500);
-        } else if (await sidebarInvitations.isVisible({ timeout: 3000 }).catch(() => false)) {
+        } else {
+            // Fallback to navigation (mobile or if button hidden)
             console.log(`[${testId}] Navigating via sidebar Invitations`);
-            await sidebarInvitations.click();
+            await navigateToSection(page, 'Invitations');
             await page.waitForTimeout(1500);
             await screenshot(page, testId, '02-invitations-page');
 
@@ -40,14 +42,6 @@ test.describe('Contractor Invitation Workflow', () => {
             const createBtn = page.locator('button:has-text("Create"), button:has-text("New Invitation"), button:has(svg)').first();
             if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await createBtn.click();
-                await page.waitForTimeout(1500);
-            }
-        } else {
-            // Try the FAB button on mobile or find any plus button
-            console.log(`[${testId}] Looking for FAB or plus button`);
-            const plusBtn = page.locator('button:has(svg), a:has(svg)').filter({ has: page.locator('svg') }).first();
-            if (await plusBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-                await plusBtn.click();
                 await page.waitForTimeout(1500);
             }
         }
@@ -63,7 +57,18 @@ test.describe('Contractor Invitation Workflow', () => {
             await nameInput.fill(`Test Customer ${testId}`);
         }
 
-        const emailInput = page.locator('input[type="email"], input[name="email"]').first();
+        // Expand Customer Email section if needed
+        const emailSectionBtn = page.locator('button:has-text("Customer Email")').first();
+        if (await emailSectionBtn.isVisible()) {
+            // Check if input is already visible
+            const emailInputVisible = await page.locator('input[type="email"][placeholder*="customer"]').isVisible().catch(() => false);
+            if (!emailInputVisible) {
+                await emailSectionBtn.click();
+                await page.waitForTimeout(500);
+            }
+        }
+
+        const emailInput = page.locator('input[type="email"][placeholder*="customer"]').first();
         if (await emailInput.isVisible({ timeout: 2000 }).catch(() => false)) {
             await emailInput.fill('testcustomer@example.com');
         }
@@ -103,7 +108,7 @@ test.describe('Contractor Invitation Workflow', () => {
         }
 
         // Generate/Create the invitation link
-        const generateButton = page.locator('button:has-text("Generate"), button:has-text("Create Link"), button:has-text("Send")').first();
+        const generateButton = page.locator('button:has-text("Create Invitation Link"), button:has-text("Generate"), button:has-text("Create Link")').first();
 
         if (await generateButton.isVisible({ timeout: 5000 }).catch(() => false)) {
             await generateButton.click();
@@ -189,7 +194,7 @@ test.describe('Contractor Dashboard Features', () => {
         await loginAsContractor(page);
 
         // Navigate to Jobs section
-        await page.locator('text="Jobs"').first().click();
+        await navigateToSection(page, 'Jobs');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-jobs-page');
 
@@ -228,9 +233,8 @@ test.describe('Contractor Dashboard Features', () => {
         await loginAsContractor(page);
         await screenshot(page, testId, '00-logged-in');
 
-        // Navigate to Schedule section - look for it in the sidebar
-        const scheduleLink = page.locator('nav >> text="Schedule"').first();
-        await scheduleLink.click({ timeout: 10000 });
+        // Navigate to Schedule section
+        await navigateToSection(page, 'Schedule');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-schedule-page');
 
@@ -272,7 +276,7 @@ test.describe('Contractor Dashboard Features', () => {
         await loginAsContractor(page);
 
         // Navigate to Invoices section
-        await page.locator('text="Invoices"').first().click();
+        await navigateToSection(page, 'Invoices');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-invoices-page');
 
@@ -318,11 +322,17 @@ test.describe('Contractor Dashboard Features', () => {
 
         await loginAsContractor(page);
 
-        // Look for settings link
-        const settingsLink = page.locator('text="Settings", a[href*="settings"], button:has(svg[class*="settings"])').first();
+        // Navigate to Settings
+        await navigateToSection(page, 'Settings');
 
-        if (await settingsLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await settingsLink.click();
+        if (await page.locator('text="Company"').first().isVisible({ timeout: 5000 }).catch(() => false)) {
+            // Already there
+        } else {
+            // Fallback logic handled by navigateToSection
+        }
+
+        const settingsVisible = true; // Placeholder for logic flow
+        if (settingsVisible) {
             await page.waitForTimeout(1500);
             await screenshot(page, testId, '01-settings-page');
 

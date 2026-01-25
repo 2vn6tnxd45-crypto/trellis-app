@@ -2,7 +2,12 @@
 // E2E tests for contractor quote creation with line items
 
 import { test, expect } from '@playwright/test';
-import { loginAsContractor, screenshot, uniqueId, waitForLoadingComplete } from '../utils/test-helpers.js';
+import { loginWithCredentials, TEST_ACCOUNTS, screenshot, uniqueId, waitForLoadingComplete, navigateToSection } from '../utils/test-helpers.js';
+
+// Helper to login as contractor using seeded account
+async function loginAsContractor(page) {
+    await loginWithCredentials(page, TEST_ACCOUNTS.contractor.email, TEST_ACCOUNTS.contractor.password);
+}
 
 const BASE_URL = process.env.LOCAL_TEST === '1' ? 'http://localhost:5173' : 'https://mykrib.app';
 
@@ -17,7 +22,7 @@ test.describe('Contractor Quote Creation', () => {
         await screenshot(page, testId, '01-logged-in');
 
         // Navigate to Quotes section
-        await page.locator('text="Quotes"').first().click();
+        await navigateToSection(page, 'Quotes');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '02-quotes-page');
 
@@ -170,7 +175,7 @@ test.describe('Contractor Quote Creation', () => {
         console.log(`[${testId}] Starting quote edit test...`);
 
         await loginAsContractor(page);
-        await page.locator('text="Quotes"').first().click();
+        await navigateToSection(page, 'Quotes');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-quotes-list');
 
@@ -219,7 +224,7 @@ test.describe('Contractor Quote Creation', () => {
         console.log(`[${testId}] Starting quote send test...`);
 
         await loginAsContractor(page);
-        await page.locator('text="Quotes"').first().click();
+        await navigateToSection(page, 'Quotes');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-quotes-list');
 
@@ -278,7 +283,7 @@ test.describe('Contractor Quote Creation', () => {
         await loginAsContractor(page);
 
         // Navigate to evaluations
-        await page.locator('text="Evaluations"').first().click();
+        await navigateToSection(page, 'Evaluations');
         await page.waitForTimeout(1500);
         await screenshot(page, testId, '01-evaluations');
 
@@ -332,7 +337,7 @@ test.describe('Quote Calculations', () => {
         console.log(`[${testId}] Starting quote math verification test...`);
 
         await loginAsContractor(page);
-        await page.locator('text="Quotes"').first().click();
+        await navigateToSection(page, 'Quotes');
         await page.waitForTimeout(1500);
 
         // Create new quote

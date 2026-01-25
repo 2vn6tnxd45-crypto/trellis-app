@@ -10,22 +10,28 @@
 // TEST USERS
 // ============================================
 
+// IMPORTANT: These accounts should exist in Firebase Auth
+// The seeded account has pre-populated data created by generateRandomJobs.cjs
+// Run: node scripts/generateRandomJobs.cjs --contractor-id=<UID> --reset --count=20
+
 export const TEST_USERS = {
-    // New homeowner (no existing data)
+    // New homeowner (for fresh signup tests - account created during test)
     newHomeowner: {
         email: 'test.homeowner.new@gmail.com',
         password: 'TestPass123!',
         name: 'Test Homeowner New',
     },
 
-    // Homeowner with existing data
+    // SEEDED: Homeowner with existing data
+    // This account has: property, items, maintenance tasks, quotes
     fullHomeowner: {
-        email: 'test.homeowner.full@gmail.com',
-        password: 'TestPass123!',
-        name: 'Test Homeowner Full',
+        email: 'danvdova@gmail.com',
+        password: 'Test1234',
+        name: 'Devon Davila',
+        uid: '', // Will be auto-filled on login
     },
 
-    // New contractor (no existing data)
+    // New contractor (for fresh signup tests - account created during test)
     newContractor: {
         email: 'test.contractor.new@gmail.com',
         password: 'TestPass123!',
@@ -33,12 +39,14 @@ export const TEST_USERS = {
         businessName: 'Test HVAC Services',
     },
 
-    // Contractor with existing data
+    // SEEDED: Contractor with existing data (same account, has contractor profile)
+    // This account has: jobs, crew, vehicles, quotes, membership plans, customers
     fullContractor: {
-        email: 'test.contractor.full@gmail.com',
-        password: 'TestPass123!',
-        name: 'Test Contractor Full',
-        businessName: 'Test HVAC Services LLC',
+        email: 'danvdova@gmail.com',
+        password: 'Test1234',
+        name: 'Dan Davila',
+        businessName: 'Davila Home Services',
+        uid: 'xLmC8rxrucPGD2pe4P5FSRmVsqc2',
     },
 
     // Invalid credentials for negative tests
@@ -116,6 +124,26 @@ export const TEST_RECORDS = {
         model: 'RF28R7551SR',
         purchaseDate: '2024-01-15',
         cost: 2499.99,
+    },
+
+    // For core-flows.spec.js Manual Record Creation tests
+    hvacMaintenance: {
+        title: 'Annual HVAC Filter Change',
+        category: 'HVAC',
+        description: 'Replaced all air filters and cleaned condenser coils',
+        date: '2024-01-15',
+        cost: 150,
+        provider: 'ABC HVAC Services',
+    },
+
+    plumbingRepair: {
+        title: 'Kitchen Faucet Replacement',
+        category: 'Plumbing',
+        description: 'Replaced leaky kitchen faucet with new Moen model',
+        date: '2024-02-01',
+        cost: 350,
+        provider: 'Quick Plumbing Co',
+        warrantyExpires: '2026-02-01',
     },
 };
 

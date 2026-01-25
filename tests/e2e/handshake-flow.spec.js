@@ -6,10 +6,13 @@ import { test, expect } from '@playwright/test';
 import {
     loginAsHomeowner,
     loginAsContractor,
+    loginWithCredentials,
+    TEST_ACCOUNTS,
     screenshot,
     waitForLoadingComplete,
     waitForToast,
-    uniqueId
+    uniqueId,
+    navigateToSection
 } from '../utils/test-helpers.js';
 
 test.describe('Homeowner-Contractor Handshake Flow', () => {
@@ -223,12 +226,12 @@ test.describe('Homeowner-Contractor Handshake Flow', () => {
         console.log(`[CAL] Starting test: ${testId}`);
 
         try {
+            // Use fresh account to avoid rate limiting
             await loginAsContractor(contractorPage, { useStoredSession: false });
             await waitForLoadingComplete(contractorPage);
 
-            // Navigate to calendar/schedule
-            const scheduleNav = contractorPage.locator('text=/schedule|calendar/i').first();
-            await scheduleNav.click();
+            // Navigate to calendar/schedule using helper
+            await navigateToSection(contractorPage, 'Schedule');
             await waitForLoadingComplete(contractorPage);
 
             // Screenshot the calendar
@@ -239,7 +242,7 @@ test.describe('Homeowner-Contractor Handshake Flow', () => {
             for (const view of viewButtons) {
                 const viewButton = contractorPage.locator(`button:has-text("${view}")`).first();
                 if (await viewButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-                    await viewButton.click();
+                    await viewButton.click({ force: true });
                     await contractorPage.waitForTimeout(1000);
                     await screenshot(contractorPage, testId, `calendar-${view.toLowerCase()}-view`);
                 }

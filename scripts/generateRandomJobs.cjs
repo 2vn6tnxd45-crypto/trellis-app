@@ -69,8 +69,7 @@ const QUOTES_COLLECTION = `artifacts/${APP_ID}/public/data/quotes`;
 const MEMBERSHIPS_COLLECTION = `artifacts/${APP_ID}/public/data/memberships`;
 const MEMBERSHIP_PLANS_COLLECTION = `artifacts/${APP_ID}/public/data/membershipPlans`;
 const CUSTOMERS_COLLECTION = `artifacts/${APP_ID}/public/data/customers`;
-const PROPERTIES_COLLECTION = `artifacts/${APP_ID}/public/data/properties`;
-const ITEMS_COLLECTION = `artifacts/${APP_ID}/public/data/items`;
+// PROPERTIES_COLLECTION and ITEMS_COLLECTION removed as they are user-specific
 
 // ============================================
 // VALID AUSTIN, TX ADDRESSES
@@ -590,7 +589,7 @@ function pickWeightedStatus() {
     return 'pending_schedule';
 }
 
-function generateJob(contractorId, index, businessHours, crewMembers) {
+function generateJob(contractorId, index, businessHours, crewMembers, forcedStatus = null) {
     const template = randomElement(JOB_TEMPLATES);
 
     // Duration within template range
@@ -614,7 +613,8 @@ function generateJob(contractorId, index, businessHours, crewMembers) {
     const isMultiDay = duration > getWorkdayMinutes(businessHours, schedule.dayOfWeek);
 
     // Pick a varied status for realistic testing
-    const status = pickWeightedStatus();
+    // Pick a varied status for realistic testing
+    const status = forcedStatus || pickWeightedStatus();
 
     // Assign crew for scheduled/in_progress/completed jobs
     let assignedTechId = null;
@@ -1167,8 +1167,11 @@ async function main() {
     const jobs = [];
     const stats = { totalDuration: 0, minDuration: Infinity, maxDuration: 0, multiDay: 0, byCategory: {} };
 
+    // Force statuses for test coverage: pending, completed, in_progress, scheduled, pending
+    const jobStatuses = [null, 'completed', 'in_progress', 'scheduled', null];
+
     for (let i = 0; i < CONFIG.count; i++) {
-        const job = generateJob(CONFIG.contractorId, i, businessHours, crewMembers);
+        const job = generateJob(CONFIG.contractorId, i, businessHours, crewMembers, jobStatuses[i]);
         jobs.push(job);
         stats.totalDuration += job.estimatedDuration;
         stats.minDuration = Math.min(stats.minDuration, job.estimatedDuration);
@@ -1261,6 +1264,14 @@ async function main() {
         // First 2 customers get memberships
         const membershipPlan = i < 2 ? membershipPlans[i % membershipPlans.length] : null;
         const customer = generateCustomer(CONFIG.contractorId, i, membershipPlan);
+
+        // FORCE first customer to be our test homeowner so they receive quotes
+        if (i === 0) {
+            customer.email = 'danvdova@gmail.com';
+            customer.name = 'Dan Vdova';
+            console.log('   -> Overriding Customer 0 to danvdova@gmail.com');
+        }
+
         customers.push(customer);
         const customerRef = db.collection(CUSTOMERS_COLLECTION).doc(customer.id);
         await customerRef.set(customer);
@@ -1269,31 +1280,53 @@ async function main() {
 
     // ---- Step 7: Generate and Write Quotes ----
     console.log('\n--- Step 7: Quotes ---');
-    const quoteStatuses = ['draft', 'draft', 'sent', 'sent', 'sent'];
+    const quoteStatuses = ['sent', 'draft', 'sent', 'sent', 'sent']; // Force first one to be SENT
+
     for (let i = 0; i < QUOTE_TEMPLATES.length; i++) {
         const customer = customers[i % customers.length];
         const status = quoteStatuses[i] || 'draft';
+
+        // If this is the test customer (index 0), use the known UID (which matches contractorId in our test setup)
+        // Otherwise use the random customer ID
+        const customerIdForQuote = (i === 0) ? CONFIG.contractorId : customer.id;
+
         const quote = generateQuote(CONFIG.contractorId, QUOTE_TEMPLATES[i], customer, status);
+        quote.customerId = customerIdForQuote; // Explicitly add customerId field for queries
+
         const quoteRef = db.collection(QUOTES_COLLECTION).doc();
         await quoteRef.set(quote);
-        console.log(`   Created ${status} quote: ${quote.title} - $${quote.total.toFixed(2)} for ${customer.name}`);
+        console.log(`   Created ${status} quote: ${quote.title} - $${quote.total.toFixed(2)} for ${customer.name} (customerId: ${customerIdForQuote})`);
     }
 
     // ---- Step 8: Generate Homeowner Property & Items ----
     if (!CONFIG.skipHomeowner && CONFIG.homeownerId) {
         console.log('\n--- Step 8: Homeowner Property & Items ---');
 
-        // Create property
+        // Create property and update user profile
         const property = generateProperty(CONFIG.homeownerId);
-        const propertyRef = db.collection(PROPERTIES_COLLECTION).doc(property.id);
-        await propertyRef.set(property);
-        console.log(`   Created property: ${property.nickname} (${property.address})`);
 
-        // Create home items with maintenance tasks
+        // 1. Update User Profile with Property Metadata (Critical for App recognition)
+        const profileRef = db.collection('artifacts').doc(APP_ID).collection('users').doc(CONFIG.homeownerId).collection('settings').doc('profile');
+        const profileUpdate = {
+            properties: [{
+                id: property.id,
+                name: property.nickname,
+                address: property.address, // Object or string, app handles both
+                coordinates: { lat: 30.2672, lng: -97.7431 } // Default to Austin center if missing
+            }],
+            activePropertyId: property.id,
+            updatedAt: new Date()
+        };
+        await profileRef.set(profileUpdate, { merge: true });
+        console.log(`   Updated user profile with property: ${property.nickname}`);
+
+        // 2. Create Home Items in User's house_records collection
+        const recordsRef = db.collection('artifacts').doc(APP_ID).collection('users').doc(CONFIG.homeownerId).collection('house_records');
+
         for (let i = 0; i < HOME_ITEM_TEMPLATES.length; i++) {
             const item = generateHomeItem(CONFIG.homeownerId, property.id, HOME_ITEM_TEMPLATES[i], i);
-            const itemRef = db.collection(ITEMS_COLLECTION).doc(item.id);
-            await itemRef.set(item);
+            await recordsRef.doc(item.id).set(item);
+
             const overdueTasks = item.maintenanceTasks.filter(t => t.status === 'overdue').length;
             console.log(`   Created item: ${item.item} (${item.maintenanceTasks.length} tasks, ${overdueTasks} overdue)`);
         }

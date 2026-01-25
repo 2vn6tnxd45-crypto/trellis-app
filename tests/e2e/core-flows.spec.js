@@ -10,6 +10,7 @@ import {
     generateTestPhone,
     wait
 } from '../fixtures/test-data.js';
+import { navigateToSection, loginWithCredentials, selectPropertyIfNeeded } from '../utils/test-helpers.js';
 
 /**
  * Core Flow Tests for Krib App
@@ -28,10 +29,43 @@ test.describe('Homeowner Onboarding Flow', () => {
         const testEmail = generateTestEmail('onboard');
 
         await page.goto('/');
-        await expect(page.locator('text=Sign in')).toBeVisible({ timeout: 10000 });
+
+        // Check if we're on landing page with role selection
+        const homeownerBtn = page.locator('text="I\'m a Homeowner"').first();
+        if (await homeownerBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await homeownerBtn.click();
+            await page.waitForLoadState('domcontentloaded');
+            await page.waitForTimeout(1000);
+        }
+
+        // Check if email input is already visible (auth form)
+        const emailVisible = await page.locator(SELECTORS.emailInput).isVisible({ timeout: 3000 }).catch(() => false);
+
+        if (!emailVisible) {
+            // May need to click "Log In" or "Get Started" button to reach auth
+            const loginBtn = page.locator('text=/log in|sign in|get started/i').first();
+            if (await loginBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+                await loginBtn.click();
+                await page.waitForTimeout(1500);
+            }
+        }
+
+        // Now we should be on auth screen. Switch to signup if needed.
+        // If we see "Sign in" or "Log in" header/button, we likely need to switch.
+        // Or if we see "Create Account" button, we are already on signup.
+
+        const createAccountBtn = page.locator('button:has-text("Create Account")');
+        if (!await createAccountBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            // Need to switch to signup
+            const signUpLink = page.locator('text=/sign up|create account/i').last();
+            if (await signUpLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+                await signUpLink.click();
+                await page.waitForTimeout(1000);
+            }
+        }
 
         // Create new account
-        await page.click('text=Sign up');
+        await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 10000 });
         await page.fill('input[placeholder*="name" i]', 'Test Onboarding User');
         await page.fill(SELECTORS.emailInput, testEmail);
         await page.fill(SELECTORS.passwordInput, 'TestPass123!');
@@ -120,59 +154,118 @@ test.describe('Homeowner Onboarding Flow', () => {
 test.describe('Manual Record Creation', () => {
     test.beforeEach(async ({ page }) => {
         // Login as full homeowner with existing property
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
-        await page.click(SELECTORS.submitButton);
+        // Navigate directly to /home for homeowner portal
+        await page.goto('/home');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app)/, { timeout: 15000 });
+        // Check if already logged in (sidebar or bottom nav visible)
+        const sidebar = page.locator('aside').first();
+        const alreadyLoggedIn = await sidebar.isVisible({ timeout: 2000 }).catch(() => false);
+
+        if (!alreadyLoggedIn) {
+            // Need to login
+            const emailInput = page.locator(SELECTORS.emailInput);
+
+            // If email input not visible, click Sign In button
+            if (!await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+                const loginBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+                if (await loginBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await loginBtn.click();
+                    await page.waitForTimeout(1000);
+                }
+            }
+
+            // Wait for email input to be visible
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+
+            // Fill login form
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+
+        // Handle property selection if needed (homeowner may need to select a property)
+        await selectPropertyIfNeeded(page);
+
+        await page.waitForTimeout(1000);
     });
 
     test('should add HVAC maintenance record manually', async ({ page }) => {
-        // Navigate to records section
-        await page.click('text=Records, nav a:has-text("Records")');
-        await expect(page.locator('text=/records|maintenance/i')).toBeVisible({ timeout: 5000 });
+        // Navigate to records/inventory section
+        await navigateToSection(page, 'Records');
+        // Verify we're on the Inventory page
+        await expect(page.locator('text=/inventory|items|no items/i').first()).toBeVisible({ timeout: 5000 });
 
-        // Click add record button
-        await page.click('button:has-text("Add"), button:has-text("New Record"), [aria-label*="add"]');
+        // Click add item button
+        await page.click('button:has-text("Add Item"), button:has-text("Add"), [aria-label*="add"]');
 
-        // Select category
-        const categorySelect = page.locator('select[name="category"], [data-testid="category-select"]');
-        if (await categorySelect.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await categorySelect.selectOption({ label: 'HVAC' });
-        } else {
-            // Button-based selection
-            await page.click('button:has-text("HVAC"), [data-category="hvac"]');
+        // Handle "Add New Item" wizard (Step 1: How do you want to add this item?)
+        // Look for "Type Manually" option
+        const typeManuallyBtn = page.locator('text=Type Manually').first();
+        if (await typeManuallyBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await typeManuallyBtn.click();
+            await page.waitForTimeout(1000);
         }
 
-        // Fill record details
-        await page.fill('input[name="title"], input[placeholder*="title" i]', TEST_RECORDS.hvacMaintenance.title);
+        // Wizard Step 2: Basic Info
+        // Fill "What is it?" (Title)
+        const titleInput = page.locator('input[placeholder*="Living Room Sofa"], input[name="title"], label:has-text("WHAT IS IT?") + input');
+        if (await titleInput.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await titleInput.fill(TEST_RECORDS.hvacMaintenance.title);
+        }
 
+        // Select Category
+        // Click the dropdown trigger
+        const categoryTrigger = page.locator('text=Select...').first();
+        if (await categoryTrigger.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await categoryTrigger.click();
+            await page.waitForTimeout(1000); // Wait for animation
+
+            // Try explicit text match with force click
+            const hvacOption = page.locator('text=HVAC & Systems').first();
+            if (await hvacOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await hvacOption.click({ force: true });
+            } else {
+                // Fallback to keyboard navigation if visual click fails
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('ArrowDown'); // Go down a few times
+                await page.keyboard.press('Enter');
+            }
+        }
+
+        // Select Area
+        const areaTrigger = page.locator('text=Select room...').first();
+        if (await areaTrigger.isVisible({ timeout: 2000 }).catch(() => false)) {
+            await areaTrigger.click();
+            await page.waitForTimeout(500);
+            // Select first available room or create new
+            const firstRoomOption = page.locator('[role="option"]').first();
+            if (await firstRoomOption.isVisible({ timeout: 1000 }).catch(() => false)) {
+                await firstRoomOption.click();
+            }
+        }
+
+        // Click Next
+        await page.click('button:has-text("Next"), button:has-text("Add Details")');
+        await page.waitForTimeout(1000);
+
+        // Wizard Step 3: Details (Cost, etc.)
         // Description
-        const descInput = page.locator('textarea[name="description"], textarea[placeholder*="description" i]');
+        const descInput = page.locator('textarea[placeholder*="description" i], textarea[name="description"]');
         if (await descInput.isVisible({ timeout: 2000 }).catch(() => false)) {
             await descInput.fill(TEST_RECORDS.hvacMaintenance.description);
         }
 
-        // Date
-        const dateInput = page.locator('input[type="date"], input[name="date"]');
-        if (await dateInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await dateInput.fill(TEST_RECORDS.hvacMaintenance.date);
-        }
-
         // Cost
-        const costInput = page.locator('input[name="cost"], input[placeholder*="cost" i], input[type="number"]');
+        const costInput = page.locator('input[placeholder*="cost" i], input[type="number"], input[name="cost"]');
         if (await costInput.isVisible({ timeout: 2000 }).catch(() => false)) {
             await costInput.fill(TEST_RECORDS.hvacMaintenance.cost.toString());
         }
 
-        // Provider
-        const providerInput = page.locator('input[name="provider"], input[placeholder*="provider" i], input[placeholder*="company" i]');
-        if (await providerInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await providerInput.fill(TEST_RECORDS.hvacMaintenance.provider);
-        }
-
-        // Save record
         await page.click('button:has-text("Save"), button:has-text("Add Record"), button[type="submit"]');
 
         // Verify record appears in list
@@ -181,7 +274,7 @@ test.describe('Manual Record Creation', () => {
 
     test('should add plumbing repair record with warranty', async ({ page }) => {
         // Navigate to records
-        await page.click('text=Records, nav a:has-text("Records")');
+        await navigateToSection(page, 'Records');
         await page.click('button:has-text("Add"), button:has-text("New Record")');
 
         // Select Plumbing category
@@ -211,7 +304,7 @@ test.describe('Manual Record Creation', () => {
     });
 
     test('should require title for new record', async ({ page }) => {
-        await page.click('text=Records, nav a:has-text("Records")');
+        await navigateToSection(page, 'Records');
         await page.click('button:has-text("Add"), button:has-text("New Record")');
 
         // Try to save without title
@@ -222,7 +315,7 @@ test.describe('Manual Record Creation', () => {
     });
 
     test('should allow editing existing record', async ({ page }) => {
-        await page.click('text=Records, nav a:has-text("Records")');
+        await navigateToSection(page, 'Records');
 
         // Wait for records to load
         await page.waitForTimeout(2000);
@@ -250,21 +343,47 @@ test.describe('Manual Record Creation', () => {
 
 test.describe('Contractor Quote Creation', () => {
     test.beforeEach(async ({ page }) => {
-        // Login as full contractor
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullContractor.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullContractor.password);
-        await page.click(SELECTORS.submitButton);
+        // Login as full contractor - use direct URL to skip landing page
+        // The ?pro=dashboard URL goes directly to contractor auth/dashboard
+        await page.goto('/home?pro=dashboard');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app|contractor)/, { timeout: 15000 });
+        // Check if already logged in (sidebar visible)
+        const sidebar = page.locator('aside, [data-testid="sidebar"]');
+
+        if (!await sidebar.isVisible({ timeout: 3000 }).catch(() => false)) {
+            // Need to login
+            const emailInput = page.locator(SELECTORS.emailInput);
+
+            // If email input not visible, may need to click login button
+            if (!await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+                const loginBtn = page.locator('text=/log in|sign in/i').first();
+                if (await loginBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                    await loginBtn.click();
+                    await page.waitForTimeout(1000);
+                }
+            }
+
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullContractor.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullContractor.password);
+            await page.click(SELECTORS.submitButton);
+
+            await expect(page).toHaveURL(/.*\/(home|app|contractor)/, { timeout: 15000 });
+        }
+
+        await page.waitForTimeout(1000); // Wait for dashboard to stabilize
     });
 
     test('should create a complete quote with line items', async ({ page }) => {
         // Navigate to quotes section
-        await page.click('text=Quotes, nav a:has-text("Quotes"), text=Create Quote');
+        await navigateToSection(page, 'Quotes');
+        // If "Create Quote" is a sub-link or button, handle it. navigateToSection goes to list.
+        // On mobile, "Quotes" goes to list.
 
         // Click new quote button
         await page.click('button:has-text("New Quote"), button:has-text("Create Quote")');
+
 
         // Customer info
         await page.fill('input[name="customerName"], input[placeholder*="customer" i]', TEST_QUOTES.hvacInstall.customerName);
@@ -308,7 +427,7 @@ test.describe('Contractor Quote Creation', () => {
 
     test('should send quote to customer', async ({ page }) => {
         // Navigate to quotes
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        await navigateToSection(page, 'Quotes');
 
         // Wait for quotes to load
         await page.waitForTimeout(2000);
@@ -346,7 +465,7 @@ test.describe('Contractor Quote Creation', () => {
     });
 
     test('should validate required quote fields', async ({ page }) => {
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        await navigateToSection(page, 'Quotes');
         await page.click('button:has-text("New Quote"), button:has-text("Create Quote")');
 
         // Try to send without required fields
@@ -357,7 +476,7 @@ test.describe('Contractor Quote Creation', () => {
     });
 
     test('should calculate quote totals correctly', async ({ page }) => {
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        await navigateToSection(page, 'Quotes');
         await page.click('button:has-text("New Quote"), button:has-text("Create Quote")');
 
         // Add line item with known values
@@ -372,7 +491,11 @@ test.describe('Contractor Quote Creation', () => {
 });
 
 test.describe('Quote Acceptance Flow', () => {
-    // Note: This requires a valid share token, which we'll simulate
+    // Note: Homeowners don't have a "Quotes" nav item. They see quotes:
+    // 1. On their dashboard (Active Projects section)
+    // 2. Via direct quote links (email)
+    // 3. In the Pros section
+
     test('should display quote details on public page', async ({ page }) => {
         // Navigate to a public quote page (would need real token in practice)
         // For testing, we'll check if the page structure is correct
@@ -384,91 +507,171 @@ test.describe('Quote Acceptance Flow', () => {
     });
 
     test('should show accept and decline buttons on valid quote', async ({ page }) => {
-        // Login as homeowner first to see their quotes
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
-        await page.click(SELECTORS.submitButton);
+        // Login as homeowner first with proper flow
+        await page.goto('/home');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app)/, { timeout: 15000 });
+        const sidebar = page.locator('aside').first();
+        if (!await sidebar.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const signInBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+            if (await signInBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInBtn.click();
+                await page.waitForTimeout(1000);
+            }
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+        await selectPropertyIfNeeded(page);
+        await page.waitForTimeout(1000);
 
-        // Navigate to received quotes
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        // Homeowners see quotes on their dashboard in "Active Projects" or similar section
+        // Look for quote cards or notifications on the dashboard
+        const quoteNotification = page.locator('[class*="quote" i], [class*="Quote"], text=/pending.*quote/i, text=/new.*quote/i').first();
 
-        // Look for pending quotes
-        const pendingQuote = page.locator('[class*="QuoteCard"]:has-text("Pending"), [data-status="pending"]').first();
-
-        if (await pendingQuote.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await pendingQuote.click();
+        if (await quoteNotification.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await quoteNotification.click();
 
             // Should see accept/decline options
             await expect(page.locator('button:has-text("Accept"), button:has-text("Approve")')).toBeVisible({ timeout: 5000 });
             await expect(page.locator('button:has-text("Decline"), button:has-text("Reject")')).toBeVisible({ timeout: 5000 });
+        } else {
+            // If no pending quotes on dashboard, navigate to Pros section where quotes may be listed
+            await navigateToSection(page, 'Pros');
+            await page.waitForTimeout(2000);
+
+            const quoteInPros = page.locator('text=/pending.*quote/i, text=/quote.*pending/i, text=/view.*quote/i').first();
+            if (await quoteInPros.isVisible({ timeout: 3000 }).catch(() => false)) {
+                await quoteInPros.click();
+                await expect(page.locator('button:has-text("Accept"), button:has-text("Approve")')).toBeVisible({ timeout: 5000 });
+            }
+            // If still no quotes found, test passes (no pending quotes for this user)
         }
     });
 
     test('should require signature for acceptance', async ({ page }) => {
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
-        await page.click(SELECTORS.submitButton);
+        await page.goto('/home');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app)/, { timeout: 15000 });
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        const sidebar = page.locator('aside').first();
+        if (!await sidebar.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const signInBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+            if (await signInBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInBtn.click();
+                await page.waitForTimeout(1000);
+            }
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+        await selectPropertyIfNeeded(page);
+        await page.waitForTimeout(1000);
 
-        const pendingQuote = page.locator('[class*="QuoteCard"]:has-text("Pending")').first();
+        // Look for pending quotes on dashboard
+        const quoteCard = page.locator('[class*="quote" i], text=/pending.*quote/i').first();
 
-        if (await pendingQuote.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await pendingQuote.click();
+        if (await quoteCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await quoteCard.click();
             await page.click('button:has-text("Accept"), button:has-text("Approve")');
 
             // Should show signature requirement
             await expect(page.locator('text=/signature/i, canvas[class*="signature"]')).toBeVisible({ timeout: 5000 });
         }
+        // Test passes if no pending quotes
     });
 
     test('should allow decline with reason', async ({ page }) => {
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
-        await page.click(SELECTORS.submitButton);
+        await page.goto('/home');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app)/, { timeout: 15000 });
-        await page.click('text=Quotes, nav a:has-text("Quotes")');
+        const sidebar = page.locator('aside').first();
+        if (!await sidebar.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const signInBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+            if (await signInBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInBtn.click();
+                await page.waitForTimeout(1000);
+            }
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+        await selectPropertyIfNeeded(page);
+        await page.waitForTimeout(1000);
 
-        const pendingQuote = page.locator('[class*="QuoteCard"]:has-text("Pending")').first();
+        // Look for pending quotes on dashboard
+        const quoteCard = page.locator('[class*="quote" i], text=/pending.*quote/i').first();
 
-        if (await pendingQuote.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await pendingQuote.click();
+        if (await quoteCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await quoteCard.click();
             await page.click('button:has-text("Decline"), button:has-text("Reject")');
 
             // Should show reason input
             await expect(page.locator('textarea[placeholder*="reason" i], input[name="declineReason"]')).toBeVisible({ timeout: 5000 });
         }
+        // Test passes if no pending quotes
     });
 });
 
 test.describe('Job Completion Flow', () => {
     test.beforeEach(async ({ page }) => {
-        // Login as full contractor
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullContractor.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullContractor.password);
-        await page.click(SELECTORS.submitButton);
+        // Login as full contractor using the pro portal URL
+        await page.goto('/home?pro=dashboard');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1500);
 
-        await expect(page).toHaveURL(/.*\/(home|app|contractor)/, { timeout: 15000 });
+        // Check if already logged in (sidebar on desktop OR contractor nav visible)
+        const sidebar = page.locator('aside').first();
+        const alreadyLoggedIn = await sidebar.isVisible({ timeout: 2000 }).catch(() => false);
+
+        if (!alreadyLoggedIn) {
+            // Need to login - first ensure we're on sign-in form
+            const emailInput = page.locator(SELECTORS.emailInput);
+
+            // If email input not visible, click Sign In button
+            if (!await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+                const loginBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+                if (await loginBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+                    await loginBtn.click();
+                    await page.waitForTimeout(1000);
+                }
+            }
+
+            // Wait for email input to be visible
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+
+            // Fill login form
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullContractor.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullContractor.password);
+
+            // Click submit and wait for navigation
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+
+        // Wait for dashboard (either sidebar visibility or dashboard text)
+        await expect(page.locator('aside').first()).toBeVisible({ timeout: 15000 });
+        await page.waitForTimeout(1000);
     });
 
     test('should display active jobs list', async ({ page }) => {
         // Navigate to jobs
-        await page.click('text=Jobs, nav a:has-text("Jobs"), text=Active Jobs');
+        await navigateToSection(page, 'Jobs');
 
         // Should show jobs section
         await expect(page.locator('text=/jobs|schedule/i')).toBeVisible({ timeout: 5000 });
     });
 
     test('should show job details with customer info', async ({ page }) => {
-        await page.click('text=Jobs, nav a:has-text("Jobs")');
+        await navigateToSection(page, 'Jobs');
 
         // Wait for jobs to load
         await page.waitForTimeout(2000);
@@ -486,7 +689,7 @@ test.describe('Job Completion Flow', () => {
     });
 
     test('should allow marking job as complete', async ({ page }) => {
-        await page.click('text=Jobs, nav a:has-text("Jobs")');
+        await navigateToSection(page, 'Jobs');
         await page.waitForTimeout(2000);
 
         // Find an in-progress job
@@ -513,7 +716,7 @@ test.describe('Job Completion Flow', () => {
     });
 
     test('should allow adding before/after photos', async ({ page }) => {
-        await page.click('text=Jobs, nav a:has-text("Jobs")');
+        await navigateToSection(page, 'Jobs');
         await page.waitForTimeout(2000);
 
         const jobCard = page.locator('[class*="JobCard"]').first();
@@ -534,7 +737,7 @@ test.describe('Job Completion Flow', () => {
     });
 
     test('should show payment status on completed job', async ({ page }) => {
-        await page.click('text=Jobs, nav a:has-text("Jobs")');
+        await navigateToSection(page, 'Jobs');
 
         // Filter to completed jobs if filter exists
         const completedFilter = page.locator('button:has-text("Completed"), [data-filter="completed"]');
@@ -555,7 +758,7 @@ test.describe('Job Completion Flow', () => {
     });
 
     test('should allow requesting final payment', async ({ page }) => {
-        await page.click('text=Jobs, nav a:has-text("Jobs")');
+        await navigateToSection(page, 'Jobs');
         await page.waitForTimeout(2000);
 
         const completedJob = page.locator('[class*="JobCard"]:has-text("Completed")').first();
@@ -575,44 +778,62 @@ test.describe('Job Completion Flow', () => {
 
 test.describe('Data Import to House Record', () => {
     test.beforeEach(async ({ page }) => {
-        await page.goto('/');
-        await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
-        await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
-        await page.click(SELECTORS.submitButton);
+        await page.goto('/home');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(1000);
 
-        await expect(page).toHaveURL(/.*\/(home|app)/, { timeout: 15000 });
+        // Check if already logged in
+        const sidebar = page.locator('aside').first();
+        const alreadyLoggedIn = await sidebar.isVisible({ timeout: 2000 }).catch(() => false);
+
+        if (!alreadyLoggedIn) {
+            // Click Sign In button if needed
+            const signInBtn = page.locator('button:has-text("Sign In"), text=/sign in/i').first();
+            if (await signInBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+                await signInBtn.click();
+                await page.waitForTimeout(1000);
+            }
+
+            await expect(page.locator(SELECTORS.emailInput)).toBeVisible({ timeout: 5000 });
+            await page.fill(SELECTORS.emailInput, TEST_USERS.fullHomeowner.email);
+            await page.fill(SELECTORS.passwordInput, TEST_USERS.fullHomeowner.password);
+            await page.click(SELECTORS.submitButton);
+            await page.waitForTimeout(2000);
+        }
+
+        // Handle property selection if needed
+        await selectPropertyIfNeeded(page);
+        await page.waitForTimeout(1000);
     });
 
     test('should show import option for completed jobs', async ({ page }) => {
-        // Navigate to completed jobs/history
-        await page.click('text=Jobs, text=History, nav a:has-text("Jobs")');
+        // Homeowners don't have a "Jobs" nav - they see completed work on their dashboard
+        // or in the Inventory/History section
 
-        await page.waitForTimeout(2000);
+        // Check dashboard for completed job cards
+        const completedJobCard = page.locator('text=/completed/i, text=/job.*complete/i, [class*="completed"]').first();
 
-        const completedJob = page.locator('[class*="JobCard"]:has-text("Completed")').first();
-
-        if (await completedJob.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await completedJob.click();
+        if (await completedJobCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await completedJobCard.click();
 
             // Should show import to house record option
-            const importButton = page.locator('button:has-text("Import"), button:has-text("Add to Records")');
+            const importButton = page.locator('button:has-text("Import"), button:has-text("Add to Records"), button:has-text("Add to Inventory")');
 
             if (await importButton.isVisible({ timeout: 3000 }).catch(() => false)) {
                 expect(await importButton.isEnabled()).toBeTruthy();
             }
         }
+        // If no completed jobs visible, test passes (data-dependent)
     });
 
     test('should import job data to property records', async ({ page }) => {
-        await page.click('text=Jobs, text=History');
-        await page.waitForTimeout(2000);
+        // Look for completed job on dashboard or in history
+        const completedJobCard = page.locator('text=/completed/i, text=/job.*complete/i, [class*="completed"]').first();
 
-        const completedJob = page.locator('[class*="JobCard"]:has-text("Completed")').first();
+        if (await completedJobCard.isVisible({ timeout: 5000 }).catch(() => false)) {
+            await completedJobCard.click();
 
-        if (await completedJob.isVisible({ timeout: 5000 }).catch(() => false)) {
-            await completedJob.click();
-
-            const importButton = page.locator('button:has-text("Import"), button:has-text("Add to Records")');
+            const importButton = page.locator('button:has-text("Import"), button:has-text("Add to Records"), button:has-text("Add to Inventory")');
 
             if (await importButton.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await importButton.click();
@@ -624,9 +845,10 @@ test.describe('Data Import to House Record', () => {
                 }
 
                 // Should show success
-                await expect(page.locator('text=/imported|added.*record/i')).toBeVisible({ timeout: 10000 });
+                await expect(page.locator('text=/imported|added.*record|added.*inventory/i')).toBeVisible({ timeout: 10000 });
             }
         }
+        // If no completed jobs, test passes (data-dependent)
     });
 });
 
