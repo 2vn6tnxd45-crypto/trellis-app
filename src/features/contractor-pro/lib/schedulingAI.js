@@ -36,7 +36,19 @@ const SCORING_WEIGHTS = {
     PREFERRED_ZONE: 15,       // Job in tech's preferred area
     TRAVEL_DISTANCE: -2,      // Penalty per mile beyond base radius
     CREW_SHORTFALL: -100,     // Heavy penalty if job needs more techs than available
+    TIME_CONFLICT: -500,      // Heavy penalty for time slot conflicts
+    TRAVEL_INFEASIBLE: -300,  // Heavy penalty if travel time makes schedule impossible
 };
+
+// Average driving speeds for travel time estimation (mph)
+const TRAVEL_SPEEDS = {
+    LOCAL: 20,      // City driving under 5 miles
+    SUBURBAN: 30,   // Mixed roads 5-15 miles
+    HIGHWAY: 45,    // Longer distances with highway
+};
+
+// Minimum buffer between jobs regardless of tech settings (safety margin)
+const MIN_BUFFER_MINUTES = 10;
 
 // Job type to skill mapping
 const JOB_SKILL_MAP = {
@@ -155,8 +167,18 @@ const normalizeTime = (time, timezone) => {
 
 /**
  * Check if a time slot is available for a tech
+ * Now includes travel-aware buffer calculations between jobs
+ * @param {Object} tech - Technician object
+ * @param {Date} date - Target date
+ * @param {string} startTime - Start time (HH:MM or ISO string)
+ * @param {number} durationMinutes - Job duration in minutes
+ * @param {Object[]} existingJobs - Already assigned jobs
+ * @param {string} timezone - Timezone
+ * @param {Object[]} timeOffEntries - Time-off entries
+ * @param {Object} newJob - The new job being checked (for travel calculations)
+ * @returns {boolean|{available: boolean, conflicts: Array}}
  */
-const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, timezone, timeOffEntries = []) => {
+const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, timezone, timeOffEntries = [], newJob = null) => {
     // Check for time-off first
     const techTimeOff = timeOffEntries.filter(t => t.techId === tech.id);
     const timeOffCheck = isDateBlockedByTimeOff(date, techTimeOff);
@@ -165,25 +187,31 @@ const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, t
     const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const techHours = tech.workingHours?.[dayName];
 
-    // Check if tech works this day
-    if (!techHours?.enabled) return false;
+    // Check if tech works this day - default to available if not configured
+    if (techHours?.enabled === false) return false;
 
     // Parse times
     const [startHour, startMin] = normalizeTime(startTime, timezone);
     const jobStart = startHour * 60 + startMin;
     const jobEnd = jobStart + durationMinutes;
 
-    const [workStartH, workStartM] = techHours.start.split(':').map(Number);
-    const [workEndH, workEndM] = techHours.end.split(':').map(Number);
-    const workStart = workStartH * 60 + workStartM;
-    const workEnd = workEndH * 60 + workEndM;
+    // Only check working hours if configured
+    if (techHours?.start && techHours?.end) {
+        const [workStartH, workStartM] = techHours.start.split(':').map(Number);
+        const [workEndH, workEndM] = techHours.end.split(':').map(Number);
+        const workStart = workStartH * 60 + workStartM;
+        const workEnd = workEndH * 60 + workEndM;
 
-    // Check if within working hours
-    if (jobStart < workStart || jobEnd > workEnd) return false;
+        // Check if within working hours
+        if (jobStart < workStart || jobEnd > workEnd) return false;
+    }
 
-    // Check for conflicts with existing jobs
-    const techJobs = existingJobs.filter(j => j.assignedTechId === tech.id);
-    const buffer = tech.defaultBufferMinutes || 30;
+    // Check for conflicts with existing jobs - now with travel-aware buffers
+    const techJobs = existingJobs.filter(j =>
+        j.assignedTechId === tech.id ||
+        j.assignedTo === tech.id ||
+        j.assignedCrew?.some(c => c.techId === tech.id)
+    );
 
     for (const existingJob of techJobs) {
         if (!existingJob.scheduledTime) continue;
@@ -191,10 +219,29 @@ const isSlotAvailable = (tech, date, startTime, durationMinutes, existingJobs, t
         const [exStartH, exStartM] = normalizeTime(existingJob.scheduledTime, timezone);
         const exStart = exStartH * 60 + exStartM;
         const exDuration = parseDurationToMinutes(existingJob.estimatedDuration);
-        const exEnd = exStart + exDuration + buffer;
+        const exEnd = exStart + exDuration;
 
-        // Check overlap
-        if (!(jobEnd + buffer <= exStart || jobStart >= exEnd)) {
+        // Calculate travel-aware buffer between these specific jobs
+        // Use the new job info if provided, otherwise use a default buffer
+        let bufferBefore, bufferAfter;
+
+        if (newJob) {
+            // Calculate buffer based on travel time between job locations
+            bufferBefore = calculateEffectiveBuffer(existingJob, newJob, tech);
+            bufferAfter = calculateEffectiveBuffer(newJob, existingJob, tech);
+        } else {
+            // Fallback to tech's configured buffer
+            const defaultBuffer = tech.defaultBufferMinutes || 30;
+            bufferBefore = defaultBuffer;
+            bufferAfter = defaultBuffer;
+        }
+
+        // Check overlap with travel-aware buffers
+        // New job must end + buffer BEFORE existing job starts, OR
+        // New job must start AFTER existing job ends + buffer
+        const noOverlap = (jobEnd + bufferAfter <= exStart) || (jobStart >= exEnd + bufferBefore);
+
+        if (!noOverlap) {
             return false;
         }
     }
@@ -231,6 +278,138 @@ const estimateDistanceSync = (zip1, zip2) => {
     if (zip1.substring(0, 3) === zip2.substring(0, 3)) return 5;
     if (zip1.substring(0, 2) === zip2.substring(0, 2)) return 15;
     return 25;
+};
+
+/**
+ * Estimate travel time in minutes based on distance
+ * Uses realistic driving speeds for different distance ranges
+ * @param {number} distanceMiles - Distance in miles
+ * @returns {number} Estimated travel time in minutes
+ */
+const estimateTravelTimeMinutes = (distanceMiles) => {
+    if (!distanceMiles || distanceMiles <= 0) return 0;
+
+    if (distanceMiles <= 5) {
+        // City driving: ~20 mph average = 3 min/mile
+        return Math.ceil(distanceMiles * 3);
+    } else if (distanceMiles <= 15) {
+        // Suburban: ~30 mph average = 2 min/mile
+        return Math.ceil(distanceMiles * 2);
+    } else {
+        // Highway: ~45 mph average = 1.33 min/mile
+        return Math.ceil(distanceMiles * 1.33);
+    }
+};
+
+/**
+ * Get job address for distance calculations
+ * @param {Object} job
+ * @returns {string|null}
+ */
+const getJobAddress = (job) => {
+    return job.serviceAddress?.formatted ||
+           job.customer?.address ||
+           job.propertyAddress ||
+           job.address ||
+           null;
+};
+
+/**
+ * Get job ZIP code for quick distance estimation
+ * @param {Object} job
+ * @returns {string|null}
+ */
+const getJobZip = (job) => {
+    const address = getJobAddress(job);
+    if (!address) return null;
+    return address.match(/\b\d{5}\b/)?.[0] || null;
+};
+
+/**
+ * Calculate the effective buffer needed between two jobs
+ * Takes into account both the tech's configured buffer AND estimated travel time
+ * @param {Object} job1 - First job (ending)
+ * @param {Object} job2 - Second job (starting)
+ * @param {Object} tech - Technician with defaultBufferMinutes
+ * @returns {number} Required buffer in minutes
+ */
+const calculateEffectiveBuffer = (job1, job2, tech) => {
+    const configuredBuffer = tech?.defaultBufferMinutes || 30;
+
+    // Get ZIP codes for quick distance estimate
+    const zip1 = getJobZip(job1);
+    const zip2 = getJobZip(job2);
+
+    // Estimate distance and travel time
+    const estimatedDistance = estimateDistanceSync(zip1, zip2);
+    const estimatedTravelTime = estimateTravelTimeMinutes(estimatedDistance);
+
+    // Effective buffer is the MAX of configured buffer and travel time + safety margin
+    return Math.max(
+        configuredBuffer,
+        estimatedTravelTime + MIN_BUFFER_MINUTES
+    );
+};
+
+/**
+ * Check if two jobs have a travel feasibility conflict
+ * Returns true if it's physically impossible to travel between jobs in the available time
+ * @param {Object} job1 - First job (with scheduledTime and estimatedDuration)
+ * @param {Object} job2 - Second job (with scheduledTime)
+ * @param {Object} tech - Technician
+ * @param {string} timezone - Timezone for time parsing
+ * @returns {{feasible: boolean, gap: number, travelTime: number, message: string}}
+ */
+const checkTravelFeasibility = (job1, job2, tech, timezone) => {
+    if (!job1?.scheduledTime || !job2?.scheduledTime) {
+        return { feasible: true, gap: null, travelTime: null, message: 'Missing schedule times' };
+    }
+
+    // Parse job times
+    const [j1StartH, j1StartM] = normalizeTime(job1.scheduledTime, timezone);
+    const [j2StartH, j2StartM] = normalizeTime(job2.scheduledTime, timezone);
+
+    const j1Start = j1StartH * 60 + j1StartM;
+    const j2Start = j2StartH * 60 + j2StartM;
+    const j1Duration = parseDurationToMinutes(job1.estimatedDuration);
+    const j1End = j1Start + j1Duration;
+
+    // Determine which job is first
+    let firstJob, secondJob, firstEnd, secondStart;
+    if (j1Start <= j2Start) {
+        firstJob = job1;
+        secondJob = job2;
+        firstEnd = j1End;
+        secondStart = j2Start;
+    } else {
+        firstJob = job2;
+        secondJob = job1;
+        const j2Duration = parseDurationToMinutes(job2.estimatedDuration);
+        firstEnd = j2Start + j2Duration;
+        secondStart = j1Start;
+    }
+
+    // Calculate gap between jobs
+    const gap = secondStart - firstEnd;
+
+    // Estimate travel time needed
+    const zip1 = getJobZip(firstJob);
+    const zip2 = getJobZip(secondJob);
+    const estimatedDistance = estimateDistanceSync(zip1, zip2);
+    const travelTime = estimateTravelTimeMinutes(estimatedDistance);
+
+    // Is the gap sufficient for travel?
+    const feasible = gap >= travelTime + MIN_BUFFER_MINUTES;
+
+    return {
+        feasible,
+        gap,
+        travelTime,
+        estimatedDistance,
+        message: feasible
+            ? `${gap} min gap, ${travelTime} min travel needed - OK`
+            : `Only ${gap} min gap but need ${travelTime}+ min travel between ${firstJob.title || 'Job 1'} and ${secondJob.title || 'Job 2'}`
+    };
 };
 
 /**
@@ -409,14 +588,89 @@ export const scoreTechForJob = (tech, job, allJobsForDay, date, timeOffEntries =
         }
     }
 
+    // 9. TIME SLOT CONFLICT CHECK (critical - should block if job has scheduled time)
+    let hasTimeConflict = false;
+    let hasTravelConflict = false;
+
+    if (job.scheduledTime) {
+        const duration = parseDurationToMinutes(job.estimatedDuration);
+
+        // Check for direct time overlap
+        for (const existingJob of techJobsToday) {
+            if (!existingJob.scheduledTime) continue;
+
+            const [newStartH, newStartM] = normalizeTime(job.scheduledTime, null);
+            const [exStartH, exStartM] = normalizeTime(existingJob.scheduledTime, null);
+
+            const newStart = newStartH * 60 + newStartM;
+            const newEnd = newStart + duration;
+            const exStart = exStartH * 60 + exStartM;
+            const exDuration = parseDurationToMinutes(existingJob.estimatedDuration);
+            const exEnd = exStart + exDuration;
+
+            // Check for direct time overlap (ignoring buffer for now)
+            const overlaps = !(newEnd <= exStart || newStart >= exEnd);
+
+            if (overlaps) {
+                hasTimeConflict = true;
+                score += SCORING_WEIGHTS.TIME_CONFLICT;
+                warnings.push(`Time conflict with ${existingJob.title || existingJob.serviceType || 'another job'}`);
+                break;
+            }
+
+            // Check travel feasibility between adjacent jobs
+            const feasibility = checkTravelFeasibility(existingJob, job, tech, null);
+            if (!feasibility.feasible) {
+                hasTravelConflict = true;
+                score += SCORING_WEIGHTS.TRAVEL_INFEASIBLE;
+                warnings.push(`Insufficient travel time: ${feasibility.message}`);
+            }
+        }
+    }
+
+    // 10. TRAVEL PENALTY FOR DISTANT SEQUENTIAL JOBS
+    // Even if times don't overlap, penalize if jobs are far apart
+    if (job.scheduledTime && techJobsToday.length > 0) {
+        const newJobZip = getJobZip(job);
+        let worstTravelTime = 0;
+
+        for (const existingJob of techJobsToday) {
+            if (!existingJob.scheduledTime) continue;
+
+            const existingZip = getJobZip(existingJob);
+            if (!newJobZip || !existingZip) continue;
+
+            const distance = estimateDistanceSync(newJobZip, existingZip);
+            const travelTime = estimateTravelTimeMinutes(distance);
+
+            if (travelTime > worstTravelTime) {
+                worstTravelTime = travelTime;
+            }
+        }
+
+        // Apply graduated penalty for long travel times
+        if (worstTravelTime > 45) {
+            score -= 40;
+            warnings.push(`Long travel time (${worstTravelTime}+ min) between jobs`);
+        } else if (worstTravelTime > 30) {
+            score -= 20;
+            warnings.push(`Moderate travel time (~${worstTravelTime} min) between jobs`);
+        } else if (worstTravelTime > 15) {
+            score -= 5; // Slight penalty for non-adjacent jobs
+        }
+    }
+
     return {
         techId: tech.id,
         techName: tech.name,
         score: Math.round(score),
         reasons,
         warnings,
-        isRecommended: score >= 80 && warnings.length === 0,
-        hasWarnings: warnings.length > 0
+        isRecommended: score >= 80 && warnings.length === 0 && !hasTimeConflict && !hasTravelConflict,
+        hasWarnings: warnings.length > 0,
+        hasTimeConflict,
+        hasTravelConflict,
+        isBlocked: hasTimeConflict // Hard block for time conflicts
     };
 };
 
@@ -475,20 +729,29 @@ export const suggestAssignments = (job, techs, allJobsForDay, date) => {
  * Auto-assign all unassigned jobs optimally
  * Uses greedy algorithm with look-ahead
  * Properly handles multi-tech jobs by assigning multiple techs when needed
+ * NOW: Includes travel feasibility and time conflict validation
  */
 export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) => {
     const assignments = [];
     const jobsToAssign = [...unassignedJobs];
     const currentAssignments = [...existingAssignments];
 
-    // Sort jobs by priority - multi-tech jobs first (harder to staff), then by duration
+    // Sort jobs by priority:
+    // 1. Jobs with scheduled times first (need to respect specific slots)
+    // 2. Multi-tech jobs (harder to staff)
+    // 3. Then by duration (longer jobs first - harder to fit)
     jobsToAssign.sort((a, b) => {
+        // Jobs with scheduled times have higher priority
+        const aHasTime = !!(a.scheduledTime || a.scheduledDate);
+        const bHasTime = !!(b.scheduledTime || b.scheduledDate);
+        if (aHasTime && !bHasTime) return -1;
+        if (!aHasTime && bHasTime) return 1;
+
+        // Multi-tech jobs second priority
         const aCrewFactors = getRouteCrewFactors(a);
         const bCrewFactors = getRouteCrewFactors(b);
         const aRequired = aCrewFactors.requiredCrewSize || 1;
         const bRequired = bCrewFactors.requiredCrewSize || 1;
-
-        // Multi-tech jobs first
         if (bRequired !== aRequired) return bRequired - aRequired;
 
         // Then by duration (longer jobs first)
@@ -512,13 +775,31 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
                 score: result.score,
                 reasons: result.reasons,
                 warnings: result.warnings,
-                isBlocked: result.isBlocked
+                isBlocked: result.isBlocked,
+                hasTimeConflict: result.hasTimeConflict,
+                hasTravelConflict: result.hasTravelConflict
             };
         })
-        .filter(t => t.score > -200) // Only exclude extremely poor matches (e.g., on time-off with other penalties)
+        // CRITICAL FIX: Filter out techs with time conflicts or blocked status
+        .filter(t => !t.isBlocked && !t.hasTimeConflict)
+        // Also filter out extremely low scores (e.g., on time-off)
+        .filter(t => t.score > -100)
         .sort((a, b) => b.score - a.score);
 
+        // If all techs have conflicts, mark as failed with specific reason
         if (techScores.length === 0) {
+            // Check why no techs are available
+            const allTechResults = techs.map(tech => scoreTechForJob(tech, job, currentAssignments, date));
+            const timeConflictCount = allTechResults.filter(r => r.hasTimeConflict).length;
+            const travelConflictCount = allTechResults.filter(r => r.hasTravelConflict).length;
+
+            let failReason = 'No suitable tech available';
+            if (timeConflictCount === techs.length) {
+                failReason = 'All techs have scheduling conflicts at this time';
+            } else if (travelConflictCount > 0) {
+                failReason = `All techs have travel/time conflicts (${timeConflictCount} time, ${travelConflictCount} travel)`;
+            }
+
             assignments.push({
                 jobId: job.id,
                 job,
@@ -526,22 +807,34 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
                 techNames: [],
                 score: 0,
                 reasons: [],
-                warnings: ['No suitable tech available'],
+                warnings: [failReason],
                 failed: true,
-                requiredCrewSize
+                requiredCrewSize,
+                failReason
             });
             continue;
         }
 
-        // For multi-tech jobs, pick multiple techs
+        // For multi-tech jobs, pick multiple techs (only non-blocked ones)
         const assignedTechs = techScores.slice(0, Math.min(requiredCrewSize, techScores.length));
         const assignedCount = assignedTechs.length;
 
-        // Build warnings
-        const warnings = [...(assignedTechs[0]?.warnings || [])];
+        // Build warnings from all assigned techs
+        const warnings = [];
+        assignedTechs.forEach(t => {
+            if (t.warnings) {
+                t.warnings.forEach(w => {
+                    if (!warnings.includes(w)) warnings.push(w);
+                });
+            }
+        });
+
         if (assignedCount < requiredCrewSize) {
-            warnings.push(`Needs ${requiredCrewSize} techs, only ${assignedCount} available`);
+            warnings.push(`Needs ${requiredCrewSize} techs, only ${assignedCount} available without conflicts`);
         }
+
+        // Check for any travel conflicts in the assigned group (even if not blocking)
+        const hasTravelWarnings = assignedTechs.some(t => t.hasTravelConflict);
 
         assignments.push({
             jobId: job.id,
@@ -558,14 +851,18 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
             warnings,
             requiredCrewSize,
             assignedCrewSize: assignedCount,
-            isFullyStaffed: assignedCount >= requiredCrewSize
+            isFullyStaffed: assignedCount >= requiredCrewSize,
+            hasTravelWarnings
         });
 
         // Add to current assignments for next iteration - mark job as assigned to all techs
+        // This is critical for subsequent jobs to see the updated schedule
         assignedTechs.forEach(t => {
             currentAssignments.push({
                 ...job,
-                assignedTechId: t.techId
+                assignedTechId: t.techId,
+                assignedTo: t.techId, // Also set legacy field
+                assignedCrew: [{ techId: t.techId, techName: t.techName }]
             });
         });
     }
@@ -579,7 +876,8 @@ export const autoAssignAll = (unassignedJobs, techs, existingAssignments, date) 
             assigned: assignments.filter(a => !a.failed).length,
             unassigned: assignments.filter(a => a.failed).length,
             fullyStaffed: assignments.filter(a => a.isFullyStaffed).length,
-            understaffed: assignments.filter(a => !a.failed && !a.isFullyStaffed).length
+            understaffed: assignments.filter(a => !a.failed && !a.isFullyStaffed).length,
+            withTravelWarnings: assignments.filter(a => a.hasTravelWarnings).length
         }
     };
 };
