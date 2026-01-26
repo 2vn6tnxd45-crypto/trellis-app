@@ -13,6 +13,7 @@ import { auth, db } from '../../config/firebase';
 import { appId } from '../../config/constants';
 import { linkQuotesByEmail } from '../quotes/lib/quoteService';
 import { matchJobsToHomeowner } from '../jobs/lib/jobService';
+import { linkEvaluationsByEmail } from '../evaluations/lib/evaluationService';
 import { Logo } from '../../components/common/Logo';
 import { User, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
@@ -78,6 +79,15 @@ export const AuthScreen = () => {
                     }
                 }).catch((err) => {
                     console.warn('[AuthScreen] Quote linking failed:', err);
+                });
+
+                // Link any evaluations sent to this email (non-blocking)
+                linkEvaluationsByEmail(userId, userEmail).then((result) => {
+                    if (result.linked > 0) {
+                        console.log(`[AuthScreen] Linked ${result.linked} evaluations to new user`);
+                    }
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Evaluation linking failed:', err);
                 });
 
                 // Link any jobs created for this email (non-blocking)

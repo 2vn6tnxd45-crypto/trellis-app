@@ -87,34 +87,62 @@ const EVENT_TYPES = {
 // ============================================
 // HELPER: Format Maintenance Task Title
 // ============================================
-// Ensures maintenance items have descriptive names
+// Ensures maintenance items have descriptive, contextual names
+// that make sense at a glance on the calendar
+
+// Common frequency-style words that shouldn't be used as titles
+const FREQUENCY_WORDS = ['annual', 'monthly', 'quarterly', 'weekly', 'biannual', 'seasonal'];
+
 const formatMaintenanceTitle = (task) => {
     const taskName = task.taskName || task.task || '';
     const itemName = task.item || task.recordItem || '';
+    const frequency = task.frequency || '';
 
-    // If taskName is very short (likely just "Heat" or "Air"), enhance it
-    if (taskName.length <= 5 && itemName) {
-        // Combine item + task for context
-        // "Heat Pump" + "Filter" → "Heat Pump - Filter"
-        return `${itemName} - ${taskName}`;
-    }
+    // Clean up task name - remove trailing "Maintenance" if present
+    const cleanTaskName = taskName.replace(/\s*-?\s*maintenance$/i, '').trim();
 
-    // If taskName already has the item name, use as-is
-    if (taskName && itemName && taskName.toLowerCase().includes(itemName.toLowerCase().split(' ')[0])) {
-        return taskName;
-    }
+    // Check if taskName is just a frequency word (like "Annual")
+    const isFrequencyOnly = FREQUENCY_WORDS.includes(cleanTaskName.toLowerCase());
 
-    // If we have both and they're different, combine them
-    if (taskName && itemName && taskName !== itemName) {
-        // Check if taskName is descriptive enough on its own
-        if (taskName.split(' ').length >= 2) {
-            return taskName;
+    // If taskName is a frequency word or very generic, prioritize item name
+    if (isFrequencyOnly || cleanTaskName.toLowerCase() === 'maintenance' || !cleanTaskName) {
+        if (itemName) {
+            // Create a descriptive title from the item
+            // e.g., "HVAC Filter Change" → "HVAC Filter Change"
+            // Add frequency context if task was frequency-based
+            if (isFrequencyOnly && cleanTaskName) {
+                return `${cleanTaskName} ${itemName}`;
+            }
+            return itemName;
         }
-        return `${itemName} - ${taskName}`;
+        // Last resort: use whatever we have
+        return cleanTaskName || 'Maintenance';
     }
 
-    // Fallback to whatever we have
-    return taskName || itemName || 'Maintenance';
+    // If taskName already contains item context, use it
+    if (itemName && cleanTaskName.toLowerCase().includes(itemName.toLowerCase().split(' ')[0])) {
+        return cleanTaskName;
+    }
+
+    // If itemName already contains task context, use item
+    if (itemName && itemName.toLowerCase().includes(cleanTaskName.toLowerCase().split(' ')[0])) {
+        return itemName;
+    }
+
+    // Combine item + task for full context if both are meaningful
+    if (itemName && cleanTaskName && itemName !== cleanTaskName) {
+        // If task is short (single word), put item first
+        if (cleanTaskName.split(' ').length === 1) {
+            return `${itemName} - ${cleanTaskName}`;
+        }
+        // If task is already descriptive, use it
+        if (cleanTaskName.split(' ').length >= 2) {
+            return cleanTaskName;
+        }
+    }
+
+    // Fallback: prioritize item over generic task names
+    return itemName || cleanTaskName || 'Maintenance';
 };
 
 // ============================================

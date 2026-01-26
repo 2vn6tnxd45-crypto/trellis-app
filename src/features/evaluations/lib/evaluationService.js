@@ -6,7 +6,7 @@
 // for jobs requiring assessment before accurate quoting.
 
 import {
-    collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
+    collection, collectionGroup, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, limit, serverTimestamp, writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -899,3 +899,117 @@ export const prepareQuoteFromEvaluation = (evaluation) => {
             : 0
     };
 };
+
+// ============================================
+// LINK EVALUATIONS BY EMAIL (Called on signup/login)
+// ============================================
+/**
+ * When a user creates an account, find all evaluations sent to their email
+ * and add them to the user's pendingEvaluations array in their profile.
+ * This ensures evaluations appear in the homeowner's dashboard even if
+ * they created their account after the contractor sent the evaluation request.
+ */
+export async function linkEvaluationsByEmail(userId, userEmail) {
+    if (!userId || !userEmail) {
+        console.warn('[linkEvaluationsByEmail] Missing userId or userEmail');
+        return { success: false, linked: 0 };
+    }
+
+    try {
+        console.log('[linkEvaluationsByEmail] Searching for evaluations with email:', userEmail);
+
+        // Query all evaluations where customerEmail matches
+        const evaluationsQuery = query(
+            collectionGroup(db, 'evaluations'),
+            where('customerEmail', '==', userEmail.toLowerCase())
+        );
+
+        const snapshot = await getDocs(evaluationsQuery);
+
+        if (snapshot.empty) {
+            console.log('[linkEvaluationsByEmail] No evaluations found for email:', userEmail);
+            return { success: true, linked: 0 };
+        }
+
+        // Get user's profile to check existing pendingEvaluations
+        const profileRef = doc(db, 'artifacts', appId, 'users', userId, 'settings', 'profile');
+        const profileSnap = await getDoc(profileRef);
+        const existingPending = profileSnap.exists() ? (profileSnap.data().pendingEvaluations || []) : [];
+        const existingIds = new Set(existingPending.map(e => e.evaluationId));
+
+        let linkedCount = 0;
+        const newPendingEvals = [...existingPending];
+
+        for (const evalDoc of snapshot.docs) {
+            const evalData = evalDoc.data();
+            const evaluationId = evalDoc.id;
+
+            // Skip if already in pending list
+            if (existingIds.has(evaluationId)) {
+                console.log('[linkEvaluationsByEmail] Evaluation already in pending list:', evaluationId);
+                continue;
+            }
+
+            // Skip completed, quoted, expired, or cancelled evaluations
+            if ([EVALUATION_STATUS.QUOTED, EVALUATION_STATUS.EXPIRED, EVALUATION_STATUS.CANCELLED].includes(evalData.status)) {
+                console.log('[linkEvaluationsByEmail] Skipping evaluation with status:', evalData.status);
+                continue;
+            }
+
+            // Get contractor info for display
+            const contractorId = evalDoc.ref.parent.parent.id;
+            let contractorName = 'Contractor';
+            try {
+                const contractorRef = doc(db, 'artifacts', appId, 'public', 'data', 'contractors', contractorId);
+                const contractorSnap = await getDoc(contractorRef);
+                if (contractorSnap.exists()) {
+                    const cData = contractorSnap.data();
+                    contractorName = cData?.profile?.companyName || cData?.companyName || 'Contractor';
+                }
+            } catch (err) {
+                console.warn('[linkEvaluationsByEmail] Could not fetch contractor name:', err);
+            }
+
+            // Add to pending evaluations
+            const newPendingEval = {
+                evaluationId,
+                contractorId,
+                contractorName,
+                propertyAddress: evalData.propertyAddress || '',
+                jobDescription: evalData.jobDescription || '',
+                createdAt: evalData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+                status: evalData.status === EVALUATION_STATUS.COMPLETED ? 'quote_pending' : 'pending_submission'
+            };
+
+            newPendingEvals.push(newPendingEval);
+            linkedCount++;
+
+            // Also update the evaluation with customerId
+            try {
+                await updateDoc(evalDoc.ref, {
+                    customerId: userId,
+                    linkedAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                });
+                console.log('[linkEvaluationsByEmail] Linked evaluation:', evaluationId);
+            } catch (updateErr) {
+                console.warn('[linkEvaluationsByEmail] Could not update evaluation:', updateErr);
+            }
+        }
+
+        // Save updated pending evaluations to profile
+        if (linkedCount > 0) {
+            await setDoc(profileRef, {
+                pendingEvaluations: newPendingEvals,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+        }
+
+        console.log(`[linkEvaluationsByEmail] Linked ${linkedCount} evaluations to user ${userId}`);
+        return { success: true, linked: linkedCount };
+
+    } catch (error) {
+        console.error('[linkEvaluationsByEmail] Error:', error);
+        return { success: false, linked: 0, error: error.message };
+    }
+}
