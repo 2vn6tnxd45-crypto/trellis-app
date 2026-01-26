@@ -30,21 +30,33 @@ export const useProperties = (user, profile) => {
     const properties = useMemo(() => {
         if (!profile) return [];
         if (profile.properties && Array.isArray(profile.properties)) {
-            return profile.properties;
+            // Filter out any properties without a valid address or name
+            return profile.properties.filter(p => {
+                const hasValidAddress = p.address && (
+                    typeof p.address === 'string' && p.address.trim().length > 0 ||
+                    typeof p.address === 'object' && (p.address.street || p.address.city)
+                );
+                const hasValidName = p.name && p.name.trim().length > 0 && p.name !== profile.name;
+                return hasValidAddress || hasValidName;
+            });
         }
-        // Handle legacy single-property format
-        if (profile.name || profile.address) {
-            const propertyName = profile.address
-                ? (typeof profile.address === 'string'
+        // Handle legacy single-property format - only if there's an actual address
+        if (profile.address) {
+            const hasValidAddress = typeof profile.address === 'string'
+                ? profile.address.trim().length > 0
+                : (profile.address.street || profile.address.city);
+
+            if (hasValidAddress) {
+                const propertyName = typeof profile.address === 'string'
                     ? profile.address.split(',')[0]
-                    : profile.address.street || 'My Home')
-                : 'My Home';
-            return [{
-                id: 'legacy',
-                name: propertyName,
-                address: profile.address,
-                coordinates: profile.coordinates
-            }];
+                    : profile.address.street || 'My Home';
+                return [{
+                    id: 'legacy',
+                    name: propertyName,
+                    address: profile.address,
+                    coordinates: profile.coordinates
+                }];
+            }
         }
         return [];
     }, [profile]);

@@ -42,16 +42,21 @@ const formatDate = (dateStr) => {
 // REPORT HEADER COMPONENT
 // ============================================
 
-const ReportHeader = ({ property, propertyData }) => {
-  // Try to get address from property prop first, then fall back to propertyData
-  const address = property?.address || {
-    street: propertyData?.formattedAddress?.split(',')[0] || null,
-    city: propertyData?.city || null,
-    state: propertyData?.state || null,
-    zip: propertyData?.zipCode || null,
-  };
-  
-  const hasAddress = address.street || address.city;
+const ReportHeader = ({ property }) => {
+  // Use the user's property address directly - they entered this at signup
+  const propAddr = property?.address;
+
+  // Handle both string and object address formats
+  const address = typeof propAddr === 'string'
+    ? { street: propAddr, city: null, state: null, zip: null }
+    : {
+        street: propAddr?.street || null,
+        city: propAddr?.city || null,
+        state: propAddr?.state || null,
+        zip: propAddr?.zip || null,
+      };
+
+  const hasLocation = address.city || address.state || address.zip;
 
   return (
     <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 text-white p-8 md:p-12">
@@ -65,7 +70,7 @@ const ReportHeader = ({ property, propertyData }) => {
           <h1 className="text-3xl md:text-4xl font-black mb-2">
             {address.street || 'Your Property'}
           </h1>
-          {hasAddress && (
+          {hasLocation && (
             <p className="text-slate-300 flex items-center gap-2">
               <MapPin size={16} />
               {[address.city, address.state, address.zip].filter(Boolean).join(', ')}
@@ -466,7 +471,7 @@ export const PedigreeReport = ({ property, records = [] }) => {
       <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden print:shadow-none print:rounded-none print:border-none">
         
         {/* 1. HEADER */}
-        <ReportHeader property={property} propertyData={propertyData} />
+        <ReportHeader property={property} />
 
         {/* 2. QUICK STATS BAR */}
         <QuickStatsBar 

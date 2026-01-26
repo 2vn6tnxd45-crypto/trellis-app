@@ -68,38 +68,40 @@ export const AuthScreen = () => {
             }, { merge: true });
             console.log('[AuthScreen] Stored email at user root for querying');
 
-            // Only for NEW users: send welcome email and link quotes
+            // ALWAYS run linking on every login/signup to catch new evaluations/quotes/jobs
+            // This ensures evaluations sent after account creation are linked when user logs in
+            console.log('[AuthScreen] Running entity linking tasks for:', userEmail);
+
+            // Link any quotes sent to this email (non-blocking)
+            linkQuotesByEmail(userId, userEmail).then((result) => {
+                if (result.linked > 0) {
+                    console.log(`[AuthScreen] Linked ${result.linked} quotes to user`);
+                }
+            }).catch((err) => {
+                console.warn('[AuthScreen] Quote linking failed:', err);
+            });
+
+            // Link any evaluations sent to this email (non-blocking)
+            linkEvaluationsByEmail(userId, userEmail).then((result) => {
+                if (result.linked > 0) {
+                    console.log(`[AuthScreen] Linked ${result.linked} evaluations to user`);
+                }
+            }).catch((err) => {
+                console.warn('[AuthScreen] Evaluation linking failed:', err);
+            });
+
+            // Link any jobs created for this email (non-blocking)
+            matchJobsToHomeowner(userId, userEmail).then((result) => {
+                if (result.linked > 0) {
+                    console.log(`[AuthScreen] Linked ${result.linked} jobs to user`);
+                }
+            }).catch((err) => {
+                console.warn('[AuthScreen] Job linking failed:', err);
+            });
+
+            // Only for NEW users: send welcome email
             if (isNewUser || !isExistingUser) {
-                console.log('[AuthScreen] New user detected, running onboarding tasks');
-
-                // Link any quotes sent to this email (non-blocking)
-                linkQuotesByEmail(userId, userEmail).then((result) => {
-                    if (result.linked > 0) {
-                        console.log(`[AuthScreen] Linked ${result.linked} quotes to new user`);
-                    }
-                }).catch((err) => {
-                    console.warn('[AuthScreen] Quote linking failed:', err);
-                });
-
-                // Link any evaluations sent to this email (non-blocking)
-                linkEvaluationsByEmail(userId, userEmail).then((result) => {
-                    if (result.linked > 0) {
-                        console.log(`[AuthScreen] Linked ${result.linked} evaluations to new user`);
-                    }
-                }).catch((err) => {
-                    console.warn('[AuthScreen] Evaluation linking failed:', err);
-                });
-
-                // Link any jobs created for this email (non-blocking)
-                matchJobsToHomeowner(userId, userEmail).then((result) => {
-                    if (result.linked > 0) {
-                        console.log(`[AuthScreen] Linked ${result.linked} jobs to new user`);
-                    }
-                }).catch((err) => {
-                    console.warn('[AuthScreen] Job linking failed:', err);
-                });
-
-                // Send welcome email (non-blocking)
+                console.log('[AuthScreen] New user detected, sending welcome email');
                 fetch('/api/send-welcome', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -109,8 +111,6 @@ export const AuthScreen = () => {
                 }).catch((err) => {
                     console.warn('[AuthScreen] Welcome email failed:', err);
                 });
-            } else {
-                console.log('[AuthScreen] Existing user, skipping welcome email');
             }
 
         } catch (err) {
@@ -165,8 +165,37 @@ export const AuthScreen = () => {
 
         try {
             if (isLogin) {
-                // LOGIN: Just sign in
-                await signInWithEmailAndPassword(auth, email, password);
+                // LOGIN: Sign in and run linking logic for any new evaluations/quotes/jobs
+                const credential = await signInWithEmailAndPassword(auth, email, password);
+
+                // Run entity linking on every login to catch evaluations/quotes sent after account creation
+                // This is non-blocking and runs in the background
+                const userId = credential.user.uid;
+                const userEmail = credential.user.email;
+
+                linkEvaluationsByEmail(userId, userEmail).then((result) => {
+                    if (result.linked > 0) {
+                        console.log(`[AuthScreen] Linked ${result.linked} evaluations on login`);
+                    }
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Evaluation linking failed on login:', err);
+                });
+
+                linkQuotesByEmail(userId, userEmail).then((result) => {
+                    if (result.linked > 0) {
+                        console.log(`[AuthScreen] Linked ${result.linked} quotes on login`);
+                    }
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Quote linking failed on login:', err);
+                });
+
+                matchJobsToHomeowner(userId, userEmail).then((result) => {
+                    if (result.linked > 0) {
+                        console.log(`[AuthScreen] Linked ${result.linked} jobs on login`);
+                    }
+                }).catch((err) => {
+                    console.warn('[AuthScreen] Job linking failed on login:', err);
+                });
             } else {
                 // SIGNUP: Create account, set display name, save to profile
                 const credential = await createUserWithEmailAndPassword(auth, email, password);
