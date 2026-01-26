@@ -176,6 +176,93 @@ const getHourFromDate = (dateStr, timeZone) => {
 };
 
 // ============================================
+// OVERLAP DETECTION
+// ============================================
+
+/**
+ * Get start and end time in minutes from midnight for a job
+ */
+const getJobTimeRange = (job, timeZone) => {
+    const startTime = job.start || job.scheduledTime || job.scheduledStartTime;
+    if (!startTime) return null;
+
+    const startHour = getHourFromDate(startTime, timeZone);
+    // Parse minutes from the time string
+    let startMinutes = 0;
+    if (typeof startTime === 'string') {
+        const match = startTime.match(/:(\d+)/);
+        if (match) startMinutes = parseInt(match[1], 10);
+    }
+
+    const startInMinutes = startHour * 60 + startMinutes;
+    const duration = job.duration || parseDurationToMinutes(job.estimatedDuration) || 60;
+    const endInMinutes = startInMinutes + duration;
+
+    return { start: startInMinutes, end: endInMinutes, duration };
+};
+
+/**
+ * Check if two time ranges overlap
+ */
+const timeRangesOverlap = (range1, range2) => {
+    if (!range1 || !range2) return false;
+    // Two ranges overlap if one starts before the other ends
+    return range1.start < range2.end && range2.start < range1.end;
+};
+
+/**
+ * Find all overlapping jobs for a tech
+ * Returns an array of job ID pairs that overlap
+ */
+const findOverlappingJobs = (jobs, timeZone) => {
+    const overlaps = [];
+    const overlappingJobIds = new Set();
+
+    for (let i = 0; i < jobs.length; i++) {
+        const job1 = jobs[i];
+        const range1 = getJobTimeRange(job1, timeZone);
+        if (!range1) continue;
+
+        for (let j = i + 1; j < jobs.length; j++) {
+            const job2 = jobs[j];
+            const range2 = getJobTimeRange(job2, timeZone);
+            if (!range2) continue;
+
+            if (timeRangesOverlap(range1, range2)) {
+                overlaps.push({
+                    job1: { id: job1.id, title: job1.title || job1.description },
+                    job2: { id: job2.id, title: job2.title || job2.description },
+                    overlapMinutes: Math.min(range1.end, range2.end) - Math.max(range1.start, range2.start)
+                });
+                overlappingJobIds.add(job1.id);
+                overlappingJobIds.add(job2.id);
+            }
+        }
+    }
+
+    return { overlaps, overlappingJobIds };
+};
+
+/**
+ * Check if a specific job overlaps with any other job in the list
+ */
+const isJobOverlapping = (job, allTechJobs, timeZone) => {
+    const jobRange = getJobTimeRange(job, timeZone);
+    if (!jobRange) return false;
+
+    for (const otherJob of allTechJobs) {
+        if (otherJob.id === job.id) continue;
+
+        const otherRange = getJobTimeRange(otherJob, timeZone);
+        if (otherRange && timeRangesOverlap(jobRange, otherRange)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+// ============================================
 // EVENT STATUS STYLES
 // ============================================
 
@@ -411,7 +498,7 @@ const isTechWorkingOnDay = (tech, dayName) => {
 // TECH COLUMN HEADER
 // ============================================
 
-const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility, currentDate }) => {
+const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility, currentDate, overlapCount = 0 }) => {
     // Use currentDate if provided, otherwise use today
     const dateToCheck = currentDate || new Date();
     const dayName = dateToCheck.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -423,22 +510,34 @@ const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility, curre
         ? `${techHours.start.replace(':00', '')} - ${techHours.end.replace(':00', '')}`
         : null;
 
+    const hasOverlaps = overlapCount > 0;
+
     return (
-        <div className="sticky top-0 bg-white z-10 border-b border-slate-200 p-2">
+        <div className={`sticky top-0 z-10 border-b p-2 ${hasOverlaps ? 'bg-red-50 border-red-200' : 'bg-white border-slate-200'}`}>
             <div className="flex items-center gap-2">
                 <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0 ${hasOverlaps ? 'ring-2 ring-red-400 ring-offset-1' : ''}`}
                     style={{ backgroundColor: tech.color || '#10B981' }}
                 >
                     {tech.name?.charAt(0) || 'T'}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-800 text-sm truncate">{tech.name}</p>
+                    <div className="flex items-center gap-1">
+                        <p className="font-bold text-slate-800 text-sm truncate">{tech.name}</p>
+                        {hasOverlaps && (
+                            <AlertCircle size={14} className="text-red-500 shrink-0" />
+                        )}
+                    </div>
                     <p className="text-xs text-slate-500">
                         {jobCount} job{jobCount !== 1 ? 's' : ''}
                         {!worksToday && <span className="ml-1 text-amber-600">(Off)</span>}
-                        {worksToday && hoursDisplay && <span className="ml-1 text-emerald-600">({hoursDisplay})</span>}
+                        {worksToday && hoursDisplay && !hasOverlaps && <span className="ml-1 text-emerald-600">({hoursDisplay})</span>}
                     </p>
+                    {hasOverlaps && (
+                        <p className="text-xs text-red-600 font-medium">
+                            ⚠️ {overlapCount} overlapping job{overlapCount > 1 ? 's' : ''}
+                        </p>
+                    )}
                 </div>
                 <button
                     onClick={() => onToggleVisibility(tech.id)}
@@ -456,13 +555,17 @@ const TechColumnHeader = ({ tech, jobCount, isVisible, onToggleVisibility, curre
 // EVENT CARD (for calendar cells)
 // ============================================
 
-const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, onDragEnd, timeZone }) => {
+const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, onDragEnd, timeZone, isOverlapping = false }) => {
     const status = getEventStatus(event);
     const styles = STATUS_STYLES[status];
     const isEvaluation = event.type === 'evaluation';
     const isMultiDay = event._multiDayInfo != null;
     const isRecurring = isRecurringJob(event);
     const duration = event.duration || parseDurationToMinutes(event.estimatedDuration) || 60;
+
+    // Override styles if overlapping
+    const bgClass = isOverlapping ? 'bg-red-50' : styles.bgLight;
+    const borderClass = isOverlapping ? 'border-red-400 border-2' : `${styles.border} border`;
 
     return (
         <div
@@ -476,10 +579,11 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
             onDragEnd={onDragEnd}
             onClick={() => onClick?.(event)}
             className={`
-                ${styles.bgLight} ${styles.border} border rounded-lg p-2 cursor-pointer
+                ${bgClass} ${borderClass} rounded-lg p-2 cursor-pointer
                 hover:shadow-md transition-all text-left w-full
                 ${isDragging ? 'opacity-50' : ''}
                 ${!isEvaluation ? 'cursor-grab active:cursor-grabbing' : ''}
+                ${isOverlapping ? 'ring-2 ring-red-300 ring-offset-1' : ''}
             `}
         >
             <div className="flex items-start gap-1.5">
@@ -543,7 +647,8 @@ const TimeSlotCell = ({
     onDragOver,
     onDragLeave,
     onEventClick,
-    timeZone // Add timeZone prop
+    timeZone, // Add timeZone prop
+    overlappingJobIds = new Set() // Set of job IDs that overlap with others
 }) => {
     // Filter events for this hour
     // FIXED: Also check scheduledStartTime field (BUG-020)
@@ -582,6 +687,7 @@ const TimeSlotCell = ({
                     onClick={onEventClick}
                     compact
                     timeZone={timeZone}
+                    isOverlapping={overlappingJobIds.has(event.id)}
                 />
             ))}
         </div>
@@ -1024,17 +1130,22 @@ export const TeamCalendarView = ({
                             {/* Tech Headers */}
                             <div className="flex sticky top-0 z-20 bg-white border-b border-slate-200">
                                 <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200" />
-                                {displayTechs.map(tech => (
-                                    <div key={tech.id} className="w-48 shrink-0 border-r border-slate-200">
-                                        <TechColumnHeader
-                                            tech={tech}
-                                            jobCount={getEventsForTechAndDate(tech.id, currentDate).length}
-                                            isVisible={visibleTechs.has(tech.id)}
-                                            onToggleVisibility={toggleTechVisibility}
-                                            currentDate={currentDate}
-                                        />
-                                    </div>
-                                ))}
+                                {displayTechs.map(tech => {
+                                    const techEvents = getEventsForTechAndDate(tech.id, currentDate);
+                                    const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+                                    return (
+                                        <div key={tech.id} className="w-48 shrink-0 border-r border-slate-200">
+                                            <TechColumnHeader
+                                                tech={tech}
+                                                jobCount={techEvents.length}
+                                                isVisible={visibleTechs.has(tech.id)}
+                                                onToggleVisibility={toggleTechVisibility}
+                                                currentDate={currentDate}
+                                                overlapCount={overlappingJobIds.size}
+                                            />
+                                        </div>
+                                    );
+                                })}
                                 {/* Unassigned Column Header */}
                                 {getUnassignedEventsForDate(currentDate).length > 0 && (
                                     <div className="w-48 shrink-0 border-r border-amber-200 bg-amber-50">
@@ -1063,13 +1174,16 @@ export const TeamCalendarView = ({
                                             dropTarget.hour === hour &&
                                             isSameDayInTimezone(dropTarget.date, currentDate, businessTimezone);
 
+                                        const techEvents = getEventsForTechAndDate(tech.id, currentDate);
+                                        const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+
                                         return (
                                             <div key={tech.id} className="w-48 shrink-0">
                                                 <TimeSlotCell
                                                     date={currentDate}
                                                     hour={hour}
                                                     tech={tech}
-                                                    events={getEventsForTechAndDate(tech.id, currentDate)}
+                                                    events={techEvents}
                                                     isDropTarget={isTarget}
                                                     onDrop={handleDrop}
                                                     onDragOver={(e) => {
@@ -1079,6 +1193,7 @@ export const TeamCalendarView = ({
                                                     onDragLeave={handleDragLeave}
                                                     onEventClick={handleEventClick}
                                                     timeZone={businessTimezone}
+                                                    overlappingJobIds={overlappingJobIds}
                                                 />
                                             </div>
                                         );
