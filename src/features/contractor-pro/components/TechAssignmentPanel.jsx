@@ -158,7 +158,7 @@ const WorkloadChart = ({ teamMembers, jobs, dateRange }) => {
 // UNASSIGNED JOBS LIST
 // ============================================
 
-const UnassignedJobsList = ({ jobs, teamMembers, onAssign, vehicles = [], recentlyAssigned = new Set() }) => {
+const UnassignedJobsList = ({ jobs, teamMembers, onAssign, vehicles = [], preferences = {}, recentlyAssigned = new Set() }) => {
     const [expandedJob, setExpandedJob] = useState(null);
     const [selectedMembers, setSelectedMembers] = useState({}); // { jobId: [{ techId, role }] }
     const [selectedVehicles, setSelectedVehicles] = useState({}); // { jobId: vehicleId }
@@ -205,7 +205,19 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign, vehicles = [], recent
                 }
             }
 
-            await assignCrewToJob(jobId, crew, 'manual');
+            // BUG-042 Fix: Pass workingHours so multi-day schedule can be created
+            await assignCrewToJob(jobId, crew, 'manual', { workingHours: preferences?.workingHours });
+
+            // BUG-043 Fix: Update job status to 'scheduled' if it has a date
+            const job = jobs.find(j => j.id === jobId);
+            if (job && (job.scheduledTime || job.scheduledDate)) {
+                const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
+                await updateDoc(jobRef, {
+                    status: 'scheduled',
+                    lastActivity: serverTimestamp()
+                });
+            }
+
             toast.success(`Crew of ${crew.length} assigned!`);
             setSelectedMembers(prev => { const next = { ...prev }; delete next[jobId]; return next; });
             setSelectedVehicles(prev => { const next = { ...prev }; delete next[jobId]; return next; });
@@ -519,6 +531,7 @@ export const TechAssignmentPanel = ({
     jobs = [],
     teamMembers = [],
     vehicles = [],
+    preferences = {},
     onJobUpdate
 }) => {
     const [view, setView] = useState('overview'); // 'overview' | 'unassigned' | 'team'
@@ -685,15 +698,25 @@ export const TechAssignmentPanel = ({
                 }).filter(Boolean);
 
                 if (crew.length > 0) {
-                    await assignCrewToJob(assignment.jobId, crew, 'ai');
+                    // BUG-042 Fix: Pass workingHours so multi-day schedule can be created
+                    await assignCrewToJob(assignment.jobId, crew, 'ai', { workingHours: preferences?.workingHours });
 
-                    // If the job didn't have a scheduled date, set one from the auto-assign
+                    // Update job status and date info
                     const job = assignment.job;
+                    const jobRef = doc(db, REQUESTS_COLLECTION_PATH, assignment.jobId);
+
                     if (job && !job.scheduledTime && !job.scheduledDate && job._autoAssignDate) {
-                        const jobRef = doc(db, REQUESTS_COLLECTION_PATH, assignment.jobId);
+                        // Job didn't have a scheduled date - set one from the auto-assign
                         await updateDoc(jobRef, {
                             scheduledDate: job._autoAssignDate.toISOString().split('T')[0],
                             scheduledTime: job._autoAssignDate.toISOString(),
+                            assignedBy: 'ai',
+                            status: 'scheduled',
+                            lastActivity: serverTimestamp()
+                        });
+                    } else if (job && (job.scheduledTime || job.scheduledDate)) {
+                        // BUG-043 Fix: Job already had a date but was unassigned - update status to scheduled
+                        await updateDoc(jobRef, {
                             assignedBy: 'ai',
                             status: 'scheduled',
                             lastActivity: serverTimestamp()
@@ -713,7 +736,7 @@ export const TechAssignmentPanel = ({
             setRecentlyAssigned(new Set());
             if (onJobUpdate) onJobUpdate();
         }, 1500);
-    }, [teamMembers, onJobUpdate]);
+    }, [teamMembers, preferences, onJobUpdate]);
 
     // Handle unassignment
     const handleUnassign = async (jobId, memberId) => {
@@ -820,6 +843,7 @@ export const TechAssignmentPanel = ({
                     jobs={unassignedJobs}
                     teamMembers={teamMembers}
                     vehicles={vehicles}
+                    preferences={preferences}
                     recentlyAssigned={recentlyAssigned}
                     onAssign={handleAssign}
                 />

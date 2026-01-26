@@ -248,11 +248,64 @@ const getJobsForDate = (jobs, date, timezone) => {
         };
     };
 
+    // Helper: check if a job should be multi-day based on duration (even without segments)
+    const shouldBeMultiDay = (job) => {
+        const duration = job.estimatedDuration || 0;
+        return isMultiDayJob(duration); // Uses 480 min (8 hours) threshold
+    };
+
+    // Helper: compute day number for jobs without proper segments
+    const computeDayNumber = (job, targetDate) => {
+        const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
+        if (!rawJobDate) return { dayNumber: 1, totalDays: 1 };
+
+        const startDate = new Date(rawJobDate);
+        const startDateStr = getDateStr(startDate);
+        const targetDateStr = getDateStr(targetDate);
+
+        // Calculate day difference
+        const startMs = new Date(startDateStr).getTime();
+        const targetMs = new Date(targetDateStr).getTime();
+        const dayDiff = Math.floor((targetMs - startMs) / (24 * 60 * 60 * 1000));
+
+        // Calculate total days from duration
+        const duration = job.estimatedDuration || 0;
+        const totalDays = Math.ceil(duration / 480) || 1; // 480 min = 8 hours per day
+
+        const dayNumber = dayDiff + 1;
+        return { dayNumber: Math.max(1, Math.min(dayNumber, totalDays)), totalDays };
+    };
+
     return jobs.filter(job => {
-        // For multi-day jobs, ONLY use segment dates to avoid duplicates
+        // For multi-day jobs with proper segments, ONLY use segment dates to avoid duplicates
         if (jobIsMultiDay(job)) {
             const { isInSchedule } = findSegmentForDate(date, job.multiDaySchedule);
             return isInSchedule;
+        }
+
+        // For jobs that SHOULD be multi-day but don't have segments, check date range
+        if (shouldBeMultiDay(job)) {
+            const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
+            if (rawJobDate) {
+                const startDate = new Date(rawJobDate);
+                const startDateStr = getDateStr(startDate);
+                const targetDateStr = getDateStr(date);
+
+                // Calculate total days from duration
+                const duration = job.estimatedDuration || 0;
+                const totalDays = Math.ceil(duration / 480) || 1;
+
+                // Check if target date is within the job's date range
+                const startMs = new Date(startDateStr).getTime();
+                const targetMs = new Date(targetDateStr).getTime();
+                const dayDiff = Math.floor((targetMs - startMs) / (24 * 60 * 60 * 1000));
+
+                // Job spans from day 0 to (totalDays - 1)
+                if (dayDiff >= 0 && dayDiff < totalDays) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         // For regular single-day jobs, check scheduled date
@@ -267,7 +320,7 @@ const getJobsForDate = (jobs, date, timezone) => {
 
         return false;
     }).map(job => {
-        // Add multi-day context if applicable
+        // Add multi-day context if job has proper segments
         if (jobIsMultiDay(job)) {
             const { segment, dayNumber } = findSegmentForDate(date, job.multiDaySchedule);
             const totalDays = job.multiDaySchedule.totalDays || job.multiDaySchedule.segments?.length || 1;
@@ -282,6 +335,21 @@ const getJobsForDate = (jobs, date, timezone) => {
                 }
             };
         }
+
+        // BUG-042 Fix: Add multi-day context for jobs that should be multi-day but lack segments
+        if (shouldBeMultiDay(job)) {
+            const { dayNumber, totalDays } = computeDayNumber(job, date);
+            return {
+                ...job,
+                _multiDayInfo: {
+                    dayNumber,
+                    totalDays,
+                    segment: null,
+                    label: `Day ${dayNumber}/${totalDays}`
+                }
+            };
+        }
+
         return job;
     });
 };
@@ -579,14 +647,17 @@ const TimeSlot = React.memo(({
             onDragLeave={onDragLeave}
             onClick={handleSlotClick}
             className={`h-[60px] border-b border-r border-slate-100 transition-colors relative ${isDayClosed
-                ? 'bg-slate-100/80 cursor-not-allowed'
+                ? 'bg-slate-200/80 cursor-not-allowed'
                 : isDropTarget
                     ? 'bg-emerald-100 border-emerald-300'
                     : isWithinWorkingHours
                         ? 'bg-white hover:bg-slate-50 cursor-pointer'
-                        : 'bg-slate-50'
+                        : 'bg-slate-100/60 hover:bg-slate-100'
                 }`}
-            title={isDayClosed ? 'Business closed - scheduling not allowed' : undefined}
+            style={!isDayClosed && !isWithinWorkingHours && !isDropTarget ? {
+                backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(148, 163, 184, 0.1) 4px, rgba(148, 163, 184, 0.1) 8px)'
+            } : undefined}
+            title={isDayClosed ? 'Business closed - scheduling not allowed' : (!isWithinWorkingHours ? 'Outside business hours' : undefined)}
         >
             {/* Confirmed Jobs - Height scaled by duration, positioned absolutely to overlap cells */}
             {slotJobs.map((job, jobIndex) => {
@@ -827,10 +898,70 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
         ? (teamMembers || []).filter(m => m.workingHours?.[dayName]?.enabled)
         : [];
 
+    // Detect if selected time is outside business hours
+    const dayWorkingHours = preferences?.workingHours?.[dayName];
+    const businessStartHour = dayWorkingHours?.start ? parseInt(dayWorkingHours.start.split(':')[0]) : 8;
+    const businessEndHour = dayWorkingHours?.end ? parseInt(dayWorkingHours.end.split(':')[0]) : 17;
+    const businessStartMinutes = dayWorkingHours?.start ? parseInt(dayWorkingHours.start.split(':')[1] || '0') : 0;
+    const businessEndMinutes = dayWorkingHours?.end ? parseInt(dayWorkingHours.end.split(':')[1] || '0') : 0;
+
     // Sync selectedTime when hour prop changes (prevents stale state from previous drag)
     useEffect(() => {
         setSelectedTime(`${hour.toString().padStart(2, '0')}:00`);
     }, [hour]);
+
+    // Check if selected time is outside business hours
+    const outsideBusinessHoursInfo = useMemo(() => {
+        if (isClosedBusinessDay) return null; // Already showing closed day banner
+        if (!dayWorkingHours?.enabled) return null; // No business hours configured for this day
+
+        const [selectedHour, selectedMinute] = selectedTime.split(':').map(Number);
+        const selectedTotalMinutes = selectedHour * 60 + selectedMinute;
+        const businessStartTotalMinutes = businessStartHour * 60 + businessStartMinutes;
+        const businessEndTotalMinutes = businessEndHour * 60 + businessEndMinutes;
+
+        // Calculate job end time
+        const jobEndTotalMinutes = selectedTotalMinutes + duration;
+        const jobEndHour = Math.floor(jobEndTotalMinutes / 60);
+        const jobEndMinute = jobEndTotalMinutes % 60;
+
+        const isTooEarly = selectedTotalMinutes < businessStartTotalMinutes;
+        const isTooLate = selectedTotalMinutes >= businessEndTotalMinutes;
+        const extendsAfterClose = jobEndTotalMinutes > businessEndTotalMinutes && selectedTotalMinutes < businessEndTotalMinutes;
+
+        if (!isTooEarly && !isTooLate && !extendsAfterClose) return null;
+
+        const formatBusinessTime = (h, m) => {
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+            return m > 0 ? `${displayHour}:${m.toString().padStart(2, '0')} ${ampm}` : `${displayHour} ${ampm}`;
+        };
+
+        const businessHoursStr = `${formatBusinessTime(businessStartHour, businessStartMinutes)} - ${formatBusinessTime(businessEndHour, businessEndMinutes)}`;
+
+        if (isTooEarly) {
+            return {
+                type: 'before_open',
+                message: `This time is before business hours open (${businessHoursStr})`,
+                severity: 'warning'
+            };
+        }
+        if (isTooLate) {
+            return {
+                type: 'after_close',
+                message: `This time is after business hours close (${businessHoursStr})`,
+                severity: 'warning'
+            };
+        }
+        if (extendsAfterClose) {
+            return {
+                type: 'extends_past_close',
+                message: `Job would extend past business hours (closes at ${formatBusinessTime(businessEndHour, businessEndMinutes)})`,
+                severity: 'info'
+            };
+        }
+        return null;
+    }, [selectedTime, duration, dayWorkingHours, businessStartHour, businessStartMinutes, businessEndHour, businessEndMinutes, isClosedBusinessDay]);
 
     // Multi-day detection
     const isMultiDay = isMultiDayJob(duration);
@@ -1089,6 +1220,39 @@ const DropConfirmModal = ({ job, date, hour, onConfirm, onCancel, teamMembers, t
                         options={timeOptions}
                     />
                 </div>
+
+                {/* Outside Business Hours Warning */}
+                {outsideBusinessHoursInfo && (
+                    <div className={`mb-4 p-3 rounded-xl border ${
+                        outsideBusinessHoursInfo.severity === 'warning'
+                            ? 'bg-amber-50 border-amber-200'
+                            : 'bg-blue-50 border-blue-200'
+                    }`}>
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle size={16} className={`mt-0.5 shrink-0 ${
+                                outsideBusinessHoursInfo.severity === 'warning'
+                                    ? 'text-amber-600'
+                                    : 'text-blue-600'
+                            }`} />
+                            <div>
+                                <p className={`text-sm font-medium ${
+                                    outsideBusinessHoursInfo.severity === 'warning'
+                                        ? 'text-amber-800'
+                                        : 'text-blue-800'
+                                }`}>
+                                    Outside Business Hours
+                                </p>
+                                <p className={`text-xs mt-0.5 ${
+                                    outsideBusinessHoursInfo.severity === 'warning'
+                                        ? 'text-amber-600'
+                                        : 'text-blue-600'
+                                }`}>
+                                    {outsideBusinessHoursInfo.message}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Duration */}
                 <div className="mb-4">

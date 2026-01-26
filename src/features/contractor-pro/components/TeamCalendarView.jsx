@@ -18,7 +18,7 @@ import { db } from '../../../config/firebase';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import toast from 'react-hot-toast';
 import { parseDurationToMinutes } from '../lib/schedulingAI';
-import { jobIsMultiDay, getSegmentForDate } from '../lib/multiDayUtils';
+import { jobIsMultiDay, getSegmentForDate, isMultiDayJob } from '../lib/multiDayUtils';
 import { analyzeRescheduleImpact } from '../lib/scheduleImpactAnalysis';
 import { useCascadeWarning } from './CascadeWarningModal';
 import { isSameDayInTimezone, createDateInTimezone, formatTimeInTimezone } from '../lib/timezoneUtils';
@@ -251,28 +251,87 @@ const resolveJobDate = (job, timeZone) => {
     return null;
 };
 
+// Helper: get date string in YYYY-MM-DD format
+const getDateStr = (d) => {
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 // Get jobs for a date including multi-day segment info
 const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
+    // BUG-044 Fix: Helper to check if a job should be multi-day based on duration (even without segments)
+    const shouldBeMultiDay = (job) => {
+        const duration = job.estimatedDuration || 0;
+        return isMultiDayJob(duration); // Uses 480 min (8 hours) threshold
+    };
+
+    // BUG-044 Fix: Helper to compute day number for jobs without proper segments
+    const computeDayNumber = (job, targetDate) => {
+        const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
+        if (!rawJobDate) return { dayNumber: 1, totalDays: 1 };
+
+        const startDate = new Date(rawJobDate);
+        const startDateStr = getDateStr(startDate);
+        const targetDateStr = getDateStr(targetDate);
+
+        // Calculate day difference
+        const startMs = new Date(startDateStr).getTime();
+        const targetMs = new Date(targetDateStr).getTime();
+        const dayDiff = Math.floor((targetMs - startMs) / (24 * 60 * 60 * 1000));
+
+        // Calculate total days from duration
+        const duration = job.estimatedDuration || 0;
+        const totalDays = Math.ceil(duration / 480) || 1; // 480 min = 8 hours per day
+
+        const dayNumber = dayDiff + 1;
+        return { dayNumber: Math.max(1, Math.min(dayNumber, totalDays)), totalDays };
+    };
+
     return jobs.filter(job => {
+        // For multi-day jobs with proper segments, ONLY use segment dates to avoid duplicates
+        if (jobIsMultiDay(job)) {
+            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
+            return isInSchedule;
+        }
+
+        // BUG-044 Fix: For jobs that SHOULD be multi-day but don't have segments, check date range
+        if (shouldBeMultiDay(job)) {
+            const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
+            if (rawJobDate) {
+                const startDate = new Date(rawJobDate);
+                const startDateStr = getDateStr(startDate);
+                const targetDateStr = getDateStr(date);
+
+                // Calculate total days from duration
+                const duration = job.estimatedDuration || 0;
+                const totalDays = Math.ceil(duration / 480) || 1;
+
+                // Check if target date is within the job's date range
+                const startMs = new Date(startDateStr).getTime();
+                const targetMs = new Date(targetDateStr).getTime();
+                const dayDiff = Math.floor((targetMs - startMs) / (24 * 60 * 60 * 1000));
+
+                // Job spans from day 0 to (totalDays - 1)
+                if (dayDiff >= 0 && dayDiff < totalDays) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // Regular scheduled date check - handles time-only scheduledTime strings
         const normalizedJobDate = resolveJobDate(job, timeZone);
         if (normalizedJobDate && isSameDayInTimezone(normalizedJobDate, date, timeZone)) {
             return true;
         }
 
-        // Multi-day segment check
-        if (jobIsMultiDay(job)) {
-            const { isInSchedule } = getSegmentForDate(date, job.multiDaySchedule);
-            return isInSchedule;
-        }
-
         return false;
     }).map(job => {
-        // Add multi-day context
+        // Add multi-day context if job has proper segments
         if (jobIsMultiDay(job)) {
             const { segment, dayNumber } = getSegmentForDate(date, job.multiDaySchedule);
-            // Only show multi-day badge if we have a valid segment for this date
-            if (!segment) return job;
             const totalDays = Number(job.multiDaySchedule.totalDays) ||
                               job.multiDaySchedule.segments?.length || 1;
             const displayDayNumber = (typeof dayNumber === 'number' && dayNumber > 0) ? dayNumber : 1;
@@ -286,6 +345,21 @@ const getJobsForDateWithMultiDay = (jobs, date, timeZone) => {
                 }
             };
         }
+
+        // BUG-044 Fix: Add multi-day context for jobs that should be multi-day but lack segments
+        if (shouldBeMultiDay(job)) {
+            const { dayNumber, totalDays } = computeDayNumber(job, date);
+            return {
+                ...job,
+                _multiDayInfo: {
+                    dayNumber,
+                    totalDays,
+                    segment: null,
+                    label: `Day ${dayNumber}/${totalDays}`
+                }
+            };
+        }
+
         return job;
     });
 };

@@ -44,6 +44,7 @@ import {
 import { checkCrewConflict } from '../lib/schedulingConflicts';
 import { cancelJob } from '../../jobs/lib/jobService';
 import { formatDateTimeInTimezone } from '../lib/timezoneUtils';
+import { isMultiDayJob } from '../lib/multiDayUtils';
 
 // ============================================
 // HELPERS
@@ -787,6 +788,20 @@ export const DispatchBoard = ({
     // Handles all scheduling formats: multi-day blocks, multi-day schedule,
     // ISO scheduledTime, legacy scheduledDate, and Firestore Timestamps
     const jobsForDate = useMemo(() => {
+        // BUG-045 Fix: Helper to get date string in YYYY-MM-DD format
+        const getDateStr = (d) => {
+            const year = d.getFullYear();
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const day = d.getDate().toString().padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        // BUG-045 Fix: Helper to check if job should be multi-day based on duration
+        const shouldBeMultiDay = (job) => {
+            const duration = job.estimatedDuration || 0;
+            return isMultiDayJob(duration); // Uses 480 min (8 hours) threshold
+        };
+
         return jobs.filter(job => {
             try {
                 // CASE 1: Multi-Day Blocks (from CreateJobModal)
@@ -805,6 +820,33 @@ export const DispatchBoard = ({
                         if (isNaN(dayDate.getTime())) return false;
                         return isSameDayInTimezone(dayDate, selectedDate, effectiveTimezone);
                     });
+                }
+
+                // BUG-045 Fix: CASE 2.5: Job should be multi-day based on duration but lacks multiDaySchedule
+                if (shouldBeMultiDay(job)) {
+                    const rawJobDate = job.scheduledTime || job.scheduledStartTime || job.scheduledDate;
+                    if (rawJobDate) {
+                        const startDate = rawJobDate.toDate ? rawJobDate.toDate() : new Date(rawJobDate);
+                        if (!isNaN(startDate.getTime())) {
+                            const startDateStr = getDateStr(startDate);
+                            const targetDateStr = getDateStr(selectedDate);
+
+                            // Calculate total days from duration
+                            const duration = job.estimatedDuration || 0;
+                            const totalDays = Math.ceil(duration / 480) || 1;
+
+                            // Calculate day difference
+                            const startMs = new Date(startDateStr).getTime();
+                            const targetMs = new Date(targetDateStr).getTime();
+                            const dayDiff = Math.floor((targetMs - startMs) / (24 * 60 * 60 * 1000));
+
+                            // Check if selected date falls within the multi-day range
+                            if (dayDiff >= 0 && dayDiff < totalDays) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
                 }
 
                 // CASE 3: Use scheduledDate or scheduledTime (whichever is available)

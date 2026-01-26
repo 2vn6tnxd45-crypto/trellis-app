@@ -10,6 +10,7 @@ import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { extractCrewRequirements, validateCrewAvailability } from './crewRequirementsService';
 import { onCrewAssignmentChanged } from './techNotificationService';
+import { isMultiDayJob, createMultiDaySchedule } from './multiDayUtils';
 
 // ============================================
 // CONSTANTS
@@ -116,22 +117,24 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
     const jobRef = doc(db, REQUESTS_COLLECTION_PATH, jobId);
     const lead = getCrewLead(crew);
 
-    // Get previous crew state for notification comparison (if not provided)
+    // Get previous crew state and job data for multi-day schedule handling
     let oldCrew = previousCrew;
-    if (!oldCrew && !skipNotifications) {
-        try {
-            const jobSnap = await getDoc(jobRef);
-            if (jobSnap.exists()) {
-                const jobData = jobSnap.data();
+    let jobData = null;
+    try {
+        const jobSnap = await getDoc(jobRef);
+        if (jobSnap.exists()) {
+            jobData = jobSnap.data();
+            if (!oldCrew && !skipNotifications) {
                 oldCrew = jobData.assignedCrew || [];
             }
-        } catch (e) {
-            console.warn('[crewService] Could not get previous crew:', e);
-            oldCrew = [];
         }
+    } catch (e) {
+        console.warn('[crewService] Could not get job data:', e);
+        oldCrew = oldCrew || [];
     }
 
-    await updateDoc(jobRef, {
+    // Build update data
+    const updateData = {
         // New crew format
         assignedCrew: crew,
         crewSize: crew.length,
@@ -146,7 +149,25 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
         assignedAt: serverTimestamp(),
         assignedBy,
         lastActivity: serverTimestamp()
-    });
+    };
+
+    // BUG-042 Fix: Check if job is multi-day and create/update multiDaySchedule if missing
+    if (jobData) {
+        const duration = jobData.estimatedDuration || 120;
+        const hasScheduledTime = jobData.scheduledTime || jobData.scheduledDate;
+
+        // If job is multi-day but doesn't have multiDaySchedule, create it
+        if (hasScheduledTime && isMultiDayJob(duration)) {
+            if (!jobData.multiDaySchedule?.segments?.length) {
+                const startDate = new Date(jobData.scheduledTime || jobData.scheduledDate);
+                const workingHours = options.workingHours || {};
+                const multiDaySchedule = createMultiDaySchedule(startDate, duration, workingHours);
+                updateData.multiDaySchedule = multiDaySchedule;
+            }
+        }
+    }
+
+    await updateDoc(jobRef, updateData);
 
     // Send notifications to techs (non-blocking)
     if (!skipNotifications && contractorId) {
