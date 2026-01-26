@@ -540,12 +540,15 @@ export const TechAssignmentPanel = ({
     const [isAutoAssigning, setIsAutoAssigning] = useState(false);
 
     // Separate jobs by assignment status
-    const { assignedJobs, unassignedJobs, jobsByMember } = useMemo(() => {
+    // Also track "orphaned" jobs - assigned to techs not in the current team
+    const { assignedJobs, unassignedJobs, orphanedJobs, jobsByMember } = useMemo(() => {
         const assigned = [];
         const unassigned = [];
+        const orphaned = [];
         const byMember = {};
 
         // Initialize member buckets
+        const teamMemberIds = new Set(teamMembers.map(m => m.id));
         teamMembers.forEach(m => {
             byMember[m.id] = [];
         });
@@ -557,17 +560,23 @@ export const TechAssignmentPanel = ({
 
             if (assignedTechIds.length > 0) {
                 assigned.push(job);
+                let hasKnownTech = false;
                 assignedTechIds.forEach(techId => {
                     if (byMember[techId]) {
                         byMember[techId].push(job);
+                        hasKnownTech = true;
                     }
                 });
+                // Track jobs assigned to techs not in the team
+                if (!hasKnownTech) {
+                    orphaned.push(job);
+                }
             } else {
                 unassigned.push(job);
             }
         });
 
-        return { assignedJobs: assigned, unassignedJobs: unassigned, jobsByMember: byMember };
+        return { assignedJobs: assigned, unassignedJobs: unassigned, orphanedJobs: orphaned, jobsByMember: byMember };
     }, [jobs, teamMembers]);
 
     // Handle assignment with success animation
@@ -774,6 +783,7 @@ export const TechAssignmentPanel = ({
                     <h2 className="text-xl font-bold text-slate-800">Team Assignments</h2>
                     <p className="text-sm text-slate-500">
                         {unassignedJobs.length} unassigned • {assignedJobs.length} assigned
+                        <span className="text-slate-400 ml-1">(all dates)</span>
                     </p>
                 </div>
                 {unassignedJobs.length > 0 && (
@@ -787,6 +797,35 @@ export const TechAssignmentPanel = ({
                     </button>
                 )}
             </div>
+
+            {/* Warning for orphaned jobs - assigned to techs not in the team */}
+            {orphanedJobs.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                        <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-medium text-amber-800">
+                                {orphanedJobs.length} job{orphanedJobs.length > 1 ? 's' : ''} assigned to unknown team members
+                            </p>
+                            <p className="text-sm text-amber-600 mt-1">
+                                These jobs are assigned to technicians no longer in your team. Consider reassigning them.
+                            </p>
+                            <div className="mt-2 space-y-1">
+                                {orphanedJobs.slice(0, 3).map(job => (
+                                    <p key={job.id} className="text-xs text-amber-700">
+                                        • {job.title || job.description || 'Job'} - assigned to "{job.assignedToName || job.assignedTechName || 'Unknown'}"
+                                    </p>
+                                ))}
+                                {orphanedJobs.length > 3 && (
+                                    <p className="text-xs text-amber-600">
+                                        ...and {orphanedJobs.length - 3} more
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* View Tabs */}
             <div className="flex bg-slate-100 rounded-xl p-1">

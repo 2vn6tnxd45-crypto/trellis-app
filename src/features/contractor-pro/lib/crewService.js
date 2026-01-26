@@ -96,7 +96,35 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
     if (!jobId) throw new Error('Job ID is required');
     if (!crew || crew.length === 0) throw new Error('Crew cannot be empty');
 
-    const { skipNotifications = false, contractorId = null, previousCrew = null } = options;
+    const { skipNotifications = false, contractorId = null, previousCrew = null, teamMembers = [] } = options;
+
+    // VALIDATION & SANITIZATION: Ensure all crew members have required fields
+    // This prevents "???" showing up in the UI due to missing techName
+    const sanitizedCrew = crew.map(member => {
+        // If techName is missing, try to look it up from teamMembers
+        let techName = member.techName;
+        if (!techName && member.techId && teamMembers.length > 0) {
+            const foundTech = teamMembers.find(t => t.id === member.techId);
+            techName = foundTech?.name || null;
+        }
+
+        return {
+            techId: member.techId || null,
+            techName: techName || 'Unknown Tech', // Fallback to prevent "?"
+            role: member.role || 'helper',
+            vehicleId: member.vehicleId || null,
+            vehicleName: member.vehicleName || null,
+            color: member.color || '#64748B',
+            assignedAt: member.assignedAt || new Date().toISOString()
+        };
+    }).filter(member => member.techId); // Remove any members without valid techId
+
+    if (sanitizedCrew.length === 0) {
+        throw new Error('No valid crew members provided (all missing techId)');
+    }
+
+    // Use sanitized crew from here on
+    crew = sanitizedCrew;
 
     // Ensure there's exactly one lead
     const leads = crew.filter(m => m.role === 'lead');
@@ -141,8 +169,11 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
         crewSize: crew.length,
 
         // Legacy fields for backward compatibility (ensure no undefined values)
+        // Sync BOTH assignedTechId (newer) AND assignedTo (oldest) for full compatibility
         assignedTechId: lead.techId || null,
         assignedTechName: lead.techName || null,
+        assignedTo: lead.techId || null,           // Oldest legacy field - used by Calendar, RouteVisualization
+        assignedToName: lead.techName || null,     // Oldest legacy field - used by Calendar display
         assignedVehicleId: lead.vehicleId || null,
         assignedVehicleName: lead.vehicleName || null,
 

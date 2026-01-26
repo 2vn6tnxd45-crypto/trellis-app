@@ -1002,22 +1002,34 @@ export const DispatchBoard = ({
     }, [jobsForDate, backlogJobs, unscheduledJobs, allUnassignedJobs, showAllBacklog]);
 
     // Group assigned jobs by tech (multi-tech jobs appear in multiple columns)
-    const jobsByTech = useMemo(() => {
+    // Also track "orphaned" jobs - assigned to techs not in the current team
+    const { jobsByTech, orphanedJobs } = useMemo(() => {
         const map = {};
+        const orphaned = [];
+        const teamMemberIds = new Set(teamMembers.map(t => t.id));
+
         teamMembers.forEach(tech => {
             map[tech.id] = [];
         });
 
         assignedJobs.forEach(job => {
             const assignedTechIds = getAssignedTechIds(job);
+            let hasKnownTech = false;
+
             assignedTechIds.forEach(techId => {
                 if (map[techId]) {
                     map[techId].push(job);
+                    hasKnownTech = true;
                 }
             });
+
+            // Track jobs assigned to techs not in the current team
+            if (!hasKnownTech && assignedTechIds.length > 0) {
+                orphaned.push(job);
+            }
         });
 
-        return map;
+        return { jobsByTech: map, orphanedJobs: orphaned };
     }, [assignedJobs, teamMembers]);
 
     // Navigation (with validation to prevent crashes)
@@ -1536,6 +1548,12 @@ export const DispatchBoard = ({
                                 <span>{unassignedJobs.length} unassigned</span>
                             </div>
                         )}
+                        {orphanedJobs.length > 0 && (
+                            <div className="flex items-center gap-2 text-red-600">
+                                <AlertCircle size={16} />
+                                <span>{orphanedJobs.length} need reassignment</span>
+                            </div>
+                        )}
                         {/* Route Optimization Button */}
                         {assignedJobs.length > 1 && (
                             <button
@@ -1608,6 +1626,50 @@ export const DispatchBoard = ({
                         />
                     );
                 })}
+
+                {/* Orphaned Jobs Column - jobs assigned to techs not in the team */}
+                {orphanedJobs.length > 0 && (
+                    <div className="flex flex-col bg-amber-50 rounded-xl border-2 border-amber-300 min-w-[280px] max-w-[320px]">
+                        {/* Header */}
+                        <div className="p-3 border-b border-amber-200">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white">
+                                    <AlertTriangle size={16} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-amber-800 text-sm">Unknown Techs</p>
+                                    <p className="text-xs text-amber-600">{orphanedJobs.length} job{orphanedJobs.length > 1 ? 's' : ''} need reassignment</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Jobs */}
+                        <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[60vh]">
+                            {orphanedJobs.map(job => (
+                                <div
+                                    key={job.id}
+                                    className="p-3 bg-white border border-amber-200 rounded-lg"
+                                >
+                                    <p className="font-medium text-slate-800 text-sm truncate">
+                                        {job.title || job.serviceType || 'Job'}
+                                    </p>
+                                    <p className="text-xs text-slate-500 truncate">
+                                        {job.customer?.name || job.customerName || 'Customer'}
+                                    </p>
+                                    <p className="text-xs text-amber-600 mt-1">
+                                        Assigned to: {job.assignedToName || job.assignedTechName || 'Unknown'}
+                                    </p>
+                                    <button
+                                        onClick={() => setCrewModalJob(job)}
+                                        className="mt-2 w-full px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-medium rounded-lg transition-colors"
+                                    >
+                                        Reassign Crew
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Empty state for no techs */}
                 {teamMembers.length === 0 && (

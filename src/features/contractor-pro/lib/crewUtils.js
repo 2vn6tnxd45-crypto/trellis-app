@@ -43,7 +43,7 @@ export const jobHasCrew = (job) => {
 };
 
 /**
- * Get crew size for a job (handles both old and new format)
+ * Get crew size for a job (handles all legacy formats)
  * @param {Object} job
  * @returns {number}
  */
@@ -51,19 +51,34 @@ export const getCrewSize = (job) => {
     if (jobHasCrew(job)) {
         return job.assignedCrew.length;
     }
-    return job.assignedTechId ? 1 : 0;
+    // Check both assignedTechId (newer) and assignedTo (older) legacy fields
+    if (job.assignedTechId || job.assignedTo) {
+        return 1;
+    }
+    return 0;
 };
 
 /**
- * Get all tech IDs assigned to a job (handles both formats)
+ * Get all tech IDs assigned to a job (handles all formats)
+ * Checks: assignedCrew[] (new), assignedTechId (legacy), assignedTo (oldest legacy)
  * @param {Object} job
  * @returns {string[]}
  */
 export const getAssignedTechIds = (job) => {
     if (jobHasCrew(job)) {
-        return job.assignedCrew.map(m => m.techId);
+        // Filter out any crew members with invalid/missing techId
+        return job.assignedCrew
+            .filter(m => m && m.techId)
+            .map(m => m.techId);
     }
-    return job.assignedTechId ? [job.assignedTechId] : [];
+    // Check assignedTechId first (newer legacy), then assignedTo (older legacy)
+    if (job.assignedTechId) {
+        return [job.assignedTechId];
+    }
+    if (job.assignedTo) {
+        return [job.assignedTo];
+    }
+    return [];
 };
 
 /**
@@ -78,18 +93,42 @@ export const isTechAssigned = (job, techId) => {
 
 /**
  * Convert legacy single-tech assignment to crew format
+ * Handles: assignedCrew[] (new), assignedTechId (legacy), assignedTo (oldest legacy)
  * @param {Object} job
  * @returns {Object[]} CrewMember[]
  */
 export const legacyToCrewFormat = (job) => {
     if (jobHasCrew(job)) {
-        return job.assignedCrew;
+        // Ensure all crew members have required fields, fill in defaults if missing
+        return job.assignedCrew.map(member => ({
+            techId: member.techId || null,
+            techName: member.techName || 'Unknown Tech',
+            role: member.role || 'helper',
+            vehicleId: member.vehicleId || null,
+            vehicleName: member.vehicleName || null,
+            color: member.color || '#64748B',
+            assignedAt: member.assignedAt || new Date().toISOString()
+        }));
     }
 
+    // Check assignedTechId first (newer legacy format)
     if (job.assignedTechId) {
         return [{
             techId: job.assignedTechId,
             techName: job.assignedTechName || 'Technician',
+            role: 'lead',
+            vehicleId: job.assignedVehicleId || null,
+            vehicleName: job.assignedVehicleName || null,
+            color: '#64748B',
+            assignedAt: job.assignedAt?.toDate?.()?.toISOString() || new Date().toISOString()
+        }];
+    }
+
+    // Check assignedTo (oldest legacy format)
+    if (job.assignedTo) {
+        return [{
+            techId: job.assignedTo,
+            techName: job.assignedToName || 'Technician',
             role: 'lead',
             vehicleId: job.assignedVehicleId || null,
             vehicleName: job.assignedVehicleName || null,
