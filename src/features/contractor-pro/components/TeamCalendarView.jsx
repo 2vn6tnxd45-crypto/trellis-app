@@ -634,7 +634,299 @@ const EventCard = ({ event, onClick, compact = false, isDragging, onDragStart, o
 };
 
 // ============================================
-// TIME SLOT CELL
+// CONSTANTS FOR CALENDAR LAYOUT
+// ============================================
+
+const HOUR_HEIGHT_PX = 60; // Height of each hour row in pixels
+
+// ============================================
+// POSITIONED JOB BLOCK (for absolute positioning in Day View)
+// ============================================
+
+/**
+ * Calculate the top position and height for a job block based on start time and duration
+ */
+const calculateJobPosition = (job, timeZone, firstHour) => {
+    const startTime = job.start || job.scheduledTime || job.scheduledStartTime;
+    if (!startTime) return { top: 0, height: HOUR_HEIGHT_PX };
+
+    const startHour = getHourFromDate(startTime, timeZone);
+
+    // Parse minutes from the time string
+    let startMinutes = 0;
+    if (typeof startTime === 'string') {
+        const match = startTime.match(/:(\d+)/);
+        if (match) startMinutes = parseInt(match[1], 10);
+    } else if (startTime?.toDate) {
+        startMinutes = startTime.toDate().getMinutes();
+    } else if (startTime instanceof Date) {
+        startMinutes = startTime.getMinutes();
+    }
+
+    // Calculate top position relative to first hour
+    const hoursFromStart = startHour - firstHour;
+    const topPx = (hoursFromStart * HOUR_HEIGHT_PX) + (startMinutes / 60 * HOUR_HEIGHT_PX);
+
+    // Calculate height based on duration
+    const durationMinutes = job.duration || parseDurationToMinutes(job.estimatedDuration) || 60;
+    const heightPx = Math.max((durationMinutes / 60) * HOUR_HEIGHT_PX, 24); // Minimum 24px height
+
+    return { top: topPx, height: heightPx, durationMinutes };
+};
+
+/**
+ * Calculate horizontal positions for overlapping jobs
+ * Returns a map of jobId -> { left: percentage, width: percentage }
+ */
+const calculateOverlapPositions = (jobs, timeZone) => {
+    if (!jobs.length) return {};
+
+    // Get time ranges for all jobs
+    const jobRanges = jobs.map(job => ({
+        job,
+        range: getJobTimeRange(job, timeZone)
+    })).filter(jr => jr.range);
+
+    // Sort by start time
+    jobRanges.sort((a, b) => a.range.start - b.range.start);
+
+    // Find overlapping groups using a sweep line algorithm
+    const positions = {};
+    const activeJobs = []; // Jobs currently "active" (not yet ended)
+
+    for (const { job, range } of jobRanges) {
+        // Remove jobs that have ended before this job starts
+        const stillActive = activeJobs.filter(aj => aj.range.end > range.start);
+
+        // Find the first available column
+        const usedColumns = new Set(stillActive.map(aj => positions[aj.job.id]?.column || 0));
+        let column = 0;
+        while (usedColumns.has(column)) column++;
+
+        // Calculate how many columns we need in this overlap group
+        const maxColumn = Math.max(column, ...Array.from(usedColumns));
+        const numColumns = maxColumn + 1;
+
+        // Store position
+        positions[job.id] = { column, numColumns };
+
+        // Add to active jobs
+        stillActive.push({ job, range });
+        activeJobs.length = 0;
+        activeJobs.push(...stillActive);
+
+        // Update numColumns for all active jobs in this group
+        for (const aj of activeJobs) {
+            if (positions[aj.job.id]) {
+                positions[aj.job.id].numColumns = Math.max(positions[aj.job.id].numColumns, numColumns);
+            }
+        }
+    }
+
+    // Convert to left/width percentages
+    const result = {};
+    for (const jobId of Object.keys(positions)) {
+        const { column, numColumns } = positions[jobId];
+        const width = 100 / numColumns;
+        const left = column * width;
+        result[jobId] = { left: `${left}%`, width: `${width}%` };
+    }
+
+    return result;
+};
+
+/**
+ * Positioned job block that spans its actual duration
+ */
+const PositionedJobBlock = ({
+    job,
+    position,
+    horizontalPosition,
+    onClick,
+    onDragStart,
+    onDragEnd,
+    isDragging,
+    timeZone,
+    isOverlapping
+}) => {
+    const status = getEventStatus(job);
+    const styles = STATUS_STYLES[status];
+    const isEvaluation = job.type === 'evaluation';
+    const isMultiDay = job._multiDayInfo != null;
+    const isRecurring = isRecurringJob(job);
+    const duration = job.duration || parseDurationToMinutes(job.estimatedDuration) || 60;
+
+    // Override styles if overlapping
+    const bgClass = isOverlapping ? 'bg-red-50' : styles.bgLight;
+    const borderClass = isOverlapping ? 'border-red-400 border-2' : `${styles.border} border`;
+
+    return (
+        <div
+            draggable={!isEvaluation}
+            onDragStart={(e) => {
+                if (isEvaluation) return;
+                e.dataTransfer.setData('eventId', job.id);
+                e.dataTransfer.setData('eventData', JSON.stringify(job));
+                onDragStart?.(job);
+            }}
+            onDragEnd={onDragEnd}
+            onClick={() => onClick?.(job)}
+            className={`
+                absolute ${bgClass} ${borderClass} rounded-lg p-1.5 cursor-pointer
+                hover:shadow-md hover:z-20 transition-all overflow-hidden
+                ${isDragging ? 'opacity-50' : ''}
+                ${!isEvaluation ? 'cursor-grab active:cursor-grabbing' : ''}
+                ${isOverlapping ? 'ring-2 ring-red-300 ring-offset-1' : ''}
+            `}
+            style={{
+                top: `${position.top}px`,
+                height: `${position.height}px`,
+                left: horizontalPosition?.left || '2px',
+                width: horizontalPosition?.width ? `calc(${horizontalPosition.width} - 4px)` : 'calc(100% - 4px)',
+                zIndex: isOverlapping ? 10 : 5
+            }}
+        >
+            <div className="flex items-start gap-1 h-full">
+                <div className={`w-1 rounded-full ${styles.bg} shrink-0 self-stretch`} />
+                <div className="flex-1 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <p className={`font-medium ${styles.text} text-[10px] leading-tight`}>
+                            {formatTime(job.start || job.scheduledTime || job.scheduledStartTime, timeZone)}
+                        </p>
+                        {isRecurring && (
+                            <span className="text-[8px] bg-emerald-200 text-emerald-700 px-0.5 rounded font-bold flex items-center">
+                                <RotateCcw size={7} />
+                            </span>
+                        )}
+                        {isMultiDay && (
+                            <span className="text-[8px] bg-indigo-200 text-indigo-700 px-0.5 rounded font-bold">
+                                {job._multiDayInfo.label}
+                            </span>
+                        )}
+                        <span className="text-[9px] text-slate-400 ml-auto">{formatDurationDisplay(duration)}</span>
+                    </div>
+                    <p className="font-bold text-slate-800 text-xs truncate leading-tight" title={job.title || job.description || 'Job'}>
+                        {job.title || job.description || 'Job'}
+                    </p>
+                    {position.height > 50 && (
+                        <p className="text-[10px] text-slate-500 truncate leading-tight" title={job.customer?.name || 'Customer'}>
+                            {job.customer?.name || 'Customer'}
+                        </p>
+                    )}
+                    {position.height > 70 && isEvaluation && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                            {job.evaluationType === 'virtual' ? (
+                                <Video size={8} className="text-purple-600" />
+                            ) : (
+                                <ClipboardList size={8} className="text-purple-600" />
+                            )}
+                            <span className="text-[9px] text-purple-600 font-medium">
+                                {job.evaluationType === 'virtual' ? 'Virtual' : 'Site Visit'}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================
+// TECH COLUMN WITH ABSOLUTE POSITIONING
+// ============================================
+
+const TechColumnBody = ({
+    tech,
+    date,
+    events,
+    workingHours,
+    firstHour,
+    onDrop,
+    onDragOver,
+    onDragLeave,
+    dropTarget,
+    onEventClick,
+    onDragStart,
+    onDragEnd,
+    draggedEvent,
+    timeZone,
+    overlappingJobIds
+}) => {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const techHours = tech?.workingHours?.[dayName] || DEFAULT_WORKING_HOURS[dayName];
+    const isWorkingDay = isTechWorkingOnDay(tech, dayName);
+
+    // Get start/end hours with defaults
+    let workStartHour = 8, workEndHour = 17;
+    if (techHours?.start) workStartHour = parseInt(techHours.start.split(':')[0]);
+    if (techHours?.end) workEndHour = parseInt(techHours.end.split(':')[0]);
+
+    // Calculate horizontal positions for overlapping jobs
+    const horizontalPositions = calculateOverlapPositions(events, timeZone);
+
+    // Total height based on working hours array
+    const totalHeight = workingHours.length * HOUR_HEIGHT_PX;
+
+    return (
+        <div
+            className="relative"
+            style={{ height: `${totalHeight}px` }}
+        >
+            {/* Hour grid lines and drop zones */}
+            {workingHours.map((hour, idx) => {
+                const isTarget = dropTarget &&
+                    dropTarget.techId === tech.id &&
+                    dropTarget.hour === hour;
+                const isWithinWorkingHours = hour >= workStartHour && hour < workEndHour && isWorkingDay;
+
+                return (
+                    <div
+                        key={hour}
+                        onDrop={(e) => onDrop(e, tech.id, date, hour)}
+                        onDragOver={(e) => {
+                            onDragOver(e);
+                            // Update drop target with hour info
+                        }}
+                        onDragLeave={onDragLeave}
+                        className={`
+                            absolute w-full border-b border-r border-slate-100 transition-colors
+                            ${isTarget ? 'bg-emerald-100 border-emerald-300 z-30' : ''}
+                            ${isWithinWorkingHours ? 'bg-white' : 'bg-slate-50/50'}
+                        `}
+                        style={{
+                            top: `${idx * HOUR_HEIGHT_PX}px`,
+                            height: `${HOUR_HEIGHT_PX}px`
+                        }}
+                    />
+                );
+            })}
+
+            {/* Positioned job blocks */}
+            {events.map(event => {
+                const position = calculateJobPosition(event, timeZone, firstHour);
+                const horizontalPos = horizontalPositions[event.id];
+
+                return (
+                    <PositionedJobBlock
+                        key={event.id}
+                        job={event}
+                        position={position}
+                        horizontalPosition={horizontalPos}
+                        onClick={onEventClick}
+                        onDragStart={onDragStart}
+                        onDragEnd={onDragEnd}
+                        isDragging={draggedEvent?.id === event.id}
+                        timeZone={timeZone}
+                        isOverlapping={overlappingJobIds.has(event.id)}
+                    />
+                );
+            })}
+        </div>
+    );
+};
+
+// ============================================
+// TIME SLOT CELL (kept for backward compatibility with week view)
 // ============================================
 
 const TimeSlotCell = ({
@@ -647,11 +939,10 @@ const TimeSlotCell = ({
     onDragOver,
     onDragLeave,
     onEventClick,
-    timeZone, // Add timeZone prop
-    overlappingJobIds = new Set() // Set of job IDs that overlap with others
+    timeZone,
+    overlappingJobIds = new Set()
 }) => {
     // Filter events for this hour
-    // FIXED: Also check scheduledStartTime field (BUG-020)
     const slotEvents = events.filter(event => {
         const eventHour = getHourFromDate(event.start || event.scheduledTime || event.scheduledStartTime, timeZone);
         return eventHour === hour;
@@ -675,7 +966,7 @@ const TimeSlotCell = ({
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             className={`
-                min-h-[50px] border-b border-r border-slate-100 p-1 transition-colors
+                min-h-[60px] border-b border-r border-slate-100 p-1 transition-colors
                 ${isDropTarget ? 'bg-emerald-100 border-emerald-300' : ''}
                 ${isWithinWorkingHours ? 'bg-white' : 'bg-slate-50/50'}
             `}
@@ -874,8 +1165,7 @@ export const TeamCalendarView = ({
         if (scrollContainerRef.current && workingHours.length > 0) {
             const now = new Date();
             const currentHour = now.getHours();
-            const slotHeight = 50; // min-h-[50px] per hour slot
-            const scrollTo = Math.max(0, (currentHour - workingHours[0]) * slotHeight - slotHeight);
+            const scrollTo = Math.max(0, (currentHour - workingHours[0]) * HOUR_HEIGHT_PX - HOUR_HEIGHT_PX);
             scrollContainerRef.current.scrollTop = scrollTo;
         }
     }, [workingHours]);
@@ -1160,71 +1450,96 @@ export const TeamCalendarView = ({
                                 )}
                             </div>
 
-                            {/* Time Rows */}
-                            {workingHours.map(hour => (
-                                <div key={hour} className="flex">
-                                    {/* Time Label */}
-                                    <div className="w-16 shrink-0 bg-slate-50 border-r border-b border-slate-200 p-2 text-xs text-slate-500 text-right">
-                                        {hour > 12 ? hour - 12 : hour} {hour >= 12 ? 'PM' : 'AM'}
-                                    </div>
-                                    {/* Tech Cells */}
-                                    {displayTechs.map(tech => {
-                                        const isTarget = dropTarget &&
-                                            dropTarget.techId === tech.id &&
-                                            dropTarget.hour === hour &&
-                                            isSameDayInTimezone(dropTarget.date, currentDate, businessTimezone);
-
-                                        const techEvents = getEventsForTechAndDate(tech.id, currentDate);
-                                        const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
-
-                                        return (
-                                            <div key={tech.id} className="w-48 shrink-0">
-                                                <TimeSlotCell
-                                                    date={currentDate}
-                                                    hour={hour}
-                                                    tech={tech}
-                                                    events={techEvents}
-                                                    isDropTarget={isTarget}
-                                                    onDrop={handleDrop}
-                                                    onDragOver={(e) => {
-                                                        handleDragOver(e);
-                                                        handleDragEnter(tech.id, currentDate, hour);
-                                                    }}
-                                                    onDragLeave={handleDragLeave}
-                                                    onEventClick={handleEventClick}
-                                                    timeZone={businessTimezone}
-                                                    overlappingJobIds={overlappingJobIds}
-                                                />
-                                            </div>
-                                        );
-                                    })}
-                                    {/* Unassigned Column Cell */}
-                                    {getUnassignedEventsForDate(currentDate).length > 0 && (
-                                        <div className="w-48 shrink-0 border-r border-b border-amber-100 bg-amber-50/30 min-h-[60px] relative">
-                                            {getUnassignedEventsForDate(currentDate)
-                                                .filter(event => {
-                                                    const eventHour = getHourFromDate(event.scheduledTime || event.scheduledStartTime || event.scheduledDate, businessTimezone);
-                                                    return eventHour === hour;
-                                                })
-                                                .map(event => (
-                                                    <div
-                                                        key={event.id}
-                                                        onClick={() => handleEventClick(event)}
-                                                        className="mx-1 my-0.5 p-1.5 bg-amber-100 border border-amber-300 border-dashed rounded-lg cursor-pointer hover:bg-amber-200 transition-colors"
-                                                    >
-                                                        <p className="text-xs font-medium text-amber-800 truncate" title={event.title || event.description || 'Service'}>
-                                                            {event.title || event.description || 'Service'}
-                                                        </p>
-                                                        <p className="text-[10px] text-amber-600">
-                                                            {formatTime(event.scheduledTime || event.scheduledStartTime, businessTimezone)}
-                                                        </p>
-                                                    </div>
-                                                ))
-                                            }
+                            {/* Calendar Body with Time Labels and Tech Columns */}
+                            <div className="flex">
+                                {/* Time Labels Column */}
+                                <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200">
+                                    {workingHours.map(hour => (
+                                        <div
+                                            key={hour}
+                                            className="border-b border-slate-200 text-xs text-slate-500 text-right pr-2 flex items-start justify-end"
+                                            style={{ height: `${HOUR_HEIGHT_PX}px` }}
+                                        >
+                                            <span className="pt-1">
+                                                {hour > 12 ? hour - 12 : hour === 0 ? 12 : hour} {hour >= 12 ? 'PM' : 'AM'}
+                                            </span>
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            ))}
+
+                                {/* Tech Columns with Absolute Positioning */}
+                                {displayTechs.map(tech => {
+                                    const techEvents = getEventsForTechAndDate(tech.id, currentDate);
+                                    const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+
+                                    return (
+                                        <div key={tech.id} className="w-48 shrink-0">
+                                            <TechColumnBody
+                                                tech={tech}
+                                                date={currentDate}
+                                                events={techEvents}
+                                                workingHours={workingHours}
+                                                firstHour={workingHours[0]}
+                                                onDrop={handleDrop}
+                                                onDragOver={(e) => handleDragOver(e)}
+                                                onDragLeave={handleDragLeave}
+                                                dropTarget={dropTarget}
+                                                onEventClick={handleEventClick}
+                                                onDragStart={handleDragStart}
+                                                onDragEnd={handleDragEnd}
+                                                draggedEvent={draggedEvent}
+                                                timeZone={businessTimezone}
+                                                overlappingJobIds={overlappingJobIds}
+                                            />
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Unassigned Column */}
+                                {getUnassignedEventsForDate(currentDate).length > 0 && (
+                                    <div className="w-48 shrink-0 relative" style={{ height: `${workingHours.length * HOUR_HEIGHT_PX}px` }}>
+                                        {/* Hour grid lines */}
+                                        {workingHours.map((hour, idx) => (
+                                            <div
+                                                key={hour}
+                                                className="absolute w-full border-r border-b border-amber-100 bg-amber-50/30"
+                                                style={{
+                                                    top: `${idx * HOUR_HEIGHT_PX}px`,
+                                                    height: `${HOUR_HEIGHT_PX}px`
+                                                }}
+                                            />
+                                        ))}
+                                        {/* Positioned unassigned job blocks */}
+                                        {getUnassignedEventsForDate(currentDate).map(event => {
+                                            const position = calculateJobPosition(event, businessTimezone, workingHours[0]);
+                                            return (
+                                                <div
+                                                    key={event.id}
+                                                    onClick={() => handleEventClick(event)}
+                                                    className="absolute mx-1 p-1.5 bg-amber-100 border border-amber-300 border-dashed rounded-lg cursor-pointer hover:bg-amber-200 transition-colors overflow-hidden"
+                                                    style={{
+                                                        top: `${position.top}px`,
+                                                        height: `${position.height}px`,
+                                                        left: '2px',
+                                                        width: 'calc(100% - 4px)',
+                                                        zIndex: 5
+                                                    }}
+                                                >
+                                                    <p className="text-xs font-medium text-amber-800 truncate" title={event.title || event.description || 'Service'}>
+                                                        {event.title || event.description || 'Service'}
+                                                    </p>
+                                                    <p className="text-[10px] text-amber-600">
+                                                        {formatTime(event.scheduledTime || event.scheduledStartTime, businessTimezone)}
+                                                    </p>
+                                                    {position.height > 50 && (
+                                                        <p className="text-[9px] text-amber-500">{formatDurationDisplay(position.durationMinutes)}</p>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     ) : (
                         /* Week View */

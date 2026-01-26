@@ -81,20 +81,227 @@
   },
   "suites": [
     {
-      "title": "e2e/recurring-services.spec.js",
-      "file": "e2e/recurring-services.spec.js",
+      "title": "e2e/financial-integrity.spec.js",
+      "file": "e2e/financial-integrity.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Membership / Recurring Services Flow",
-          "file": "e2e/recurring-services.spec.js",
+          "title": "Financial Integrity Tests",
+          "file": "e2e/financial-integrity.spec.js",
           "line": 3,
           "column": 15,
           "specs": [
             {
-              "title": "MEM-01: Contractor Creates a PAID Plan",
+              "title": "FIN-01: Time-Travel Invoice (Backdated Membership)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chrome",
+                  "projectName": "chrome",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 14176,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting FIN-01: Time-Travel Invoice\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Setting Start Date to 2025-12-26 (30 days ago)\n"
+                        },
+                        {
+                          "text": "[Test] Verifying backdated membership creation...\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Invoices\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Invoices\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] WARNING: No immediate invoice found for backdated plan. Backend might process async.\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-01-25T23:20:38.021Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-005f6-voice-Backdated-Membership--chrome/test-finished-1.png"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13769,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting FIN-01: Time-Travel Invoice\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Setting Start Date to 2025-12-26 (30 days ago)\n"
+                        },
+                        {
+                          "text": "[Test] Verifying backdated membership creation...\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Invoices\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Invoices\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] WARNING: No immediate invoice found for backdated plan. Backend might process async.\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 1,
+                      "startTime": "2026-01-25T23:21:16.130Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-005f6-voice-Backdated-Membership--chrome-retry1/test-finished-1.png"
+                        }
+                      ]
+                    },
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13799,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "[Test] Starting FIN-01: Time-Travel Invoice\n"
+                        },
+                        {
+                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
+                        },
+                        {
+                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
+                        },
+                        {
+                          "text": "[Auth] Filling credentials...\n"
+                        },
+                        {
+                          "text": "[Auth] Clicking Submit button...\n"
+                        },
+                        {
+                          "text": "[Auth] Waiting for dashboard to load...\n"
+                        },
+                        {
+                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] Setting Start Date to 2025-12-26 (30 days ago)\n"
+                        },
+                        {
+                          "text": "[Test] Verifying backdated membership creation...\n"
+                        },
+                        {
+                          "text": "[Navigation] Navigating to \"Invoices\"...\n"
+                        },
+                        {
+                          "text": "[Navigation] Found \"Invoices\" in desktop sidebar\n"
+                        },
+                        {
+                          "text": "[Test] WARNING: No immediate invoice found for backdated plan. Backend might process async.\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 2,
+                      "startTime": "2026-01-25T23:21:53.441Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-005f6-voice-Backdated-Membership--chrome-retry2/test-finished-1.png"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "17892356a75345bc003d-9bfab0bf5638385714f8",
+              "file": "e2e/financial-integrity.spec.js",
+              "line": 14,
+              "column": 3
+            },
+            {
+              "title": "FIN-02: Negative Line Item (Discount Logic)",
               "ok": false,
               "tags": [],
               "tests": [
@@ -109,396 +316,195 @@
                       "workerIndex": 0,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 30457,
+                      "duration": 22840,
                       "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n",
+                        "stack": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74",
                         "location": {
-                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                           "column": 74,
-                          "line": 88
+                          "line": 85
                         },
-                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                        "snippet": "\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
-                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                             "column": 74,
-                            "line": 88
+                            "line": 85
                           },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319564591\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                          "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74\u001b[22m"
                         }
                       ],
                       "stdout": [
                         {
-                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319564591\"\n"
-                        },
-                        {
-                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
-                        },
-                        {
-                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
-                        },
-                        {
-                          "text": "[Auth] Filling credentials...\n"
-                        },
-                        {
-                          "text": "[Auth] Clicking Submit button...\n"
-                        },
-                        {
-                          "text": "[Auth] Waiting for dashboard to load...\n"
-                        },
-                        {
-                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
-                        },
-                        {
-                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
-                        },
-                        {
-                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
-                        },
-                        {
-                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                          "text": "[Test] Starting FIN-02: Negative Line Items\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 0,
-                      "startTime": "2026-01-25T05:39:24.595Z",
+                      "startTime": "2026-01-25T23:20:52.844Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/test-failed-1.png"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome/test-failed-1.png"
                         },
                         {
                           "name": "video",
                           "contentType": "video/webm",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/video.webm"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome/video.webm"
                         },
                         {
                           "name": "error-context",
                           "contentType": "text/markdown",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/error-context.md"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome/error-context.md"
                         },
                         {
                           "name": "trace",
                           "contentType": "application/zip",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome/trace.zip"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome/trace.zip"
                         }
                       ],
                       "errorLocation": {
-                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                         "column": 74,
-                        "line": 88
+                        "line": 85
                       }
                     },
                     {
                       "workerIndex": 1,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 30113,
+                      "duration": 22727,
                       "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n",
+                        "stack": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74",
                         "location": {
-                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                           "column": 74,
-                          "line": 88
+                          "line": 85
                         },
-                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                        "snippet": "\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
-                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                             "column": 74,
-                            "line": 88
+                            "line": 85
                           },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319596336\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                          "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74\u001b[22m"
                         }
                       ],
                       "stdout": [
                         {
-                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319596336\"\n"
-                        },
-                        {
-                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
-                        },
-                        {
-                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
-                        },
-                        {
-                          "text": "[Auth] Filling credentials...\n"
-                        },
-                        {
-                          "text": "[Auth] Clicking Submit button...\n"
-                        },
-                        {
-                          "text": "[Auth] Waiting for dashboard to load...\n"
-                        },
-                        {
-                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
-                        },
-                        {
-                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
-                        },
-                        {
-                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
-                        },
-                        {
-                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                          "text": "[Test] Starting FIN-02: Negative Line Items\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 1,
-                      "startTime": "2026-01-25T05:39:56.340Z",
+                      "startTime": "2026-01-25T23:21:30.278Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/test-failed-1.png"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry1/test-failed-1.png"
                         },
                         {
                           "name": "video",
                           "contentType": "video/webm",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/video.webm"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry1/video.webm"
                         },
                         {
                           "name": "error-context",
                           "contentType": "text/markdown",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/error-context.md"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry1/error-context.md"
                         },
                         {
                           "name": "trace",
                           "contentType": "application/zip",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry1/trace.zip"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry1/trace.zip"
                         }
                       ],
                       "errorLocation": {
-                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                         "column": 74,
-                        "line": 88
+                        "line": 85
                       }
                     },
                     {
                       "workerIndex": 2,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 30211,
+                      "duration": 22876,
                       "error": {
-                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n",
-                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74",
+                        "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n",
+                        "stack": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74",
                         "location": {
-                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                          "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                           "column": 74,
-                          "line": 88
+                          "line": 85
                         },
-                        "snippet": "\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m"
+                        "snippet": "\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
-                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                            "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                             "column": 74,
-                            "line": 88
+                            "line": 85
                           },
-                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for locator('h4:has-text(\"Sandbox Plan 1769319627461\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 86 |\u001b[39m         \u001b[90m// Verify Created\u001b[39m\n \u001b[90m 87 |\u001b[39m         \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mwaitForTimeout(\u001b[35m2000\u001b[39m)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 88 |\u001b[39m         \u001b[36mawait\u001b[39m expect(page\u001b[33m.\u001b[39mlocator(\u001b[32m`h4:has-text(\"${planName}\")`\u001b[39m)\u001b[33m.\u001b[39mfirst())\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 89 |\u001b[39m         console\u001b[33m.\u001b[39mlog(\u001b[32m'[Test] Plan created successfully'\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 90 |\u001b[39m     })\u001b[33m;\u001b[39m\n \u001b[90m 91 |\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js:88:74\u001b[22m"
+                          "message": "TimeoutError: locator.click: Timeout 20000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('button:has-text(\"New Invoice\")').first()\u001b[22m\n\n\n\u001b[0m \u001b[90m 83 |\u001b[39m             \u001b[36mawait\u001b[39m newInvoiceBtn\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m 84 |\u001b[39m         } \u001b[36melse\u001b[39m {\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 85 |\u001b[39m             \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39mlocator(\u001b[32m'button:has-text(\"New Invoice\")'\u001b[39m)\u001b[33m.\u001b[39mfirst()\u001b[33m.\u001b[39mclick()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                          \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 86 |\u001b[39m         }\n \u001b[90m 87 |\u001b[39m\n \u001b[90m 88 |\u001b[39m         \u001b[90m// 2. Add Positive Item\u001b[39m\u001b[0m\n\u001b[2m    at /Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js:85:74\u001b[22m"
                         }
                       ],
                       "stdout": [
                         {
-                          "text": "[Test] Starting MEM-01: Create Plan \"Sandbox Plan 1769319627461\"\n"
-                        },
-                        {
-                          "text": "[Auth] Performing login for contractor (danvdova@gmail.com)...\n"
-                        },
-                        {
-                          "text": "[Auth] Not logged in, looking for Sign In button...\n"
-                        },
-                        {
-                          "text": "[Auth] Filling credentials...\n"
-                        },
-                        {
-                          "text": "[Auth] Clicking Submit button...\n"
-                        },
-                        {
-                          "text": "[Auth] Waiting for dashboard to load...\n"
-                        },
-                        {
-                          "text": "[Auth] Login successful for contractor - on https://mykrib.app/home?pro=dashboard\n"
-                        },
-                        {
-                          "text": "[Navigation] Navigating to \"Memberships\"...\n"
-                        },
-                        {
-                          "text": "[Navigation] Found \"Memberships\" in desktop sidebar\n"
-                        },
-                        {
-                          "text": "[Test] Plan Builder Open. Attempting Aggressive Fill...\n"
+                          "text": "[Test] Starting FIN-02: Negative Line Items\n"
                         }
                       ],
                       "stderr": [],
                       "retry": 2,
-                      "startTime": "2026-01-25T05:40:27.465Z",
+                      "startTime": "2026-01-25T23:22:07.611Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/test-failed-1.png"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry2/test-failed-1.png"
                         },
                         {
                           "name": "video",
                           "contentType": "video/webm",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/video.webm"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry2/video.webm"
                         },
                         {
                           "name": "error-context",
                           "contentType": "text/markdown",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/error-context.md"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry2/error-context.md"
                         },
                         {
                           "name": "trace",
                           "contentType": "application/zip",
-                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-recurring-services-Mem-1865a-tractor-Creates-a-PAID-Plan-chrome-retry2/trace.zip"
+                          "path": "/Users/devondavila/trellis-app/trellis-app/test-results/e2e-financial-integrity-Fi-14f8a-e-Line-Item-Discount-Logic--chrome-retry2/trace.zip"
                         }
                       ],
                       "errorLocation": {
-                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/recurring-services.spec.js",
+                        "file": "/Users/devondavila/trellis-app/trellis-app/tests/e2e/financial-integrity.spec.js",
                         "column": 74,
-                        "line": 88
+                        "line": 85
                       }
                     }
                   ],
                   "status": "unexpected"
                 }
               ],
-              "id": "0c1b040191dacaf60463-f3aada130469f5327372",
-              "file": "e2e/recurring-services.spec.js",
-              "line": 16,
-              "column": 3
-            },
-            {
-              "title": "MEM-02: Assign & Pay (Stripe Sandbox)",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 180000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chrome",
-                  "projectName": "chrome",
-                  "results": [
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-25T05:39:56.020Z",
-                      "annotations": [],
-                      "attachments": []
-                    },
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2026-01-25T05:40:27.119Z",
-                      "annotations": [],
-                      "attachments": []
-                    },
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 2,
-                      "startTime": "2026-01-25T05:40:58.312Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "skipped"
-                }
-              ],
-              "id": "0c1b040191dacaf60463-f728e60aa0f1a165ef6a",
-              "file": "e2e/recurring-services.spec.js",
-              "line": 107,
-              "column": 3
-            },
-            {
-              "title": "MEM-03: Verify & Cleanup (Homeowner)",
-              "ok": true,
-              "tags": [],
-              "tests": [
-                {
-                  "timeout": 180000,
-                  "annotations": [],
-                  "expectedStatus": "passed",
-                  "projectId": "chrome",
-                  "projectName": "chrome",
-                  "results": [
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 0,
-                      "startTime": "2026-01-25T05:39:56.021Z",
-                      "annotations": [],
-                      "attachments": []
-                    },
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 1,
-                      "startTime": "2026-01-25T05:40:27.120Z",
-                      "annotations": [],
-                      "attachments": []
-                    },
-                    {
-                      "workerIndex": -1,
-                      "parallelIndex": -1,
-                      "status": "skipped",
-                      "duration": 0,
-                      "errors": [],
-                      "stdout": [],
-                      "stderr": [],
-                      "retry": 2,
-                      "startTime": "2026-01-25T05:40:58.313Z",
-                      "annotations": [],
-                      "attachments": []
-                    }
-                  ],
-                  "status": "skipped"
-                }
-              ],
-              "id": "0c1b040191dacaf60463-f8a3c074f06e6427501c",
-              "file": "e2e/recurring-services.spec.js",
-              "line": 195,
+              "id": "17892356a75345bc003d-b1765e7012c2db0fd8a6",
+              "file": "e2e/financial-integrity.spec.js",
+              "line": 65,
               "column": 3
             }
           ]
@@ -508,10 +514,10 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-01-25T05:39:24.251Z",
-    "duration": 94082.577,
-    "expected": 0,
-    "skipped": 2,
+    "startTime": "2026-01-25T23:20:37.661Z",
+    "duration": 112923.957,
+    "expected": 1,
+    "skipped": 0,
     "unexpected": 1,
     "flaky": 0
   }

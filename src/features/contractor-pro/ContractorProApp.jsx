@@ -3251,6 +3251,7 @@ export const ContractorProApp = () => {
                                         jobs={jobs}
                                         teamMembers={profile?.scheduling?.teamMembers || []}
                                         vehicles={vehicles || []}
+                                        preferences={profile?.scheduling}
                                         onJobUpdate={() => { }}
                                     />
                                 )}

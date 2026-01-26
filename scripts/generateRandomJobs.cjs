@@ -260,6 +260,30 @@ const JOB_STATUS_DISTRIBUTION = [
 ];
 
 // ============================================
+// SPECIFIC JOB STRUCTURE FOR TESTING
+// This ensures we have the right mix of job types
+// ============================================
+const REQUIRED_JOB_STRUCTURE = [
+    // 2 confirmed/assigned jobs (scheduled with crew)
+    { type: 'confirmed', status: 'scheduled', assignCrew: true, assignVehicle: true },
+    { type: 'confirmed', status: 'scheduled', assignCrew: true, assignVehicle: false },
+    // 2 AI-suggested jobs (scheduled but not confirmed - aiSuggested flag)
+    { type: 'ai_suggested', status: 'scheduled', assignCrew: true, aiSuggested: true },
+    { type: 'ai_suggested', status: 'scheduled', assignCrew: true, aiSuggested: true },
+    // 2 pending jobs (slots offered, awaiting homeowner response)
+    { type: 'pending', status: 'slots_offered', assignCrew: false },
+    { type: 'pending', status: 'slots_offered', assignCrew: false },
+    // 1 multi-day job (40+ hours = 2400+ minutes)
+    { type: 'multi_day', status: 'scheduled', assignCrew: true, minDuration: 2400 },
+    // 1 in-progress job
+    { type: 'in_progress', status: 'in_progress', assignCrew: true },
+    // 1 completed job
+    { type: 'completed', status: 'completed', assignCrew: true },
+    // 1 evaluation/site visit
+    { type: 'evaluation', status: 'pending_schedule', isEvaluation: true }
+];
+
+// ============================================
 // MEMBERSHIP PLANS (for membership-lifecycle tests)
 // ============================================
 const MEMBERSHIP_PLAN_TEMPLATES = [
@@ -747,6 +771,174 @@ function generateJob(contractorId, index, businessHours, crewMembers, forcedStat
     return job;
 }
 
+/**
+ * Generate a job with specific requirements from REQUIRED_JOB_STRUCTURE
+ */
+function generateJobWithSpec(contractorId, index, businessHours, crewMembers, vehicles, spec) {
+    // Select appropriate template based on spec
+    let template;
+    if (spec.minDuration) {
+        // For multi-day jobs, pick a template with high duration
+        const multiDayTemplates = JOB_TEMPLATES.filter(t => t.maxDuration >= spec.minDuration);
+        template = multiDayTemplates.length > 0 ? randomElement(multiDayTemplates) : JOB_TEMPLATES[JOB_TEMPLATES.length - 1];
+    } else if (spec.isEvaluation) {
+        // For evaluations, use shorter inspection-type jobs
+        template = { title: 'Site Evaluation / Assessment', category: 'Evaluation', minDuration: 60, maxDuration: 120, minCrew: 1, maxCrew: 1 };
+    } else {
+        template = randomElement(JOB_TEMPLATES);
+    }
+
+    // Duration: use spec minimum or template range
+    const duration = spec.minDuration
+        ? Math.max(spec.minDuration, template.minDuration)
+        : randomInt(template.minDuration, template.maxDuration);
+
+    // Crew size
+    const maxCrew = Math.min(template.maxCrew, crewMembers.length);
+    const minCrew = Math.min(template.minCrew, maxCrew);
+    const crewSize = randomInt(minCrew, maxCrew);
+
+    // Customer info
+    const firstName = randomElement(FIRST_NAMES);
+    const lastName = randomElement(LAST_NAMES);
+    const customerName = `${firstName} ${lastName}`;
+    const location = randomElement(SERVICE_ADDRESSES);
+
+    // Schedule
+    const schedule = generateValidSchedule(duration, businessHours);
+    const isMultiDay = duration > getWorkdayMinutes(businessHours, schedule.dayOfWeek);
+
+    // Crew assignment based on spec
+    let assignedTechId = null;
+    let assignedTechName = null;
+    let assignedCrew = [];
+    let assignedCrewIds = [];
+    let assignedVehicleId = null;
+
+    if (spec.assignCrew && crewMembers.length > 0) {
+        const selectedCrew = randomSubset(crewMembers, Math.min(crewSize, crewMembers.length), Math.min(crewSize, crewMembers.length));
+        assignedTechId = selectedCrew[0]?.id || null;
+        assignedTechName = selectedCrew[0]?.name || null;
+        assignedCrew = selectedCrew.map(c => ({ id: c.id, name: c.name, role: c.role }));
+        assignedCrewIds = selectedCrew.map(c => c.id);
+    }
+
+    // Vehicle assignment
+    if (spec.assignVehicle && vehicles.length > 0) {
+        assignedVehicleId = `vehicle_0`; // Assign first vehicle
+    }
+
+    // Date handling based on status
+    let scheduledDate = schedule.date.toISOString();
+    let scheduledTime = schedule.startTimeISO;
+    let scheduledEndTime = schedule.endTimeISO;
+
+    if (spec.status === 'completed') {
+        const pastDays = randomInt(7, 30);
+        const pastDate = new Date();
+        pastDate.setDate(pastDate.getDate() - pastDays);
+        scheduledDate = pastDate.toISOString();
+        const dateStr = pastDate.toISOString().split('T')[0];
+        scheduledTime = `${dateStr}T${schedule.startTime}:00`;
+        scheduledEndTime = `${dateStr}T${schedule.endTime}:00`;
+    }
+
+    if (spec.status === 'in_progress') {
+        const today = new Date();
+        scheduledDate = today.toISOString();
+        const dateStr = today.toISOString().split('T')[0];
+        scheduledTime = `${dateStr}T${schedule.startTime}:00`;
+        scheduledEndTime = `${dateStr}T${schedule.endTime}:00`;
+    }
+
+    // Build offered slots for slots_offered status
+    let offeredSlots = null;
+    if (spec.status === 'slots_offered') {
+        const slotDate1 = new Date();
+        slotDate1.setDate(slotDate1.getDate() + randomInt(2, 7));
+        const slotDate2 = new Date(slotDate1);
+        slotDate2.setDate(slotDate2.getDate() + 1);
+        offeredSlots = [
+            { date: slotDate1.toISOString().split('T')[0], startTime: '09:00', endTime: '12:00' },
+            { date: slotDate1.toISOString().split('T')[0], startTime: '13:00', endTime: '17:00' },
+            { date: slotDate2.toISOString().split('T')[0], startTime: '09:00', endTime: '12:00' }
+        ];
+    }
+
+    const job = {
+        jobNumber: generateJobNumber(),
+        contractorId: contractorId,
+        source: 'direct',
+        type: spec.isEvaluation ? 'evaluation' : 'job',
+        title: template.title,
+        description: `${template.title} - ${customerName}. ${spec.type} job for testing.`,
+        category: template.category,
+        serviceType: template.category,
+        estimatedDuration: duration,
+        price: Math.round(duration * (randomInt(50, 150) / 60) * 100) / 100,
+        priority: spec.type === 'confirmed' ? 'high' : randomElement(JOB_PRIORITIES),
+        customer: {
+            name: customerName,
+            phone: generatePhone(),
+            email: generateEmail(firstName, lastName),
+            address: location.address
+        },
+        customerName: customerName,
+        customerPhone: generatePhone(),
+        customerEmail: generateEmail(firstName, lastName),
+        propertyAddress: location.address,
+        serviceLocation: {
+            address: location.address,
+            coordinates: { lat: location.lat, lng: location.lng }
+        },
+        status: spec.status,
+        scheduledDate: scheduledDate,
+        scheduledTime: scheduledTime,
+        scheduledEndTime: scheduledEndTime,
+        scheduledTimezone: 'America/Los_Angeles',
+        isMultiDay: isMultiDay,
+        crewRequirements: {
+            required: crewSize,
+            minimum: Math.max(1, crewSize - 1),
+            maximum: Math.min(8, crewSize + 2),
+            source: 'specified',
+            requiresMultipleTechs: crewSize > 1,
+            totalLaborHours: (duration / 60) * crewSize,
+            notes: [],
+            extractedAt: new Date().toISOString()
+        },
+        requiredCrewSize: crewSize,
+        assignedTechId: assignedTechId,
+        assignedTechName: assignedTechName,
+        assignedVehicleId: assignedVehicleId,
+        assignedCrew: assignedCrew,
+        assignedCrewIds: assignedCrewIds,
+        // Special flags based on spec
+        aiSuggested: spec.aiSuggested || false,
+        confirmed: spec.type === 'confirmed',
+        offeredSlots: offeredSlots,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastActivity: admin.firestore.FieldValue.serverTimestamp(),
+        notes: `Test job: ${spec.type}`,
+        createdBy: 'script:generateRandomJobs',
+        homeownerLinked: false,
+        homeownerId: null,
+        propertyId: null
+    };
+
+    if (isMultiDay) {
+        job.scheduleBlocks = generateScheduleBlocks(schedule.date, duration, businessHours);
+        job.multiDaySchedule = {
+            segments: job.scheduleBlocks,
+            dailyStartTime: businessHours.monday.start,
+            dailyEndTime: businessHours.monday.end
+        };
+    }
+
+    return job;
+}
+
 function generateValidSchedule(durationMinutes, businessHours) {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -1149,9 +1341,9 @@ async function main() {
     const db = await initializeFirebase();
     const contractorRef = db.doc(`${CONTRACTORS_COLLECTION}/${CONFIG.contractorId}`);
 
-    // Determine crew and vehicle counts
-    const crewCount = CONFIG.crewCount || randomInt(2, 6);
-    const vehicleCount = CONFIG.vehicleCount || Math.max(1, crewCount - randomInt(0, 1));
+    // Determine crew and vehicle counts (minimum 3 crew for proper testing)
+    const crewCount = CONFIG.crewCount || Math.max(3, randomInt(3, 6));
+    const vehicleCount = CONFIG.vehicleCount || Math.max(2, crewCount - randomInt(0, 1));
 
     console.log(`Contractor ID: ${CONFIG.contractorId}`);
     console.log(`Jobs to create: ${CONFIG.count}`);
@@ -1207,34 +1399,46 @@ async function main() {
         crewMembers[i].primaryVehicleId = `vehicle_${i}`;
     }
 
-    // ---- Step 4: Generate Jobs ----
-    console.log(`\n--- Step 4: Generating ${CONFIG.count} Jobs ---`);
+    // ---- Step 4: Generate Jobs with Required Structure ----
+    console.log(`\n--- Step 4: Generating Jobs with Required Structure ---`);
     const jobs = [];
-    const stats = { totalDuration: 0, minDuration: Infinity, maxDuration: 0, multiDay: 0, byCategory: {} };
+    const stats = { totalDuration: 0, minDuration: Infinity, maxDuration: 0, multiDay: 0, byCategory: {}, byType: {} };
 
-    // Force statuses for test coverage: pending, completed, in_progress, scheduled, pending
-    const jobStatuses = [null, 'completed', 'in_progress', 'scheduled', null];
-
-    for (let i = 0; i < CONFIG.count; i++) {
-        const job = generateJob(CONFIG.contractorId, i, businessHours, crewMembers, jobStatuses[i]);
+    // First, generate the required job types
+    console.log('   Creating required job types:');
+    for (let i = 0; i < REQUIRED_JOB_STRUCTURE.length; i++) {
+        const spec = REQUIRED_JOB_STRUCTURE[i];
+        const job = generateJobWithSpec(CONFIG.contractorId, i, businessHours, crewMembers, vehicles, spec);
         jobs.push(job);
         stats.totalDuration += job.estimatedDuration;
         stats.minDuration = Math.min(stats.minDuration, job.estimatedDuration);
         stats.maxDuration = Math.max(stats.maxDuration, job.estimatedDuration);
         if (job.isMultiDay) stats.multiDay++;
         stats.byCategory[job.category] = (stats.byCategory[job.category] || 0) + 1;
+        stats.byType[spec.type] = (stats.byType[spec.type] || 0) + 1;
+        console.log(`     - ${spec.type}: ${job.title} (${job.status})`);
     }
 
-    console.log(`   Duration range: ${stats.minDuration} min - ${stats.maxDuration} min`);
-    console.log(`   Average duration: ${Math.round(stats.totalDuration / CONFIG.count)} min`);
-    console.log(`   Multi-day jobs: ${stats.multiDay} (${Math.round(stats.multiDay / CONFIG.count * 100)}%)`);
-    console.log('   Categories:', Object.entries(stats.byCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(', '));
+    // Then fill remaining count with random jobs
+    const remainingCount = Math.max(0, CONFIG.count - REQUIRED_JOB_STRUCTURE.length);
+    if (remainingCount > 0) {
+        console.log(`   Adding ${remainingCount} additional random jobs...`);
+        for (let i = 0; i < remainingCount; i++) {
+            const job = generateJob(CONFIG.contractorId, REQUIRED_JOB_STRUCTURE.length + i, businessHours, crewMembers, null);
+            jobs.push(job);
+            stats.totalDuration += job.estimatedDuration;
+            stats.minDuration = Math.min(stats.minDuration, job.estimatedDuration);
+            stats.maxDuration = Math.max(stats.maxDuration, job.estimatedDuration);
+            if (job.isMultiDay) stats.multiDay++;
+            stats.byCategory[job.category] = (stats.byCategory[job.category] || 0) + 1;
+        }
+    }
 
-    console.log('\n   Sample jobs:');
-    jobs.slice(0, 3).forEach((job, i) => {
-        const time = job.scheduledTime?.split('T')[1]?.replace(':00', '') || 'N/A';
-        console.log(`     ${i + 1}. ${job.title} | ${job.estimatedDuration}min | crew:${job.requiredCrewSize} | ${time} | ${job.propertyAddress}`);
-    });
+    console.log(`\n   Total jobs: ${jobs.length}`);
+    console.log(`   Job types: ${Object.entries(stats.byType).map(([k, v]) => `${k}:${v}`).join(', ')}`);
+    console.log(`   Duration range: ${stats.minDuration} min - ${stats.maxDuration} min`);
+    console.log(`   Multi-day jobs: ${stats.multiDay}`);
+    console.log('   Categories:', Object.entries(stats.byCategory).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}:${v}`).join(', '));
 
     if (CONFIG.dryRun) {
         console.log('\n*** DRY RUN - Nothing was created ***\n');

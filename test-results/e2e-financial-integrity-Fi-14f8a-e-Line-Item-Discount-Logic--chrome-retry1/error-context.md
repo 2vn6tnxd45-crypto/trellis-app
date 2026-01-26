@@ -1,0 +1,46 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic "Krib logo" [ref=e7]:
+      - generic [ref=e8]: kr
+      - generic [ref=e9]: ı
+      - generic [ref=e11]: b
+    - paragraph [ref=e12]: Your home's digital twin
+  - generic [ref=e13]:
+    - heading "Welcome back" [level=2] [ref=e14]
+    - paragraph [ref=e15]: Sign in to access your home records.
+    - button "Continue with Google" [ref=e16] [cursor=pointer]:
+      - img [ref=e17]
+      - text: Continue with Google
+    - generic [ref=e24]: OR
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - generic [ref=e28]: Email
+        - generic [ref=e29]:
+          - img [ref=e30]
+          - textbox "Email" [ref=e33]:
+            - /placeholder: you@example.com
+      - generic [ref=e34]:
+        - generic [ref=e35]: Password
+        - generic [ref=e36]:
+          - img [ref=e37]
+          - textbox "Password" [ref=e40]
+          - button "Show password" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+      - button "Forgot password?" [ref=e46] [cursor=pointer]
+      - button "Sign In" [ref=e47] [cursor=pointer]
+    - paragraph [ref=e48]:
+      - text: Don't have an account?
+      - button "Sign up" [ref=e49] [cursor=pointer]
+  - paragraph [ref=e50]:
+    - text: By continuing, you agree to our
+    - link "Privacy Policy" [ref=e51] [cursor=pointer]:
+      - /url: /privacy_policy.html
+    - text: .
+  - generic [ref=e52]:
+    - paragraph [ref=e53]: Are you a contractor or service pro?
+    - link "Free tools for your business →" [ref=e54] [cursor=pointer]:
+      - /url: "?pro"
+```
