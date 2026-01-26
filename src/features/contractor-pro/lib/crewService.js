@@ -134,16 +134,17 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
     }
 
     // Build update data
+    // BUG-046 Fix: Firestore doesn't allow undefined values, use null instead
     const updateData = {
         // New crew format
         assignedCrew: crew,
         crewSize: crew.length,
 
-        // Legacy fields for backward compatibility
-        assignedTechId: lead.techId,
-        assignedTechName: lead.techName,
-        assignedVehicleId: lead.vehicleId,
-        assignedVehicleName: lead.vehicleName,
+        // Legacy fields for backward compatibility (ensure no undefined values)
+        assignedTechId: lead.techId || null,
+        assignedTechName: lead.techName || null,
+        assignedVehicleId: lead.vehicleId || null,
+        assignedVehicleName: lead.vehicleName || null,
 
         // Metadata
         assignedAt: serverTimestamp(),
