@@ -1026,30 +1026,39 @@ export const ModernDashboard = ({
                 return;
             }
 
-            // Find and update the specific maintenance task
-            // Check both t.task and t.taskName due to inconsistent field naming
-            const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                const storedTaskName = t.task || t.taskName;
-                if (storedTaskName === task.taskName) {
-                    const newDueDate = new Date();
-                    newDueDate.setDate(newDueDate.getDate() + days);
-
-                    return {
-                        ...t,
-                        nextDue: newDueDate.toISOString(),
-                        snoozedAt: new Date().toISOString(),
-                        snoozedDays: days
-                    };
-                }
-                return t;
-            });
-
-            // Update the record in Firestore - all records live in house_records
             const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
-            await updateDoc(recordRef, {
-                maintenanceTasks: updatedTasks,
-                lastActivity: new Date()
-            });
+            const newDueDate = new Date();
+            newDueDate.setDate(newDueDate.getDate() + days);
+
+            // Check if this is a granular task (has maintenanceTasks array)
+            if (task.isGranular && record.maintenanceTasks && record.maintenanceTasks.length > 0) {
+                // Find and update the specific maintenance task
+                const updatedTasks = record.maintenanceTasks.map(t => {
+                    const storedTaskName = t.task || t.taskName;
+                    if (storedTaskName === task.taskName) {
+                        return {
+                            ...t,
+                            nextDue: newDueDate.toISOString(),
+                            snoozedAt: new Date().toISOString(),
+                            snoozedDays: days
+                        };
+                    }
+                    return t;
+                });
+
+                await updateDoc(recordRef, {
+                    maintenanceTasks: updatedTasks,
+                    lastActivity: new Date()
+                });
+            } else {
+                // Non-granular record - update at record level
+                await updateDoc(recordRef, {
+                    nextMaintenanceDate: newDueDate.toISOString(),
+                    snoozedAt: new Date().toISOString(),
+                    snoozedDays: days,
+                    lastActivity: new Date()
+                });
+            }
 
             toast.success(`Snoozed for ${days} days`);
         } catch (err) {
@@ -1072,27 +1081,37 @@ export const ModernDashboard = ({
                 return;
             }
 
-            // Find and update the specific maintenance task
-            // Check both t.task and t.taskName due to inconsistent field naming
-            const updatedTasks = (record.maintenanceTasks || []).map(t => {
-                const storedTaskName = t.task || t.taskName;
-                if (storedTaskName === task.taskName) {
-                    return {
-                        ...t,
-                        scheduledDate: scheduledDate,
-                        scheduledNotes: notes || null,
-                        scheduledAt: new Date().toISOString()
-                    };
-                }
-                return t;
-            });
-
-            // Update the record in Firestore - all records live in house_records
             const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
-            await updateDoc(recordRef, {
-                maintenanceTasks: updatedTasks,
-                lastActivity: new Date()
-            });
+
+            // Check if this is a granular task (has maintenanceTasks array)
+            if (task.isGranular && record.maintenanceTasks && record.maintenanceTasks.length > 0) {
+                // Find and update the specific maintenance task
+                const updatedTasks = record.maintenanceTasks.map(t => {
+                    const storedTaskName = t.task || t.taskName;
+                    if (storedTaskName === task.taskName) {
+                        return {
+                            ...t,
+                            scheduledDate: scheduledDate,
+                            scheduledNotes: notes || null,
+                            scheduledAt: new Date().toISOString()
+                        };
+                    }
+                    return t;
+                });
+
+                await updateDoc(recordRef, {
+                    maintenanceTasks: updatedTasks,
+                    lastActivity: new Date()
+                });
+            } else {
+                // Non-granular record - update at record level
+                await updateDoc(recordRef, {
+                    scheduledMaintenanceDate: scheduledDate,
+                    scheduledMaintenanceNotes: notes || null,
+                    scheduledAt: new Date().toISOString(),
+                    lastActivity: new Date()
+                });
+            }
 
             const dateStr = new Date(scheduledDate).toLocaleDateString('en-US', {
                 weekday: 'short',
@@ -1103,6 +1122,50 @@ export const ModernDashboard = ({
         } catch (err) {
             console.error('Error scheduling task:', err);
             toast.error('Failed to schedule task');
+        }
+    };
+
+    // Delete task - removes the maintenance task from the record
+    const handleDeleteTask = async (task) => {
+        if (!task || !task.recordId) {
+            toast.error('Unable to delete task');
+            return;
+        }
+
+        try {
+            const record = validRecords.find(r => r.id === task.recordId);
+            if (!record) {
+                toast.error('Record not found');
+                return;
+            }
+
+            const recordRef = doc(db, 'artifacts', appId, 'users', userId, 'house_records', task.recordId);
+
+            // Check if this is a granular task (has maintenanceTasks array)
+            if (task.isGranular && record.maintenanceTasks && record.maintenanceTasks.length > 0) {
+                // Remove the specific maintenance task from the array
+                const updatedTasks = record.maintenanceTasks.filter(t => {
+                    const storedTaskName = t.task || t.taskName;
+                    return storedTaskName !== task.taskName;
+                });
+
+                await updateDoc(recordRef, {
+                    maintenanceTasks: updatedTasks,
+                    lastActivity: new Date()
+                });
+            } else {
+                // Non-granular record - set maintenance frequency to 'none'
+                await updateDoc(recordRef, {
+                    maintenanceFrequency: 'none',
+                    nextMaintenanceDate: null,
+                    lastActivity: new Date()
+                });
+            }
+
+            toast.success('Task removed');
+        } catch (err) {
+            console.error('Error deleting task:', err);
+            toast.error('Failed to delete task');
         }
     };
 
@@ -1278,6 +1341,7 @@ export const ModernDashboard = ({
                     onSnoozeTask={handleSnoozeTask}
                     onScheduleTask={handleScheduleTask}
                     onBookService={handleBookService}
+                    onDeleteTask={handleDeleteTask}
                 />
             </DashboardSection>
 

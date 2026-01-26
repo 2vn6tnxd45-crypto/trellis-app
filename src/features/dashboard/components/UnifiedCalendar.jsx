@@ -12,7 +12,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
     ChevronLeft, ChevronRight, ChevronDown, Calendar, Wrench, RefreshCw,
     Briefcase, ClipboardList, MapPin, Clock, User, X, AlertTriangle,
-    CheckCircle2, AlarmClock, CalendarClock
+    CheckCircle2, AlarmClock, CalendarClock, Trash2
 } from 'lucide-react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
@@ -154,10 +154,12 @@ const EventDetailModal = ({
     onMarkDone = null,
     onSnooze = null,
     onSchedule = null,
-    onBookService = null
+    onBookService = null,
+    onDelete = null
 }) => {
     const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [scheduleDate, setScheduleDate] = useState(
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     );
@@ -359,7 +361,63 @@ const EventDetailModal = ({
                     >
                         Close
                     </button>
+
+                    {/* Delete Link - Only for maintenance items */}
+                    {isMaintenanceItem && onDelete && (
+                        <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="w-full py-2 text-xs text-red-500 hover:text-red-600 font-medium transition-colors"
+                        >
+                            Remove this task
+                        </button>
+                    )}
                 </div>
+
+                {/* Delete Confirmation Modal */}
+                {showDeleteConfirm && (
+                    <div
+                        className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+                        onClick={() => setShowDeleteConfirm(false)}
+                    >
+                        <div
+                            className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl"
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="h-10 w-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
+                                    <Trash2 size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-slate-800">Remove Task</h3>
+                                    <p className="text-xs text-slate-500">{event.title}</p>
+                                </div>
+                            </div>
+
+                            <p className="text-sm text-slate-600 mb-4">
+                                Are you sure you want to remove this maintenance task? This will stop reminders for this task.
+                            </p>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="flex-1 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onDelete(taskData);
+                                        setShowDeleteConfirm(false);
+                                        onClose();
+                                    }}
+                                    className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 transition-colors"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Schedule Modal */}
                 {showScheduleModal && (
@@ -447,7 +505,8 @@ export const UnifiedCalendar = ({
     onMarkTaskDone = null,
     onSnoozeTask = null,
     onScheduleTask = null,
-    onBookService = null
+    onBookService = null,
+    onDeleteTask = null
 }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [jobs, setJobs] = useState([]);
@@ -1023,6 +1082,7 @@ export const UnifiedCalendar = ({
                     onSnooze={onSnoozeTask}
                     onSchedule={onScheduleTask}
                     onBookService={onBookService}
+                    onDelete={onDeleteTask}
                 />
             )}
             </div>
