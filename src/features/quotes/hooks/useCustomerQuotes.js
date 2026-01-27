@@ -27,11 +27,31 @@ export const useCustomerQuotes = (userId) => {
             );
 
             const snapshot = await getDocs(q);
-            const results = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                contractorId: doc.ref.parent.parent.id
-            }));
+            const results = snapshot.docs.map(doc => {
+                const data = doc.data();
+
+                // BUG-047 FIX: Extract contractorId correctly based on document path
+                // Quotes can be stored in two locations:
+                // 1. /artifacts/krib-app/public/data/contractors/{contractorId}/quotes/{quoteId} (correct)
+                // 2. /artifacts/krib-app/public/data/quotes/{quoteId} (legacy - no contractor context)
+                // Use stored contractorId field if available, otherwise extract from path
+                let contractorId = data.contractorId;
+
+                if (!contractorId) {
+                    // Try to extract from path - check if parent collection is under a contractor
+                    const pathSegments = doc.ref.path.split('/');
+                    const contractorsIndex = pathSegments.indexOf('contractors');
+                    if (contractorsIndex !== -1 && pathSegments[contractorsIndex + 1]) {
+                        contractorId = pathSegments[contractorsIndex + 1];
+                    }
+                }
+
+                return {
+                    id: doc.id,
+                    ...data,
+                    contractorId
+                };
+            });
 
             setQuotes(results);
             setError(null);

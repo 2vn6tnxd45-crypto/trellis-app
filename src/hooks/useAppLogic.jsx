@@ -394,11 +394,27 @@ export const useAppLogic = (celebrations) => {
                     orderBy('updatedAt', 'desc')
                 );
                 const snapshot = await getDocs(q);
-                const quotes = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data(),
-                    contractorId: doc.ref.parent.parent.id
-                }));
+                const quotes = snapshot.docs.map(doc => {
+                    const data = doc.data();
+
+                    // BUG-047 FIX: Extract contractorId correctly based on document path
+                    // Use stored contractorId field if available, otherwise extract from path
+                    let contractorId = data.contractorId;
+
+                    if (!contractorId) {
+                        const pathSegments = doc.ref.path.split('/');
+                        const contractorsIndex = pathSegments.indexOf('contractors');
+                        if (contractorsIndex !== -1 && pathSegments[contractorsIndex + 1]) {
+                            contractorId = pathSegments[contractorsIndex + 1];
+                        }
+                    }
+
+                    return {
+                        id: doc.id,
+                        ...data,
+                        contractorId
+                    };
+                });
 
                 // Filter for actionable quotes (sent or viewed)
                 const pendingQuotes = quotes.filter(q => ['sent', 'viewed'].includes(q.status));

@@ -28,6 +28,8 @@ import { checkForConflicts } from '../lib/schedulingAI';
 import { isMultiDayJob as checkIsMultiDay, calculateDaysNeeded } from '../lib/multiDayUtils';
 // Import quote service for updating quote status on cancellation
 import { markQuoteJobCancelled } from '../../quotes/lib/quoteService';
+// Import activity log service for tracking job events
+import { logTimeSlotsOffered, logStatusChange } from '../../jobs/lib/activityLogService';
 // Import duration formatting utility
 import { formatMinutesToHuman } from '../lib/timeClockService';
 
@@ -510,6 +512,10 @@ export const OfferTimeSlotsModal = ({
                 lastActivity: serverTimestamp()
             });
 
+            // Log activity for audit trail
+            logTimeSlotsOffered(job.id, filledSlots.length, schedulingPreferences?.companyName || 'Contractor')
+                .catch(err => console.warn('[OfferTimeSlotsModal] Activity log failed:', err));
+
             // ========================================
             // Send email notification to customer (non-blocking)
             // ========================================
@@ -605,6 +611,10 @@ export const OfferTimeSlotsModal = ({
                 markQuoteJobCancelled(job.contractorId, job.sourceQuoteId, 'contractor')
                     .catch(err => console.warn('Failed to update quote status:', err));
             }
+
+            // Log activity for audit trail
+            logStatusChange(job.id, job.status, 'cancelled', 'contractor')
+                .catch(err => console.warn('[OfferTimeSlotsModal] Activity log failed:', err));
 
             toast.success('Job cancelled');
             setShowCancelConfirm(false);

@@ -3608,6 +3608,35 @@ export const ContractorProApp = () => {
                             </button>
                         </div>
                         <div className="p-4 overflow-y-auto flex-1">
+                            {/* Customer Contact Info Section - NEW */}
+                            {(selectedJob.customer?.email || selectedJob.customer?.phone) && (
+                                <div className="mb-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                    <span className="text-sm font-bold text-slate-700 flex items-center gap-2 mb-2">
+                                        <User size={16} className="text-blue-600" />
+                                        Customer Contact
+                                    </span>
+                                    <div className="space-y-1.5">
+                                        {selectedJob.customer?.email && (
+                                            <a
+                                                href={`mailto:${selectedJob.customer.email}`}
+                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                            >
+                                                <Mail size={14} className="shrink-0" />
+                                                {selectedJob.customer.email}
+                                            </a>
+                                        )}
+                                        {selectedJob.customer?.phone && (
+                                            <a
+                                                href={`tel:${selectedJob.customer.phone}`}
+                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                            >
+                                                <Phone size={14} className="shrink-0" />
+                                                {selectedJob.customer.phone}
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                             {/* Crew & Vehicle Assignment Section */}
                             <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
                                 <div className="flex items-center justify-between mb-2">

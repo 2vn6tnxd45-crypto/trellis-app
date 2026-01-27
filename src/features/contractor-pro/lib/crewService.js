@@ -11,6 +11,7 @@ import { REQUESTS_COLLECTION_PATH } from '../../../config/constants';
 import { extractCrewRequirements, validateCrewAvailability } from './crewRequirementsService';
 import { onCrewAssignmentChanged } from './techNotificationService';
 import { isMultiDayJob, createMultiDaySchedule } from './multiDayUtils';
+import { logCrewAssigned } from '../../jobs/lib/activityLogService';
 
 // ============================================
 // CONSTANTS
@@ -200,6 +201,10 @@ export const assignCrewToJob = async (jobId, crew, assignedBy = 'manual', option
     }
 
     await updateDoc(jobRef, updateData);
+
+    // Log activity for audit trail
+    logCrewAssigned(jobId, crew)
+        .catch(err => console.warn('[crewService] Activity log failed:', err));
 
     // Send notifications to techs (non-blocking)
     if (!skipNotifications && contractorId) {

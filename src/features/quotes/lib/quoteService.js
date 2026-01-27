@@ -650,8 +650,44 @@ export async function getQuoteByShareToken(shareToken) {
     const [contractorId, quoteId] = shareToken.split('_');
     if (!contractorId || !quoteId) throw new Error('Invalid share token');
 
-    const quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
-    const quoteSnap = await getDoc(quoteRef);
+    // BUG-047 FIX: Handle legacy quotes stored at top-level path
+    // First try the correct path (under contractors)
+    let quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
+    let quoteSnap = await getDoc(quoteRef);
+
+    // If not found and contractorId looks like it might be 'data' (legacy path issue),
+    // the quote might be stored at the top-level quotes collection
+    if (!quoteSnap.exists() && contractorId === 'data') {
+        console.warn('[getQuoteByShareToken] Quote not found in contractor path, trying legacy path');
+        // For legacy quotes, the "quoteId" in the URL is actually the full quote ID
+        const legacyQuoteRef = doc(db, `/artifacts/krib-app/public/data/quotes`, quoteId);
+        const legacyQuoteSnap = await getDoc(legacyQuoteRef);
+
+        if (legacyQuoteSnap.exists()) {
+            const legacyQuote = legacyQuoteSnap.data();
+            // For legacy quotes, try to get contractor info from the quote itself
+            const actualContractorId = legacyQuote.contractorId;
+
+            let contractorData = null;
+            if (actualContractorId) {
+                const contractorRef = doc(db, CONTRACTORS_COLLECTION, actualContractorId);
+                const contractorSnap = await getDoc(contractorRef);
+                contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
+            }
+
+            return {
+                quote: { id: legacyQuoteSnap.id, ...legacyQuote },
+                contractor: contractorData ? {
+                    ...contractorData.profile,
+                    stripe: contractorData.stripe || null
+                } : null,
+                contractorId: actualContractorId || null
+            };
+        }
+
+        return null;
+    }
+
     if (!quoteSnap.exists()) return null;
 
     const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
