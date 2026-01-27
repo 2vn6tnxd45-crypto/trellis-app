@@ -672,25 +672,30 @@ export async function getQuoteByShareToken(shareToken) {
 
     // Path 3: If still not found, use collection group query as last resort
     // This handles cases where the quote exists but the contractorId in URL doesn't match storage location
+    // Query by 'id' field since quotes store their own ID in the document data
     if (!quoteSnap.exists()) {
-        console.warn('[getQuoteByShareToken] Quote not found via direct paths, trying collection group query');
-        const quotesQuery = query(
-            collectionGroup(db, 'quotes'),
-            where('__name__', '==', quoteId)
-        );
-        const querySnapshot = await getDocs(quotesQuery);
+        console.warn('[getQuoteByShareToken] Quote not found via direct paths, trying collection group query by id field');
+        try {
+            const quotesQuery = query(
+                collectionGroup(db, 'quotes'),
+                where('id', '==', quoteId)
+            );
+            const querySnapshot = await getDocs(quotesQuery);
 
-        if (!querySnapshot.empty) {
-            quoteSnap = querySnapshot.docs[0];
-            // Extract contractor ID from path
-            const pathSegments = quoteSnap.ref.path.split('/');
-            const contractorsIndex = pathSegments.indexOf('contractors');
-            if (contractorsIndex !== -1 && pathSegments[contractorsIndex + 1]) {
-                foundContractorId = pathSegments[contractorsIndex + 1];
-            } else {
-                foundContractorId = quoteSnap.data().contractorId || null;
+            if (!querySnapshot.empty) {
+                quoteSnap = querySnapshot.docs[0];
+                // Extract contractor ID from path
+                const pathSegments = quoteSnap.ref.path.split('/');
+                const contractorsIndex = pathSegments.indexOf('contractors');
+                if (contractorsIndex !== -1 && pathSegments[contractorsIndex + 1]) {
+                    foundContractorId = pathSegments[contractorsIndex + 1];
+                } else {
+                    foundContractorId = quoteSnap.data().contractorId || null;
+                }
+                console.log('[getQuoteByShareToken] Found via collection group, contractorId:', foundContractorId);
             }
-            console.log('[getQuoteByShareToken] Found via collection group, contractorId:', foundContractorId);
+        } catch (queryErr) {
+            console.warn('[getQuoteByShareToken] Collection group query failed:', queryErr.message);
         }
     }
 
