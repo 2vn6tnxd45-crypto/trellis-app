@@ -650,51 +650,74 @@ export async function getQuoteByShareToken(shareToken) {
     const [contractorId, quoteId] = shareToken.split('_');
     if (!contractorId || !quoteId) throw new Error('Invalid share token');
 
-    // BUG-047 FIX: Handle legacy quotes stored at top-level path
-    // First try the correct path (under contractors)
+    console.log('[getQuoteByShareToken] Looking for quote:', { contractorId, quoteId, shareToken });
+
+    // BUG-047 FIX: Try multiple paths to find the quote
+    // Path 1: Standard contractor path
     let quoteRef = doc(db, CONTRACTORS_COLLECTION, contractorId, QUOTES_SUBCOLLECTION, quoteId);
     let quoteSnap = await getDoc(quoteRef);
+    let foundContractorId = contractorId;
 
-    // If not found and contractorId looks like it might be 'data' (legacy path issue),
-    // the quote might be stored at the top-level quotes collection
+    // Path 2: If not found and contractorId is 'data', try legacy top-level quotes path
     if (!quoteSnap.exists() && contractorId === 'data') {
         console.warn('[getQuoteByShareToken] Quote not found in contractor path, trying legacy path');
-        // For legacy quotes, the "quoteId" in the URL is actually the full quote ID
         const legacyQuoteRef = doc(db, `/artifacts/krib-app/public/data/quotes`, quoteId);
-        const legacyQuoteSnap = await getDoc(legacyQuoteRef);
+        quoteSnap = await getDoc(legacyQuoteRef);
 
-        if (legacyQuoteSnap.exists()) {
-            const legacyQuote = legacyQuoteSnap.data();
-            // For legacy quotes, try to get contractor info from the quote itself
-            const actualContractorId = legacyQuote.contractorId;
-
-            let contractorData = null;
-            if (actualContractorId) {
-                const contractorRef = doc(db, CONTRACTORS_COLLECTION, actualContractorId);
-                const contractorSnap = await getDoc(contractorRef);
-                contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
-            }
-
-            return {
-                quote: { id: legacyQuoteSnap.id, ...legacyQuote },
-                contractor: contractorData ? {
-                    ...contractorData.profile,
-                    stripe: contractorData.stripe || null
-                } : null,
-                contractorId: actualContractorId || null
-            };
+        if (quoteSnap.exists()) {
+            // For legacy quotes, use contractor info from quote data
+            foundContractorId = quoteSnap.data().contractorId || null;
         }
+    }
 
+    // Path 3: If still not found, use collection group query as last resort
+    // This handles cases where the quote exists but the contractorId in URL doesn't match storage location
+    if (!quoteSnap.exists()) {
+        console.warn('[getQuoteByShareToken] Quote not found via direct paths, trying collection group query');
+        const quotesQuery = query(
+            collectionGroup(db, 'quotes'),
+            where('__name__', '==', quoteId)
+        );
+        const querySnapshot = await getDocs(quotesQuery);
+
+        if (!querySnapshot.empty) {
+            quoteSnap = querySnapshot.docs[0];
+            // Extract contractor ID from path
+            const pathSegments = quoteSnap.ref.path.split('/');
+            const contractorsIndex = pathSegments.indexOf('contractors');
+            if (contractorsIndex !== -1 && pathSegments[contractorsIndex + 1]) {
+                foundContractorId = pathSegments[contractorsIndex + 1];
+            } else {
+                foundContractorId = quoteSnap.data().contractorId || null;
+            }
+            console.log('[getQuoteByShareToken] Found via collection group, contractorId:', foundContractorId);
+        }
+    }
+
+    // Still not found? Try the legacy top-level quotes path with any contractorId
+    if (!quoteSnap?.exists?.()) {
+        console.warn('[getQuoteByShareToken] Last attempt: trying legacy quotes path');
+        const legacyQuoteRef = doc(db, `/artifacts/krib-app/public/data/quotes`, quoteId);
+        quoteSnap = await getDoc(legacyQuoteRef);
+        if (quoteSnap.exists()) {
+            foundContractorId = quoteSnap.data().contractorId || null;
+        }
+    }
+
+    if (!quoteSnap?.exists?.()) {
+        console.error('[getQuoteByShareToken] Quote not found anywhere:', quoteId);
         return null;
     }
 
-    if (!quoteSnap.exists()) return null;
+    // Use foundContractorId (may be different from URL contractorId if quote was found via fallback)
+    let contractorData = null;
+    if (foundContractorId) {
+        const contractorRef = doc(db, CONTRACTORS_COLLECTION, foundContractorId);
+        const contractorSnap = await getDoc(contractorRef);
+        contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
+    }
 
-    const contractorRef = doc(db, CONTRACTORS_COLLECTION, contractorId);
-    const contractorSnap = await getDoc(contractorRef);
-
-    // Get both profile and stripe data for payment processing
-    const contractorData = contractorSnap.exists() ? contractorSnap.data() : null;
+    console.log('[getQuoteByShareToken] Success! Quote found:', quoteId, 'contractorId:', foundContractorId);
 
     return {
         quote: { id: quoteSnap.id, ...quoteSnap.data() },
@@ -702,7 +725,7 @@ export async function getQuoteByShareToken(shareToken) {
             ...contractorData.profile,
             stripe: contractorData.stripe || null
         } : null,
-        contractorId
+        contractorId: foundContractorId
     };
 }
 
