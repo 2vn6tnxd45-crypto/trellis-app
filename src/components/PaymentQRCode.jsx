@@ -190,7 +190,19 @@ export const PaymentQRCode = ({
 
     // Auto-generate on mount
     useEffect(() => {
-        if (autoGenerate && stripeAccountId && amount > 0) {
+        if (autoGenerate) {
+            // If Stripe is not connected, stop loading and let the "No Stripe Account" state render
+            if (!stripeAccountId) {
+                setLoading(false);
+                return;
+            }
+            // If amount is invalid, stop loading
+            if (!amount || amount <= 0) {
+                setLoading(false);
+                setError('Invalid payment amount');
+                return;
+            }
+            // All conditions met, generate the payment link
             generatePaymentLink();
         }
     }, [autoGenerate, generatePaymentLink, stripeAccountId, amount]);
