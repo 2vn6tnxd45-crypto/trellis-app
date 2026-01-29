@@ -24,7 +24,7 @@ import {
     Timer,
     Fuel
 } from 'lucide-react';
-import { formatTimeInTimezone } from '../lib/timezoneUtils';
+import { formatTimeInTimezone, isSameDayInTimezone } from '../lib/timezoneUtils';
 
 // ============================================
 // ROUTE STATS CARD
@@ -286,6 +286,7 @@ export const RouteMapView = ({
     techId,
     techName,
     date = new Date(),
+    timezone = 'America/Los_Angeles',
     startLocation, // Optional starting point
     onOptimizeRoute,
     onJobSelect,
@@ -294,14 +295,27 @@ export const RouteMapView = ({
     const [selectedJob, setSelectedJob] = useState(null);
     const [showList, setShowList] = useState(true);
 
-    // Sort jobs by scheduled time
+    // Filter jobs for the selected date, then sort by scheduled time
     const sortedJobs = useMemo(() => {
-        return [...jobs].sort((a, b) => {
+        // Filter to only include jobs scheduled for the selected date
+        const jobsForDate = jobs.filter(job => {
+            const jobDate = job.scheduledTime || job.scheduledDate || job.scheduledStartTime;
+            if (!jobDate) return false;
+
+            // Handle Firestore Timestamps
+            const normalizedDate = jobDate?.toDate ? jobDate.toDate() : new Date(jobDate);
+            if (isNaN(normalizedDate.getTime())) return false;
+
+            return isSameDayInTimezone(normalizedDate, date, timezone);
+        });
+
+        // Sort by scheduled time
+        return jobsForDate.sort((a, b) => {
             const timeA = new Date(a.scheduledTime || a.scheduledDate || 0);
             const timeB = new Date(b.scheduledTime || b.scheduledDate || 0);
             return timeA - timeB;
         });
-    }, [jobs]);
+    }, [jobs, date, timezone]);
 
     // Calculate estimated totals (mock calculation)
     const routeStats = useMemo(() => {
@@ -309,11 +323,11 @@ export const RouteMapView = ({
         const avgDistanceBetweenStops = 5; // miles
         const avgDriveTime = 12; // minutes
         return {
-            totalDistance: (jobs.length - 1) * avgDistanceBetweenStops,
-            totalTime: (jobs.length - 1) * avgDriveTime,
-            optimizedOrder: true
+            totalDistance: sortedJobs.length > 1 ? (sortedJobs.length - 1) * avgDistanceBetweenStops : 0,
+            totalTime: sortedJobs.length > 1 ? (sortedJobs.length - 1) * avgDriveTime : 0,
+            optimizedOrder: sortedJobs.length > 1
         };
-    }, [jobs]);
+    }, [sortedJobs]);
 
     const handleNavigate = (job) => {
         const address = job.customer?.address || job.address;
@@ -330,7 +344,7 @@ export const RouteMapView = ({
         onJobSelect?.(job);
     };
 
-    if (jobs.length === 0) {
+    if (sortedJobs.length === 0) {
         return (
             <div className="bg-white rounded-2xl p-8 text-center">
                 <Map size={48} className="mx-auto text-slate-300 mb-4" />

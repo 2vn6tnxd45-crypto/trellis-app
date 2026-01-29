@@ -3248,6 +3248,7 @@ export const ContractorProApp = () => {
                                         jobs={jobs}
                                         teamMembers={profile?.scheduling?.teamMembers || []}
                                         date={selectedDate}
+                                        timezone={profile?.scheduling?.timezone}
                                         onJobSelect={handleJobClick}
                                     />
                                 )}

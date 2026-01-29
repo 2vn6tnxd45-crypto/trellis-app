@@ -31,11 +31,11 @@ const dragHighlightStyles = `
 .calendar-drop-zone {
     pointer-events: auto;
 }
-.calendar-drop-zone.drag-over,
-.calendar-drop-zone:global(.drag-over) {
-    background-color: rgb(209 250 229) !important;
-    border-color: rgb(110 231 183) !important;
+.calendar-drop-zone.drag-over {
+    background-color: rgb(187 247 208) !important;
+    border: 2px solid rgb(34 197 94) !important;
     z-index: 30;
+    box-shadow: inset 0 0 0 2px rgba(34, 197, 94, 0.3);
 }
 `;
 
