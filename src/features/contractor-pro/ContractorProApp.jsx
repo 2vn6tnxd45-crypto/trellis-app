@@ -3729,6 +3729,10 @@ export const ContractorProApp = () => {
                         setOfferingTimesJob(null);
                         handleNavigate(view);
                     }}
+                    // ENHANCED: Pass team data for smarter AI suggestions
+                    teamMembers={profile?.scheduling?.teamMembers || []}
+                    vehicles={profile?.scheduling?.vehicles || []}
+                    timeOffEntries={[]}  // TODO: Load from timeOffService if needed
                 />
             )}
 

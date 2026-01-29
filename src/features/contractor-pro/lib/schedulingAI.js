@@ -1372,11 +1372,20 @@ const calculateDayWorkload = (allJobs, date, preferences) => {
 
 /**
  * Generate scheduling suggestions for a job (time slot suggestions)
+ * NOW ENHANCED with:
+ * - Travel time validation between jobs
+ * - Crew/tech availability checking
+ * - Resource capacity validation
+ *
  * @param {Object} targetJob - The job to schedule
  * @param {Array} allJobs - All jobs (scheduled and unscheduled)
  * @param {Object} preferences - Contractor's scheduling preferences
  * @param {Object} customerPrefs - Customer's scheduling preferences (if any)
  * @param {number} daysToAnalyze - How many days ahead to look
+ * @param {Object} options - Additional options for enhanced validation
+ * @param {Array} options.teamMembers - Team members for availability checking
+ * @param {Array} options.vehicles - Vehicles for capacity checking
+ * @param {Array} options.timeOffEntries - Time-off entries for techs
  * @returns {Object} Suggestions and analysis
  */
 export const generateSchedulingSuggestions = (
@@ -1384,8 +1393,10 @@ export const generateSchedulingSuggestions = (
     allJobs,
     preferences = {},
     customerPrefs = null,
-    daysToAnalyze = 14
+    daysToAnalyze = 14,
+    options = {}
 ) => {
+    const { teamMembers = [], vehicles = [], timeOffEntries = [] } = options;
     const suggestions = [];
     const warnings = [];
     const insights = [];
@@ -1413,11 +1424,27 @@ export const generateSchedulingSuggestions = (
         });
     }
 
+    // Get crew requirements for this job
+    const crewFactors = getRouteCrewFactors(targetJob);
+    const requiredCrewSize = crewFactors.requiredCrewSize || 1;
+
+    if (requiredCrewSize > 1) {
+        warnings.push({
+            type: 'crew_required',
+            message: `This job requires ${requiredCrewSize} technicians.`,
+            requiredCrewSize
+        });
+    }
+
+    // Get target job location for travel calculations
+    const targetJobZip = getJobZip(targetJob);
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const fullDays = [];
     const lightDays = [];
+    const noCrewDays = [];
 
     // Analyze each day
     for (let i = 1; i <= daysToAnalyze; i++) {
@@ -1440,16 +1467,45 @@ export const generateSchedulingSuggestions = (
             lightDays.push(date);
         }
 
+        // ENHANCED: Check crew availability for this day
+        let availableTechsForDay = [];
+        if (teamMembers.length > 0) {
+            const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            availableTechsForDay = teamMembers.filter(tech => {
+                // Check if tech works this day
+                const techHours = tech.workingHours?.[dayName];
+                const isOff = techHours?.enabled === false;
+                if (isOff) return false;
+
+                // Check time-off entries
+                const isOnTimeOff = timeOffEntries.some(entry => {
+                    if (entry.techId !== tech.id) return false;
+                    const entryStart = entry.startDate?.toDate ? entry.startDate.toDate() : new Date(entry.startDate);
+                    const entryEnd = entry.endDate?.toDate ? entry.endDate.toDate() : new Date(entry.endDate);
+                    return date >= entryStart && date <= entryEnd;
+                });
+                if (isOnTimeOff) return false;
+
+                return true;
+            });
+
+            // If we need crew but don't have enough techs available, skip this day
+            if (availableTechsForDay.length < requiredCrewSize) {
+                noCrewDays.push(date);
+                continue;
+            }
+        }
+
         // Parse working hours
         const [startH, startM] = workingHours.start.split(':').map(Number);
         const [endH, endM] = workingHours.end.split(':').map(Number);
         const dayStart = startH * 60 + startM;
         const dayEnd = endH * 60 + endM;
 
-        // Get existing jobs for this day
+        // Get existing jobs for this day WITH their locations for travel calc
         const dayJobs = getJobsForDate(allJobs, date);
 
-        // Find available slots
+        // Build busy slots with travel-aware buffers
         const busySlots = dayJobs.map(job => {
             const jobTime = job.scheduledTime
                 ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
@@ -1458,48 +1514,143 @@ export const generateSchedulingSuggestions = (
 
             const jobDur = job.estimatedDuration || preferences?.defaultJobDuration || 120;
             const durMins = typeof jobDur === 'number' ? jobDur : parseDurationToMinutes(jobDur);
-            const buffer = preferences?.bufferMinutes || 30;
+
+            // ENHANCED: Calculate travel-aware buffer
+            const existingJobZip = getJobZip(job);
+            let buffer = preferences?.bufferMinutes || 30;
+
+            if (targetJobZip && existingJobZip) {
+                const distance = estimateDistanceSync(targetJobZip, existingJobZip);
+                const travelTime = estimateTravelTimeMinutes(distance);
+                // Buffer should account for travel time + safety margin
+                buffer = Math.max(buffer, travelTime + MIN_BUFFER_MINUTES);
+            }
 
             const start = jobTime.getHours() * 60 + jobTime.getMinutes();
-            return { start, end: start + durMins + buffer };
+            return {
+                start,
+                end: start + durMins + buffer,
+                job,  // Keep reference for travel calculations
+                zip: existingJobZip
+            };
         }).filter(Boolean).sort((a, b) => a.start - b.start);
 
-        // Find gaps
+        // Find gaps with enhanced validation
         let searchStart = dayStart;
 
-        for (const slot of busySlots) {
-            if (searchStart + durationMins + (preferences?.bufferMinutes || 30) <= slot.start) {
-                // Found a gap!
-                const score = calculateSlotScore(date, searchStart, workload, customerPrefs, preferences);
-                suggestions.push({
-                    date,
-                    startTime: minutesToTime(searchStart),
-                    endTime: minutesToTime(searchStart + durationMins),
-                    dateFormatted: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-                    timeFormatted: `${formatTimeDisplay(minutesToTime(searchStart))} - ${formatTimeDisplay(minutesToTime(searchStart + durationMins))}`,
-                    score,
-                    isRecommended: score >= 80,
-                    reasons: getSlotReasons(date, searchStart, workload, customerPrefs),
-                    workload
-                });
-            }
-            searchStart = Math.max(searchStart, slot.end);
-        }
+        for (let slotIdx = 0; slotIdx <= busySlots.length; slotIdx++) {
+            const currentSlot = busySlots[slotIdx];
+            const prevSlot = busySlots[slotIdx - 1];
 
-        // Check end of day
-        if (searchStart + durationMins <= dayEnd) {
-            const score = calculateSlotScore(date, searchStart, workload, customerPrefs, preferences);
-            suggestions.push({
-                date,
-                startTime: minutesToTime(searchStart),
-                endTime: minutesToTime(searchStart + durationMins),
-                dateFormatted: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
-                timeFormatted: `${formatTimeDisplay(minutesToTime(searchStart))} - ${formatTimeDisplay(minutesToTime(searchStart + durationMins))}`,
-                score,
-                isRecommended: score >= 80,
-                reasons: getSlotReasons(date, searchStart, workload, customerPrefs),
-                workload
-            });
+            // Determine the end of the search window
+            const windowEnd = currentSlot ? currentSlot.start : dayEnd;
+
+            // Check if there's a gap that fits our job
+            if (searchStart + durationMins + (preferences?.bufferMinutes || 30) <= windowEnd) {
+                // ENHANCED: Validate travel feasibility
+                let travelWarning = null;
+                let travelPenalty = 0;
+
+                if (targetJobZip) {
+                    // Check travel from previous job (if any)
+                    if (prevSlot?.zip) {
+                        const distFromPrev = estimateDistanceSync(prevSlot.zip, targetJobZip);
+                        const travelFromPrev = estimateTravelTimeMinutes(distFromPrev);
+                        const gapFromPrev = searchStart - prevSlot.end + (preferences?.bufferMinutes || 30);
+
+                        if (travelFromPrev > gapFromPrev) {
+                            travelWarning = `${travelFromPrev} min travel from previous job`;
+                            travelPenalty += 15;
+                        }
+                    }
+
+                    // Check travel to next job (if any)
+                    if (currentSlot?.zip) {
+                        const distToNext = estimateDistanceSync(targetJobZip, currentSlot.zip);
+                        const travelToNext = estimateTravelTimeMinutes(distToNext);
+                        const proposedEnd = searchStart + durationMins;
+                        const gapToNext = currentSlot.start - proposedEnd;
+
+                        if (travelToNext > gapToNext) {
+                            travelWarning = travelWarning
+                                ? `Tight travel both ways`
+                                : `${travelToNext} min travel to next job`;
+                            travelPenalty += 15;
+                        }
+                    }
+                }
+
+                // ENHANCED: Check tech capacity at this specific time
+                let capacityWarning = null;
+                let capacityPenalty = 0;
+
+                if (teamMembers.length > 0 && availableTechsForDay.length > 0) {
+                    // Count how many techs are free at this specific time
+                    const techsWithConflicts = availableTechsForDay.filter(tech => {
+                        const techJobs = dayJobs.filter(j =>
+                            j.assignedTechId === tech.id ||
+                            j.assignedCrew?.some(c => c.techId === tech.id)
+                        );
+                        // Check if any of tech's jobs overlap with proposed slot
+                        return techJobs.some(tj => {
+                            const tjTime = tj.scheduledTime?.toDate ? tj.scheduledTime.toDate() : new Date(tj.scheduledTime);
+                            const tjStart = tjTime.getHours() * 60 + tjTime.getMinutes();
+                            const tjDur = parseDurationToMinutes(tj.estimatedDuration || 120);
+                            const tjEnd = tjStart + tjDur;
+                            const proposedEnd = searchStart + durationMins;
+                            // Overlap check
+                            return !(proposedEnd <= tjStart || searchStart >= tjEnd);
+                        });
+                    });
+
+                    const freeTechs = availableTechsForDay.length - techsWithConflicts.length;
+
+                    if (freeTechs < requiredCrewSize) {
+                        capacityWarning = `Only ${freeTechs} of ${requiredCrewSize} techs free`;
+                        capacityPenalty = 30; // Significant penalty
+                    } else if (freeTechs === requiredCrewSize) {
+                        // Exactly enough - slight warning
+                        capacityWarning = `Exactly ${freeTechs} techs available`;
+                        capacityPenalty = 5;
+                    }
+                }
+
+                // Calculate enhanced score
+                const baseScore = calculateSlotScore(date, searchStart, workload, customerPrefs, preferences);
+                const adjustedScore = Math.max(0, baseScore - travelPenalty - capacityPenalty);
+
+                // Build reasons array
+                const reasons = getSlotReasons(date, searchStart, workload, customerPrefs);
+                if (travelWarning) reasons.push(travelWarning);
+                if (capacityWarning) reasons.push(capacityWarning);
+
+                // Only add slot if it's still viable (score > 30)
+                if (adjustedScore > 30 || (capacityPenalty === 0 && travelPenalty === 0)) {
+                    suggestions.push({
+                        date,
+                        startTime: minutesToTime(searchStart),
+                        endTime: minutesToTime(searchStart + durationMins),
+                        dateFormatted: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                        timeFormatted: `${formatTimeDisplay(minutesToTime(searchStart))} - ${formatTimeDisplay(minutesToTime(searchStart + durationMins))}`,
+                        score: adjustedScore,
+                        isRecommended: adjustedScore >= 80,
+                        reasons,
+                        workload,
+                        // ENHANCED: Include validation metadata
+                        validation: {
+                            travelFeasible: travelPenalty === 0,
+                            crewAvailable: capacityPenalty === 0,
+                            availableTechs: teamMembers.length > 0 ? availableTechsForDay.length : null,
+                            requiredCrew: requiredCrewSize
+                        }
+                    });
+                }
+            }
+
+            // Move search start past current slot
+            if (currentSlot) {
+                searchStart = Math.max(searchStart, currentSlot.end);
+            }
         }
     }
 
@@ -1523,6 +1674,15 @@ export const generateSchedulingSuggestions = (
         });
     }
 
+    // ENHANCED: Add crew availability insight
+    if (noCrewDays.length > 0 && teamMembers.length > 0) {
+        insights.push({
+            type: 'crew_shortage',
+            message: `${noCrewDays.length} day${noCrewDays.length > 1 ? 's' : ''} lack sufficient crew (need ${requiredCrewSize})`,
+            days: noCrewDays
+        });
+    }
+
     return {
         suggestions: suggestions.slice(0, 10),
         recommended: suggestions[0] || null,
@@ -1532,7 +1692,11 @@ export const generateSchedulingSuggestions = (
             analyzedDays: daysToAnalyze,
             totalSlotsFound: suggestions.length,
             jobDuration: durationMins,
-            hasCustomerPreferences: !!customerPrefs
+            hasCustomerPreferences: !!customerPrefs,
+            // ENHANCED: Include validation summary
+            hasTeamData: teamMembers.length > 0,
+            requiredCrewSize,
+            teamSize: teamMembers.length
         }
     };
 };

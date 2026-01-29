@@ -162,22 +162,26 @@ const WarningCard = ({ warning }) => (
 // MAIN PANEL COMPONENT
 // ============================================
 
-export const AISuggestionPanel = ({ 
+export const AISuggestionPanel = ({
     job,
     allJobs,
     preferences,
     customerPreferences,
     onSelectSuggestion,
     selectedSuggestion,
-    selectedSlots = [],  // NEW: Array of already-selected slots
+    selectedSlots = [],  // Array of already-selected slots
     compact = false,
-    onNavigate
+    onNavigate,
+    // ENHANCED: New props for smarter suggestions
+    teamMembers = [],
+    vehicles = [],
+    timeOffEntries = []
 }) => {
     const [showAll, setShowAll] = useState(false);
-    
+
     // Check if working hours are actually configured
     const hasWorkingHours = useMemo(() => {
-        return preferences?.workingHours && 
+        return preferences?.workingHours &&
                Object.values(preferences.workingHours).some(d => d?.enabled);
     }, [preferences]);
 
@@ -188,25 +192,34 @@ export const AISuggestionPanel = ({
         } else {
             console.log('[AISuggestionPanel] ✅ Working hours detected');
         }
-    }, [hasWorkingHours]);
-    
-    // Generate suggestions
+        if (teamMembers.length > 0) {
+            console.log('[AISuggestionPanel] ✅ Team data available:', teamMembers.length, 'members');
+        }
+    }, [hasWorkingHours, teamMembers]);
+
+    // Generate suggestions with enhanced validation
     const analysis = useMemo(() => {
         if (!job) return null;
-        
+
         try {
             return generateSchedulingSuggestions(
                 job,
                 allJobs || [],
                 preferences || {},
                 customerPreferences,
-                14
+                14,
+                // ENHANCED: Pass team/resource data for smarter suggestions
+                {
+                    teamMembers,
+                    vehicles,
+                    timeOffEntries
+                }
             );
         } catch (error) {
             console.error('Error generating suggestions:', error);
             return null;
         }
-    }, [job, allJobs, preferences, customerPreferences]);
+    }, [job, allJobs, preferences, customerPreferences, teamMembers, vehicles, timeOffEntries]);
     
     if (!analysis || analysis.suggestions.length === 0) {
         return (

@@ -185,7 +185,11 @@ export const OfferTimeSlotsModal = ({
     schedulingPreferences = {},
     onClose,
     onSuccess,
-    onNavigate   // ← ADD THIS
+    onNavigate,
+    // ENHANCED: New props for smarter AI suggestions
+    teamMembers = [],
+    vehicles = [],
+    timeOffEntries = []
 }) => {
     const [slots, setSlots] = useState([
         { id: 'slot_1', date: '', startTime: '09:00', endTime: '12:00', showCalendar: false }
@@ -764,6 +768,10 @@ export const OfferTimeSlotsModal = ({
                                     selectedSlots={slots.filter(s => s.date)}
                                     compact={true}
                                     onNavigate={onNavigate}
+                                    // ENHANCED: Pass team data for smarter suggestions
+                                    teamMembers={teamMembers}
+                                    vehicles={vehicles}
+                                    timeOffEntries={timeOffEntries}
                                 />
                             </div>
                         )}
