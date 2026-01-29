@@ -618,18 +618,23 @@ const UnscheduledJobsPanel = ({ jobs, onSelectJob, onOfferTimes }) => {
                 )}
 
                 <div className="flex gap-2">
-                    <button
-                        onClick={() => onOfferTimes(job)}
-                        className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
-                    >
-                        <Calendar size={14} />
-                        Offer Times
-                    </button>
+                    {onOfferTimes && (
+                        <button
+                            onClick={() => onOfferTimes(job)}
+                            className="flex-1 px-3 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
+                        >
+                            <Calendar size={14} />
+                            Offer Times
+                        </button>
+                    )}
                     <button
                         onClick={() => onSelectJob(job)}
-                        className="px-3 py-2 text-slate-600 text-xs font-medium rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
+                        className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${onOfferTimes
+                            ? 'text-slate-600 border border-slate-200 hover:bg-slate-50'
+                            : 'flex-1 bg-emerald-600 text-white font-bold hover:bg-emerald-700'
+                            }`}
                     >
-                        Details
+                        {onOfferTimes ? 'Details' : 'View Details'}
                     </button>
                 </div>
             </div>
@@ -857,36 +862,39 @@ export const ContractorCalendar = ({
                     </h2>
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={goToToday}
-                        className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                    >
-                        Today
-                    </button>
+                {/* Only show Today/Week/Month when not in controlled mode (hideHeader=false) */}
+                {!hideHeader && (
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={goToToday}
+                            className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                        >
+                            Today
+                        </button>
 
-                    {/* View Toggle */}
-                    <div className="flex bg-slate-100 rounded-lg p-1">
-                        <button
-                            onClick={() => setViewMode('week')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'week'
-                                ? 'bg-white text-slate-800 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            Week
-                        </button>
-                        <button
-                            onClick={() => setViewMode('month')}
-                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'month'
-                                ? 'bg-white text-slate-800 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            Month
-                        </button>
+                        {/* View Toggle */}
+                        <div className="flex bg-slate-100 rounded-lg p-1">
+                            <button
+                                onClick={() => setViewMode('week')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'week'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Week
+                            </button>
+                            <button
+                                onClick={() => setViewMode('month')}
+                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'month'
+                                    ? 'bg-white text-slate-800 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                Month
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* Legend */}
