@@ -25,6 +25,32 @@ import { isSameDayInTimezone, createDateInTimezone, formatTimeInTimezone } from 
 import { isTechAssigned, getAssignedTechIds } from '../lib/crewUtils';
 
 // ============================================
+// PERFORMANCE: CSS-based drag highlight (no React state needed)
+// ============================================
+const dragHighlightStyles = `
+.calendar-drop-zone {
+    pointer-events: auto;
+}
+.calendar-drop-zone.drag-over,
+.calendar-drop-zone:global(.drag-over) {
+    background-color: rgb(209 250 229) !important;
+    border-color: rgb(110 231 183) !important;
+    z-index: 30;
+}
+`;
+
+// Inject styles once
+if (typeof document !== 'undefined') {
+    const styleId = 'team-calendar-drag-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = dragHighlightStyles;
+        document.head.appendChild(style);
+    }
+}
+
+// ============================================
 // HELPERS
 // ============================================
 
@@ -856,7 +882,56 @@ const PositionedJobBlock = ({
 // TECH COLUMN WITH ABSOLUTE POSITIONING
 // ============================================
 
-const TechColumnBody = ({
+// PERFORMANCE: Separate component for hour slot to minimize re-renders
+// Uses CSS class manipulation instead of React state for instant visual feedback
+const HourDropZone = React.memo(({
+    hour,
+    idx,
+    techId,
+    date,
+    isWithinWorkingHours,
+    onDrop,
+    onDragOver
+}) => {
+    const handleDragEnter = useCallback((e) => {
+        e.currentTarget.classList.add('drag-over');
+    }, []);
+
+    const handleDragLeave = useCallback((e) => {
+        // Only remove if we're actually leaving the element (not entering a child)
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+    }, []);
+
+    const handleDrop = useCallback((e) => {
+        e.currentTarget.classList.remove('drag-over');
+        onDrop(e, techId, date, hour);
+    }, [onDrop, techId, date, hour]);
+
+    return (
+        <div
+            data-tech-id={techId}
+            data-hour={hour}
+            onDrop={handleDrop}
+            onDragOver={onDragOver}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            className={`
+                calendar-drop-zone absolute w-full border-b border-r border-slate-100
+                ${isWithinWorkingHours ? 'bg-white' : 'bg-slate-50/50'}
+            `}
+            style={{
+                top: `${idx * HOUR_HEIGHT_PX}px`,
+                height: `${HOUR_HEIGHT_PX}px`
+            }}
+        />
+    );
+});
+
+HourDropZone.displayName = 'HourDropZone';
+
+const TechColumnBody = React.memo(({
     tech,
     date,
     events,
@@ -864,8 +939,6 @@ const TechColumnBody = ({
     firstHour,
     onDrop,
     onDragOver,
-    onDragLeave,
-    dropTarget,
     onEventClick,
     onDragStart,
     onDragEnd,
@@ -883,7 +956,10 @@ const TechColumnBody = ({
     if (techHours?.end) workEndHour = parseInt(techHours.end.split(':')[0]);
 
     // Calculate horizontal positions for overlapping jobs
-    const horizontalPositions = calculateOverlapPositions(events, timeZone);
+    const horizontalPositions = useMemo(() =>
+        calculateOverlapPositions(events, timeZone),
+        [events, timeZone]
+    );
 
     // Total height based on working hours array
     const totalHeight = workingHours.length * HOUR_HEIGHT_PX;
@@ -893,31 +969,19 @@ const TechColumnBody = ({
             className="relative"
             style={{ height: `${totalHeight}px` }}
         >
-            {/* Hour grid lines and drop zones */}
+            {/* Hour grid lines and drop zones - PERFORMANCE: Use CSS for hover highlight */}
             {workingHours.map((hour, idx) => {
-                const isTarget = dropTarget &&
-                    dropTarget.techId === tech.id &&
-                    dropTarget.hour === hour;
                 const isWithinWorkingHours = hour >= workStartHour && hour < workEndHour && isWorkingDay;
-
                 return (
-                    <div
+                    <HourDropZone
                         key={hour}
-                        onDrop={(e) => onDrop(e, tech.id, date, hour)}
-                        onDragOver={(e) => {
-                            onDragOver(e);
-                            // Update drop target with hour info
-                        }}
-                        onDragLeave={onDragLeave}
-                        className={`
-                            absolute w-full border-b border-r border-slate-100 transition-colors
-                            ${isTarget ? 'bg-emerald-100 border-emerald-300 z-30' : ''}
-                            ${isWithinWorkingHours ? 'bg-white' : 'bg-slate-50/50'}
-                        `}
-                        style={{
-                            top: `${idx * HOUR_HEIGHT_PX}px`,
-                            height: `${HOUR_HEIGHT_PX}px`
-                        }}
+                        hour={hour}
+                        idx={idx}
+                        techId={tech.id}
+                        date={date}
+                        isWithinWorkingHours={isWithinWorkingHours}
+                        onDrop={onDrop}
+                        onDragOver={onDragOver}
                     />
                 );
             })}
@@ -944,7 +1008,9 @@ const TechColumnBody = ({
             })}
         </div>
     );
-};
+});
+
+TechColumnBody.displayName = 'TechColumnBody';
 
 // ============================================
 // TIME SLOT CELL (kept for backward compatibility with week view)
@@ -1064,7 +1130,7 @@ export const TeamCalendarView = ({
     const [viewMode, setViewMode] = useState('day'); // 'day' or 'week'
     const [visibleTechs, setVisibleTechs] = useState(new Set(teamMembers.map(t => t.id)));
     const [draggedEvent, setDraggedEvent] = useState(null);
-    const [dropTarget, setDropTarget] = useState(null);
+    // PERFORMANCE: dropTarget state removed - using CSS class manipulation for instant feedback
     const [assigning, setAssigning] = useState(false);
 
     // Add warning modal hook
@@ -1217,30 +1283,25 @@ export const TeamCalendarView = ({
 
     // Drag and drop handlers
     // PERFORMANCE: Wrap drag handlers in useCallback to prevent child re-renders
+    // Note: Visual highlight is now handled via CSS class manipulation in HourDropZone
     const handleDragStart = useCallback((event) => {
         setDraggedEvent(event);
     }, []);
 
     const handleDragEnd = useCallback(() => {
         setDraggedEvent(null);
-        setDropTarget(null);
+        // PERFORMANCE: Clear any lingering drag-over classes
+        document.querySelectorAll('.calendar-drop-zone.drag-over').forEach(el => {
+            el.classList.remove('drag-over');
+        });
     }, []);
 
     const handleDragOver = useCallback((e) => {
         e.preventDefault();
     }, []);
 
-    const handleDragEnter = useCallback((techId, date, hour) => {
-        setDropTarget({ techId, date, hour });
-    }, []);
-
-    const handleDragLeave = useCallback(() => {
-        setDropTarget(null);
-    }, []);
-
     const handleDrop = async (e, techId, date, hour) => {
         e.preventDefault();
-        setDropTarget(null);
 
         if (!draggedEvent || !techId) {
             setDraggedEvent(null);
@@ -1528,8 +1589,6 @@ export const TeamCalendarView = ({
                                                 firstHour={workingHours[0]}
                                                 onDrop={handleDrop}
                                                 onDragOver={handleDragOver}
-                                                onDragLeave={handleDragLeave}
-                                                dropTarget={dropTarget}
                                                 onEventClick={handleEventClick}
                                                 onDragStart={handleDragStart}
                                                 onDragEnd={handleDragEnd}
