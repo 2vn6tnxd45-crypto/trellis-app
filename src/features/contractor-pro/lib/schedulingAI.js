@@ -1281,15 +1281,50 @@ const getWorkingHoursForDay = (preferences, date) => {
 
 /**
  * Get jobs for a specific date
+ * Includes:
+ * - Confirmed scheduled jobs (scheduledTime/scheduledDate)
+ * - Jobs with PENDING offered time slots on that date (to avoid double-booking)
  */
 const getJobsForDate = (allJobs, date) => {
-    return allJobs.filter(job => {
-        if (!job.scheduledTime && !job.scheduledDate) return false;
-        const jobDate = job.scheduledTime
-            ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
-            : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
-        return jobDate.toDateString() === date.toDateString();
-    });
+    const dateStr = date.toDateString();
+    const results = [];
+
+    for (const job of allJobs) {
+        // Check confirmed scheduled jobs
+        if (job.scheduledTime || job.scheduledDate) {
+            const jobDate = job.scheduledTime
+                ? new Date(job.scheduledTime.toDate ? job.scheduledTime.toDate() : job.scheduledTime)
+                : new Date(job.scheduledDate.toDate ? job.scheduledDate.toDate() : job.scheduledDate);
+            if (jobDate.toDateString() === dateStr) {
+                results.push(job);
+                continue;
+            }
+        }
+
+        // Check pending offered slots - these block availability until customer responds
+        // This prevents suggesting the same time for multiple jobs
+        const offeredSlots = job.scheduling?.offeredSlots || [];
+        const pendingSlotOnDate = offeredSlots.find(slot => {
+            if (slot.status !== 'offered') return false;
+            const slotDate = slot.start?.toDate ? slot.start.toDate() : new Date(slot.start);
+            return slotDate.toDateString() === dateStr;
+        });
+
+        if (pendingSlotOnDate) {
+            // Create a "virtual" scheduled job entry for this pending slot
+            // so the AI considers it as a busy slot
+            const slotStart = pendingSlotOnDate.start?.toDate
+                ? pendingSlotOnDate.start.toDate()
+                : new Date(pendingSlotOnDate.start);
+            results.push({
+                ...job,
+                scheduledTime: slotStart,
+                _isPendingOffer: true  // Flag to identify these if needed
+            });
+        }
+    }
+
+    return results;
 };
 
 /**

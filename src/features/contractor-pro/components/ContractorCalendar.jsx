@@ -447,18 +447,19 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selected
             <button
                 key={day}
                 onClick={() => onSelectDate(date)}
-                className={`p-2 h-24 border-b border-r border-slate-100 text-left hover:bg-slate-50 transition-colors relative ${isSelected ? 'bg-emerald-50' : ''
+                className={`p-2 h-24 border-b border-r border-slate-100 text-left hover:bg-slate-50 transition-colors relative flex flex-col ${isSelected ? 'bg-emerald-50' : ''
                     }`}
             >
-                <span className={`text-sm font-medium ${isToday
+                <span className={`text-sm font-medium shrink-0 ${isToday
                     ? 'bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center'
                     : 'text-slate-700'
                     }`}>
                     {day}
                 </span>
 
-                {/* Event pills */}
-                <div className="mt-1 space-y-0.5 overflow-hidden">
+                {/* Event pills - flex-1 and overflow-hidden on events only, not "+more" */}
+                <div className="mt-1 flex-1 min-h-0 flex flex-col">
+                    <div className="space-y-0.5 overflow-hidden flex-1">
                     {dayJobs.slice(0, 2).map((event, idx) => {
                         const status = getJobStatus(event);
                         const styles = STATUS_STYLES[status];
@@ -511,8 +512,9 @@ const MonthView = ({ currentDate, getEvents, onSelectDate, onSelectJob, selected
                             </button>
                         );
                     })}
+                    </div>
                     {dayJobs.length > 2 && (
-                        <p className="text-[10px] text-slate-400 font-medium">
+                        <p className="text-[10px] text-slate-400 font-medium shrink-0 mt-0.5">
                             +{dayJobs.length - 2} more
                         </p>
                     )}
