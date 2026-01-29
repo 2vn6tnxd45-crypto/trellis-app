@@ -124,11 +124,21 @@ const formatTime = (hour) => {
     return `${h} ${ampm}`;
 };
 
+// PERFORMANCE: Cache for expensive Intl.DateTimeFormat timezone calculations
+// This prevents repeated parsing of the same date+timezone combinations during render
+const timezoneParseCacheHour = new Map();
+const timezoneParseCacheMinute = new Map();
+
 // Extract hour from date in a specific timezone (timezone-aware)
 const getHourFromDate = (dateStr, timeZone) => {
     if (!dateStr) return 8;
     const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (timeZone) {
+        // PERFORMANCE: Check cache first
+        const cacheKey = `${date.getTime()}-${timeZone}`;
+        if (timezoneParseCacheHour.has(cacheKey)) {
+            return timezoneParseCacheHour.get(cacheKey);
+        }
         try {
             const parts = new Intl.DateTimeFormat('en-US', {
                 hour: 'numeric',
@@ -136,7 +146,11 @@ const getHourFromDate = (dateStr, timeZone) => {
                 timeZone
             }).formatToParts(date);
             const hourPart = parts.find(p => p.type === 'hour');
-            return parseInt(hourPart.value) % 24;
+            const hour = parseInt(hourPart.value) % 24;
+            // Cache result (limit cache size to prevent memory issues)
+            if (timezoneParseCacheHour.size > 1000) timezoneParseCacheHour.clear();
+            timezoneParseCacheHour.set(cacheKey, hour);
+            return hour;
         } catch (e) {
             console.warn('Failed to get hour in timezone:', e);
         }
@@ -149,13 +163,22 @@ const getMinutesFromDate = (dateStr, timeZone) => {
     if (!dateStr) return 0;
     const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr;
     if (timeZone) {
+        // PERFORMANCE: Check cache first
+        const cacheKey = `${date.getTime()}-${timeZone}`;
+        if (timezoneParseCacheMinute.has(cacheKey)) {
+            return timezoneParseCacheMinute.get(cacheKey);
+        }
         try {
             const parts = new Intl.DateTimeFormat('en-US', {
                 minute: 'numeric',
                 timeZone
             }).formatToParts(date);
             const minutePart = parts.find(p => p.type === 'minute');
-            return parseInt(minutePart.value);
+            const minute = parseInt(minutePart.value);
+            // Cache result
+            if (timezoneParseCacheMinute.size > 1000) timezoneParseCacheMinute.clear();
+            timezoneParseCacheMinute.set(cacheKey, minute);
+            return minute;
         } catch (e) {
             console.warn('Failed to get minutes in timezone:', e);
         }
@@ -388,7 +411,21 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
         // Use CSS class manipulation instead of state to avoid re-render
         cardRef.current?.classList.add('is-dragging');
         e.dataTransfer.setData('jobId', job.id);
-        e.dataTransfer.setData('jobData', JSON.stringify(job));
+        // PERFORMANCE: Only serialize fields needed for drop handling
+        // Full job object can be 50+ fields; we only need essentials for the modal
+        e.dataTransfer.setData('jobData', JSON.stringify({
+            id: job.id,
+            title: job.title,
+            description: job.description,
+            estimatedDuration: job.estimatedDuration,
+            total: job.total,
+            customer: job.customer ? {
+                name: job.customer.name,
+                address: job.customer.address
+            } : null,
+            crewRequirements: job.crewRequirements,
+            priority: job.priority
+        }));
         e.dataTransfer.effectAllowed = 'move';
         onDragStart?.(job);
     };
@@ -741,14 +778,28 @@ const TimeSlot = React.memo(({
                 }
 
                 // FIX: Make scheduled jobs draggable for reschedule with duration preservation
+                // PERFORMANCE: Only include fields needed for reschedule, not entire job object
                 const handleCalendarJobDragStart = (e, dragJob) => {
                     e.dataTransfer.setData('jobId', dragJob.id);
                     // FIX: Include original duration in drag data for preservation
                     // FIXED: Also check scheduledStartTime field (BUG-020)
                     e.dataTransfer.setData('jobData', JSON.stringify({
-                        ...dragJob,
+                        id: dragJob.id,
+                        title: dragJob.title,
+                        description: dragJob.description,
+                        estimatedDuration: dragJob.estimatedDuration,
+                        total: dragJob.total,
+                        customer: dragJob.customer ? {
+                            name: dragJob.customer.name,
+                            address: dragJob.customer.address
+                        } : null,
+                        crewRequirements: dragJob.crewRequirements,
+                        priority: dragJob.priority,
+                        assignedTo: dragJob.assignedTo,
+                        assignedCrew: dragJob.assignedCrew,
+                        // Reschedule-specific fields
                         _originalDuration: dragJob.estimatedDuration || dragJob._durationMinutes || 60,
-                        _isReschedule: true, // Flag to indicate this is a reschedule, not new scheduling
+                        _isReschedule: true,
                         _originalStart: dragJob.scheduledTime || dragJob.scheduledStartTime || dragJob.scheduledDate,
                         _originalEnd: dragJob.scheduledEndTime
                     }));
@@ -2099,22 +2150,35 @@ export const DragDropCalendar = ({
         }
     }, [workingHours]);
 
-    // Navigation
-    const navigatePrev = () => {
-        const newDate = new Date(currentDate);
-        newDate.setDate(newDate.getDate() - 7);
-        setCurrentDate(newDate);
-    };
+    // Navigation - PERFORMANCE: Use useCallback to prevent re-renders in children
+    // and add debounce ref to prevent rapid navigation clicks
+    const navigationDebounceRef = useRef(false);
 
-    const navigateNext = () => {
-        const newDate = new Date(currentDate);
-        newDate.setDate(newDate.getDate() + 7);
-        setCurrentDate(newDate);
-    };
+    const navigatePrev = useCallback(() => {
+        if (navigationDebounceRef.current) return;
+        navigationDebounceRef.current = true;
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            newDate.setDate(newDate.getDate() - 7);
+            return newDate;
+        });
+        setTimeout(() => { navigationDebounceRef.current = false; }, 150);
+    }, []);
 
-    const goToToday = () => {
+    const navigateNext = useCallback(() => {
+        if (navigationDebounceRef.current) return;
+        navigationDebounceRef.current = true;
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            newDate.setDate(newDate.getDate() + 7);
+            return newDate;
+        });
+        setTimeout(() => { navigationDebounceRef.current = false; }, 150);
+    }, []);
+
+    const goToToday = useCallback(() => {
         setCurrentDate(new Date());
-    };
+    }, []);
 
     // Drag handlers
     const handleDragStart = useCallback((job) => {

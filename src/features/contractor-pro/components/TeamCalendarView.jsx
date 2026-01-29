@@ -132,6 +132,9 @@ const formatDate = (date) => {
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 };
 
+// PERFORMANCE: Cache for expensive Intl.DateTimeFormat timezone calculations
+const timezoneHourCache = new Map();
+
 const getHourFromDate = (dateStr, timeZone) => {
     if (!dateStr) return 8;
     // Handle time-only strings (e.g., "09:00" or "8:33 AM")
@@ -152,11 +155,20 @@ const getHourFromDate = (dateStr, timeZone) => {
     if (dateStr?.toDate) {
         const date = dateStr.toDate();
         if (timeZone) {
+            // PERFORMANCE: Check cache first
+            const cacheKey = `${date.getTime()}-${timeZone}`;
+            if (timezoneHourCache.has(cacheKey)) {
+                return timezoneHourCache.get(cacheKey);
+            }
             const parts = new Intl.DateTimeFormat('en-US', {
                 hour: 'numeric', hour12: false, timeZone
             }).formatToParts(date);
             const hourPart = parts.find(p => p.type === 'hour');
-            return parseInt(hourPart.value) % 24;
+            const hour = parseInt(hourPart.value) % 24;
+            // Cache result (limit cache size)
+            if (timezoneHourCache.size > 1000) timezoneHourCache.clear();
+            timezoneHourCache.set(cacheKey, hour);
+            return hour;
         }
         return date.getHours();
     }
@@ -164,13 +176,22 @@ const getHourFromDate = (dateStr, timeZone) => {
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return 8;
     if (timeZone) {
+        // PERFORMANCE: Check cache first
+        const cacheKey = `${date.getTime()}-${timeZone}`;
+        if (timezoneHourCache.has(cacheKey)) {
+            return timezoneHourCache.get(cacheKey);
+        }
         const parts = new Intl.DateTimeFormat('en-US', {
             hour: 'numeric',
             hour12: false,
             timeZone
         }).formatToParts(date);
         const hourPart = parts.find(p => p.type === 'hour');
-        return parseInt(hourPart.value) % 24;
+        const hour = parseInt(hourPart.value) % 24;
+        // Cache result
+        if (timezoneHourCache.size > 1000) timezoneHourCache.clear();
+        timezoneHourCache.set(cacheKey, hour);
+        return hour;
     }
     return date.getHours();
 };
@@ -1055,26 +1076,38 @@ export const TeamCalendarView = ({
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Navigation
-    const navigatePrev = () => {
-        const newDate = new Date(currentDate);
-        if (viewMode === 'week') {
-            newDate.setDate(newDate.getDate() - 7);
-        } else {
-            newDate.setDate(newDate.getDate() - 1);
-        }
-        setCurrentDate(newDate);
-    };
+    // Navigation - PERFORMANCE: Use useCallback and debounce to prevent rapid navigation
+    const navigationDebounceRef = useRef(false);
 
-    const navigateNext = () => {
-        const newDate = new Date(currentDate);
-        if (viewMode === 'week') {
-            newDate.setDate(newDate.getDate() + 7);
-        } else {
-            newDate.setDate(newDate.getDate() + 1);
-        }
-        setCurrentDate(newDate);
-    };
+    const navigatePrev = useCallback(() => {
+        if (navigationDebounceRef.current) return;
+        navigationDebounceRef.current = true;
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            if (viewMode === 'week') {
+                newDate.setDate(newDate.getDate() - 7);
+            } else {
+                newDate.setDate(newDate.getDate() - 1);
+            }
+            return newDate;
+        });
+        setTimeout(() => { navigationDebounceRef.current = false; }, 150);
+    }, [viewMode]);
+
+    const navigateNext = useCallback(() => {
+        if (navigationDebounceRef.current) return;
+        navigationDebounceRef.current = true;
+        setCurrentDate(prev => {
+            const newDate = new Date(prev);
+            if (viewMode === 'week') {
+                newDate.setDate(newDate.getDate() + 7);
+            } else {
+                newDate.setDate(newDate.getDate() + 1);
+            }
+            return newDate;
+        });
+        setTimeout(() => { navigationDebounceRef.current = false; }, 150);
+    }, [viewMode]);
 
     const goToToday = () => setCurrentDate(new Date());
 
@@ -1159,6 +1192,18 @@ export const TeamCalendarView = ({
         return hours;
     }, [teamMembers, jobs, businessTimezone]);
 
+    // PERFORMANCE: Memoize overlap detection for all techs at once
+    // This prevents O(n²) findOverlappingJobs from running twice per tech on every render
+    const techOverlapsMap = useMemo(() => {
+        const overlapsMap = new Map();
+        displayTechs.forEach(tech => {
+            const techEvents = getEventsForTechAndDate(tech.id, currentDate);
+            const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+            overlapsMap.set(tech.id, { techEvents, overlappingJobIds });
+        });
+        return overlapsMap;
+    }, [displayTechs, currentDate, businessTimezone, getEventsForTechAndDate]);
+
     // Auto-scroll to current time on mount
     const scrollContainerRef = useRef(null);
     useEffect(() => {
@@ -1171,26 +1216,27 @@ export const TeamCalendarView = ({
     }, [workingHours]);
 
     // Drag and drop handlers
-    const handleDragStart = (event) => {
+    // PERFORMANCE: Wrap drag handlers in useCallback to prevent child re-renders
+    const handleDragStart = useCallback((event) => {
         setDraggedEvent(event);
-    };
+    }, []);
 
-    const handleDragEnd = () => {
+    const handleDragEnd = useCallback(() => {
         setDraggedEvent(null);
         setDropTarget(null);
-    };
+    }, []);
 
-    const handleDragOver = (e) => {
+    const handleDragOver = useCallback((e) => {
         e.preventDefault();
-    };
+    }, []);
 
-    const handleDragEnter = (techId, date, hour) => {
+    const handleDragEnter = useCallback((techId, date, hour) => {
         setDropTarget({ techId, date, hour });
-    };
+    }, []);
 
-    const handleDragLeave = () => {
+    const handleDragLeave = useCallback(() => {
         setDropTarget(null);
-    };
+    }, []);
 
     const handleDrop = async (e, techId, date, hour) => {
         e.preventDefault();
@@ -1421,17 +1467,17 @@ export const TeamCalendarView = ({
                             <div className="flex sticky top-0 z-20 bg-white border-b border-slate-200">
                                 <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200" />
                                 {displayTechs.map(tech => {
-                                    const techEvents = getEventsForTechAndDate(tech.id, currentDate);
-                                    const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+                                    // PERFORMANCE: Use memoized overlap data instead of recalculating
+                                    const cached = techOverlapsMap.get(tech.id) || { techEvents: [], overlappingJobIds: new Set() };
                                     return (
                                         <div key={tech.id} className="w-48 shrink-0 border-r border-slate-200">
                                             <TechColumnHeader
                                                 tech={tech}
-                                                jobCount={techEvents.length}
+                                                jobCount={cached.techEvents.length}
                                                 isVisible={visibleTechs.has(tech.id)}
                                                 onToggleVisibility={toggleTechVisibility}
                                                 currentDate={currentDate}
-                                                overlapCount={overlappingJobIds.size}
+                                                overlapCount={cached.overlappingJobIds.size}
                                             />
                                         </div>
                                     );
@@ -1469,19 +1515,19 @@ export const TeamCalendarView = ({
 
                                 {/* Tech Columns with Absolute Positioning */}
                                 {displayTechs.map(tech => {
-                                    const techEvents = getEventsForTechAndDate(tech.id, currentDate);
-                                    const { overlappingJobIds } = findOverlappingJobs(techEvents, businessTimezone);
+                                    // PERFORMANCE: Use memoized overlap data instead of recalculating
+                                    const cached = techOverlapsMap.get(tech.id) || { techEvents: [], overlappingJobIds: new Set() };
 
                                     return (
                                         <div key={tech.id} className="w-48 shrink-0">
                                             <TechColumnBody
                                                 tech={tech}
                                                 date={currentDate}
-                                                events={techEvents}
+                                                events={cached.techEvents}
                                                 workingHours={workingHours}
                                                 firstHour={workingHours[0]}
                                                 onDrop={handleDrop}
-                                                onDragOver={(e) => handleDragOver(e)}
+                                                onDragOver={handleDragOver}
                                                 onDragLeave={handleDragLeave}
                                                 dropTarget={dropTarget}
                                                 onEventClick={handleEventClick}
@@ -1489,7 +1535,7 @@ export const TeamCalendarView = ({
                                                 onDragEnd={handleDragEnd}
                                                 draggedEvent={draggedEvent}
                                                 timeZone={businessTimezone}
-                                                overlappingJobIds={overlappingJobIds}
+                                                overlappingJobIds={cached.overlappingJobIds}
                                             />
                                         </div>
                                     );

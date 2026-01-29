@@ -5,7 +5,7 @@
 // Hooks for managing invitations, customers, and stats
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, limit } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
 import {
@@ -422,7 +422,9 @@ export const useCalendarEvents = (contractorId, options = {}) => {
             contractorId,
             'evaluations'
         );
-        const q = query(evaluationsRef, orderBy('createdAt', 'desc'));
+        // PERFORMANCE: Limit evaluations query to most recent 200
+        // Most contractors don't need years of evaluation history in calendar view
+        const q = query(evaluationsRef, orderBy('createdAt', 'desc'), limit(200));
 
         const unsubscribe = onSnapshot(
             q,
