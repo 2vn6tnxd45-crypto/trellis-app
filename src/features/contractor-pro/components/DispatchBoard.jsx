@@ -123,9 +123,11 @@ const JobCard = ({
     }
 
     // Crew requirements analysis
+    // Filter out invalid crew members (missing techId or techName) for accurate counts
+    const validCrew = (job.assignedCrew || []).filter(m => m && m.techId && m.techName);
     const crewRequired = job.crewRequirements?.required || job.requiredCrewSize || 1;
     const crewMinimum = job.crewRequirements?.minimum || 1;
-    const assignedCrewCount = job.assignedCrew?.length || (job.assignedTechId ? 1 : 0);
+    const assignedCrewCount = validCrew.length || (job.assignedTechId ? 1 : 0);
     const needsMoreCrew = crewRequired > 1 && assignedCrewCount < crewMinimum;
     const isFullyStaffed = assignedCrewCount >= crewRequired;
     const isUnderstaffed = assignedCrewCount > 0 && assignedCrewCount < crewMinimum;
@@ -178,22 +180,22 @@ const JobCard = ({
                     {/* Crew Requirements Badge - Show when job needs multiple techs */}
                     {crewRequired > 1 && (
                         <div className="flex items-center gap-1 mt-1">
-                            {/* Show crew avatars if assigned */}
-                            {job.assignedCrew && job.assignedCrew.length > 0 && (
+                            {/* Show crew avatars if assigned (only valid members) */}
+                            {validCrew.length > 0 && (
                                 <div className="flex -space-x-2 mr-1">
-                                    {job.assignedCrew.slice(0, 4).map((member, idx) => (
+                                    {validCrew.slice(0, 4).map((member, idx) => (
                                         <div
                                             key={member.techId}
                                             className="w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
                                             style={{ backgroundColor: member.color || '#64748B', zIndex: 4 - idx }}
                                             title={`${member.techName} (${member.role})`}
                                         >
-                                            {member.techName?.charAt(0) || '?'}
+                                            {member.techName.charAt(0)}
                                         </div>
                                     ))}
-                                    {job.assignedCrew.length > 4 && (
+                                    {validCrew.length > 4 && (
                                         <div className="w-5 h-5 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-slate-600 text-[10px] font-bold">
-                                            +{job.assignedCrew.length - 4}
+                                            +{validCrew.length - 4}
                                         </div>
                                     )}
                                 </div>
@@ -213,17 +215,17 @@ const JobCard = ({
                     )}
 
                     {/* Single tech crew (no special badge needed, just show avatar if assigned) */}
-                    {crewRequired === 1 && job.assignedCrew && job.assignedCrew.length > 0 && (
+                    {crewRequired === 1 && validCrew.length > 0 && (
                         <div className="flex items-center gap-1 mt-1">
                             <div className="flex -space-x-2">
-                                {job.assignedCrew.slice(0, 4).map((member, idx) => (
+                                {validCrew.slice(0, 4).map((member, idx) => (
                                     <div
                                         key={member.techId}
                                         className="w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white text-[10px] font-bold"
                                         style={{ backgroundColor: member.color || '#64748B', zIndex: 4 - idx }}
                                         title={`${member.techName} (${member.role})`}
                                     >
-                                        {member.techName?.charAt(0) || '?'}
+                                        {member.techName.charAt(0)}
                                     </div>
                                 ))}
                             </div>
@@ -1096,7 +1098,12 @@ export const DispatchBoard = ({
                     }];
                 }
 
-                crewToSave.push(createCrewMember(tech, 'helper'));
+                const newMemberToAdd = createCrewMember(tech, 'helper');
+                if (!newMemberToAdd) {
+                    toast.error('Failed to create crew member');
+                    return;
+                }
+                crewToSave.push(newMemberToAdd);
                 await assignCrewToJob(job.id, crewToSave, 'manual');
 
                 // Show staffing status after assignment
@@ -1111,6 +1118,10 @@ export const DispatchBoard = ({
             } else {
                 // Unassigned -> New Assignment (Lead)
                 const newMember = createCrewMember(tech, 'lead');
+                if (!newMember) {
+                    toast.error('Failed to create crew member');
+                    return;
+                }
                 await assignCrewToJob(job.id, [newMember], 'manual');
 
                 // Show staffing needs for multi-crew jobs
@@ -1237,14 +1248,17 @@ export const DispatchBoard = ({
                     const tech = teamMembers.find(t => t.id === assignment.techId);
                     if (!tech) return;
                     const newMember = createCrewMember(tech, 'lead');
+                    if (!newMember) return;  // Skip if createCrewMember failed
                     return assignCrewToJob(assignment.jobId, [newMember], 'ai');
                 }
 
                 // Create crew members - first one is lead, others are members
-                const crewMembers = techsToAssign.map((tech, index) =>
-                    createCrewMember(tech, index === 0 ? 'lead' : 'member')
-                );
+                // Filter out null members (in case any tech was invalid)
+                const crewMembers = techsToAssign
+                    .map((tech, index) => createCrewMember(tech, index === 0 ? 'lead' : 'member'))
+                    .filter(Boolean);
 
+                if (crewMembers.length === 0) return;  // Skip if no valid members
                 return assignCrewToJob(assignment.jobId, crewMembers, 'ai');
             });
 

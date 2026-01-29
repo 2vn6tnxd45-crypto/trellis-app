@@ -11,17 +11,25 @@
  * @param {Object} tech - Team member object
  * @param {string} role - Role ID
  * @param {Object|null} vehicle - Vehicle object (optional)
- * @returns {Object} CrewMember
+ * @returns {Object|null} CrewMember or null if tech is invalid
  */
-export const createCrewMember = (tech, role = 'helper', vehicle = null) => ({
-    techId: tech.id,
-    techName: tech.name,
-    role,
-    vehicleId: vehicle?.id || null,
-    vehicleName: vehicle?.name || null,
-    color: tech.color || '#64748B',
-    assignedAt: new Date().toISOString()
-});
+export const createCrewMember = (tech, role = 'helper', vehicle = null) => {
+    // Defensive check: tech must exist and have an id
+    if (!tech || !tech.id) {
+        console.warn('[createCrewMember] Called with invalid tech:', tech);
+        return null;
+    }
+
+    return {
+        techId: tech.id,
+        techName: tech.name || 'Unknown Tech',  // Fallback if name is missing
+        role,
+        vehicleId: vehicle?.id || null,
+        vehicleName: vehicle?.name || null,
+        color: tech.color || '#64748B',
+        assignedAt: new Date().toISOString()
+    };
+};
 
 /**
  * Get the lead technician from a crew

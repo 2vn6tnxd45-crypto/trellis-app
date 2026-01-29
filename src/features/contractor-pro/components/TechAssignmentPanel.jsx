@@ -190,10 +190,22 @@ const UnassignedJobsList = ({ jobs, teamMembers, onAssign, vehicles = [], prefer
 
         setAssigning(jobId);
         try {
-            const crew = members.map(m => {
-                const tech = teamMembers.find(t => t.id === m.techId);
-                return createCrewMember(tech, m.role);
-            });
+            // Create crew members, filtering out any that failed (tech not found)
+            const crew = members
+                .map(m => {
+                    const tech = teamMembers.find(t => t.id === m.techId);
+                    if (!tech) {
+                        console.warn(`[handleMultiAssign] Tech ${m.techId} not found in teamMembers`);
+                        return null;
+                    }
+                    return createCrewMember(tech, m.role);
+                })
+                .filter(Boolean);  // Remove null entries
+
+            if (crew.length === 0) {
+                toast.error('No valid technicians found to assign');
+                return;
+            }
 
             // Include vehicle if selected
             const vehicleId = selectedVehicles[jobId];
