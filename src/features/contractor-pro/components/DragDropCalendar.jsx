@@ -41,6 +41,32 @@ const throttle = (func, limit) => {
 };
 
 // ============================================
+// PERFORMANCE: CSS-based drag highlight (no React state needed)
+// This eliminates re-renders of ALL TimeSlots during drag operations
+// ============================================
+const dragHighlightStyles = `
+.calendar-time-slot {
+    transition: background-color 0.1s ease;
+}
+.calendar-time-slot.drag-over {
+    background-color: rgb(209 250 229) !important;
+    border-color: rgb(16 185 129) !important;
+    box-shadow: inset 0 0 0 2px rgba(16, 185, 129, 0.3);
+}
+`;
+
+// Inject styles once on module load
+if (typeof document !== 'undefined') {
+    const styleId = 'dragdrop-calendar-drag-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = dragHighlightStyles;
+        document.head.appendChild(style);
+    }
+}
+
+// ============================================
 // HELPERS
 // ============================================
 
@@ -600,10 +626,8 @@ const TimeSlot = React.memo(({
     jobs,
     pendingSlots, // NEW: Receive pending slots
     evaluations = [],  // NEW: Scheduled evaluations
-    isDropTarget,
     onDrop,
     onDragOver,
-    onDragLeave,
     onJobClick,
     onEvaluationClick,  // NEW: Handler for evaluation clicks
     onSlotClick,  // NEW: Handler for clicking empty slot
@@ -611,6 +635,26 @@ const TimeSlot = React.memo(({
     timezone: timezoneProp  // Explicit timezone prop from parent
 }) => {
     const timezone = timezoneProp || preferences?.businessTimezone || preferences?.timezone;
+
+    // PERFORMANCE: Use ref + CSS class manipulation for drag highlight
+    // This avoids re-renders when hovering over different slots
+    const slotRef = useRef(null);
+
+    const handleDragEnter = useCallback((e) => {
+        slotRef.current?.classList.add('drag-over');
+    }, []);
+
+    const handleDragLeaveInternal = useCallback((e) => {
+        // Only remove if we're actually leaving the element (not entering a child)
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            slotRef.current?.classList.remove('drag-over');
+        }
+    }, []);
+
+    const handleDropInternal = useCallback((e, date, hour) => {
+        slotRef.current?.classList.remove('drag-over');
+        onDrop(e, date, hour);
+    }, [onDrop]);
 
     // Filter jobs that START in this hour (not just any job for the day)
     const slotJobs = jobs.filter(job => {
@@ -699,24 +743,24 @@ const TimeSlot = React.memo(({
     };
 
     // Don't allow dropping on closed days
-    const handleDrop = isDayClosed ? (e) => { e.preventDefault(); } : (e) => onDrop(e, date, hour);
-    const handleDragOver = isDayClosed ? (e) => { e.preventDefault(); } : onDragOver;
+    const handleDropFinal = isDayClosed ? (e) => { e.preventDefault(); } : (e) => handleDropInternal(e, date, hour);
+    const handleDragOverFinal = isDayClosed ? (e) => { e.preventDefault(); } : onDragOver;
 
     return (
         <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={onDragLeave}
+            ref={slotRef}
+            onDrop={handleDropFinal}
+            onDragOver={handleDragOverFinal}
+            onDragEnter={isDayClosed ? undefined : handleDragEnter}
+            onDragLeave={handleDragLeaveInternal}
             onClick={handleSlotClick}
-            className={`h-[60px] border-b border-r border-slate-100 transition-colors relative ${isDayClosed
+            className={`calendar-time-slot h-[60px] border-b border-r border-slate-100 relative ${isDayClosed
                 ? 'bg-slate-200/80 cursor-not-allowed'
-                : isDropTarget
-                    ? 'bg-emerald-100 border-emerald-300'
-                    : isWithinWorkingHours
-                        ? 'bg-white hover:bg-slate-50 cursor-pointer'
-                        : 'bg-slate-100/60 hover:bg-slate-100'
+                : isWithinWorkingHours
+                    ? 'bg-white hover:bg-slate-50 cursor-pointer'
+                    : 'bg-slate-100/60 hover:bg-slate-100'
                 }`}
-            style={!isDayClosed && !isWithinWorkingHours && !isDropTarget ? {
+            style={!isDayClosed && !isWithinWorkingHours ? {
                 backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 4px, rgba(148, 163, 184, 0.1) 4px, rgba(148, 163, 184, 0.1) 8px)'
             } : undefined}
             title={isDayClosed ? 'Business closed - scheduling not allowed' : (!isWithinWorkingHours ? 'Outside business hours' : undefined)}
@@ -1009,6 +1053,18 @@ const TimeSlot = React.memo(({
                 );
             })}
         </div>
+    );
+}, (prevProps, nextProps) => {
+    // PERFORMANCE: Custom comparison to prevent unnecessary re-renders
+    // Only re-render if meaningful data changed
+    return (
+        prevProps.hour === nextProps.hour &&
+        prevProps.date?.getTime() === nextProps.date?.getTime() &&
+        prevProps.jobs?.length === nextProps.jobs?.length &&
+        prevProps.jobs?.map(j => j.id).join(',') === nextProps.jobs?.map(j => j.id).join(',') &&
+        prevProps.pendingSlots?.length === nextProps.pendingSlots?.length &&
+        prevProps.evaluations?.length === nextProps.evaluations?.length &&
+        prevProps.timezone === nextProps.timezone
     );
 });
 
@@ -1973,7 +2029,7 @@ export const DragDropCalendar = ({
     const timezoneAbbr = timezone ? getTimezoneAbbreviation(timezone) : null;
     const [currentDate, setCurrentDate] = useState(new Date());
     const [draggedJob, setDraggedJob] = useState(null);
-    const [dropTarget, setDropTarget] = useState(null);
+    // PERFORMANCE: dropTarget state removed - using CSS class manipulation for instant visual feedback
     const [confirmDrop, setConfirmDrop] = useState(null);
     const [proposalJob, setProposalJob] = useState(null); // For Accept/Counter modal
     const [isProcessingProposal, setIsProcessingProposal] = useState(false);
@@ -2195,23 +2251,8 @@ export const DragDropCalendar = ({
         e.dataTransfer.dropEffect = 'move';
     }, []);
 
-    // PERFORMANCE: Throttled drop target updates to prevent excessive re-renders
-    // onDragOver fires ~60 times/second; throttle to 100ms (10 updates/sec max)
-    const handleDragEnterThrottled = useMemo(() => {
-        return throttle((date, hour) => {
-            setDropTarget({ date, hour });
-        }, 100);
-    }, []);
-
-    // Keep original for direct calls (e.g., from onDragEnter events)
-    const handleDragEnter = useCallback((date, hour) => {
-        handleDragEnterThrottled(date, hour);
-    }, [handleDragEnterThrottled]);
-
-    const handleDragLeave = useCallback(() => {
-        // Small delay to prevent flicker
-        setTimeout(() => setDropTarget(null), 50);
-    }, []);
+    // PERFORMANCE: handleDragEnter/handleDragLeave removed - TimeSlot now handles
+    // drag highlighting via CSS class manipulation for zero React re-renders
 
     const handleDrop = useCallback((e, date, hour) => {
         e.preventDefault();
@@ -2664,34 +2705,23 @@ export const DragDropCalendar = ({
                             </div>
 
                             {/* Day Slots */}
-                            {weekDates.map((date, idx) => {
-                                const isTarget = dropTarget &&
-                                    isSameDayInTimezone(dropTarget.date, date, timezone) &&
-                                    dropTarget.hour === hour;
-
-                                return (
-                                    <TimeSlot
-                                        key={idx}
-                                        date={date}
-                                        hour={hour}
-                                        jobs={getJobsForDate(scheduledJobs, date, timezone)}
-                                        pendingSlots={pendingSlots}
-                                        evaluations={scheduledEvaluations}
-                                        isDropTarget={isTarget}
-                                        onDrop={handleDrop}
-                                        onDragOver={(e) => {
-                                            handleDragOver(e);
-                                            handleDragEnter(date, hour);
-                                        }}
-                                        onDragLeave={handleDragLeave}
-                                        onJobClick={handleInternalJobClick}
-                                        onEvaluationClick={onEvaluationClick}
-                                        onSlotClick={(date, hour) => setClickScheduleTarget({ date, hour })}
-                                        preferences={preferences}
-                                        timezone={timezone}
-                                    />
-                                );
-                            })}
+                            {weekDates.map((date, idx) => (
+                                <TimeSlot
+                                    key={idx}
+                                    date={date}
+                                    hour={hour}
+                                    jobs={getJobsForDate(scheduledJobs, date, timezone)}
+                                    pendingSlots={pendingSlots}
+                                    evaluations={scheduledEvaluations}
+                                    onDrop={handleDrop}
+                                    onDragOver={handleDragOver}
+                                    onJobClick={handleInternalJobClick}
+                                    onEvaluationClick={onEvaluationClick}
+                                    onSlotClick={(date, hour) => setClickScheduleTarget({ date, hour })}
+                                    preferences={preferences}
+                                    timezone={timezone}
+                                />
+                            ))}
                         </div>
                     ))}
                 </div>

@@ -1258,6 +1258,12 @@ export const TeamCalendarView = ({
         return hours;
     }, [teamMembers, jobs, businessTimezone]);
 
+    // Visible team members - MOVED UP so techOverlapsMap can use it
+    const displayTechs = useMemo(() =>
+        teamMembers.filter(t => visibleTechs.has(t.id)),
+        [teamMembers, visibleTechs]
+    );
+
     // PERFORMANCE: Memoize overlap detection for all techs at once
     // This prevents O(n²) findOverlappingJobs from running twice per tech on every render
     const techOverlapsMap = useMemo(() => {
@@ -1405,9 +1411,6 @@ export const TeamCalendarView = ({
             onJobClick?.(event);
         }
     };
-
-    // Visible team members
-    const displayTechs = teamMembers.filter(t => visibleTechs.has(t.id));
 
     // Date label
     const dateLabel = viewMode === 'week'
