@@ -2335,6 +2335,7 @@ export const ContractorProApp = () => {
         signIn,
         signInWithGoogle,
         signOut,
+        resetPassword,
         updateProfile,
         clearError
     } = useContractorAuth();
@@ -2358,18 +2359,23 @@ export const ContractorProApp = () => {
         );
     }, []);
 
-    const { jobs, jobsWithProposals, loading: jobsLoading } = useContractorJobs(user?.uid, {
-        onNewProposal: handleNewProposal
-    });
-    const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
-
-    // Calendar events hook - merges jobs and evaluations for calendar display
+    // PERFORMANCE FIX: Use single useCalendarEvents for all job data
+    // Previously useContractorJobs was called separately, causing duplicate Firestore subscriptions
     const {
         calendarEvents,
+        jobs,            // Now from useCalendarEvents (single subscription)
+        jobsWithProposals, // Now from useCalendarEvents
         evaluations: calendarEvaluations,
         scheduledEvaluations,
         loading: calendarEventsLoading
-    } = useCalendarEvents(user?.uid);
+    } = useCalendarEvents(user?.uid, {
+        onNewProposal: handleNewProposal
+    });
+
+    // Alias for backward compatibility
+    const jobsLoading = calendarEventsLoading;
+
+    const { invoices, loading: invoicesLoading } = useContractorInvoices(user?.uid);
 
     // Quote hooks
     const { quotes, loading: quotesLoading } = useQuotes(user?.uid);
@@ -2410,14 +2416,15 @@ export const ContractorProApp = () => {
         linkQuote
     } = useEvaluations(contractorId);
 
-    // Expense tracking
+    // Expense tracking - LAZY LOADED: Only subscribe when viewing expenses tab
+    const shouldLoadExpenses = activeView === 'expenses';
     const {
         expenses,
         loading: expensesLoading,
         addExpense,
         editExpense,
         removeExpense,
-    } = useExpenses(contractorId);
+    } = useExpenses(shouldLoadExpenses ? contractorId : null);
 
     // Vehicle fleet management
     const {
@@ -2973,7 +2980,7 @@ export const ContractorProApp = () => {
 
     // Auth
     if (!user) {
-        return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} error={authError} clearError={clearError} />;
+        return <ContractorAuthScreen onSignIn={signIn} onSignUp={signUp} onGoogleSignIn={signInWithGoogle} onResetPassword={resetPassword} error={authError} clearError={clearError} />;
     }
 
     // Setup

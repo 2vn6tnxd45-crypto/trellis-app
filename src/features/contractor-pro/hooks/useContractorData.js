@@ -4,7 +4,7 @@
 // ============================================
 // Hooks for managing invitations, customers, and stats
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
 import { appId } from '../../../config/constants';
@@ -19,6 +19,7 @@ import {
     subscribeToContractorInvoices // NEW IMPORT
 } from '../lib/contractorService';
 import { mergeCalendarEvents } from '../lib/calendarEventsTransformer';
+import { useStableArray } from '../../../hooks/useStableArray';
 
 // ============================================
 // INVITATIONS HOOK
@@ -345,13 +346,18 @@ export const useContractorInvoices = (contractorId) => {
 // ============================================
 // CALENDAR EVENTS HOOK (Jobs + Evaluations)
 // ============================================
-export const useCalendarEvents = (contractorId) => {
+// UPDATED: Now also handles proposal notifications to eliminate duplicate subscription
+export const useCalendarEvents = (contractorId, options = {}) => {
     const [jobs, setJobs] = useState([]);
     const [evaluations, setEvaluations] = useState([]);
     const [loadingJobs, setLoadingJobs] = useState(true);
     const [loadingEvals, setLoadingEvals] = useState(true);
 
-    // Subscribe to jobs
+    // Track seen proposals to detect new ones (same as useContractorJobs)
+    const [seenProposalIds, setSeenProposalIds] = useState(new Set());
+    const { onNewProposal } = options;
+
+    // Subscribe to jobs (with proposal detection merged from useContractorJobs)
     useEffect(() => {
         if (!contractorId) {
             setLoadingJobs(false);
@@ -359,12 +365,45 @@ export const useCalendarEvents = (contractorId) => {
         }
 
         const unsubscribe = subscribeToContractorJobs(contractorId, (data) => {
+            // Check for new homeowner proposals
+            if (onNewProposal && jobs.length > 0) {
+                data.forEach(job => {
+                    if (job.proposedTimes?.length > 0) {
+                        job.proposedTimes.forEach((proposal, idx) => {
+                            // Only notify for homeowner proposals
+                            if (proposal.proposedBy === 'homeowner') {
+                                const proposalId = `${job.id}-${proposal.createdAt || idx}`;
+                                if (!seenProposalIds.has(proposalId)) {
+                                    onNewProposal(job, proposal);
+                                    setSeenProposalIds(prev => new Set([...prev, proposalId]));
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Initialize seen proposals on first load (don't notify for existing)
+            if (jobs.length === 0 && data.length > 0) {
+                const initialSeen = new Set();
+                data.forEach(job => {
+                    if (job.proposedTimes?.length > 0) {
+                        job.proposedTimes.forEach((proposal, idx) => {
+                            if (proposal.proposedBy === 'homeowner') {
+                                initialSeen.add(`${job.id}-${proposal.createdAt || idx}`);
+                            }
+                        });
+                    }
+                });
+                setSeenProposalIds(initialSeen);
+            }
+
             setJobs(data);
             setLoadingJobs(false);
         });
 
         return () => unsubscribe();
-    }, [contractorId]);
+    }, [contractorId, onNewProposal]);
 
     // Subscribe to evaluations
     useEffect(() => {
@@ -425,14 +464,34 @@ export const useCalendarEvents = (contractorId) => {
         );
     }, [jobs]);
 
+    // Jobs with pending homeowner proposals (merged from useContractorJobs)
+    const jobsWithProposals = useMemo(() => {
+        return jobs.filter(job =>
+            job.proposedTimes?.some(p => p.proposedBy === 'homeowner') &&
+            job.status === 'scheduling' &&
+            !job.scheduledTime
+        );
+    }, [jobs]);
+
+    // Completed jobs helper
+    const completedJobs = useMemo(() => {
+        return jobs.filter(j => j.status === 'completed');
+    }, [jobs]);
+
+    // PERFORMANCE: Stabilize jobs array to prevent unnecessary re-renders
+    // when Firestore returns new references with identical data
+    const stableJobs = useStableArray(jobs, ['id', 'status', 'scheduledTime', 'assignedTechId', 'estimatedDuration']);
+
     return {
         // Unified events for calendar display
         calendarEvents,
-        // Raw data
-        jobs,
+        // Raw data (stabilized to prevent unnecessary re-renders)
+        jobs: stableJobs,
         evaluations,
         // Filtered subsets
         activeJobs,
+        completedJobs,
+        jobsWithProposals, // NEW: for proposal notifications
         scheduledEvaluations,
         // Loading state
         loading: loadingJobs || loadingEvals,

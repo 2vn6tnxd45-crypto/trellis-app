@@ -22,6 +22,25 @@ import { isMultiDayJob, jobIsMultiDay, getSegmentForDate } from '../lib/multiDay
 import { validateProposedCrew } from '../lib/crewRequirementsService';
 
 // ============================================
+// PERFORMANCE UTILITIES
+// ============================================
+
+/**
+ * Throttle function - limits how often a function can be called
+ * Used to prevent excessive state updates during drag operations
+ */
+const throttle = (func, limit) => {
+    let inThrottle;
+    return function(...args) {
+        if (!inThrottle) {
+            func.apply(this, args);
+            inThrottle = true;
+            setTimeout(() => inThrottle = false, limit);
+        }
+    };
+};
+
+// ============================================
 // HELPERS
 // ============================================
 
@@ -359,12 +378,15 @@ const getJobsForDate = (jobs, date, timezone) => {
 // ============================================
 
 const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProposal, onDeclineProposal }) => {
-    const [isDragging, setIsDragging] = useState(false);
+    // PERFORMANCE: Use ref + CSS class instead of state for drag visual
+    // This avoids re-renders during drag operations
+    const cardRef = useRef(null);
     const [isAccepting, setIsAccepting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
 
     const handleDragStart = (e) => {
-        setIsDragging(true);
+        // Use CSS class manipulation instead of state to avoid re-render
+        cardRef.current?.classList.add('is-dragging');
         e.dataTransfer.setData('jobId', job.id);
         e.dataTransfer.setData('jobData', JSON.stringify(job));
         e.dataTransfer.effectAllowed = 'move';
@@ -372,7 +394,8 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
     };
 
     const handleDragEnd = () => {
-        setIsDragging(false);
+        // Remove CSS class instead of state update
+        cardRef.current?.classList.remove('is-dragging');
         onDragEnd?.();
     };
 
@@ -419,13 +442,14 @@ const DraggableJobCard = React.memo(({ job, onDragStart, onDragEnd, onAcceptProp
 
     return (
         <div
+            ref={cardRef}
             draggable // Always allow drag - contractor can also drag to propose a different time
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing ${hasProposal
+            className={`p-3 rounded-xl border transition-all cursor-grab active:cursor-grabbing hover:shadow-md hover:border-emerald-300 [&.is-dragging]:opacity-50 [&.is-dragging]:scale-95 [&.is-dragging]:shadow-lg ${hasProposal
                 ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200'
                 : 'bg-white border-slate-200'
-                } ${isDragging ? 'opacity-50 scale-95 shadow-lg' : 'hover:shadow-md hover:border-emerald-300'}`}
+                }`}
         >
             {hasProposal && (
                 <div className="mb-2 px-2 py-1.5 bg-blue-100 rounded-lg text-blue-700">
@@ -591,7 +615,8 @@ const TimeSlot = React.memo(({
             durationMinutes = getDurationMinutes(job.scheduledTime, job.scheduledEndTime);
         }
 
-        const durationHours = Math.max(1, Math.ceil(durationMinutes / 60));
+        // Use actual fractional hours for accurate height (e.g., 90 min = 1.5 hours)
+        const durationHours = Math.max(0.5, durationMinutes / 60);
         return { ...job, _durationHours: durationHours, _durationMinutes: durationMinutes };
     });
 
@@ -661,8 +686,9 @@ const TimeSlot = React.memo(({
         >
             {/* Confirmed Jobs - Height scaled by duration, positioned absolutely to overlap cells */}
             {slotJobs.map((job, jobIndex) => {
-                // Calculate visual height: each hour = 60px
-                const heightPx = Math.max(52, (job._durationHours || 1) * 60 - 4); // -4 for gap
+                // Calculate visual height: each hour = 60px, using actual fractional hours
+                // e.g., 90 min job = 1.5 hours = 86px (1.5 * 60 - 4)
+                const heightPx = Math.max(30, (job._durationHours || 1) * 60 - 4); // -4 for gap, min 30px
                 const showDuration = (job._durationMinutes || 60) >= 30;
                 // Offset for multiple jobs starting at same hour
                 const horizontalOffset = jobIndex * 12; // Cascade effect
@@ -826,16 +852,35 @@ const TimeSlot = React.memo(({
                 );
             })}
 
-            {/* NEW: Pending/Offered Slots - positioned after jobs */}
+            {/* NEW: Pending/Offered Slots - positioned with height based on duration */}
             {slotPending.map((slot, idx) => {
-                const topOffset = 4 + (slotJobs.length * 4) + (idx * 4);
                 const isHomeownerProposal = slot.isHomeownerProposal;
+
+                // Calculate height based on job duration (each hour = 60px)
+                // Use actual fractional hours for accurate visual representation
+                const durationMinutes = slot.estimatedDuration || 60;
+                const durationHours = Math.max(0.5, durationMinutes / 60);
+                const heightPx = Math.max(30, (durationHours * 60) - 4); // -4 for gap, minimum 30px
+
+                // Calculate top position based on minutes within the hour
+                const startMinutes = getMinutesFromDate(slot.slotStart, timezone);
+                const topPosition = `${(startMinutes / 60) * 100}%`;
+
+                // Offset for multiple pending slots starting at same hour
+                const horizontalOffset = (slotJobs.length + idx) * 8;
+
                 return (
                     <button
                         key={`${slot.id}-${slot.slotId || 'proposal'}-${idx}`}
                         onClick={() => onJobClick?.({ ...slot, _isProposal: true })}
-                        style={{ top: `${topOffset}px`, zIndex: 5 + idx }}
-                        className={`absolute left-1 right-1 h-[52px] p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity ${isHomeownerProposal
+                        style={{
+                            top: topPosition,
+                            height: `${heightPx}px`,
+                            left: `${4 + horizontalOffset}px`,
+                            right: '4px',
+                            zIndex: 5 + idx
+                        }}
+                        className={`absolute p-2 border border-dashed rounded-lg text-xs text-left opacity-90 cursor-pointer hover:opacity-100 transition-opacity overflow-hidden ${isHomeownerProposal
                             ? 'bg-blue-50 border-blue-400 hover:bg-blue-100'
                             : 'bg-amber-50 border-amber-300 hover:bg-amber-100'
                             }`}
@@ -846,23 +891,52 @@ const TimeSlot = React.memo(({
                             <span className={`font-bold truncate ${isHomeownerProposal ? 'text-blue-700' : 'text-amber-700'}`}>
                                 {isHomeownerProposal ? 'Customer Proposed' : (slot.title || 'Pending')}
                             </span>
+                            {/* Show duration for longer jobs */}
+                            {durationMinutes >= 60 && (
+                                <span className={`text-[9px] ml-auto shrink-0 ${isHomeownerProposal ? 'text-blue-500' : 'text-amber-500'}`}>
+                                    {formatDuration(durationMinutes)}
+                                </span>
+                            )}
                         </div>
                         <p className={`truncate ${isHomeownerProposal ? 'text-blue-600' : 'text-amber-600'}`}>
                             {slot.customerName}
                         </p>
+                        {/* Show time for taller blocks */}
+                        {heightPx > 60 && (
+                            <p className={`text-[10px] mt-0.5 ${isHomeownerProposal ? 'text-blue-500' : 'text-amber-500'}`}>
+                                {formatTimeFromDate(slot.slotStart, timezone)}
+                            </p>
+                        )}
                     </button>
                 );
             })}
 
-            {/* NEW: Scheduled Evaluations - positioned after jobs and pending */}
+            {/* NEW: Scheduled Evaluations - positioned with height based on duration */}
             {slotEvaluations.map((evaluation, idx) => {
-                const topOffset = 4 + (slotJobs.length * 4) + (slotPending.length * 4) + (idx * 4);
+                // Calculate height based on evaluation duration (each hour = 60px)
+                const durationMinutes = evaluation.duration || 30;
+                const durationHours = Math.max(0.5, durationMinutes / 60);
+                const heightPx = Math.max(48, (durationHours * 60) - 4); // -4 for gap, minimum 48px
+
+                // Calculate top position based on minutes within the hour
+                const startMinutes = getMinutesFromDate(evaluation.scheduledTime, timezone);
+                const topPosition = `${(startMinutes / 60) * 100}%`;
+
+                // Offset for multiple items at same hour
+                const horizontalOffset = (slotJobs.length + slotPending.length + idx) * 8;
+
                 return (
                     <button
                         key={evaluation.id}
                         onClick={() => onEvaluationClick?.(evaluation._original || evaluation)}
-                        style={{ top: `${topOffset}px`, zIndex: 5 + slotPending.length + idx }}
-                        className="absolute left-1 right-1 h-[52px] p-2 bg-purple-500 text-white rounded-lg text-xs text-left hover:bg-purple-600 transition-colors shadow-sm overflow-hidden"
+                        style={{
+                            top: topPosition,
+                            height: `${heightPx}px`,
+                            left: `${4 + horizontalOffset}px`,
+                            right: '4px',
+                            zIndex: 5 + slotPending.length + idx
+                        }}
+                        className="absolute p-2 bg-purple-500 text-white rounded-lg text-xs text-left hover:bg-purple-600 transition-colors shadow-sm overflow-hidden"
                     >
                         <div className="flex items-center gap-1 mb-0.5">
                             {evaluation.evaluationType === 'virtual' ? (
@@ -871,8 +945,15 @@ const TimeSlot = React.memo(({
                                 <span className="text-[10px] bg-purple-400 px-1 rounded">SITE</span>
                             )}
                             <p className="font-bold truncate flex-1">{evaluation.title}</p>
+                            <span className="text-[9px] opacity-80 shrink-0">{durationMinutes}m</span>
                         </div>
                         <p className="truncate opacity-80">{evaluation.customer?.name}</p>
+                        {/* Show time for taller blocks */}
+                        {heightPx > 50 && (
+                            <p className="text-[10px] opacity-70 mt-0.5">
+                                {formatTimeFromDate(evaluation.scheduledTime, timezone)}
+                            </p>
+                        )}
                     </button>
                 );
             })}
@@ -2050,9 +2131,18 @@ export const DragDropCalendar = ({
         e.dataTransfer.dropEffect = 'move';
     }, []);
 
-    const handleDragEnter = useCallback((date, hour) => {
-        setDropTarget({ date, hour });
+    // PERFORMANCE: Throttled drop target updates to prevent excessive re-renders
+    // onDragOver fires ~60 times/second; throttle to 100ms (10 updates/sec max)
+    const handleDragEnterThrottled = useMemo(() => {
+        return throttle((date, hour) => {
+            setDropTarget({ date, hour });
+        }, 100);
     }, []);
+
+    // Keep original for direct calls (e.g., from onDragEnter events)
+    const handleDragEnter = useCallback((date, hour) => {
+        handleDragEnterThrottled(date, hour);
+    }, [handleDragEnterThrottled]);
 
     const handleDragLeave = useCallback(() => {
         // Small delay to prevent flicker
