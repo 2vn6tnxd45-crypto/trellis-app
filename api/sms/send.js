@@ -85,29 +85,48 @@ export default async function handler(req, res) {
     try {
         const { to, message, jobId, contractorId, type, metadata } = req.body;
 
+        console.log('[SMS Send] ===== REQUEST =====');
+        console.log('[SMS Send] To:', to);
+        console.log('[SMS Send] Message length:', message?.length);
+        console.log('[SMS Send] Job ID:', jobId);
+        console.log('[SMS Send] Contractor ID:', contractorId);
+        console.log('[SMS Send] Type:', type);
+
         // Validate required fields
         if (!to || !message) {
+            console.error('[SMS Send] Missing required fields');
             return res.status(400).json({ error: 'Missing required fields: to, message' });
         }
 
         // Validate phone format
         if (!isValidE164(to)) {
+            console.error('[SMS Send] Invalid E.164 format:', to);
             return res.status(400).json({ error: 'Invalid phone number format. Must be E.164 format (e.g., +14155551234)' });
         }
 
         // Validate message length (SMS limit is 160 chars, but Twilio handles concatenation)
         if (message.length > 1600) {
+            console.error('[SMS Send] Message too long:', message.length);
             return res.status(400).json({ error: 'Message too long. Maximum 1600 characters.' });
         }
 
         // Check rate limit
         if (contractorId && !checkRateLimit(contractorId)) {
+            console.error('[SMS Send] Rate limit exceeded for:', contractorId);
             return res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
         }
+
+        // Check Twilio credentials
+        console.log('[SMS Send] Checking Twilio credentials...');
+        console.log('[SMS Send] TWILIO_ACCOUNT_SID exists:', !!process.env.TWILIO_ACCOUNT_SID);
+        console.log('[SMS Send] TWILIO_AUTH_TOKEN exists:', !!process.env.TWILIO_AUTH_TOKEN);
+        console.log('[SMS Send] TWILIO_PHONE_NUMBER exists:', !!process.env.TWILIO_PHONE_NUMBER);
 
         // Initialize Twilio client
         const client = getTwilioClient();
         const fromNumber = getTwilioPhoneNumber();
+
+        console.log('[SMS Send] From number:', fromNumber);
 
         // Build message options
         const messageOptions = {
@@ -133,32 +152,56 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('[SMS Send Error]', error);
+        console.error('[SMS Send] ===== ERROR =====');
+        console.error('[SMS Send] Error name:', error.name);
+        console.error('[SMS Send] Error message:', error.message);
+        console.error('[SMS Send] Error code:', error.code);
+        console.error('[SMS Send] Error status:', error.status);
+        console.error('[SMS Send] Full error:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+        console.error('[SMS Send] ===== END ERROR =====');
+
+        // Handle credential errors first
+        if (error.message === 'Twilio credentials not configured') {
+            return res.status(500).json({
+                error: 'SMS service not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER.',
+                code: 'TWILIO_NOT_CONFIGURED'
+            });
+        }
+
+        if (error.message === 'Twilio phone number not configured') {
+            return res.status(500).json({
+                error: 'Twilio phone number not configured. Please set TWILIO_PHONE_NUMBER.',
+                code: 'TWILIO_PHONE_MISSING'
+            });
+        }
 
         // Handle specific Twilio errors
         if (error.code) {
-            switch (error.code) {
-                case 21211:
-                    return res.status(400).json({ error: 'Invalid phone number' });
-                case 21608:
-                    return res.status(400).json({ error: 'Phone number not verified for trial account' });
-                case 21610:
-                    return res.status(400).json({ error: 'Message blocked - recipient has opted out' });
-                case 21614:
-                    return res.status(400).json({ error: 'Invalid destination phone number' });
-                case 21408:
-                    return res.status(403).json({ error: 'Region not enabled for your account' });
-                case 20003:
-                    return res.status(401).json({ error: 'Invalid Twilio credentials' });
-                default:
-                    return res.status(500).json({
-                        error: 'SMS send failed'
-                    });
-            }
+            const errorMessages = {
+                21211: 'Invalid phone number',
+                21608: 'Phone number not verified for trial account. Add this number to your verified numbers in Twilio.',
+                21610: 'Message blocked - recipient has opted out',
+                21614: 'Invalid destination phone number',
+                21408: 'Region not enabled for your account',
+                20003: 'Invalid Twilio credentials (Account SID or Auth Token)',
+                20404: 'Twilio phone number not found or not configured',
+                21606: 'From phone number not valid for this account',
+                21612: 'The From phone number is not a valid, SMS-capable Twilio number',
+                30008: 'Unknown destination handset'
+            };
+
+            const errorMessage = errorMessages[error.code] || `SMS send failed (Twilio error ${error.code})`;
+            console.error('[SMS Send] Twilio error code:', error.code, '-', errorMessage);
+
+            return res.status(error.code === 20003 ? 401 : 400).json({
+                error: errorMessage,
+                code: error.code
+            });
         }
 
         return res.status(500).json({
-            error: 'Internal server error'
+            error: error.message || 'Internal server error',
+            code: 'UNKNOWN_ERROR'
         });
     }
 }

@@ -2,7 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import {
     Calendar, Clock, CheckCircle, XCircle, MessageSquare,
-    DollarSign, Send, AlertCircle, ChevronRight, Trash2, RefreshCw
+    DollarSign, Send, AlertCircle, ChevronRight, Trash2, RefreshCw,
+    Edit3, Image as ImageIcon, CheckCircle2
 } from 'lucide-react';
 import { updateDoc, doc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
@@ -15,6 +16,7 @@ import { detectTimezone, createDateInTimezone, isSameDayInTimezone, formatInTime
 import { markQuoteJobCancelled } from '../quotes/lib/quoteService';
 import { RescheduleJobModal } from './RescheduleJobModal';
 import { JobExpensesSection } from './components/JobExpensesSection';
+import { JobUpdateForm, CustomerSummaryModal } from './components/updates';
 
 // Helper to format time string like "08:00" to "8:00 AM"
 const formatTimeString = (timeStr) => {
@@ -167,6 +169,9 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
     const [isCancelling, setIsCancelling] = useState(false);
     const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [showUpdateForm, setShowUpdateForm] = useState(false);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [selectedUpdate, setSelectedUpdate] = useState(null);
 
     // Analyze cancellation impact for cascade warning
     const cancellationImpact = useMemo(() => {
@@ -504,23 +509,35 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                             </div>
                         </div>
 
-                        {/* Contractor Actions: Reschedule & Cancel */}
+                        {/* Contractor Actions: Add Update, Reschedule & Cancel */}
                         {userType === 'contractor' && (
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => setShowRescheduleModal(true)}
-                                    className="flex-1 py-2.5 text-amber-600 font-medium rounded-lg border border-amber-200 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <RefreshCw size={16} />
-                                    Reschedule
-                                </button>
-                                <button
-                                    onClick={() => setShowCancelConfirm(true)}
-                                    className="flex-1 py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
-                                >
-                                    <Trash2 size={16} />
-                                    Cancel
-                                </button>
+                            <div className="space-y-2">
+                                {/* Add Update Button - for scheduled/in_progress jobs */}
+                                {(job.status === 'scheduled' || job.status === 'in_progress') && (
+                                    <button
+                                        onClick={() => setShowUpdateForm(true)}
+                                        className="w-full py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Edit3 size={16} />
+                                        Add Update
+                                    </button>
+                                )}
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowRescheduleModal(true)}
+                                        className="flex-1 py-2.5 text-amber-600 font-medium rounded-lg border border-amber-200 hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw size={16} />
+                                        Reschedule
+                                    </button>
+                                    <button
+                                        onClick={() => setShowCancelConfirm(true)}
+                                        className="flex-1 py-2.5 text-red-600 font-medium rounded-lg border border-red-200 hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 size={16} />
+                                        Cancel
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -614,6 +631,76 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                     </div>
                 )}
 
+                {/* Job Updates Section (Contractor Only) */}
+                {userType === 'contractor' && job.updates?.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="font-bold text-slate-800 text-sm">Job Updates</p>
+                            <span className="text-xs text-slate-400">{job.updates.length} update{job.updates.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {[...job.updates].sort((a, b) => {
+                                const timeA = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+                                const timeB = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+                                return timeB - timeA;
+                            }).map((update) => {
+                                const createdAt = update.createdAt?.toDate?.() || (update.createdAt?.seconds ? new Date(update.createdAt.seconds * 1000) : null);
+                                const sentAt = update.customerSummary?.sentAt?.toDate?.() || (update.customerSummary?.sentAt?.seconds ? new Date(update.customerSummary.sentAt.seconds * 1000) : null);
+
+                                const typeColors = {
+                                    progress: 'bg-emerald-100 text-emerald-700',
+                                    issue: 'bg-red-100 text-red-700',
+                                    material: 'bg-blue-100 text-blue-700',
+                                    delay: 'bg-amber-100 text-amber-700'
+                                };
+
+                                return (
+                                    <div key={update.id} className="bg-slate-50 rounded-lg p-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${typeColors[update.type] || 'bg-slate-100 text-slate-700'}`}>
+                                                        {update.type}
+                                                    </span>
+                                                    {update.photos?.length > 0 && (
+                                                        <span className="flex items-center gap-1 text-xs text-slate-400">
+                                                            <ImageIcon size={12} />
+                                                            {update.photos.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm text-slate-700 line-clamp-2">{update.notes}</p>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    {createdAt ? createdAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Unknown date'}
+                                                    {update.createdByName && ` • ${update.createdByName}`}
+                                                </p>
+                                            </div>
+                                            <div className="shrink-0">
+                                                {update.sentToCustomer ? (
+                                                    <div className="flex items-center gap-1 text-emerald-600">
+                                                        <CheckCircle2 size={16} />
+                                                        <span className="text-xs font-medium">Sent</span>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedUpdate(update);
+                                                            setShowSummaryModal(true);
+                                                        }}
+                                                        className="text-xs font-medium text-indigo-600 hover:text-indigo-700 px-2 py-1 rounded hover:bg-indigo-50 transition-colors"
+                                                    >
+                                                        Send to Customer
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {/* Expenses Section (Contractor Only) */}
                 {userType === 'contractor' && (
                     <JobExpensesSection job={job} appId={contractorId} />
@@ -692,6 +779,45 @@ export const JobScheduler = ({ job, userType, contractorId, allJobs = [], timezo
                     timezone={timezone}
                     workingHours={workingHours}
                     allJobs={allJobs}
+                />
+            )}
+
+            {/* Job Update Form Modal */}
+            {showUpdateForm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowUpdateForm(false)} />
+                    <div className="relative w-full max-w-lg">
+                        <JobUpdateForm
+                            job={job}
+                            techId={contractorId}
+                            techName="Contractor"
+                            onSuccess={() => {
+                                setShowUpdateForm(false);
+                                if (onUpdate) onUpdate();
+                                toast.success('Update added to job');
+                            }}
+                            onCancel={() => setShowUpdateForm(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* Customer Summary Modal */}
+            {showSummaryModal && selectedUpdate && (
+                <CustomerSummaryModal
+                    job={job}
+                    update={selectedUpdate}
+                    contractorId={contractorId}
+                    companyName={job.companyName || 'Your Company'}
+                    onClose={() => {
+                        setShowSummaryModal(false);
+                        setSelectedUpdate(null);
+                    }}
+                    onSent={() => {
+                        setShowSummaryModal(false);
+                        setSelectedUpdate(null);
+                        if (onUpdate) onUpdate();
+                    }}
                 />
             )}
         </div>

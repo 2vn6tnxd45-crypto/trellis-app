@@ -66,17 +66,24 @@ const ALLOWED_TYPES = [
  * @returns {Promise<object>} - Photo metadata with URL
  */
 export const uploadJobPhoto = async (jobId, file, type = PHOTO_TYPES.AFTER, options = {}) => {
+    console.log('[JobPhotoService] ===== uploadJobPhoto START =====');
+    console.log('[JobPhotoService] Params:', { jobId, type, options });
+    console.log('[JobPhotoService] File:', file ? { name: file.name, size: file.size, type: file.type } : 'NULL');
+
     // Validate file
     if (!file) {
+        console.error('[JobPhotoService] No file provided');
         throw new Error('No file provided');
     }
 
     if (file.size > MAX_FILE_SIZE) {
+        console.error('[JobPhotoService] File too large:', file.size);
         throw new Error(`File too large. Maximum size is ${MAX_FILE_SIZE / (1024 * 1024)}MB`);
     }
 
     // Check file type (allow any image/* if specific check fails)
     if (!file.type.startsWith('image/')) {
+        console.error('[JobPhotoService] Invalid file type:', file.type);
         throw new Error('Only image files are allowed');
     }
 
@@ -84,7 +91,12 @@ export const uploadJobPhoto = async (jobId, file, type = PHOTO_TYPES.AFTER, opti
         const timestamp = Date.now();
         const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const storagePath = `jobs/${jobId}/photos/${type}/${timestamp}_${sanitizedName}`;
+        console.log('[JobPhotoService] Storage path:', storagePath);
+
+        console.log('[JobPhotoService] Creating storage reference...');
+        console.log('[JobPhotoService] Storage object exists:', !!storage);
         const storageRef = ref(storage, storagePath);
+        console.log('[JobPhotoService] Storage ref created:', !!storageRef);
 
         // Upload with metadata
         const metadata = {
@@ -97,9 +109,18 @@ export const uploadJobPhoto = async (jobId, file, type = PHOTO_TYPES.AFTER, opti
                 ...(options.techName && { techName: options.techName })
             }
         };
+        console.log('[JobPhotoService] Upload metadata:', metadata);
 
-        await uploadBytes(storageRef, file, metadata);
+        console.log('[JobPhotoService] Starting uploadBytes...');
+        const uploadResult = await uploadBytes(storageRef, file, metadata);
+        console.log('[JobPhotoService] uploadBytes completed:', {
+            bytesTransferred: uploadResult?.metadata?.size,
+            fullPath: uploadResult?.ref?.fullPath
+        });
+
+        console.log('[JobPhotoService] Getting download URL...');
         const url = await getDownloadURL(storageRef);
+        console.log('[JobPhotoService] Download URL obtained:', url?.substring(0, 100) + '...');
 
         const photoData = {
             id: `photo_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
@@ -116,9 +137,17 @@ export const uploadJobPhoto = async (jobId, file, type = PHOTO_TYPES.AFTER, opti
             location: options.location || null // For geo-tagging if available
         };
 
+        console.log('[JobPhotoService] Photo data created:', photoData);
+        console.log('[JobPhotoService] ===== uploadJobPhoto SUCCESS =====');
         return photoData;
     } catch (error) {
-        console.error('[JobPhotoService] Upload error:', error);
+        console.error('[JobPhotoService] ===== UPLOAD ERROR =====');
+        console.error('[JobPhotoService] Error name:', error.name);
+        console.error('[JobPhotoService] Error message:', error.message);
+        console.error('[JobPhotoService] Error code:', error.code);
+        console.error('[JobPhotoService] Error serverResponse:', error.serverResponse);
+        console.error('[JobPhotoService] Full error:', error);
+        console.error('[JobPhotoService] ===== END ERROR =====');
         throw new Error(`Failed to upload photo: ${error.message}`);
     }
 };
@@ -513,6 +542,10 @@ export const startJobWithPhotos = async (jobId, beforePhotos, techId, techName) 
  * @returns {Promise<Blob>} - Compressed image blob
  */
 export const compressImage = async (file, options = {}) => {
+    console.log('[JobPhotoService] ===== compressImage START =====');
+    console.log('[JobPhotoService] Input file:', { name: file?.name, size: file?.size, type: file?.type });
+    console.log('[JobPhotoService] Options:', options);
+
     const {
         maxWidth = 1920,
         maxHeight = 1920,
@@ -526,6 +559,8 @@ export const compressImage = async (file, options = {}) => {
         const ctx = canvas.getContext('2d');
 
         img.onload = () => {
+            console.log('[JobPhotoService] Image loaded:', { originalWidth: img.width, originalHeight: img.height });
+
             let { width, height } = img;
 
             // Calculate new dimensions
@@ -533,19 +568,31 @@ export const compressImage = async (file, options = {}) => {
                 const ratio = Math.min(maxWidth / width, maxHeight / height);
                 width = Math.round(width * ratio);
                 height = Math.round(height * ratio);
+                console.log('[JobPhotoService] Resizing to:', { width, height, ratio });
+            } else {
+                console.log('[JobPhotoService] No resize needed, dimensions within limits');
             }
 
             canvas.width = width;
             canvas.height = height;
 
             // Draw and compress
+            console.log('[JobPhotoService] Drawing to canvas...');
             ctx.drawImage(img, 0, 0, width, height);
+
+            console.log('[JobPhotoService] Converting to blob with type:', type, 'quality:', quality);
             canvas.toBlob(
                 (blob) => {
+                    // Clean up the object URL
+                    URL.revokeObjectURL(img.src);
+
                     if (blob) {
+                        console.log('[JobPhotoService] Compression successful:', { blobSize: blob.size, blobType: blob.type });
+                        console.log('[JobPhotoService] ===== compressImage SUCCESS =====');
                         resolve(blob);
                     } else {
-                        reject(new Error('Failed to compress image'));
+                        console.error('[JobPhotoService] toBlob returned null');
+                        reject(new Error('Failed to compress image - toBlob returned null'));
                     }
                 },
                 type,
@@ -553,8 +600,16 @@ export const compressImage = async (file, options = {}) => {
             );
         };
 
-        img.onerror = () => reject(new Error('Failed to load image'));
-        img.src = URL.createObjectURL(file);
+        img.onerror = (error) => {
+            console.error('[JobPhotoService] Failed to load image:', error);
+            URL.revokeObjectURL(img.src);
+            reject(new Error('Failed to load image for compression'));
+        };
+
+        console.log('[JobPhotoService] Creating object URL for file...');
+        const objectUrl = URL.createObjectURL(file);
+        console.log('[JobPhotoService] Object URL created:', objectUrl);
+        img.src = objectUrl;
     });
 };
 

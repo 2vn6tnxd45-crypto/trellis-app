@@ -116,14 +116,21 @@ export const formatPhoneDisplay = (phone) => {
  * @returns {Promise<Object>} Send result with messageSid
  */
 export const sendSMS = async ({ to, message, jobId, contractorId, type = SMS_TYPES.CUSTOM, metadata = {} }) => {
+    console.log('[SMS] sendSMS called with:', { to, messageLength: message?.length, jobId, contractorId, type });
+
     try {
         // Format phone number
+        console.log('[SMS] Formatting phone number:', to);
         const formattedPhone = formatPhoneE164(to);
+        console.log('[SMS] Formatted phone:', formattedPhone);
+
         if (!formattedPhone) {
+            console.error('[SMS] Phone formatting failed for:', to);
             throw new Error('Invalid phone number format');
         }
 
         // Check opt-out status before sending
+        console.log('[SMS] Checking opt-out status...');
         const isOptedOut = await checkOptOutStatus(formattedPhone, contractorId);
         if (isOptedOut) {
             console.log(`[SMS] Skipping send - customer opted out: ${formattedPhone}`);
@@ -133,6 +140,8 @@ export const sendSMS = async ({ to, message, jobId, contractorId, type = SMS_TYP
                 reason: 'Customer has opted out of SMS'
             };
         }
+
+        console.log('[SMS] Customer not opted out, calling API...');
 
         // Call API route
         const response = await fetch('/api/sms/send', {
@@ -150,13 +159,17 @@ export const sendSMS = async ({ to, message, jobId, contractorId, type = SMS_TYP
             })
         });
 
+        console.log('[SMS] API response status:', response.status);
         const result = await response.json();
+        console.log('[SMS] API response:', result);
 
         if (!response.ok) {
+            console.error('[SMS] API returned error:', result);
             throw new Error(result.error || 'Failed to send SMS');
         }
 
         // Log to Firestore
+        console.log('[SMS] Logging to Firestore...');
         await logSMSMessage({
             to: formattedPhone,
             message,
@@ -168,25 +181,34 @@ export const sendSMS = async ({ to, message, jobId, contractorId, type = SMS_TYP
             metadata
         });
 
+        console.log('[SMS] Send complete, messageSid:', result.messageSid);
         return {
             success: true,
             messageSid: result.messageSid,
             status: result.status
         };
     } catch (error) {
-        console.error('[SMS] Send error:', error);
+        console.error('[SMS] ===== SEND ERROR =====');
+        console.error('[SMS] Error name:', error.name);
+        console.error('[SMS] Error message:', error.message);
+        console.error('[SMS] Full error:', error);
+        console.error('[SMS] ===== END ERROR =====');
 
         // Log failed attempt
-        await logSMSMessage({
-            to,
-            message,
-            jobId,
-            contractorId,
-            type,
-            status: SMS_STATUS.FAILED,
-            error: error.message,
-            metadata
-        });
+        try {
+            await logSMSMessage({
+                to,
+                message,
+                jobId,
+                contractorId,
+                type,
+                status: SMS_STATUS.FAILED,
+                error: error.message,
+                metadata
+            });
+        } catch (logError) {
+            console.error('[SMS] Failed to log SMS failure:', logError);
+        }
 
         throw error;
     }
