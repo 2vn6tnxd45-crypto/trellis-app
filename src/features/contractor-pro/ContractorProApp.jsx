@@ -2702,10 +2702,12 @@ export const ContractorProApp = () => {
         };
 
         const targetView = pathToView[segment];
-        if (targetView && targetView !== activeView) {
+        // Only sync if we have a valid mapping AND we're not in a detail/sub-view
+        // (prevents overriding quote-detail, evaluation-detail, etc.)
+        if (targetView && !activeView.includes('-detail') && !activeView.includes('create-') && !activeView.includes('edit-')) {
             setActiveView(targetView);
         }
-    }, [location.pathname, activeView]);
+    }, [location.pathname]); // Removed activeView to prevent resetting detail views
 
     // Derived data
     const pendingQuotes = useMemo(() => {
