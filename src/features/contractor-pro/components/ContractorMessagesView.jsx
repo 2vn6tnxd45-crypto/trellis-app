@@ -8,17 +8,17 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     MessageSquare, Search, User, Send, Phone, Mail,
-    ArrowLeft, Loader2, MoreVertical, MapPin
+    ArrowLeft, Loader2, MoreVertical, MapPin, CheckCheck
 } from 'lucide-react';
-import { 
-    collection, query, where, orderBy, onSnapshot, 
-    doc, getDoc 
+import {
+    collection, query, where, orderBy, onSnapshot,
+    doc, getDoc
 } from 'firebase/firestore';
 import { db } from '../../../config/firebase';
-import { 
-    subscribeToChat, 
-    sendMessage, 
-    markChannelAsRead 
+import {
+    subscribeToChat,
+    sendMessage,
+    markChannelAsRead
 } from '../../../lib/chatService';
 import toast from 'react-hot-toast';
 
@@ -67,25 +67,25 @@ const getConversationDisplayName = (conversation) => {
     if (conversation.homeownerName && conversation.homeownerName !== 'Homeowner') {
         return conversation.homeownerName;
     }
-    
+
     // Build fallback from address + scope
     const parts = [];
-    
+
     if (conversation.propertyAddress) {
         // Extract just the street address (first part before comma)
         const streetAddress = conversation.propertyAddress.split(',')[0].trim();
         parts.push(streetAddress);
     }
-    
+
     if (conversation.scopeOfWork) {
         parts.push(conversation.scopeOfWork);
     }
-    
+
     // If we have address or scope, join them
     if (parts.length > 0) {
         return parts.join(' • ');
     }
-    
+
     // Final fallback
     return 'Customer';
 };
@@ -110,42 +110,38 @@ const getConversationSubtitle = (conversation) => {
 const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => {
     const unreadCount = conversation[`unreadCount_${contractorId}`] || 0;
     const hasUnread = unreadCount > 0;
-    
+
     // Use smart display name
     const displayName = getConversationDisplayName(conversation);
-    
+
     return (
         <button
             onClick={onClick}
-            className={`w-full p-4 flex items-start gap-3 text-left transition-colors border-b border-slate-100 ${
-                isActive 
-                    ? 'bg-emerald-50 border-l-4 border-l-emerald-500' 
+            className={`w-full p-4 flex items-start gap-3 text-left transition-colors border-b border-slate-100 ${isActive
+                    ? 'bg-emerald-50 border-l-4 border-l-emerald-500'
                     : 'hover:bg-slate-50'
-            }`}
+                }`}
         >
             {/* Avatar */}
-            <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 ${
-                hasUnread ? 'bg-emerald-100' : 'bg-slate-100'
-            }`}>
+            <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 ${hasUnread ? 'bg-emerald-100' : 'bg-slate-100'
+                }`}>
                 <User size={20} className={hasUnread ? 'text-emerald-600' : 'text-slate-400'} />
             </div>
-            
+
             {/* Content */}
             {/* Content */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                    <h4 className={`font-semibold truncate ${
-                        hasUnread ? 'text-slate-900' : 'text-slate-700'
-                    }`}>
+                    <h4 className={`font-semibold truncate ${hasUnread ? 'text-slate-900' : 'text-slate-700'
+                        }`}>
                         {displayName}
                     </h4>
-                    <span className={`text-xs flex-shrink-0 ${
-                        hasUnread ? 'text-emerald-600 font-medium' : 'text-slate-400'
-                    }`}>
+                    <span className={`text-xs flex-shrink-0 ${hasUnread ? 'text-emerald-600 font-medium' : 'text-slate-400'
+                        }`}>
                         {formatMessageTime(conversation.lastMessageTime)}
                     </span>
                 </div>
-                
+
                 {/* NEW: Show address if available */}
                 {conversation.propertyAddress && (
                     <p className="text-xs text-slate-500 truncate mb-1 flex items-center gap-1">
@@ -153,11 +149,10 @@ const ConversationItem = ({ conversation, isActive, onClick, contractorId }) => 
                         {conversation.propertyAddress.split(',')[0]}
                     </p>
                 )}
-                
+
                 <div className="flex items-center gap-2">
-                    <p className={`text-sm truncate flex-1 ${
-                        hasUnread ? 'text-slate-700 font-medium' : 'text-slate-500'
-                    }`}>
+                    <p className={`text-sm truncate flex-1 ${hasUnread ? 'text-slate-700 font-medium' : 'text-slate-500'
+                        }`}>
                         {conversation.lastMessage || 'No messages yet'}
                     </p>
                     {hasUnread && (
@@ -189,11 +184,11 @@ const EmptyInbox = () => (
 // ============================================
 // CHAT PANEL (Right side)
 // ============================================
-const ChatPanel = ({ 
-    conversation, 
-    contractorId, 
+const ChatPanel = ({
+    conversation,
+    contractorId,
     contractorName,
-    onBack 
+    onBack
 }) => {
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
@@ -203,7 +198,7 @@ const ChatPanel = ({
     const inputRef = useRef(null);
 
     const homeownerId = getHomeownerIdFromChannel(conversation?.channelId);
-    
+
     // Use smart display name
     const displayName = conversation ? getConversationDisplayName(conversation) : 'Customer';
     const subtitle = conversation ? getConversationSubtitle(conversation) : '';
@@ -211,7 +206,7 @@ const ChatPanel = ({
     // Subscribe to messages
     useEffect(() => {
         if (!conversation?.channelId) return;
-        
+
         setLoading(true);
         const unsubscribe = subscribeToChat(conversation.channelId, (newMessages) => {
             setMessages(newMessages);
@@ -277,13 +272,13 @@ const ChatPanel = ({
             {/* Chat Header */}
             <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-white">
                 {/* Back button (mobile) */}
-                <button 
+                <button
                     onClick={onBack}
                     className="md:hidden p-2 -ml-2 text-slate-400 hover:text-slate-600"
                 >
                     <ArrowLeft size={20} />
                 </button>
-                
+
                 <div className="h-10 w-10 bg-emerald-100 rounded-full flex items-center justify-center">
                     <User size={18} className="text-emerald-600" />
                 </div>
@@ -295,10 +290,10 @@ const ChatPanel = ({
                         {subtitle}
                     </p>
                 </div>
-                
+
                 {/* Quick actions */}
                 {conversation.homeownerPhone && (
-                    <a 
+                    <a
                         href={`tel:${conversation.homeownerPhone}`}
                         className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                     >
@@ -306,7 +301,7 @@ const ChatPanel = ({
                     </a>
                 )}
                 {conversation.homeownerEmail && (
-                    <a 
+                    <a
                         href={`mailto:${conversation.homeownerEmail}`}
                         className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                     >
@@ -331,18 +326,15 @@ const ChatPanel = ({
                         const isMe = msg.senderId === contractorId;
                         return (
                             <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[75%] rounded-2xl p-3 ${
-                                    isMe
+                                <div className={`max-w-[75%] rounded-2xl p-3 ${isMe
                                         ? 'bg-emerald-600 text-white rounded-br-none'
                                         : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'
-                                }`}>
-                                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
-                                    <div className={`flex items-center gap-1 mt-1 ${
-                                        isMe ? 'justify-end' : ''
                                     }`}>
-                                        <span className={`text-[10px] ${
-                                            isMe ? 'text-emerald-100' : 'text-slate-400'
+                                    <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                                    <div className={`flex items-center gap-1 mt-1 ${isMe ? 'justify-end' : ''
                                         }`}>
+                                        <span className={`text-[10px] ${isMe ? 'text-emerald-100' : 'text-slate-400'
+                                            }`}>
                                             {formatChatTime(msg.createdAt)}
                                         </span>
                                         {isMe && (
@@ -405,11 +397,11 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
 
         const unsubscribe = onSnapshot(q, async (snapshot) => {
             const channelData = [];
-            
+
             for (const docSnap of snapshot.docs) {
                 const data = docSnap.data();
                 const homeownerId = getHomeownerIdFromChannel(data.channelId);
-                
+
                 // Include all channel data including new fields
                 channelData.push({
                     id: docSnap.id,
@@ -424,7 +416,7 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
                     scopeOfWork: data.scopeOfWork || null,
                 });
             }
-            
+
             setConversations(channelData);
             setLoading(false);
         }, (error) => {
@@ -473,7 +465,7 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
                     <div>
                         <h1 className="text-xl font-bold text-slate-800">Messages</h1>
                         <p className="text-sm text-slate-500">
-                            {totalUnread > 0 
+                            {totalUnread > 0
                                 ? `${totalUnread} unread message${totalUnread !== 1 ? 's' : ''}`
                                 : 'Chat with your customers'
                             }
@@ -485,9 +477,8 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Conversations List */}
-                <div className={`w-full md:w-96 border-r border-slate-100 bg-white flex flex-col ${
-                    showMobileChat ? 'hidden md:flex' : 'flex'
-                }`}>
+                <div className={`w-full md:w-96 border-r border-slate-100 bg-white flex flex-col ${showMobileChat ? 'hidden md:flex' : 'flex'
+                    }`}>
                     {/* Search */}
                     <div className="p-4 border-b border-slate-100">
                         <div className="relative">
@@ -525,9 +516,8 @@ export const ContractorMessagesView = ({ contractorId, contractorName }) => {
                 </div>
 
                 {/* Chat Panel */}
-                <div className={`flex-1 ${
-                    showMobileChat ? 'flex' : 'hidden md:flex'
-                }`}>
+                <div className={`flex-1 ${showMobileChat ? 'flex' : 'hidden md:flex'
+                    }`}>
                     <ChatPanel
                         conversation={selectedConversation}
                         contractorId={contractorId}
