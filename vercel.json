@@ -5,6 +5,18 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/pro",
+      "destination": "/home/index.html"
+    },
+    {
+      "source": "/pro/(.*)",
+      "destination": "/home/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/home/index.html"
+    },
+    {
       "source": "/home",
       "destination": "/home/index.html"
     },
