@@ -140,15 +140,13 @@ const FAQItem = ({ question, answer }) => (
 export const ContractorLanding = () => {
 
     const handleGetStarted = () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('pro', 'dashboard');
-        window.location.href = url.toString();
+        // Navigate directly to contractor app (will show login if not authenticated)
+        window.location.href = '/pro/app';
     };
 
     const handleSignIn = () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('pro', 'dashboard');
-        window.location.href = url.toString();
+        // Navigate directly to contractor app (will show login if not authenticated)
+        window.location.href = '/pro/app';
     };
 
     return (
