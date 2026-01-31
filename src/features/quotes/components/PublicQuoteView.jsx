@@ -118,7 +118,7 @@ const ExpiredState = ({ quote, contractor }) => (
 // ============================================
 const SuccessState = ({ quote, contractor }) => {
     const handleGoToDashboard = () => {
-        window.location.href = window.location.origin + '/app?from=quote';
+        window.location.href = '/dashboard?from=quote';
     };
 
     return (
@@ -674,7 +674,7 @@ const QuoteContent = ({
     };
 
     const handleGoToDashboard = () => {
-        window.location.href = window.location.origin + '/app?from=quote';
+        window.location.href = '/dashboard?from=quote';
     };
 
     const statusConfig = {
@@ -1369,7 +1369,7 @@ setUserProperties(props);
             await waitForPendingWrites(db).catch(() => {});
             await new Promise(r => setTimeout(r, 300));
             
-            window.location.href = window.location.origin + '/app?from=quote';
+            window.location.href = '/dashboard?from=quote';
             
         } catch (err) {
             console.error('Error creating property:', err);
@@ -1417,7 +1417,7 @@ setUserProperties(props);
             await waitForPendingWrites(db).catch(() => {});
             await new Promise(r => setTimeout(r, 300));
             
-            window.location.href = window.location.origin + '/app?from=quote';
+            window.location.href = '/dashboard?from=quote';
             
         } catch (err) {
             console.error('Error claiming quote:', err);
@@ -1443,7 +1443,7 @@ setUserProperties(props);
 
         if (alreadyClaimed) {
             toast.info('This quote is already in your account');
-            window.location.href = window.location.origin + '/app?from=quote';
+            window.location.href = '/dashboard?from=quote';
             return;
         }
 

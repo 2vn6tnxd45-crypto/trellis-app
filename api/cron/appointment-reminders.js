@@ -408,7 +408,7 @@ export default async function handler(req, res) {
                             scheduledDate: job.scheduledTime,
                             scheduledTime: formatTime(job.scheduledTime),
                             serviceAddress: job.serviceAddress || job.customer?.address,
-                            jobLink: `https://mykrib.app/app?jobId=${jobId}`,
+                            jobLink: `https://mykrib.app/dashboard?job=${jobId}`,
                             calendarUrl
                         })
                     });
@@ -471,7 +471,7 @@ export default async function handler(req, res) {
                             jobTitle: job.title || job.description,
                             scheduledTime: formatTime(job.scheduledTime),
                             serviceAddress: job.serviceAddress || job.customer?.address,
-                            jobLink: `https://mykrib.app/app?jobId=${jobId}`
+                            jobLink: `https://mykrib.app/dashboard?job=${jobId}`
                         })
                     });
 

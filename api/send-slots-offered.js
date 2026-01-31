@@ -219,7 +219,7 @@ export default async function handler(req, res) {
     }
 
     // Build job link
-    const jobLink = `https://mykrib.app/app?jobId=${jobId}`;
+    const jobLink = `https://mykrib.app/dashboard?job=${jobId}`;
 
     try {
         const { data, error } = await resend.emails.send({

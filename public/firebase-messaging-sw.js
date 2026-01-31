@@ -90,25 +90,26 @@ self.addEventListener('notificationclick', (event) => {
     const data = event.notification.data || {};
     let targetUrl = '/';
 
-    // Route based on notification type and action
+    // Route based on notification type and action (using new URL paths)
     if (event.action === 'complete' && data.taskId) {
-        targetUrl = `/?task=${data.taskId}&action=complete`;
+        targetUrl = `/maintenance?task=${data.taskId}&action=complete`;
     } else if (event.action === 'snooze' && data.taskId) {
-        targetUrl = `/?task=${data.taskId}&action=snooze`;
+        targetUrl = `/maintenance?task=${data.taskId}&action=snooze`;
     } else if (event.action === 'reply' && data.channelId) {
-        targetUrl = `/?messages=${data.channelId}`;
+        targetUrl = `/contractors?messages=${data.channelId}`;
     } else if (event.action === 'view') {
         if (data.quoteId) {
-            targetUrl = `/?quote=${data.quoteId}`;
+            targetUrl = `/quote/${data.quoteId}`;
         } else if (data.taskId) {
-            targetUrl = `/?view=maintenance`;
+            targetUrl = `/maintenance`;
         } else if (data.jobId) {
-            targetUrl = `/?job=${data.jobId}`;
+            targetUrl = `/dashboard?job=${data.jobId}`;
         }
     } else {
         // Default click - go to dashboard or specific screen
         if (data.screen) {
-            targetUrl = `/?view=${data.screen}`;
+            const screenMap = { dashboard: '/dashboard', maintenance: '/maintenance', items: '/inventory', contractors: '/contractors' };
+            targetUrl = screenMap[data.screen] || '/dashboard';
         }
     }
 

@@ -7,6 +7,7 @@
 // UPDATED: Added Evaluations feature for pre-quote assessments
 
 import React, { useState, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
     Home, FileText, Users, User, Settings as SettingsIcon,
     LogOut, Menu, X, Plus, Bell, ChevronLeft, Search,
@@ -46,6 +47,8 @@ import { TechAssignmentPanel } from './components/TechAssignmentPanel';
 import { TeamCalendarView } from './components/TeamCalendarView';
 import { LogoUpload } from './components/LogoUpload';
 import { RecurringServicesView } from './components/RecurringServicesView';
+// Recurring Services Integration
+import { CreateRecurringServiceModal, isRecurringJob, onRecurringJobCompleted } from '../recurring';
 import { RouteMapView } from './components/RouteMapView';
 
 // NEW: Dispatch Board and Team Management
@@ -2297,6 +2300,9 @@ const SettingsView = ({ user, profile, onUpdateSettings, onSignOut }) => {
 // MAIN APP
 // ============================================
 export const ContractorProApp = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const [activeView, setActiveView] = useState('dashboard');
     const [selectedQuote, setSelectedQuote] = useState(null);
     const [selectedJob, setSelectedJob] = useState(null);
@@ -2312,6 +2318,10 @@ export const ContractorProApp = () => {
     const [reviewingCancellation, setReviewingCancellation] = useState(null);
     const [showCreateJobModal, setShowCreateJobModal] = useState(false);
     const [showQuickServiceCall, setShowQuickServiceCall] = useState(false);
+
+    // Recurring service modal state (for "Make Recurring?" after job completion)
+    const [showCreateRecurringModal, setShowCreateRecurringModal] = useState(false);
+    const [recurringServiceCustomer, setRecurringServiceCustomer] = useState(null);
 
     // NEW: Unread message count state
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -2489,6 +2499,45 @@ export const ContractorProApp = () => {
         loadMembershipData();
     }, [contractorId]);
 
+    // ============================================
+    // URL <-> activeView SYNC (React Router integration)
+    // ============================================
+    // Sync URL path -> activeView (bridge between React Router and existing state)
+    useEffect(() => {
+        const pathSegment = location.pathname.replace('/pro/app/', '').replace('/pro/app', '') || 'dashboard';
+        const segment = pathSegment.split('/')[0]; // Get first segment
+
+        const pathToView = {
+            '': 'dashboard',
+            'dashboard': 'dashboard',
+            'jobs': 'jobs',
+            'quotes': 'quotes',
+            'schedule': 'schedule',
+            'invoices': 'invoices',
+            'messages': 'messages',
+            'evaluations': 'evaluations',
+            'leads': 'leads',
+            'invitations': 'invitations',
+            'customers': 'customers',
+            'memberships': 'memberships',
+            'pricebook': 'pricebook',
+            'templates': 'templates',
+            'expenses': 'expenses',
+            'timesheets': 'timesheets',
+            'recurring': 'recurring',
+            'fleet': 'fleet',
+            'reports': 'reports',
+            'attention': 'attention',
+            'profile': 'profile',
+            'settings': 'settings',
+        };
+
+        const targetView = pathToView[segment];
+        if (targetView && targetView !== activeView) {
+            setActiveView(targetView);
+        }
+    }, [location.pathname, activeView]);
+
     // Derived data
     const pendingQuotes = useMemo(() => {
         return quotes?.filter(q => ['sent', 'viewed'].includes(q.status)) || [];
@@ -2649,14 +2698,49 @@ export const ContractorProApp = () => {
         if (!['evaluations', 'evaluation-detail', 'create-evaluation'].includes(view)) {
             setSelectedEvaluation(null);
         }
+
+        // Map view names to URL paths
+        const viewToPath = {
+            'dashboard': '/pro/app',
+            'jobs': '/pro/app/jobs',
+            'quotes': '/pro/app/quotes',
+            'create-quote': '/pro/app/quotes/new',
+            'quote-detail': '/pro/app/quotes/detail',
+            'edit-quote': '/pro/app/quotes/edit',
+            'schedule': '/pro/app/schedule',
+            'invoices': '/pro/app/invoices',
+            'create-invoice': '/pro/app/invoices/new',
+            'messages': '/pro/app/messages',
+            'evaluations': '/pro/app/evaluations',
+            'create-evaluation': '/pro/app/evaluations/new',
+            'evaluation-detail': '/pro/app/evaluations/detail',
+            'leads': '/pro/app/leads',
+            'invitations': '/pro/app/invitations',
+            'customers': '/pro/app/customers',
+            'memberships': '/pro/app/memberships',
+            'membership-plans': '/pro/app/memberships/plans',
+            'pricebook': '/pro/app/pricebook',
+            'templates': '/pro/app/templates',
+            'expenses': '/pro/app/expenses',
+            'timesheets': '/pro/app/timesheets',
+            'recurring': '/pro/app/recurring',
+            'fleet': '/pro/app/fleet',
+            'reports': '/pro/app/reports',
+            'attention': '/pro/app/attention',
+            'profile': '/pro/app/profile',
+            'settings': '/pro/app/settings',
+        };
+
+        const path = viewToPath[view] || '/pro/app';
+        navigate(path);
+
+        // ALSO set state for compatibility during migration
         setActiveView(view);
-    }, []);
+    }, [navigate]);
 
     const handleCreateInvitation = useCallback(() => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('pro', 'invite');
-        window.location.href = url.toString();
-    }, []);
+        navigate('/pro/invite');
+    }, [navigate]);
 
     // Quote Handlers
     const handleCreateQuote = useCallback(() => {
@@ -2924,10 +3008,48 @@ export const ContractorProApp = () => {
         setCompletingJob(job);
     }, []);
 
-    const handleCompletionSuccess = useCallback((job) => {
+    const handleCompletionSuccess = useCallback(async (job) => {
         setCompletingJob(null);
         setRatingHomeowner(job);
-    }, []);
+
+        // Integration 4: If this is a recurring job, generate the next instance
+        if (isRecurringJob(job)) {
+            try {
+                await onRecurringJobCompleted(job.id);
+            } catch (error) {
+                console.error('Failed to generate next recurring instance:', error);
+            }
+        } else {
+            // Integration 3: Offer to make this a recurring service
+            // Show toast with "Make Recurring?" option
+            setTimeout(() => {
+                toast((t) => (
+                    <div className="flex items-center gap-3">
+                        <span>Want to schedule this service regularly?</span>
+                        <button
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                                // Find customer info for the modal
+                                const customer = customers.find(c => c.id === job.customerId);
+                                setRecurringServiceCustomer({
+                                    id: job.customerId,
+                                    name: job.customerName || customer?.name || 'Customer',
+                                    email: job.customerEmail || customer?.email,
+                                    phone: job.customerPhone || customer?.phone,
+                                    address: job.address || customer?.address,
+                                    serviceType: job.serviceType || job.description
+                                });
+                                setShowCreateRecurringModal(true);
+                            }}
+                            className="px-3 py-1 bg-emerald-600 text-white text-sm font-bold rounded-lg hover:bg-emerald-700"
+                        >
+                            Make Recurring
+                        </button>
+                    </div>
+                ), { duration: 8000, icon: '🔄' });
+            }, 2000); // Delay to not overlap with completion success toast
+        }
+    }, [customers]);
 
     const handleDismissOnboarding = useCallback(async () => {
         if (!user?.uid) return;
@@ -3769,6 +3891,26 @@ export const ContractorProApp = () => {
                     onSuccess={() => {
                         setRatingHomeowner(null);
                         toast.success('Thanks for your feedback!');
+                    }}
+                />
+            )}
+            {/* Create Recurring Service Modal (from job completion) */}
+            {showCreateRecurringModal && recurringServiceCustomer && (
+                <CreateRecurringServiceModal
+                    isOpen={showCreateRecurringModal}
+                    onClose={() => {
+                        setShowCreateRecurringModal(false);
+                        setRecurringServiceCustomer(null);
+                    }}
+                    contractorId={contractorId}
+                    customers={customers}
+                    teamMembers={profile?.scheduling?.teamMembers || []}
+                    prefilledCustomer={recurringServiceCustomer}
+                    prefilledService={recurringServiceCustomer?.serviceType}
+                    onSuccess={() => {
+                        setShowCreateRecurringModal(false);
+                        setRecurringServiceCustomer(null);
+                        toast.success('Recurring service created!');
                     }}
                 />
             )}

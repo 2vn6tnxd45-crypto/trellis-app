@@ -128,8 +128,8 @@ export const createPaymentCheckout = async ({
                 description,
                 customerEmail,
                 customerName,
-                successUrl: `${window.location.origin}/app/?payment=success&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`,
-                cancelUrl: `${window.location.origin}/app/?payment=cancelled&type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`
+                successUrl: `${window.location.origin}/payment/success?type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`,
+                cancelUrl: `${window.location.origin}/payment/cancelled?type=${type}&job=${jobId || ''}&quote=${quoteId || ''}`
             })
         });
         

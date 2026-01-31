@@ -1,5 +1,6 @@
 // src/App.jsx
 import React, { useMemo, useEffect, useState } from 'react'; // Added useState
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { doc, updateDoc, writeBatch, deleteDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Bell, ChevronDown, Check, ArrowLeft, Trash2, Menu, Plus, X, Home, MapPin } from 'lucide-react';
@@ -7,6 +8,11 @@ import toast, { Toaster } from 'react-hot-toast';
 
 import { auth, db, storage } from './config/firebase';
 import { appId } from './config/constants';
+
+// Routing Components
+import { LegacyRedirects } from './components/routing/LegacyRedirects';
+import { AuthGuard } from './components/routing/AuthGuard';
+import { PaymentSuccessCallback, PaymentCancelledCallback } from './components/routing/PaymentCallback';
 import { fileToBase64 } from './lib/images';
 import { calculateNextDate } from './lib/utils';
 
@@ -70,6 +76,24 @@ class ErrorBoundary extends React.Component {
     static getDerivedStateFromError(error) { return { hasError: true, error }; }
     render() { if (this.state.hasError) return <div className="p-10 text-red-600"><h2 className="font-bold">Something went wrong.</h2><button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-slate-200 rounded">Reload</button></div>; return this.props.children; }
 }
+
+// Route wrapper components that read URL params
+const QuoteRouteWrapper = () => {
+    const { token } = useParams();
+    return <PublicQuoteView shareToken={token} />;
+};
+
+const InviteRouteWrapper = () => {
+    const { token } = useParams();
+    const navigate = useNavigate();
+    return (
+        <InvitationClaimFlow
+            token={token}
+            onComplete={() => navigate('/dashboard', { replace: true })}
+            onCancel={() => navigate('/dashboard', { replace: true })}
+        />
+    );
+};
 
 const AppContent = () => {
     useThemeInit();
@@ -304,87 +328,92 @@ const AppContent = () => {
         closeAddModal();
     };
 
-    // -- Early Returns (using centralized route hook) --
+    // ============================================
+    // HOMEOWNER APP CONTENT (authenticated homeowner routes)
+    // ============================================
+    const HomeownerAppContent = () => {
+        const location = useLocation();
+        const navigate = useNavigate();
 
-    // Public Quote View (before auth check to allow public access)
-    if (route.routeType === ROUTE_TYPES.PUBLIC_QUOTE) {
-        return <PublicQuoteView shareToken={route.params.quoteToken} user={app.user} />;
-    }
+        // Sync URL path -> activeTab (bridge between React Router and existing state)
+        useEffect(() => {
+            const pathToTab = {
+                '/dashboard': 'Dashboard',
+                '/inventory': 'Items',
+                '/maintenance': 'Maintenance',
+                '/contractors': 'Contractors',
+                '/reports': 'Reports',
+                '/settings': 'Settings',
+                '/help': 'Help',
+            };
+            const targetTab = pathToTab[location.pathname];
+            if (targetTab && targetTab !== app.activeTab) {
+                app.setActiveTab(targetTab);
+            }
+        }, [location.pathname]);
 
-    // Contractor Pro routes
-    if (route.routeType === ROUTE_TYPES.CONTRACTOR_DASHBOARD) {
-        return <ContractorProApp />;
-    }
-    if (route.routeType === ROUTE_TYPES.CONTRACTOR_COMPARE) {
-        return <ComparisonPage />;
-    }
-    if (route.routeType === ROUTE_TYPES.CONTRACTOR_LANDING) {
-        return <ContractorLanding />;
-    }
+        // Property setup check
+        const needsPropertySetup = !app.profile ||
+            !app.profile.properties ||
+            app.profile.properties.length === 0 ||
+            (app.profile.properties.length === 1 && app.profile.properties[0].id === 'legacy' && !app.profile.properties[0].address);
 
-    // Contractor creating invitation
-    if (route.routeType === ROUTE_TYPES.CONTRACTOR_INVITE_CREATOR) {
-        return <ContractorInviteCreator />;
-    }
+        if (needsPropertySetup && !app.loading) {
+            return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
+        }
 
-    // Evaluation submission page (public homeowner access)
-    if (route.routeType === ROUTE_TYPES.EVALUATION) {
-        return <EvaluationPage />;
-    }
+        const isNewUser = app.activePropertyRecords.length === 0 && !app.hasSeenWelcome;
+        const totalNotifications = app.dueTasks.length + app.newSubmissions.length + jobNotifications.unreadCount;
 
-    // Customer claiming invitation
-    if (route.routeType === ROUTE_TYPES.INVITATION_CLAIM) {
+        // -- Filter Logic --
+        const groupKey = app.inventoryView === 'room' ? 'area' : 'category';
+        const filtered = app.activePropertyRecords.filter(r => {
+            const matchSearch = !app.searchTerm || r.item?.toLowerCase().includes(app.searchTerm.toLowerCase()) || r.brand?.toLowerCase().includes(app.searchTerm.toLowerCase());
+            const matchCategory = app.filterCategory === 'All' || r.category === app.filterCategory;
+            return matchSearch && matchCategory;
+        });
+        const grouped = filtered.reduce((acc, r) => {
+            const key = r[groupKey] || 'Other';
+            if (!acc[key]) acc[key] = [];
+            acc[key].push(r);
+            return acc;
+        }, {});
+
+        // Updated tab change handler that uses navigation
+        const handleTabChangeWithNav = (tabId) => {
+            if (tabId === 'More') {
+                app.setShowMoreMenu(true);
+            } else {
+                const tabToPath = {
+                    'Dashboard': '/dashboard',
+                    'Items': '/inventory',
+                    'Maintenance': '/maintenance',
+                    'Contractors': '/contractors',
+                    'Reports': '/reports',
+                    'Settings': '/settings',
+                    'Help': '/help',
+                };
+                const path = tabToPath[tabId];
+                if (path) navigate(path);
+                app.setActiveTab(tabId);
+            }
+        };
+
+        // Updated more menu handler
+        const handleMoreNavigateWithNav = (dest) => {
+            const tabToPath = {
+                'Reports': '/reports',
+                'Settings': '/settings',
+                'Help': '/help',
+            };
+            const path = tabToPath[dest];
+            if (path) navigate(path);
+            app.setActiveTab(dest);
+            app.setShowMoreMenu(false);
+        };
+
         return (
-            <InvitationClaimFlow
-                token={route.params.inviteToken}
-                onComplete={() => window.location.reload()}
-                onCancel={() => {
-                    route.clearInviteToken();
-                    window.location.reload();
-                }}
-            />
-        );
-    }
-
-    // Contractor submission flow
-    if (route.routeType === ROUTE_TYPES.CONTRACTOR_SUBMISSION) {
-        return <ContractorPortal />;
-    }
-
-    // Loading state
-    if (app.loading) return <AppShellSkeleton />;
-
-    // Auth screen
-    if (!app.user) return <AuthScreen />;
-
-    // Property setup
-    const needsPropertySetup = !app.profile ||
-        !app.profile.properties ||
-        app.profile.properties.length === 0 ||
-        (app.profile.properties.length === 1 && app.profile.properties[0].id === 'legacy' && !app.profile.properties[0].address);
-
-    if (needsPropertySetup && !app.loading) return <SetupPropertyForm onSave={app.handleSaveProperty} isSaving={app.isSavingProperty} onSignOut={() => signOut(auth)} />;
-
-    const isNewUser = app.activePropertyRecords.length === 0 && !app.hasSeenWelcome;
-    const totalNotifications = app.dueTasks.length + app.newSubmissions.length + jobNotifications.unreadCount;
-
-    // -- Filter Logic --
-    const groupKey = app.inventoryView === 'room' ? 'area' : 'category';
-    const filtered = app.activePropertyRecords.filter(r => {
-        const matchSearch = !app.searchTerm || r.item?.toLowerCase().includes(app.searchTerm.toLowerCase()) || r.brand?.toLowerCase().includes(app.searchTerm.toLowerCase());
-        const matchCategory = app.filterCategory === 'All' || r.category === app.filterCategory;
-        return matchSearch && matchCategory;
-    });
-    const grouped = filtered.reduce((acc, r) => {
-        const key = r[groupKey] || 'Other';
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(r);
-        return acc;
-    }, {});
-
-    // Wrap main app content with PropertyProvider
-    return (
-        <PropertyProvider propertyProfile={app.activeProperty}>
+            <PropertyProvider propertyProfile={app.activeProperty}>
             <>
                 <Toaster position="top-center" />
 
@@ -631,11 +660,11 @@ const AppContent = () => {
 
                     <BottomNav
                         activeTab={app.activeTab}
-                        onTabChange={handleTabChange}
+                        onTabChange={handleTabChangeWithNav}
                         onAddClick={() => openAddModal()}
                         notificationCount={app.newSubmissions.length + (app.unreadMessageCount || 0)}
                     />
-                    <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigate} onSignOut={() => signOut(auth)} />
+                    <MoreMenu isOpen={app.showMoreMenu} onClose={() => app.setShowMoreMenu(false)} onNavigate={handleMoreNavigateWithNav} onSignOut={() => signOut(auth)} />
 
                     {/* Notification Panel */}
                     <NotificationPanel
@@ -650,21 +679,21 @@ const AppContent = () => {
                             jobNotifications.markAsRead(notif.id);
                             app.setShowNotifications(false);
                             // Navigate to Dashboard where jobs appear in Active Projects section
-                            app.setActiveTab('Dashboard');
+                            navigate('/dashboard');
                         }}
                         onJobNotificationDismiss={(notifId) => {
                             jobNotifications.deleteNotification(notifId);
                         }}
                         onMessagesClick={() => {
                             app.setShowNotifications(false);
-                            app.setActiveTab('Contractors');
+                            navigate('/contractors');
                         }}
                         onTaskClick={(task) => {
-                            app.setActiveTab('Maintenance');
+                            navigate('/maintenance');
                             app.setHighlightedTaskId?.(task.recordId + '-' + (task.taskName || task.item));
                         }}
                         onSubmissionClick={(submission) => {
-                            app.setActiveTab('Contractors');
+                            navigate('/contractors');
                         }}
                         dismissedIds={app.dismissedNotifications}
                         onDismiss={app.handleDismissNotification}
@@ -748,6 +777,98 @@ const AppContent = () => {
                 </div>
             </>
         </PropertyProvider>
+        );
+    };
+    // End of HomeownerAppContent
+
+    // ============================================
+    // MAIN ROUTES STRUCTURE
+    // ============================================
+    return (
+        <>
+            <Toaster position="top-center" />
+
+            {/* Legacy query-param redirect handler */}
+            <LegacyRedirects />
+
+            <Routes>
+                {/* ==================== PUBLIC ROUTES ==================== */}
+
+                {/* Quote share link */}
+                <Route path="/quote/:token" element={<QuoteRouteWrapper />} />
+
+                {/* Evaluation */}
+                <Route path="/evaluate/:id" element={<EvaluationPage />} />
+
+                {/* Invitation claim */}
+                <Route path="/invite/:token" element={<InviteRouteWrapper />} />
+
+                {/* Contractor submission */}
+                <Route path="/submit/:requestId" element={<ContractorPortal />} />
+
+                {/* Contractor landing */}
+                <Route path="/pro" element={<ContractorLanding />} />
+                <Route path="/pro/invite" element={<ContractorInviteCreator />} />
+                <Route path="/pro/compare" element={<ComparisonPage />} />
+
+                {/* Contractor authenticated dashboard */}
+                <Route path="/pro/app/*" element={<ContractorProApp />} />
+
+                {/* ==================== PAYMENT CALLBACKS ==================== */}
+                <Route path="/payment/success" element={<PaymentSuccessCallback />} />
+                <Route path="/payment/cancelled" element={<PaymentCancelledCallback />} />
+
+                {/* ==================== AUTH ==================== */}
+                <Route path="/login" element={
+                    app.user ? <Navigate to="/dashboard" replace /> : <AuthScreen />
+                } />
+
+                {/* ==================== HOMEOWNER (AUTH REQUIRED) ==================== */}
+                <Route path="/dashboard" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/inventory" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/maintenance" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/contractors" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/reports" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/settings" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+                <Route path="/help" element={
+                    <AuthGuard user={app.user} loading={app.loading}>
+                        <HomeownerAppContent />
+                    </AuthGuard>
+                } />
+
+                {/* ==================== DEFAULT / CATCH-ALL ==================== */}
+                <Route path="/" element={
+                    app.user ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+                } />
+                <Route path="/app" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/app/*" element={<Navigate to="/dashboard" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </>
     );
 };
 

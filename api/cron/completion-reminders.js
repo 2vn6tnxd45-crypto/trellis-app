@@ -336,7 +336,7 @@ export default async function handler(req, res) {
             const itemsToImport = completion.itemsToImport || [];
             const itemCount = itemsToImport.length;
             const itemPreviews = itemsToImport.slice(0, 3);
-            const jobLink = `https://mykrib.app/app?jobId=${jobId}`;
+            const jobLink = `https://mykrib.app/dashboard?job=${jobId}`;
 
             // Day 3 reminder (4 days remaining)
             if (daysRemaining === 4 && !completion.reminders?.day3Sent) {

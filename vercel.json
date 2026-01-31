@@ -14,11 +14,15 @@
     },
     {
       "source": "/app",
-      "destination": "/home/index.html"
+      "destination": "/index.html"
     },
     {
       "source": "/app/(.*)",
-      "destination": "/home/index.html"
+      "destination": "/index.html"
+    },
+    {
+      "source": "/((?!api|home|_next|favicon|logo|manifest|icons|robots|sitemap).*)",
+      "destination": "/index.html"
     }
   ],
   "crons": [
