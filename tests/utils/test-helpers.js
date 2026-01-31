@@ -161,12 +161,16 @@ export async function loginAsContractor(page) {
 /**
  * Dismiss any popups/overlays that might block interactions
  * Call this before navigating if there might be overlays
+ * Includes privacy banners, modals, and other common overlays
  */
 export async function dismissPopups(page) {
-    // Check for "No Thanks" or "Close" buttons on common modals
+    // Check for various popup/overlay buttons - ordered by likelihood
     const closeButtons = [
-        'button:has-text("No Thanks")',
-        'button:has-text("Skip")',
+        'button:has-text("No Thanks")', // Privacy banner
+        'button:has-text("Accept Offers")', // Privacy banner alternative
+        'button:has-text("Accept")', // Cookie consent
+        'button:has-text("Got it")', // Notification banner
+        'button:has-text("Skip")', // Onboarding modals
         'button[aria-label="Close"]',
         '[class*="modal"] button:has-text("Close")'
     ];
@@ -175,7 +179,7 @@ export async function dismissPopups(page) {
         const btn = page.locator(selector).first();
         if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
             console.log(`[Popups] Dismissing popup via selector: ${selector}`);
-            await btn.click();
+            await btn.click({ force: true });
             await page.waitForTimeout(500);
             return true;
         }

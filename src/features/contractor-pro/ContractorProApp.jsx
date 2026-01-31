@@ -17,7 +17,7 @@ import {
     Receipt, Navigation, RotateCcw,
     Calendar, DollarSign, Clock, ChevronRight, ChevronDown, Tag, AlertCircle,
     AlertTriangle, Loader2, Trash2, MessageSquare,
-    ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown, Truck
+    ClipboardCheck, Camera, Package, Star, Crown, ThumbsUp, ThumbsDown, Truck, Globe
 } from 'lucide-react';
 import { isSameDayInTimezone } from './lib/timezoneUtils';
 import toast, { Toaster } from 'react-hot-toast';
@@ -89,6 +89,7 @@ import {
 } from '../evaluations';
 
 import { ContractorLeadDashboard } from '../marketplace';
+import { publishContractorProfile, unpublishContractorProfile, getPublicProfile } from '../marketplace/lib/contractorMarketplaceService';
 
 // Job Scheduler Component
 import { JobScheduler } from '../jobs/JobScheduler';
@@ -1693,6 +1694,168 @@ const CustomersView = ({ customers, loading }) => (
     </div>
 );
 
+// ============================================
+// MARKETPLACE LISTING CARD
+// ============================================
+const MarketplaceListingCard = ({ profile, contractorId }) => {
+    const [isListed, setIsListed] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isToggling, setIsToggling] = useState(false);
+
+    // Check current listing status on mount
+    useEffect(() => {
+        const checkStatus = async () => {
+            if (!contractorId) return;
+            try {
+                const result = await getPublicProfile(contractorId);
+                setIsListed(result.success && result.profile?.isPublic === true);
+            } catch (err) {
+                console.log('No marketplace listing yet');
+                setIsListed(false);
+            }
+            setIsLoading(false);
+        };
+        checkStatus();
+    }, [contractorId]);
+
+    // Check if profile has minimum required fields
+    const profileData = profile?.profile || {};
+    const hasRequiredFields = !!(
+        (profileData.companyName || profileData.businessName) &&
+        profileData.specialty &&
+        (profileData.address || profileData.homeZip)
+    );
+
+    // Helper: extract zip from address string
+    const extractZipFromAddress = (address) => {
+        if (!address) return '';
+        const match = address.match(/\b(\d{5})\b/);
+        return match ? match[1] : '';
+    };
+
+    const handleToggle = async () => {
+        if (!contractorId) return;
+        setIsToggling(true);
+        try {
+            if (isListed) {
+                // Unpublish
+                const result = await unpublishContractorProfile(contractorId);
+                if (result.success) {
+                    setIsListed(false);
+                    toast.success('Removed from marketplace');
+                } else {
+                    toast.error('Failed to remove listing');
+                }
+            } else {
+                // Publish — map contractor profile fields to marketplace format
+                const publishData = {
+                    businessName: profileData.companyName || profileData.businessName || '',
+                    name: profileData.displayName || '',
+                    tagline: profileData.tagline || `Professional ${profileData.specialty || 'contractor'} services`,
+                    bio: profileData.about || profileData.bio || '',
+                    photoUrl: profileData.logoUrl || '',
+                    primaryTrade: profileData.specialty || '',
+                    trades: profileData.trades || [profileData.specialty].filter(Boolean),
+                    homeZip: profileData.homeZip || extractZipFromAddress(profileData.address) || '',
+                    city: profileData.city || '',
+                    state: profileData.state || '',
+                    maxTravel: profileData.maxTravel || 25,
+                    yearsInBusiness: profileData.yearsInBusiness || null,
+                    licensed: profileData.licensed || !!profileData.licenseNumber,
+                    licenseNumber: profileData.licenseNumber || '',
+                    showLicenseNumber: !!profileData.licenseNumber,
+                    insured: profileData.insured || false,
+                    bonded: profileData.bonded || false,
+                    certifications: profileData.certifications || [],
+                    phone: profileData.phone || '',
+                    email: profileData.email || '',
+                    showPhone: true,
+                    showEmail: true,
+                    paymentMethods: profileData.paymentMethods || [],
+                    freeEstimates: true,
+                    acceptingNewClients: true
+                };
+
+                const result = await publishContractorProfile(contractorId, publishData);
+                if (result.success) {
+                    setIsListed(true);
+                    toast.success('Listed on the Krib marketplace! 🎉');
+                } else {
+                    toast.error(result.error || 'Failed to publish listing');
+                }
+            }
+        } catch (err) {
+            console.error('Marketplace toggle error:', err);
+            toast.error('Something went wrong');
+        }
+        setIsToggling(false);
+    };
+
+    if (isLoading) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+                <div className="flex items-center gap-3">
+                    <Loader2 className="animate-spin text-slate-400" size={20} />
+                    <span className="text-slate-500">Checking marketplace status...</span>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`rounded-2xl border p-6 mb-6 ${isListed ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-slate-200'}`}>
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Globe className="text-emerald-600" size={20} />
+                        <h3 className="font-bold text-slate-800">Marketplace Listing</h3>
+                        {isListed && (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-full">
+                                LIVE
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-sm text-slate-600 mb-3">
+                        {isListed
+                            ? 'Your business is visible to homeowners searching for contractors in your area.'
+                            : 'Get discovered by homeowners in your area. Your profile will appear in the Krib contractor directory. Free forever.'
+                        }
+                    </p>
+
+                    {!hasRequiredFields && !isListed && (
+                        <div className="flex items-center gap-2 text-amber-600 text-sm bg-amber-50 rounded-lg p-3 mb-3">
+                            <AlertTriangle size={16} />
+                            <span>Complete your company name, specialty, and address below to list on the marketplace.</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Toggle */}
+                <button
+                    onClick={handleToggle}
+                    disabled={isToggling || (!hasRequiredFields && !isListed)}
+                    className={`
+                        relative w-14 h-8 rounded-full transition-colors duration-200 flex-shrink-0 mt-1
+                        ${isListed ? 'bg-emerald-600' : 'bg-slate-200'}
+                        ${(isToggling || (!hasRequiredFields && !isListed)) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    `}
+                >
+                    {isToggling ? (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Loader2 className="animate-spin text-white" size={16} />
+                        </div>
+                    ) : (
+                        <div className={`
+                            absolute top-1 w-6 h-6 bg-white rounded-full shadow-sm transition-transform duration-200
+                            ${isListed ? 'translate-x-7' : 'translate-x-1'}
+                        `} />
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+};
+
 // --- PROFILE VIEW (UPDATED WITH CREDENTIALS) ---
 const ProfileView = ({ profile, onUpdateProfile }) => {
     const contractorId = profile?.id || profile?.uid;
@@ -1787,6 +1950,12 @@ const ProfileView = ({ profile, onUpdateProfile }) => {
                 <h1 className="text-2xl font-bold text-slate-800">Profile</h1>
                 <p className="text-slate-500">Your business information</p>
             </div>
+
+            {/* Marketplace Listing Toggle */}
+            <MarketplaceListingCard
+                profile={profile}
+                contractorId={contractorId}
+            />
 
             {/* Logo Section */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6">

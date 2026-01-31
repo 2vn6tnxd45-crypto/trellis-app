@@ -19,8 +19,8 @@ test('Add maintenance task due today', async ({ page }) => {
     const emailInput = page.locator('input[type="email"]');
     if (await emailInput.isVisible({ timeout: 3000 }).catch(() => false)) {
         console.log('🔐 Logging in...');
-        await emailInput.fill('test.homeowner.full@gmail.com');
-        await page.locator('input[type="password"]').fill('TestPass123!');
+        await emailInput.fill('devonandrewdavila@gmail.com');
+        await page.locator('input[type="password"]').fill('Test1234');
         await page.locator('button[type="submit"]').click();
         await page.waitForTimeout(3000);
     }

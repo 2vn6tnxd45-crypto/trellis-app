@@ -25,10 +25,10 @@ export const TEST_USERS = {
     // SEEDED: Homeowner with existing data
     // This account has: property, items, maintenance tasks, quotes
     fullHomeowner: {
-        email: 'danvdova@gmail.com',
+        email: 'devonandrewdavila@gmail.com',
         password: 'Test1234',
         name: 'Devon Davila',
-        uid: '', // Will be auto-filled on login
+        uid: 'fPOyi1ZeblUwayfqwx29nNdsTjC2',
     },
 
     // New contractor (for fresh signup tests - account created during test)

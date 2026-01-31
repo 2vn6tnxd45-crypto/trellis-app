@@ -19,8 +19,9 @@ export const LegacyRedirects = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
 
-    // Only process if we're at root or /app with query params
-    if (location.pathname !== '/' && location.pathname !== '/app' && location.pathname !== '/app/') {
+    // Only process if we're at root, /app, or /home with query params
+    const rootPaths = ['/', '/app', '/app/', '/home', '/home/'];
+    if (!rootPaths.includes(location.pathname)) {
       return; // Already on a new-style route, do nothing
     }
 

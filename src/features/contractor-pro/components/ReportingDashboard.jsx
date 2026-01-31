@@ -25,6 +25,50 @@ import {
 import { GoalTracker } from './GoalTracker';
 
 // ============================================
+// ERROR BOUNDARY
+// ============================================
+class ReportingErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('[ReportingDashboard] Error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="flex flex-col items-center justify-center h-96 bg-white rounded-2xl border border-slate-200 p-8">
+                    <AlertCircle className="text-red-400 mb-4" size={48} />
+                    <h2 className="text-xl font-bold text-slate-800 mb-2">Something went wrong</h2>
+                    <p className="text-slate-500 text-center mb-4 max-w-md">
+                        We encountered an error loading your reports. This may be due to data formatting issues.
+                    </p>
+                    <button
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium hover:bg-emerald-600 transition-colors"
+                    >
+                        Try Again
+                    </button>
+                    {process.env.NODE_ENV === 'development' && this.state.error && (
+                        <pre className="mt-4 p-4 bg-slate-100 rounded text-xs text-red-600 max-w-full overflow-auto">
+                            {this.state.error.message}
+                        </pre>
+                    )}
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+// ============================================
 // CONSTANTS
 // ============================================
 const TIME_PERIODS = [
@@ -79,6 +123,30 @@ const formatNumber = (value) => {
 
 const formatPercent = (value) => `${value.toFixed(1)}%`;
 
+/**
+ * Safely convert any timestamp/date value to a JS Date object
+ * Handles: Firestore Timestamps, ISO strings, Date objects, null/undefined
+ */
+const safeToDate = (value) => {
+    if (!value) return null;
+    try {
+        // Firestore Timestamp
+        if (value.toDate && typeof value.toDate === 'function') {
+            return value.toDate();
+        }
+        // Already a Date
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? null : value;
+        }
+        // ISO string or timestamp number
+        const parsed = new Date(value);
+        return isNaN(parsed.getTime()) ? null : parsed;
+    } catch (e) {
+        console.warn('[ReportingDashboard] Failed to parse date:', value, e);
+        return null;
+    }
+};
+
 const getDateRange = (periodId) => {
     const now = new Date();
     const period = TIME_PERIODS.find(p => p.id === periodId);
@@ -100,8 +168,8 @@ const getDateRange = (periodId) => {
 };
 
 const isInDateRange = (timestamp, start, end) => {
-    if (!timestamp) return false;
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const date = safeToDate(timestamp);
+    if (!date) return false;
     if (!start) return true;
     return date >= start && date <= end;
 };
@@ -303,9 +371,9 @@ const QuoteFunnel = ({ data }) => {
     ];
 
     const conversionRates = {
-        sentToViewed: data.sent > 0 ? ((data.viewed / data.sent) * 100).toFixed(0) : 0,
-        viewedToAccepted: data.viewed > 0 ? ((data.accepted / data.viewed) * 100).toFixed(0) : 0,
-        overall: data.sent > 0 ? ((data.accepted / data.sent) * 100).toFixed(0) : 0,
+        sentToViewed: data.sent > 0 ? Math.min(100, (data.viewed / data.sent) * 100).toFixed(0) : 0,
+        viewedToAccepted: data.viewed > 0 ? Math.min(100, (data.accepted / data.viewed) * 100).toFixed(0) : 0,
+        overall: data.sent > 0 ? Math.min(100, (data.accepted / data.sent) * 100).toFixed(0) : 0,
     };
 
     return (
@@ -613,8 +681,9 @@ const PerformanceMetrics = ({ quotes, jobs }) => {
         const viewedQuotes = quotes.filter(q => q.sentAt && q.viewedAt);
         const avgResponseTime = viewedQuotes.length > 0
             ? viewedQuotes.reduce((sum, q) => {
-                const sent = q.sentAt?.toDate?.() || new Date(q.sentAt);
-                const viewed = q.viewedAt?.toDate?.() || new Date(q.viewedAt);
+                const sent = safeToDate(q.sentAt);
+                const viewed = safeToDate(q.viewedAt);
+                if (!sent || !viewed) return sum;
                 return sum + (viewed - sent) / (1000 * 60 * 60); // hours
             }, 0) / viewedQuotes.length
             : 0;
@@ -733,16 +802,16 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
         // Sort by timestamp and take top 8
         return items
             .sort((a, b) => {
-                const aTime = a.timestamp?.toDate?.() || new Date(a.timestamp || 0);
-                const bTime = b.timestamp?.toDate?.() || new Date(b.timestamp || 0);
+                const aTime = safeToDate(a.timestamp) || new Date(0);
+                const bTime = safeToDate(b.timestamp) || new Date(0);
                 return bTime - aTime;
             })
             .slice(0, 8);
     }, [quotes, jobs]);
 
     const formatTimeAgo = (timestamp) => {
-        if (!timestamp) return '';
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const date = safeToDate(timestamp);
+        if (!date) return '';
         const now = new Date();
         const diffMs = now - date;
         const diffMins = Math.floor(diffMs / 60000);
@@ -835,10 +904,10 @@ const FinancingMetrics = ({ quotes, financingStats }) => {
         const fundedQuotes = quotesWithFinancing.filter(q => q.financing?.status === 'funded');
         const totalFunded = fundedQuotes.reduce((sum, q) => sum + (q.financing?.approvedAmount || q.total || 0), 0);
 
-        // Approval rate (approved or funded / total applied)
+        // Approval rate (approved or funded / total applied, capped at 100%)
         const totalApplied = statusCounts.pending + statusCounts.approved + statusCounts.funded + statusCounts.denied;
         const approvalRate = totalApplied > 0
-            ? ((statusCounts.approved + statusCounts.funded) / totalApplied) * 100
+            ? Math.min(100, ((statusCounts.approved + statusCounts.funded) / totalApplied) * 100)
             : 0;
 
         // Average financed amount
@@ -860,7 +929,7 @@ const FinancingMetrics = ({ quotes, financingStats }) => {
             approvalRate: stats.approvalRate || approvalRate,
             avgFinancedAmount: stats.avgAmount || avgFinancedAmount,
             conversionRate: statusCounts.offered + totalApplied > 0
-                ? (totalApplied / (statusCounts.offered + totalApplied)) * 100
+                ? Math.min(100, (totalApplied / (statusCounts.offered + totalApplied)) * 100)
                 : 0,
         };
     }, [quotes, financingStats]);
@@ -989,7 +1058,7 @@ const FinancingMetrics = ({ quotes, financingStats }) => {
 // ============================================
 // MAIN REPORTING DASHBOARD COMPONENT
 // ============================================
-export const ReportingDashboard = ({
+const ReportingDashboardInner = ({
     contractorId,
     profile,
     quotes = [],
@@ -1029,10 +1098,10 @@ export const ReportingDashboard = ({
         const pendingQuotes = filteredData.quotes.filter(q => ['sent', 'viewed'].includes(q.status));
         const pendingRevenue = pendingQuotes.reduce((sum, q) => sum + (q.total || 0), 0);
         
-        // Conversion rate
+        // Conversion rate (capped at 100% for data integrity)
         const sentQuotes = filteredData.quotes.filter(q => q.status !== 'draft');
-        const conversionRate = sentQuotes.length > 0 
-            ? (acceptedQuotes.length / sentQuotes.length) * 100 
+        const conversionRate = sentQuotes.length > 0
+            ? Math.min(100, (acceptedQuotes.length / sentQuotes.length) * 100)
             : 0;
         
         // Average job value
@@ -1100,10 +1169,12 @@ export const ReportingDashboard = ({
         // Aggregate quote revenue (accepted)
         quotes.forEach(quote => {
             if (quote.status === 'accepted' && quote.acceptedAt) {
-                const date = quote.acceptedAt.toDate ? quote.acceptedAt.toDate() : new Date(quote.acceptedAt);
-                const key = `${date.getFullYear()}-${date.getMonth()}`;
-                if (months[key]) {
-                    months[key].revenue += quote.total || 0;
+                const date = safeToDate(quote.acceptedAt);
+                if (date) {
+                    const key = `${date.getFullYear()}-${date.getMonth()}`;
+                    if (months[key]) {
+                        months[key].revenue += quote.total || 0;
+                    }
                 }
             }
         });
@@ -1111,10 +1182,12 @@ export const ReportingDashboard = ({
         // Count completed jobs
         jobs.forEach(job => {
             if (job.status === 'completed' && job.completedAt) {
-                const date = job.completedAt.toDate ? job.completedAt.toDate() : new Date(job.completedAt);
-                const key = `${date.getFullYear()}-${date.getMonth()}`;
-                if (months[key]) {
-                    months[key].jobs++;
+                const date = safeToDate(job.completedAt);
+                if (date) {
+                    const key = `${date.getFullYear()}-${date.getMonth()}`;
+                    if (months[key]) {
+                        months[key].jobs++;
+                    }
                 }
             }
         });
@@ -1258,5 +1331,12 @@ export const ReportingDashboard = ({
         </div>
     );
 };
+
+// Wrap with error boundary for resilience
+export const ReportingDashboard = (props) => (
+    <ReportingErrorBoundary>
+        <ReportingDashboardInner {...props} />
+    </ReportingErrorBoundary>
+);
 
 export default ReportingDashboard;

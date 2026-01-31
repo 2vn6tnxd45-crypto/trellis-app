@@ -6,8 +6,8 @@
 import { test, expect } from '@playwright/test';
 
 const TEST_ACCOUNT = {
-    email: 'test.homeowner.full@gmail.com',
-    password: 'TestPass123!'
+    email: 'devonandrewdavila@gmail.com',
+    password: 'Test1234'
 };
 
 const BASE_URL = 'https://mykrib.app';
@@ -17,7 +17,7 @@ test.describe('Setup Test Account Property', () => {
     test('Complete property setup if needed', async ({ page }) => {
         // Go to app
         await page.goto(`${BASE_URL}/home`);
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(2000);
 
         console.log('Page URL:', page.url());
@@ -31,7 +31,7 @@ test.describe('Setup Test Account Property', () => {
             await page.locator('input[type="password"]').fill(TEST_ACCOUNT.password);
             await page.locator('button[type="submit"]').click();
 
-            await page.waitForLoadState('networkidle');
+            await page.waitForLoadState('domcontentloaded');
             await page.waitForTimeout(3000);
         }
 
@@ -131,7 +131,7 @@ test.describe('Setup Test Account Property', () => {
                 }
             }
 
-            await page.waitForLoadState('networkidle');
+            await page.waitForLoadState('domcontentloaded');
             await page.waitForTimeout(3000);
 
             await page.screenshot({ path: 'setup-5-after-submit.png', fullPage: true });

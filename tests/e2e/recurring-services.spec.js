@@ -7,14 +7,12 @@ import {
     waitForLoadingComplete
 } from '../utils/test-helpers';
 
-test.describe.serial('Membership / Recurring Services Flow', () => {
-    // FIX 1: Expand Viewport to show full modal content without scrolling
-    // FIX 2: Enable Headless=false for interactive debugging
-    test.use({
-        viewport: { width: 1280, height: 1200 },
-        headless: false
-    });
+// FIX: Move test.use() outside describe block (Playwright requirement)
+test.use({
+    viewport: { width: 1280, height: 1200 }
+});
 
+test.describe.serial('Membership / Recurring Services Flow', () => {
     // Unique Plan Name for this run
     const planName = `Sandbox Plan ${Date.now()}`;
     const planPrice = "10.00";

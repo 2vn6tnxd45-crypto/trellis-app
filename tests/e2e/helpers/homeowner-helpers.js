@@ -7,8 +7,8 @@
 import { expect } from '@playwright/test';
 
 export const TEST_ACCOUNT = {
-    email: 'test.homeowner.full@gmail.com',
-    password: 'TestPass123!'
+    email: 'devonandrewdavila@gmail.com',
+    password: 'Test1234'
 };
 
 export const BASE_URL = 'https://mykrib.app';
@@ -19,17 +19,42 @@ export const BASE_URL = 'https://mykrib.app';
 // ============================================
 
 /**
+ * Dismiss any privacy/cookie banners that might overlay UI elements
+ */
+export async function dismissPrivacyBanner(page) {
+    const bannerButtons = [
+        'button:has-text("No Thanks")',
+        'button:has-text("Accept Offers")',
+        'button:has-text("Accept")',
+        'button:has-text("Got it")'
+    ];
+    for (const selector of bannerButtons) {
+        const btn = page.locator(selector).first();
+        if (await btn.isVisible({ timeout: 1000 }).catch(() => false)) {
+            await btn.click({ force: true });
+            await page.waitForTimeout(500);
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Login and handle onboarding if needed
  */
 export async function loginAsHomeowner(page) {
     await page.goto(`${BASE_URL}/home`);
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
-    
+
+    // Dismiss privacy banner first
+    await dismissPrivacyBanner(page);
+
     // Check if already on dashboard (nav visible)
     const navVisible = await page.locator('nav >> text=Home').isVisible({ timeout: 3000 }).catch(() => false);
     if (navVisible) {
         console.log('✓ Already logged in');
+        await dismissPrivacyBanner(page); // Dismiss again after confirming login
         return true;
     }
     
@@ -41,7 +66,7 @@ export async function loginAsHomeowner(page) {
         await page.locator('input[type="password"]').fill(TEST_ACCOUNT.password);
         await page.locator('button[type="submit"]').click();
         
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(2000);
     }
     
@@ -66,7 +91,7 @@ export async function loginAsHomeowner(page) {
         
         // Submit
         await page.locator('button:has-text("Kreate")').click();
-        await page.waitForLoadState('networkidle');
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(2000);
     }
     
@@ -84,6 +109,9 @@ export async function loginAsHomeowner(page) {
  * Navigate using VERIFIED selectors
  */
 export async function navigateToTab(page, tabName) {
+    // Dismiss any privacy banners first
+    await dismissPrivacyBanner(page);
+
     // Map aliases to actual nav labels
     const labelMap = {
         'Dashboard': 'Home',
@@ -92,15 +120,15 @@ export async function navigateToTab(page, tabName) {
         'Maintenance': 'Home',
         'Contractors': 'Pros',
     };
-    
+
     const actualLabel = labelMap[tabName] || tabName;
-    
+
     // Use the VERIFIED selector: nav >> text=Label
     const navButton = page.locator(`nav >> text=${actualLabel}`);
-    
+
     if (await navButton.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await navButton.click();
-        await page.waitForLoadState('networkidle');
+        await navButton.click({ force: true }); // Force click to bypass overlays
+        await page.waitForLoadState('domcontentloaded');
         await page.waitForTimeout(1000);
         console.log(`✓ Navigated to ${actualLabel}`);
         return true;
@@ -114,20 +142,23 @@ export async function navigateToTab(page, tabName) {
  * Open More menu and click an item
  */
 export async function openMoreMenuItem(page, itemName) {
-    // Click More in nav
+    // Dismiss any privacy banner first - this is critical!
+    await dismissPrivacyBanner(page);
+
+    // Click More in nav - use force:true to bypass any remaining overlays
     const moreBtn = page.locator('nav >> text=More');
-    await moreBtn.click();
+    await moreBtn.click({ force: true });
     await page.waitForTimeout(500);
-    
+
     // Click menu item (Reports, Settings, Help)
     const menuItem = page.locator(`text=${itemName}`).first();
     if (await menuItem.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await menuItem.click();
+        await menuItem.click({ force: true });
         await page.waitForTimeout(1000);
         console.log(`✓ Opened ${itemName}`);
         return true;
     }
-    
+
     console.warn(`⚠ Could not find menu item: ${itemName}`);
     return false;
 }
