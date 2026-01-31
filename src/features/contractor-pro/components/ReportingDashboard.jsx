@@ -150,20 +150,20 @@ const safeToDate = (value) => {
 const getDateRange = (periodId) => {
     const now = new Date();
     const period = TIME_PERIODS.find(p => p.id === periodId);
-    
+
     if (!period || !period.days) {
         return { start: null, end: now };
     }
-    
+
     const start = new Date();
     if (period.offset) {
         start.setDate(start.getDate() - period.offset - period.days);
     } else {
         start.setDate(start.getDate() - period.days);
     }
-    
+
     const end = period.offset ? new Date(now.getTime() - period.offset * 24 * 60 * 60 * 1000) : now;
-    
+
     return { start, end };
 };
 
@@ -182,12 +182,12 @@ const getMonthName = (monthIndex) => {
 // ============================================
 // KPI CARD COMPONENT
 // ============================================
-const KPICard = ({ 
-    icon: Icon, 
-    label, 
-    value, 
+const KPICard = ({
+    icon: Icon,
+    label,
+    value,
     subValue,
-    trend, 
+    trend,
     trendLabel,
     color = 'emerald',
     size = 'default'
@@ -211,22 +211,21 @@ const KPICard = ({
                     <Icon size={20} />
                 </div>
                 {trend !== undefined && trend !== null && (
-                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                        isPositiveTrend ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
-                    }`}>
+                    <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${isPositiveTrend ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+                        }`}>
                         <TrendIcon size={12} />
                         {Math.abs(trend).toFixed(1)}%
                     </div>
                 )}
             </div>
-            
+
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{label}</p>
             <p className="text-2xl font-black text-slate-800">{value}</p>
-            
+
             {subValue && (
                 <p className="text-sm text-slate-500 mt-1">{subValue}</p>
             )}
-            
+
             {trendLabel && (
                 <p className="text-xs text-slate-400 mt-2">{trendLabel}</p>
             )}
@@ -239,20 +238,20 @@ const KPICard = ({
 // ============================================
 const MiniSparkline = ({ data, color = COLORS.primary, height = 40 }) => {
     if (!data || data.length === 0) return null;
-    
+
     return (
         <ResponsiveContainer width="100%" height={height}>
             <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                 <defs>
                     <linearGradient id={`sparklineGradient-${color}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                        <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={color} stopOpacity={0} />
                     </linearGradient>
                 </defs>
-                <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke={color} 
+                <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke={color}
                     strokeWidth={2}
                     fill={`url(#sparklineGradient-${color})`}
                 />
@@ -294,33 +293,33 @@ const RevenueChart = ({ data, loading }) => {
                     </div>
                 </div>
             </div>
-            
+
             <ResponsiveContainer width="100%" height={280}>
                 <ComposedChart data={data} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                     <defs>
                         <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                         </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                    <XAxis 
-                        dataKey="month" 
-                        axisLine={false} 
+                    <XAxis
+                        dataKey="month"
+                        axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 12, fill: '#64748b' }}
                     />
-                    <YAxis 
+                    <YAxis
                         yAxisId="left"
-                        axisLine={false} 
+                        axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 12, fill: '#64748b' }}
-                        tickFormatter={(value) => `$${value >= 1000 ? `${(value/1000).toFixed(0)}k` : value}`}
+                        tickFormatter={(value) => `$${value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}`}
                     />
-                    <YAxis 
+                    <YAxis
                         yAxisId="right"
                         orientation="right"
-                        axisLine={false} 
+                        axisLine={false}
                         tickLine={false}
                         tick={{ fontSize: 12, fill: '#64748b' }}
                     />
@@ -388,23 +387,23 @@ const QuoteFunnel = ({ data }) => {
                     <p className="text-xs text-slate-500">Overall conversion</p>
                 </div>
             </div>
-            
+
             {/* Visual Funnel */}
             <div className="space-y-3 mb-6">
                 {funnelData.map((stage, index) => {
                     const maxValue = Math.max(...funnelData.map(s => s.value), 1);
                     const width = (stage.value / maxValue) * 100;
-                    
+
                     return (
                         <div key={stage.name} className="relative">
                             <div className="flex items-center gap-3">
                                 <div className="w-20 text-sm font-medium text-slate-600">{stage.name}</div>
                                 <div className="flex-1 h-10 bg-slate-100 rounded-lg overflow-hidden">
-                                    <div 
+                                    <div
                                         className="h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
-                                        style={{ 
+                                        style={{
                                             width: `${Math.max(width, 10)}%`,
-                                            backgroundColor: stage.fill 
+                                            backgroundColor: stage.fill
                                         }}
                                     >
                                         <span className="text-white font-bold text-sm">{stage.value}</span>
@@ -461,15 +460,15 @@ const JobPipeline = ({ data }) => {
                     <p className="text-sm text-slate-500">{totalActive} active jobs</p>
                 </div>
             </div>
-            
+
             <div className="space-y-4">
                 {stages.map((stage) => {
                     const count = data[stage.key] || 0;
                     const Icon = stage.icon;
-                    
+
                     return (
                         <div key={stage.key} className="flex items-center gap-4">
-                            <div 
+                            <div
                                 className="w-10 h-10 rounded-xl flex items-center justify-center"
                                 style={{ backgroundColor: `${stage.color}15` }}
                             >
@@ -481,11 +480,11 @@ const JobPipeline = ({ data }) => {
                                     <span className="text-sm font-bold" style={{ color: stage.color }}>{count}</span>
                                 </div>
                                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                    <div 
+                                    <div
                                         className="h-full rounded-full transition-all duration-500"
-                                        style={{ 
+                                        style={{
                                             width: `${Math.min((count / Math.max(totalActive, 1)) * 100, 100)}%`,
-                                            backgroundColor: stage.color 
+                                            backgroundColor: stage.color
                                         }}
                                     />
                                 </div>
@@ -517,7 +516,7 @@ const TopCustomers = ({ customers }) => {
                 </div>
                 <Award className="text-amber-500" size={24} />
             </div>
-            
+
             {topCustomers.length === 0 ? (
                 <div className="text-center py-8">
                     <Users className="mx-auto text-slate-300 mb-3" size={40} />
@@ -527,19 +526,18 @@ const TopCustomers = ({ customers }) => {
                 <div className="space-y-4">
                     {topCustomers.map((customer, index) => {
                         const percentage = ((customer.totalSpend || 0) / maxSpend) * 100;
-                        
+
                         return (
                             <div key={customer.id} className="flex items-center gap-3">
                                 {/* Rank Badge */}
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                                    index === 0 ? 'bg-amber-100 text-amber-700' :
-                                    index === 1 ? 'bg-slate-200 text-slate-700' :
-                                    index === 2 ? 'bg-orange-100 text-orange-700' :
-                                    'bg-slate-100 text-slate-500'
-                                }`}>
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${index === 0 ? 'bg-amber-100 text-amber-700' :
+                                        index === 1 ? 'bg-slate-200 text-slate-700' :
+                                            index === 2 ? 'bg-orange-100 text-orange-700' :
+                                                'bg-slate-100 text-slate-500'
+                                    }`}>
                                     {index + 1}
                                 </div>
-                                
+
                                 {/* Customer Info */}
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-1">
@@ -551,7 +549,7 @@ const TopCustomers = ({ customers }) => {
                                         </span>
                                     </div>
                                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div 
+                                        <div
                                             className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400"
                                             style={{ width: `${percentage}%` }}
                                         />
@@ -582,14 +580,14 @@ const QuoteStatusBreakdown = ({ quotes }) => {
             declined: 0,
             expired: 0,
         };
-        
+
         quotes.forEach(quote => {
             const status = quote.status || 'draft';
             if (counts[status] !== undefined) {
                 counts[status]++;
             }
         });
-        
+
         return counts;
     }, [quotes]);
 
@@ -612,7 +610,7 @@ const QuoteStatusBreakdown = ({ quotes }) => {
                     <p className="text-sm text-slate-500">{total} total quotes</p>
                 </div>
             </div>
-            
+
             <div className="flex items-center gap-6">
                 {/* Pie Chart */}
                 <div className="w-32 h-32">
@@ -634,12 +632,12 @@ const QuoteStatusBreakdown = ({ quotes }) => {
                         </RechartsPie>
                     </ResponsiveContainer>
                 </div>
-                
+
                 {/* Legend */}
                 <div className="flex-1 grid grid-cols-2 gap-2">
                     {pieData.map((item) => (
                         <div key={item.name} className="flex items-center gap-2">
-                            <div 
+                            <div
                                 className="w-3 h-3 rounded-full"
                                 style={{ backgroundColor: item.color }}
                             />
@@ -660,23 +658,23 @@ const PerformanceMetrics = ({ quotes, jobs }) => {
     const metrics = useMemo(() => {
         const acceptedQuotes = quotes.filter(q => q.status === 'accepted');
         const completedJobs = jobs.filter(j => j.status === 'completed');
-        
+
         // Average quote value
-        const avgQuoteValue = quotes.length > 0 
-            ? quotes.reduce((sum, q) => sum + (q.total || 0), 0) / quotes.length 
+        const avgQuoteValue = quotes.length > 0
+            ? quotes.reduce((sum, q) => sum + (q.total || 0), 0) / quotes.length
             : 0;
-        
+
         // Average job value
         const avgJobValue = completedJobs.length > 0
             ? completedJobs.reduce((sum, j) => sum + (j.total || 0), 0) / completedJobs.length
             : 0;
-        
+
         // Win rate
         const decidedQuotes = quotes.filter(q => ['accepted', 'declined'].includes(q.status));
         const winRate = decidedQuotes.length > 0
             ? (acceptedQuotes.length / decidedQuotes.length) * 100
             : 0;
-        
+
         // Average response time (sent to viewed)
         const viewedQuotes = quotes.filter(q => q.sentAt && q.viewedAt);
         const avgResponseTime = viewedQuotes.length > 0
@@ -687,7 +685,7 @@ const PerformanceMetrics = ({ quotes, jobs }) => {
                 return sum + (viewed - sent) / (1000 * 60 * 60); // hours
             }, 0) / viewedQuotes.length
             : 0;
-        
+
         return {
             avgQuoteValue,
             avgJobValue,
@@ -708,30 +706,30 @@ const PerformanceMetrics = ({ quotes, jobs }) => {
                 </div>
                 <Activity className="text-emerald-400" size={24} />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Win Rate</p>
                     <p className="text-2xl font-black text-emerald-400">{metrics.winRate.toFixed(0)}%</p>
                     <p className="text-xs text-slate-500 mt-1">of decided quotes</p>
                 </div>
-                
+
                 <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Avg Quote</p>
                     <p className="text-2xl font-black text-blue-400">{formatCurrency(metrics.avgQuoteValue)}</p>
                     <p className="text-xs text-slate-500 mt-1">per quote sent</p>
                 </div>
-                
+
                 <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Avg Job Value</p>
                     <p className="text-2xl font-black text-purple-400">{formatCurrency(metrics.avgJobValue)}</p>
                     <p className="text-xs text-slate-500 mt-1">completed jobs</p>
                 </div>
-                
+
                 <div className="bg-white/10 rounded-xl p-4">
                     <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">Response Time</p>
                     <p className="text-2xl font-black text-amber-400">
-                        {metrics.avgResponseTime < 24 
+                        {metrics.avgResponseTime < 24
                             ? `${metrics.avgResponseTime.toFixed(0)}h`
                             : `${(metrics.avgResponseTime / 24).toFixed(1)}d`
                         }
@@ -749,7 +747,7 @@ const PerformanceMetrics = ({ quotes, jobs }) => {
 const RecentActivityFeed = ({ quotes, jobs }) => {
     const activities = useMemo(() => {
         const items = [];
-        
+
         // Add quote activities
         quotes.slice(0, 10).forEach(quote => {
             if (quote.acceptedAt) {
@@ -774,7 +772,7 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
                 });
             }
         });
-        
+
         // Add job activities
         jobs.slice(0, 10).forEach(job => {
             if (job.completedAt) {
@@ -798,7 +796,7 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
                 });
             }
         });
-        
+
         // Sort by timestamp and take top 8
         return items
             .sort((a, b) => {
@@ -817,7 +815,7 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-        
+
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
         if (diffDays < 7) return `${diffDays}d ago`;
@@ -839,7 +837,7 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
                     <p className="text-sm text-slate-500">Latest updates</p>
                 </div>
             </div>
-            
+
             {activities.length === 0 ? (
                 <div className="text-center py-8">
                     <Activity className="mx-auto text-slate-300 mb-3" size={40} />
@@ -849,7 +847,7 @@ const RecentActivityFeed = ({ quotes, jobs }) => {
                 <div className="space-y-3">
                     {activities.map((activity, index) => {
                         const Icon = activity.icon;
-                        
+
                         return (
                             <div key={index} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors">
                                 <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colorClasses[activity.color]}`}>
@@ -1074,7 +1072,7 @@ const ReportingDashboardInner = ({
     // Filter data by selected period
     const filteredData = useMemo(() => {
         const { start, end } = getDateRange(selectedPeriod);
-        
+
         return {
             quotes: quotes.filter(q => isInDateRange(q.createdAt, start, end)),
             jobs: jobs.filter(j => isInDateRange(j.createdAt, start, end)),
@@ -1087,23 +1085,23 @@ const ReportingDashboardInner = ({
         const acceptedQuotes = filteredData.quotes.filter(q => q.status === 'accepted');
         const completedJobs = filteredData.jobs.filter(j => j.status === 'completed');
         const paidInvoices = filteredData.invoices.filter(i => i.status === 'paid');
-        
+
         // Revenue from accepted quotes
         const revenue = acceptedQuotes.reduce((sum, q) => sum + (q.total || 0), 0);
-        
+
         // Revenue from completed jobs
         const jobRevenue = completedJobs.reduce((sum, j) => sum + (j.total || 0), 0);
-        
+
         // Pending revenue (sent but not yet accepted/declined)
         const pendingQuotes = filteredData.quotes.filter(q => ['sent', 'viewed'].includes(q.status));
         const pendingRevenue = pendingQuotes.reduce((sum, q) => sum + (q.total || 0), 0);
-        
+
         // Conversion rate (capped at 100% for data integrity)
         const sentQuotes = filteredData.quotes.filter(q => q.status !== 'draft');
         const conversionRate = sentQuotes.length > 0
             ? Math.min(100, (acceptedQuotes.length / sentQuotes.length) * 100)
             : 0;
-        
+
         // Average job value
         const avgJobValue = completedJobs.length > 0
             ? jobRevenue / completedJobs.length
@@ -1137,8 +1135,8 @@ const ReportingDashboardInner = ({
             in_progress: 0,
             completed: 0,
         };
-        
-        jobs.forEach(job => {
+
+        filteredData.jobs.forEach(job => {
             const status = job.status || 'pending_schedule';
             if (['pending_schedule', 'slots_offered', 'quoted', 'accepted'].includes(status)) {
                 pipeline.pending_schedule++;
@@ -1146,15 +1144,15 @@ const ReportingDashboardInner = ({
                 pipeline[status]++;
             }
         });
-        
+
         return pipeline;
-    }, [jobs]);
+    }, [filteredData.jobs]);
 
     // Monthly revenue data for chart
     const monthlyData = useMemo(() => {
         const months = {};
         const now = new Date();
-        
+
         // Initialize last 6 months
         for (let i = 5; i >= 0; i--) {
             const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -1165,7 +1163,7 @@ const ReportingDashboardInner = ({
                 jobs: 0,
             };
         }
-        
+
         // Aggregate quote revenue (accepted)
         quotes.forEach(quote => {
             if (quote.status === 'accepted' && quote.acceptedAt) {
@@ -1178,7 +1176,7 @@ const ReportingDashboardInner = ({
                 }
             }
         });
-        
+
         // Count completed jobs
         jobs.forEach(job => {
             if (job.status === 'completed' && job.completedAt) {
@@ -1191,7 +1189,7 @@ const ReportingDashboardInner = ({
                 }
             }
         });
-        
+
         return Object.values(months);
     }, [quotes, jobs]);
 
@@ -1213,7 +1211,7 @@ const ReportingDashboardInner = ({
                     <h1 className="text-2xl font-bold text-slate-800">Business Reports</h1>
                     <p className="text-slate-500">Track your performance and growth</p>
                 </div>
-                
+
                 {/* Period Selector */}
                 <div className="relative">
                     <button
@@ -1224,12 +1222,12 @@ const ReportingDashboardInner = ({
                         {selectedPeriodLabel}
                         <ChevronDown size={16} className={`text-slate-400 transition-transform ${showPeriodDropdown ? 'rotate-180' : ''}`} />
                     </button>
-                    
+
                     {showPeriodDropdown && (
                         <>
-                            <div 
-                                className="fixed inset-0 z-10" 
-                                onClick={() => setShowPeriodDropdown(false)} 
+                            <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setShowPeriodDropdown(false)}
                             />
                             <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-2 z-20">
                                 {TIME_PERIODS.map(period => (
@@ -1239,9 +1237,8 @@ const ReportingDashboardInner = ({
                                             setSelectedPeriod(period.id);
                                             setShowPeriodDropdown(false);
                                         }}
-                                        className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${
-                                            selectedPeriod === period.id ? 'text-emerald-600 font-medium bg-emerald-50' : 'text-slate-600'
-                                        }`}
+                                        className={`w-full px-4 py-2 text-left text-sm hover:bg-slate-50 transition-colors ${selectedPeriod === period.id ? 'text-emerald-600 font-medium bg-emerald-50' : 'text-slate-600'
+                                            }`}
                                     >
                                         {period.label}
                                     </button>
@@ -1262,7 +1259,7 @@ const ReportingDashboardInner = ({
                     jobs={jobs}
                     variant="compact"
                 />
-                
+
                 {/* KPI Cards */}
                 <KPICard
                     icon={DollarSign}
@@ -1317,17 +1314,17 @@ const ReportingDashboardInner = ({
             <div className="grid lg:grid-cols-3 gap-6">
                 <JobPipeline data={pipelineData} />
                 <TopCustomers customers={customers} />
-                <QuoteStatusBreakdown quotes={quotes} />
+                <QuoteStatusBreakdown quotes={filteredData.quotes} />
             </div>
 
             {/* Third Row */}
             <div className="grid lg:grid-cols-2 gap-6">
-                <PerformanceMetrics quotes={quotes} jobs={jobs} />
-                <RecentActivityFeed quotes={quotes} jobs={jobs} />
+                <PerformanceMetrics quotes={filteredData.quotes} jobs={filteredData.jobs} />
+                <RecentActivityFeed quotes={filteredData.quotes} jobs={filteredData.jobs} />
             </div>
 
             {/* Financing Metrics Row */}
-            <FinancingMetrics quotes={quotes} financingStats={financingStats} />
+            <FinancingMetrics quotes={filteredData.quotes} financingStats={financingStats} />
         </div>
     );
 };
