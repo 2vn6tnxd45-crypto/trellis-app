@@ -10,18 +10,21 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-// Initialize Firebase Admin
-if (!getApps().length) {
-    initializeApp({
-        credential: cert({
-            projectId: process.env.FIREBASE_PROJECT_ID,
-            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-        }),
-    });
+// Initialize Firebase Admin (if not already)
+// Use FIREBASE_SERVICE_ACCOUNT env var (JSON string) - matching other working APIs
+if (getApps().length === 0) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        initializeApp({
+            credential: cert(serviceAccount)
+        });
+    } else {
+        console.warn('[save-evaluation-analysis] Firebase Admin not initialized - FIREBASE_SERVICE_ACCOUNT not set');
+    }
 }
 
-const db = getFirestore();
+const db = getApps().length > 0 ? getFirestore() : null;
+const appId = 'krib-app';
 
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
@@ -68,9 +71,17 @@ export default async function handler(req, res) {
             hasSummary: !!analysis.summary
         });
 
-        // Build the document path
+        // Check if Firebase Admin is available
+        if (!db) {
+            console.error('[save-evaluation-analysis] Firebase Admin not available');
+            return res.status(503).json({
+                error: 'Database service not available',
+                message: 'Firebase Admin SDK not initialized. Check FIREBASE_SERVICE_ACCOUNT env var.'
+            });
+        }
+
+        // Build the document path using the module-level appId
         // Path: artifacts/{appId}/public/data/contractors/{contractorId}/evaluations/{evaluationId}
-        const appId = process.env.VITE_APP_ID || process.env.APP_ID || 'krib-app';
         const evalRef = db.doc(
             `artifacts/${appId}/public/data/contractors/${contractorId}/evaluations/${evaluationId}`
         );
