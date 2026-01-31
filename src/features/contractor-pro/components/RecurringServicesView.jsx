@@ -86,8 +86,8 @@ export const RecurringServicesView = ({
                             key={status}
                             onClick={() => setFilterStatus(status)}
                             className={`px-4 py-2 rounded-lg font-medium text-sm capitalize transition-colors ${filterStatus === status
-                                    ? 'bg-slate-800 text-white'
-                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                ? 'bg-slate-800 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                                 }`}
                         >
                             {status}
@@ -120,10 +120,6 @@ export const RecurringServicesView = ({
                             onPause={pause}
                             onResume={resume}
                             onCancel={cancel}
-                            onEdit={(s) => {
-                                // TODO: Implement edit
-                                toast('Edit feature coming soon');
-                            }}
                             onSelect={(s) => {
                                 // Navigate to a detail view if needed, or just show info
                                 console.log('Selected', s);

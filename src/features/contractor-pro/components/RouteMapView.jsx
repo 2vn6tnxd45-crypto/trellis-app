@@ -112,23 +112,21 @@ const RouteJobItem = ({ job, index, isSelected, onSelect, onNavigate }) => {
     return (
         <div
             onClick={() => onSelect(job)}
-            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                isSelected
+            className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected
                     ? 'border-indigo-500 bg-indigo-50'
                     : isCompleted
                         ? 'border-slate-200 bg-slate-50 opacity-60'
                         : 'border-slate-200 hover:border-slate-300'
-            }`}
+                }`}
         >
             <div className="flex items-start gap-3">
                 {/* Stop number */}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                    isCompleted
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isCompleted
                         ? 'bg-emerald-500 text-white'
                         : isSelected
                             ? 'bg-indigo-600 text-white'
                             : 'bg-slate-200 text-slate-600'
-                }`}>
+                    }`}>
                     {isCompleted ? <CheckCircle size={16} /> : index + 1}
                 </div>
 
@@ -143,9 +141,8 @@ const RouteJobItem = ({ job, index, isSelected, onSelect, onNavigate }) => {
                                 {job.customer?.address || job.address}
                             </p>
                         </div>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            statusColors[job.status] || 'bg-slate-100 text-slate-600'
-                        }`}>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[job.status] || 'bg-slate-100 text-slate-600'
+                            }`}>
                             {statusLabels[job.status] || job.status}
                         </span>
                     </div>
@@ -217,13 +214,12 @@ const MapEmbed = ({ jobs, selectedJob, startLocation }) => {
                 <div className="flex items-center gap-2 mb-4">
                     {jobs.slice(0, 5).map((job, idx) => (
                         <React.Fragment key={job.id || idx}>
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                job.status === 'completed'
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${job.status === 'completed'
                                     ? 'bg-emerald-500 text-white'
                                     : selectedJob?.id === job.id
                                         ? 'bg-indigo-600 text-white'
                                         : 'bg-white border-2 border-slate-300 text-slate-600'
-                            }`}>
+                                }`}>
                                 {idx + 1}
                             </div>
                             {idx < jobs.slice(0, 5).length - 1 && (
@@ -317,10 +313,10 @@ export const RouteMapView = ({
         });
     }, [jobs, date, timezone]);
 
-    // Calculate estimated totals (mock calculation)
+    // Calculate estimated totals (simple estimates when routing API not available)
     const routeStats = useMemo(() => {
-        // In production, this would come from a routing API
-        const avgDistanceBetweenStops = 5; // miles
+        // Estimated averages for route planning
+        const avgDistanceBetweenStops = 5; // miles (estimate)
         const avgDriveTime = 12; // minutes
         return {
             totalDistance: sortedJobs.length > 1 ? (sortedJobs.length - 1) * avgDistanceBetweenStops : 0,

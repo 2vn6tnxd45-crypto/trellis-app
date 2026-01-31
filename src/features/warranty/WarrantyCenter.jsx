@@ -1,9 +1,8 @@
 // ============================================
-// 🛡️ WARRANTY CENTER - Krib Feature Mock-up
+// 🛡️ WARRANTY CENTER - Krib Feature
 // ============================================
 // A dedicated warranty dashboard showing coverage status,
 // time remaining, contact info, and proactive alerts.
-// Replaces the vague "home value" concept with actionable data.
 
 import React, { useState, useMemo } from 'react';
 
@@ -126,14 +125,14 @@ const calculateWarrantyStatus = (warranty, installDate) => {
   if (!warranty?.hasCoverage) {
     return { status: 'none', partsRemaining: 0, laborRemaining: 0 };
   }
-  
+
   const now = new Date();
   const start = new Date(warranty.startDate || installDate);
   const monthsElapsed = Math.floor((now - start) / (1000 * 60 * 60 * 24 * 30.44));
-  
+
   const partsRemaining = Math.max(0, (warranty.partsMonths || 0) - monthsElapsed);
   const laborRemaining = Math.max(0, (warranty.laborMonths || 0) - monthsElapsed);
-  
+
   // Determine overall status
   let status = 'expired';
   if (partsRemaining > 0 || laborRemaining > 0) {
@@ -149,7 +148,7 @@ const calculateWarrantyStatus = (warranty, installDate) => {
       status = 'active';
     }
   }
-  
+
   return { status, partsRemaining, laborRemaining, monthsElapsed };
 };
 
@@ -250,7 +249,7 @@ const ArcGauge = ({ percentage, size = 80, strokeWidth = 8, status }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * Math.PI; // Half circle
   const offset = circumference - (percentage / 100) * circumference;
-  
+
   return (
     <div className="relative" style={{ width: size, height: size / 2 + 10 }}>
       <svg width={size} height={size / 2 + 10} className="transform -rotate-0">
@@ -291,13 +290,13 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
     item.installDate
   );
   const config = getStatusConfig(status);
-  
+
   // Calculate percentage for gauge (based on parts warranty as primary)
   const totalParts = item.warranty?.partsMonths || 1;
   const partsPercentage = Math.min(100, (partsRemaining / totalParts) * 100);
-  
+
   return (
-    <div 
+    <div
       className={`
         group relative overflow-hidden rounded-2xl border-2 transition-all duration-300
         ${config.border} ${config.bgLight}
@@ -306,7 +305,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
     >
       {/* Status indicator bar */}
       <div className={`absolute top-0 left-0 right-0 h-1 ${config.bg}`} />
-      
+
       <button
         onClick={onToggle}
         className="w-full text-left p-5 focus:outline-none"
@@ -319,7 +318,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
           `}>
             {getCategoryIcon(item.category)}
           </div>
-          
+
           {/* Item Info */}
           <div className="flex-grow min-w-0">
             <div className="flex items-start justify-between gap-2">
@@ -327,7 +326,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 <h3 className="font-bold text-slate-900 truncate">{item.itemName}</h3>
                 <p className="text-sm text-slate-500">{item.category}</p>
               </div>
-              
+
               {/* Status Badge */}
               <span className={`
                 shrink-0 px-3 py-1 rounded-full text-xs font-bold
@@ -336,7 +335,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 {config.label}
               </span>
             </div>
-            
+
             {/* Quick Stats */}
             <div className="mt-3 flex items-center gap-4">
               {partsRemaining > 0 && (
@@ -360,19 +359,19 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
               )}
             </div>
           </div>
-          
+
           {/* Mini Gauge */}
           <div className="hidden sm:block">
             <ArcGauge percentage={partsPercentage} size={64} strokeWidth={6} status={status} />
           </div>
         </div>
       </button>
-      
+
       {/* Expanded Details */}
       {isExpanded && (
         <div className="px-5 pb-5 pt-0 border-t border-slate-200/50 mt-0">
           <div className="pt-4 space-y-4">
-            
+
             {/* Coverage Details */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-xl p-3 border border-slate-100">
@@ -384,7 +383,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 <p className="font-semibold text-slate-800 mt-1 capitalize">{item.warranty?.provider || 'Unknown'}</p>
               </div>
             </div>
-            
+
             {/* Registration Number */}
             {item.warranty?.registrationNumber && (
               <div className="bg-white rounded-xl p-3 border border-slate-100">
@@ -392,14 +391,14 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 <p className="font-mono font-semibold text-slate-800 mt-1">{item.warranty.registrationNumber}</p>
               </div>
             )}
-            
+
             {/* Contact Section */}
             <div className="bg-white rounded-xl p-4 border border-slate-100">
               <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-3">Contact for Claims</p>
               <p className="font-semibold text-slate-800">{item.warranty?.contactName}</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {item.warranty?.contactPhone && (
-                  <a 
+                  <a
                     href={`tel:${item.warranty.contactPhone}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors"
                   >
@@ -410,7 +409,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                   </a>
                 )}
                 {item.warranty?.contactEmail && (
-                  <a 
+                  <a
                     href={`mailto:${item.warranty.contactEmail}`}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors"
                   >
@@ -422,7 +421,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 )}
               </div>
             </div>
-            
+
             {/* Badges */}
             <div className="flex flex-wrap gap-2">
               {item.warranty?.transferable && (
@@ -442,7 +441,7 @@ const WarrantyCard = ({ item, isExpanded, onToggle }) => {
                 </span>
               )}
             </div>
-            
+
             {/* Notes */}
             {item.warranty?.notes && (
               <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
@@ -468,7 +467,7 @@ const StatCard = ({ icon, value, label, color = 'slate', onClick, isActive }) =>
     rose: 'bg-rose-50 border-rose-200 text-rose-700',
     slate: 'bg-slate-50 border-slate-200 text-slate-600'
   };
-  
+
   return (
     <button
       onClick={onClick}
@@ -490,10 +489,10 @@ const StatCard = ({ icon, value, label, color = 'slate', onClick, isActive }) =>
 // MAIN WARRANTY CENTER COMPONENT
 // ============================================
 
-export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
+export const WarrantyCenter = ({ records = [] }) => {
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
-  
+
   // Process warranties and calculate stats
   const processedItems = useMemo(() => {
     return records.map(item => ({
@@ -501,7 +500,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
       ...calculateWarrantyStatus(item.warranty, item.installDate)
     }));
   }, [records]);
-  
+
   // Calculate counts
   const counts = useMemo(() => {
     return processedItems.reduce((acc, item) => {
@@ -510,7 +509,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
       return acc;
     }, { total: 0, active: 0, expiring: 0, critical: 0, expired: 0 });
   }, [processedItems]);
-  
+
   // Filter items
   const filteredItems = useMemo(() => {
     if (filter === 'all') return processedItems;
@@ -519,7 +518,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
     }
     return processedItems.filter(i => i.status === filter);
   }, [processedItems, filter]);
-  
+
   // Sort: critical first, then expiring, then active, then expired
   const sortedItems = useMemo(() => {
     const order = { critical: 0, expiring: 1, active: 2, expired: 3, none: 4 };
@@ -544,45 +543,45 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
           </div>
         </div>
       </div>
-      
+
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
-        
+
         {/* Summary Stats */}
         <div className="grid grid-cols-4 gap-3">
-          <StatCard 
-            icon="🛡️" 
-            value={counts.active} 
-            label="Active" 
+          <StatCard
+            icon="🛡️"
+            value={counts.active}
+            label="Active"
             color="emerald"
             onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
             isActive={filter === 'active'}
           />
-          <StatCard 
-            icon="⚠️" 
-            value={counts.expiring + counts.critical} 
-            label="Attention" 
+          <StatCard
+            icon="⚠️"
+            value={counts.expiring + counts.critical}
+            label="Attention"
             color="amber"
             onClick={() => setFilter(filter === 'attention' ? 'all' : 'attention')}
             isActive={filter === 'attention'}
           />
-          <StatCard 
-            icon="📋" 
-            value={counts.expired} 
-            label="Expired" 
+          <StatCard
+            icon="📋"
+            value={counts.expired}
+            label="Expired"
             color="slate"
             onClick={() => setFilter(filter === 'expired' ? 'all' : 'expired')}
             isActive={filter === 'expired'}
           />
-          <StatCard 
-            icon="📦" 
-            value={counts.total} 
-            label="Total" 
+          <StatCard
+            icon="📦"
+            value={counts.total}
+            label="Total"
             color="slate"
             onClick={() => setFilter('all')}
             isActive={filter === 'all'}
           />
         </div>
-        
+
         {/* Alert Banner (if items need attention) */}
         {(counts.critical > 0 || counts.expiring > 0) && filter !== 'attention' && (
           <button
@@ -604,7 +603,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
             </svg>
           </button>
         )}
-        
+
         {/* Filter Pills */}
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           {['all', 'active', 'attention', 'expired'].map((f) => (
@@ -613,8 +612,8 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
               onClick={() => setFilter(f)}
               className={`
                 px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-all
-                ${filter === f 
-                  ? 'bg-slate-900 text-white shadow-lg' 
+                ${filter === f
+                  ? 'bg-slate-900 text-white shadow-lg'
                   : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
                 }
               `}
@@ -626,7 +625,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
             </button>
           ))}
         </div>
-        
+
         {/* Warranty List */}
         <div className="space-y-3">
           {sortedItems.length === 0 ? (
@@ -645,7 +644,7 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
             ))
           )}
         </div>
-        
+
         {/* Empty State CTA */}
         {counts.total === 0 && (
           <div className="text-center py-12 bg-white rounded-3xl border-2 border-dashed border-slate-200">
@@ -671,10 +670,10 @@ export const WarrantyCenter = ({ records = SAMPLE_WARRANTIES }) => {
 // This replaces the old Property Vitals grid with
 // data you ACTUALLY have access to.
 
-export const RevisedReportVitals = ({ 
-  records = [], 
+export const RevisedReportVitals = ({
+  records = [],
   warranties = [],
-  contractors = [] 
+  contractors = []
 }) => {
   // Calculate real stats from your data
   const totalInvestment = records.reduce((sum, r) => sum + (parseFloat(r.cost) || 0), 0);
@@ -683,7 +682,7 @@ export const RevisedReportVitals = ({
     return status === 'active' || status === 'expiring';
   }).length;
   const uniqueContractors = new Set(records.map(r => r.contractor).filter(Boolean)).size;
-  
+
   const formatCurrency = (val) => {
     if (val >= 1000) return `$${(val / 1000).toFixed(1)}k`;
     return `$${val.toFixed(0)}`;
