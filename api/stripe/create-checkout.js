@@ -147,7 +147,7 @@ export default async function handler(req, res) {
         const amountInCents = Math.round(verifiedAmount * 100);
 
         // Base URLs
-        const baseUrl = process.env.VERCEL_URL 
+        const baseUrl = process.env.VERCEL_URL
             ? `https://${process.env.VERCEL_URL}`
             : 'https://mykrib.app';
 
@@ -158,19 +158,19 @@ export default async function handler(req, res) {
         const defaultCancelUrl = `${baseUrl}/payment/cancelled?type=${type}&job=${jobId || ''}&quote=${quoteToken}`;
 
         // Create line item description
-        const lineItemName = type === 'deposit' 
+        const lineItemName = type === 'deposit'
             ? `Deposit for: ${title || 'Service'}`
             : type === 'balance'
                 ? `Balance Due: ${title || 'Service'}`
                 : title || 'Service Payment';
 
-        // Create Checkout Session
-        // Using "destination" charge - funds go to contractor, Krib takes no cut
+        // Create Checkout Session with destination charge
+        // Funds are transferred to the contractor's connected Stripe account
         const session = await stripe.checkout.sessions.create({
             mode: 'payment',
             payment_method_types: ['card'],
             customer_email: customerEmail || undefined,
-            
+
             line_items: [
                 {
                     price_data: {
@@ -184,7 +184,7 @@ export default async function handler(req, res) {
                     quantity: 1,
                 },
             ],
-            
+
             // Send payment to contractor's connected account
             payment_intent_data: {
                 // Direct charge to connected account
@@ -202,7 +202,7 @@ export default async function handler(req, res) {
                 // Description that appears on bank statement
                 statement_descriptor_suffix: 'KRIB',
             },
-            
+
             // Metadata on the session itself
             metadata: {
                 type: type || 'payment',
@@ -212,13 +212,13 @@ export default async function handler(req, res) {
                 customerName: customerName || '',
                 platform: 'krib'
             },
-            
+
             success_url: successUrl || defaultSuccessUrl,
             cancel_url: cancelUrl || defaultCancelUrl,
-            
+
             // Collect billing address for receipts
             billing_address_collection: 'auto',
-            
+
             // Allow promotion codes (future feature)
             allow_promotion_codes: false,
         });
@@ -235,7 +235,7 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error('Stripe checkout error:', error);
-        
+
         return res.status(500).json({
             error: 'Failed to create checkout session',
             message: error.message

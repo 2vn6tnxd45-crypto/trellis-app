@@ -1818,7 +1818,7 @@ const MarketplaceListingCard = ({ profile, contractorId }) => {
                     <p className="text-sm text-slate-600 mb-3">
                         {isListed
                             ? 'Your business is visible to homeowners searching for contractors in your area.'
-                            : 'Get discovered by homeowners in your area. Your profile will appear in the Krib contractor directory. Free forever.'
+                            : 'Get discovered by homeowners in your area. Your profile will appear in the Krib contractor directory.'
                         }
                     </p>
 
