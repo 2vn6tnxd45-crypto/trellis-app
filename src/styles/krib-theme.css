@@ -1,14 +1,18 @@
 /* ============================================
+   FONT IMPORTS - Satoshi from Fontshare
+   ============================================ */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800,900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
    KRIB THEME - Font & Brand Additions
    ============================================
    Add these imports/rules to the TOP of your
    existing krib-theme.css file.
    ============================================ */
-
-/* ============================================
-   FONT IMPORTS - Satoshi from Fontshare
-   ============================================ */
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700,800,900&display=swap');
 
 /* ============================================
    CSS VARIABLES - Brand

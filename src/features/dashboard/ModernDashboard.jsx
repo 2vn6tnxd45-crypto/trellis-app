@@ -41,6 +41,9 @@ import { useCustomerRecurringServices, RecurringServiceCard } from '../recurring
 // Unified Calendar
 import { UnifiedCalendar } from './components/UnifiedCalendar';
 
+// Emergency Quick Access
+import { EmergencyQuickAccess } from './components/EmergencyQuickAccess';
+
 // --- CONFIG & HELPERS ---
 
 // Helper to safely extract contractor name (prevents React Error #310)
@@ -1294,6 +1297,20 @@ export const ModernDashboard = ({
                 onQuoteCountChange={setPendingQuoteCount}
                 onEvalCountChange={setPendingEvalCount}
             />
+
+            {/* EMERGENCY QUICK ACCESS */}
+            <DashboardSection
+                title="Emergency"
+                icon={AlertTriangle}
+                defaultOpen={false}
+                summary={<span className="text-xs text-slate-500">Quick access contacts & shutoffs</span>}
+            >
+                <EmergencyQuickAccess
+                    userId={userId}
+                    contractors={contractors}
+                    activeProperty={activeProperty}
+                />
+            </DashboardSection>
 
             {/* MY HOME - Consolidated Property Intelligence + Environmental Insights */}
             <DashboardSection

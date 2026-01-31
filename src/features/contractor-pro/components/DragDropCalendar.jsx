@@ -702,21 +702,19 @@ const TimeSlot = React.memo(({
     });
 
     // Filter pending slots for this hour (timezone-aware)
+    // BUG 5 FIX: pendingSlots is already pre-filtered to this date by parent (pendingByDateKey)
+    // Only filter by hour using timezone-aware helper
     const slotPending = pendingSlots.filter(slot => {
-        const isSameDay = timezone
-            ? isSameDayInTimezone(slot.slotStart, date, timezone)
-            : isSameDayInTimezone(slot.slotStart, date, 'UTC');
         const slotHour = getHourFromDate(slot.slotStart, timezone);
-        return isSameDay && slotHour === hour;
+        return slotHour === hour;
     });
 
     // Filter evaluations for this hour (timezone-aware)
+    // BUG 5 FIX: evaluations is already pre-filtered to this date by parent (evalsByDateKey)
+    // Only filter by hour using timezone-aware helper
     const slotEvaluations = evaluations.filter(evaluation => {
-        const isSameDay = timezone
-            ? isSameDayInTimezone(evaluation.scheduledTime, date, timezone)
-            : isSameDayInTimezone(evaluation.scheduledTime, date, 'UTC');
         const evalHour = getHourFromDate(evaluation.scheduledTime, timezone);
-        return isSameDay && evalHour === hour;
+        return evalHour === hour;
     });
 
     // Check if this hour is within working hours
@@ -2158,6 +2156,45 @@ export const DragDropCalendar = ({
             }));
     }, [evaluations]);
 
+    // BUG 1 FIX: Pre-compute jobs grouped by date key to avoid calling getJobsForDate in render loop
+    // This runs once per data change instead of 84+ times per render (7 days × 12 hours)
+    const jobsByDateKey = useMemo(() => {
+        const map = new Map();
+        weekDates.forEach(date => {
+            const key = date.toISOString().split('T')[0];
+            map.set(key, getJobsForDate(scheduledJobs, date, timezone));
+        });
+        return map;
+    }, [scheduledJobs, weekDates, timezone]);
+
+    // BUG 2 FIX: Pre-compute pending slots grouped by date key
+    const pendingByDateKey = useMemo(() => {
+        const map = new Map();
+        const btz = preferences?.businessTimezone || timezone || 'UTC';
+        weekDates.forEach(date => {
+            const key = date.toISOString().split('T')[0];
+            map.set(key, pendingSlots.filter(slot => {
+                const slotDate = new Date(slot.slotStart);
+                return isSameDayInTimezone(slotDate, date, btz);
+            }));
+        });
+        return map;
+    }, [pendingSlots, weekDates, preferences?.businessTimezone, timezone]);
+
+    // BUG 2 FIX: Pre-compute evaluations grouped by date key
+    const evalsByDateKey = useMemo(() => {
+        const map = new Map();
+        const btz = preferences?.businessTimezone || timezone || 'UTC';
+        weekDates.forEach(date => {
+            const key = date.toISOString().split('T')[0];
+            map.set(key, scheduledEvaluations.filter(evaluation => {
+                const evalDate = new Date(evaluation.scheduledTime);
+                return isSameDayInTimezone(evalDate, date, btz);
+            }));
+        });
+        return map;
+    }, [scheduledEvaluations, weekDates, preferences?.businessTimezone, timezone]);
+
     // Working hours range - expands to fit late-day jobs
     const workingHours = useMemo(() => {
         let minHour = 8, maxHour = 18;
@@ -2243,7 +2280,6 @@ export const DragDropCalendar = ({
 
     const handleDragEnd = useCallback(() => {
         setDraggedJob(null);
-        setDropTarget(null);
     }, []);
 
     const handleDragOver = useCallback((e) => {
@@ -2281,7 +2317,6 @@ export const DragDropCalendar = ({
         }
         if (slotDateTime < new Date()) {
             toast.error('Cannot schedule a job in the past.', { icon: '⏰', duration: 3000 });
-            setDropTarget(null);
             setDraggedJob(null);
             return;
         }
@@ -2296,7 +2331,6 @@ export const DragDropCalendar = ({
                     icon: '🚫',
                     duration: 4000
                 });
-                setDropTarget(null);
                 setDraggedJob(null);
                 return;
             }
@@ -2307,7 +2341,6 @@ export const DragDropCalendar = ({
             setConfirmDrop({ job: jobData, date, hour });
         }
 
-        setDropTarget(null);
         setDraggedJob(null);
     }, [preferences?.workingHours, timezone]);
 
@@ -2710,9 +2743,9 @@ export const DragDropCalendar = ({
                                     key={idx}
                                     date={date}
                                     hour={hour}
-                                    jobs={getJobsForDate(scheduledJobs, date, timezone)}
-                                    pendingSlots={pendingSlots}
-                                    evaluations={scheduledEvaluations}
+                                    jobs={jobsByDateKey.get(date.toISOString().split('T')[0]) || []}
+                                    pendingSlots={pendingByDateKey.get(date.toISOString().split('T')[0]) || []}
+                                    evaluations={evalsByDateKey.get(date.toISOString().split('T')[0]) || []}
                                     onDrop={handleDrop}
                                     onDragOver={handleDragOver}
                                     onJobClick={handleInternalJobClick}

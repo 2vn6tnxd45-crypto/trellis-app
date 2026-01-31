@@ -6,6 +6,7 @@ export default {
   darkMode: 'class', // ← THIS IS THE NEW LINE - enables dark mode via class
   content: [
     "./index.html",
+    "./home/index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
